@@ -1,7 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the Heuresis main window",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Capability for the Heuresis main window and study cosmos popups",
+  "windows": ["main", "cosmos-*"],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-close"
+  ]
 }
