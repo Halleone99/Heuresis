@@ -56,7 +56,7 @@ export async function listRelatedCatalogue(packId: string, sourceCardId: string 
     p_source_card_id: sourceCardId,
   });
   if (error) throw error;
-  return (data ?? []).map(mapRow).filter((row): row is RelatedCatalogueRow => Boolean(row));
+  return (data ?? []).map(mapRow).filter((row: RelatedCatalogueRow | null): row is RelatedCatalogueRow => Boolean(row));
 }
 
 export async function addRelatedWord(input: {
