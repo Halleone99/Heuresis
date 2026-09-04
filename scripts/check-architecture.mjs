@@ -3,9 +3,13 @@ import { readFileSync } from "node:fs";
 const data = readFileSync(new URL("../src/lib/heuresis.ts", import.meta.url), "utf8");
 const capture = readFileSync(new URL("../src/components/CaptureView.tsx", import.meta.url), "utf8");
 
-const required = ["heuresis_collections", "heuresis_packs", "heuresis_card_types", "heuresis_cards"];
+const required = ["heuresis_collections", "heuresis_card_types", "heuresis_cards"];
 for (const table of required) {
-  if (!data.includes(table)) throw new Error(`Missing canonical Heuresis table: ${table}`);
+  if (!data.includes(table)) throw new Error(`Missing canonical Heuresis data source: ${table}`);
+}
+
+if (!data.includes("heuresis_packs") && !data.includes("heuresis_pack_overview")) {
+  throw new Error("Standalone Heuresis must read its canonical pack data.");
 }
 
 if (data.includes("knowledge_entries") || capture.includes("knowledge_entries")) {
