@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Archive, BookOpen, Link2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Collection, PackWithType } from "../lib/heuresis";
-import { listRelatedCatalogue } from "../lib/related";
+import { listRelatedCatalogue, type RelatedCatalogueRow } from "../lib/related";
 
 type Props = {
   collections: Collection[];
@@ -31,11 +31,11 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     let alive = true;
     const load = async () => {
       try {
-        const rows = await listRelatedCatalogue();
+        const rows: RelatedCatalogueRow[] = await listRelatedCatalogue();
         if (!alive) return;
         const packCollection = new Map(packs.map((pack) => [pack.id, pack.collection_id]));
         const wordsByCollection = new Map<string, Set<string>>();
-        rows.forEach((row) => {
+        rows.forEach((row: RelatedCatalogueRow) => {
           const nextCollectionId = packCollection.get(row.pack_id);
           if (!nextCollectionId) return;
           const words = wordsByCollection.get(nextCollectionId) ?? new Set<string>();
