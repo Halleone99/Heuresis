@@ -1,0 +1,69 @@
+.settings-modal-wide { width:min(880px,95vw); }
+.settings-tabs { display:flex; gap:5px; padding:12px 0 14px; border-bottom:1px solid #ddd6cc; }
+.settings-tabs button { border:1px solid #d7d0c5; background:#faf8f3; border-radius:999px; padding:7px 11px; color:#746a61; cursor:pointer; font-size:9px; }
+.settings-tabs button[aria-pressed="true"] { background:#342e29; border-color:#342e29; color:#fff; }
+.settings-body { padding-top:3px; }
+.settings-section-heading { display:grid; gap:3px; margin:17px 0 12px; }
+.settings-section-heading strong { font-size:12px; }
+.settings-section-heading span { max-width:680px; color:#81776e; font-size:9px; line-height:1.55; }
+.settings-rule { height:1px; background:#ddd6cc; margin:25px 0 20px; }
+.settings-save-row { display:flex; justify-content:flex-end; margin-top:12px; }
+
+.interest-preview { display:grid; grid-template-columns:90px auto 1fr; gap:10px; align-items:center; padding:10px 12px; border:1px solid #dad3c8; border-radius:7px; background:#f1ede5; color:#746a61; font-size:9px; }
+.interest-preview > div { display:flex; gap:4px; }
+.interest-preview b { width:25px; height:25px; display:grid; place-items:center; border-radius:50%; background:#342e29; color:#fff; font:8px 'DM Mono',monospace; }
+.interest-preview small { color:#91877d; font-size:8px; }
+.badge-settings-list { display:grid; gap:5px; margin-top:12px; }
+.badge-settings-row { display:grid; grid-template-columns:32px minmax(120px,1fr) 110px auto 50px 30px; gap:6px; align-items:center; border:1px solid #dbd4ca; border-radius:7px; background:#fbf9f4; padding:7px; }
+.badge-mark { display:grid; place-items:center; color:#81766d; }
+.badge-settings-row > input,
+.badge-settings-row label input,
+.badge-new input,
+.badge-promote select { min-width:0; width:100%; border:1px solid #d6cfc5; background:#fffdf9; border-radius:5px; padding:8px 9px; color:#3e3731; font-size:9px; }
+.badge-settings-row label { display:grid; grid-template-columns:30px 1fr; align-items:center; gap:3px; color:#94897f; font:7px 'DM Mono',monospace; }
+.badge-order { display:flex; gap:2px; }
+.badge-order button,
+.badge-remove { width:27px; height:27px; border:1px solid #d7d0c6; border-radius:5px; background:#f8f5ef; display:grid; place-items:center; cursor:pointer; color:#756b62; }
+.mini-save { border:0; background:transparent; color:#635a52; cursor:pointer; font-size:8px; }
+.badge-new { display:grid; grid-template-columns:1fr 120px auto; gap:6px; margin-top:10px; }
+.badge-promote { display:grid; grid-template-columns:1fr 190px auto; gap:8px; align-items:center; margin-top:13px; padding-top:13px; border-top:1px solid #ded7cd; color:#776e65; font-size:9px; }
+.sort-command-example { display:grid; grid-template-columns:110px 90px 1fr; gap:8px; align-items:center; margin-top:14px; padding:10px 11px; border-radius:6px; background:#ebe7df; color:#736a61; font-size:8px; }
+.sort-command-example code { padding:4px 7px; border-radius:4px; background:#302a25; color:#fff; text-align:center; font:8px 'DM Mono',monospace; }
+
+.structure-pack { display:grid; grid-template-columns:90px 1fr; gap:8px; align-items:center; margin-bottom:11px; color:#766d64; font-size:9px; }
+.structure-pack select,
+.structure-field select { border:1px solid #d6cfc5; border-radius:5px; background:#fbf9f4; padding:8px 9px; color:#4b433c; font-size:9px; }
+.structure-fields { display:grid; gap:5px; }
+.structure-field { display:grid; grid-template-columns:minmax(150px,1fr) 145px 110px 30px; gap:6px; align-items:center; }
+.structure-field > input,
+.structure-add input,
+.direction-card header input { border:1px solid #d6cfc5; border-radius:5px; background:#fffdf9; padding:8px 9px; color:#403832; font-size:9px; }
+.structure-field > button { width:29px; height:29px; border:1px solid #d7d0c6; border-radius:5px; background:#f8f5ef; display:grid; place-items:center; color:#8a5d56; cursor:pointer; }
+.structure-add { display:grid; grid-template-columns:1fr auto; gap:7px; margin-top:9px; }
+.structure-note { margin:7px 0 0; color:#91877d; font-size:8px; }
+.direction-list { display:grid; gap:8px; }
+.direction-card { border:1px solid #d8d1c7; border-radius:7px; background:#fbf9f4; padding:12px; }
+.direction-card[data-built-in="true"] { background:#f0ece4; }
+.direction-card > header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.direction-card > header input { flex:1; }
+.direction-card > header strong { flex:1; font-size:10px; }
+.direction-card > header span { color:#94897f; font:7px 'DM Mono',monospace; text-transform:uppercase; }
+.direction-card > label { display:grid; grid-template-columns:80px 1fr; gap:8px; align-items:start; margin-top:7px; color:#7a7067; font-size:8px; }
+.direction-fields { display:flex; flex-wrap:wrap; gap:4px; }
+.direction-fields button { border:1px solid #d6cfc5; border-radius:999px; background:#faf8f3; padding:5px 7px; color:#7a7067; cursor:pointer; font-size:8px; }
+.direction-fields button[aria-pressed="true"] { background:#342e29; border-color:#342e29; color:#fff; }
+.direction-card footer { display:flex; justify-content:flex-end; gap:6px; margin-top:11px; padding-top:9px; border-top:1px solid #e0d9cf; }
+.direction-summary { display:grid; grid-template-columns:1fr 24px 1fr; align-items:center; gap:6px; color:#675e56; font-size:9px; }
+.direction-summary > span { display:flex; align-items:center; gap:6px; }
+.direction-summary b { width:20px; height:20px; display:grid; place-items:center; border-radius:50%; background:#ddd7cd; font:7px 'DM Mono',monospace; }
+.direction-summary i { text-align:center; color:#9a9087; font-style:normal; }
+.direction-add { width:100%; border:1px dashed #cfc7bc; border-radius:7px; background:rgba(250,248,243,.58); padding:12px; display:flex; align-items:center; justify-content:center; gap:6px; color:#746a61; cursor:pointer; font-size:9px; }
+
+@media (max-width:760px) {
+  .badge-settings-row { grid-template-columns:28px 1fr 90px; }
+  .badge-order,.mini-save,.badge-remove { grid-row:2; }
+  .badge-new,.badge-promote { grid-template-columns:1fr; }
+  .structure-field { grid-template-columns:1fr 1fr; }
+  .structure-field > input { grid-column:1 / -1; }
+  .direction-card > label { grid-template-columns:1fr; }
+}
