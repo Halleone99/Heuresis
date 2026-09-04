@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { LogIn } from "lucide-react";
 import { supabase, supabaseConfigured } from "../lib/supabase";
+import HeuresisMark from "./HeuresisMark";
 
 type Props = { children: (session: Session) => ReactNode };
 
@@ -52,10 +53,10 @@ export default function AuthGate({ children }: Props) {
     return (
       <main className="auth-shell">
         <section className="auth-card">
-          <div className="brand-mark">H</div>
+          <div className="brand-mark"><HeuresisMark /></div>
           <p className="eyebrow">HEURESIS DESKTOP</p>
           <h1>Connect the existing database.</h1>
-          <p>Copy the Personal OS Supabase URL and publishable key into a local <code>.env</code> file using <code>.env.example</code>.</p>
+          <p>The desktop client could not resolve its Supabase configuration.</p>
         </section>
       </main>
     );
@@ -65,7 +66,7 @@ export default function AuthGate({ children }: Props) {
     return (
       <main className="auth-shell">
         <form className="auth-card" onSubmit={signIn}>
-          <div className="brand-mark">H</div>
+          <div className="brand-mark"><HeuresisMark /></div>
           <p className="eyebrow">HEURESIS DESKTOP</p>
           <h1>Return to your library.</h1>
           <p>Use the same Supabase account as Personal OS. The desktop session is stored locally on this device.</p>
