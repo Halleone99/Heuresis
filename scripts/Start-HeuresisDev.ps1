@@ -65,13 +65,7 @@ if ($needsBuild) {
     # exit code determines whether the build failed.
     $escapedLog = $logFile.Replace('"', '""')
     $buildCommand = "npm.cmd run tauri -- build --debug --no-bundle >> `"$escapedLog`" 2>&1"
-    $buildProcess = Start-Process \
-      -FilePath "cmd.exe" \
-      -ArgumentList "/d", "/c", $buildCommand \
-      -WorkingDirectory $repoRoot \
-      -WindowStyle Hidden \
-      -Wait \
-      -PassThru
+    $buildProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/d", "/c", $buildCommand -WorkingDirectory $repoRoot -WindowStyle Hidden -Wait -PassThru
     $buildExit = $buildProcess.ExitCode
 
     if ($buildExit -ne 0 -or -not (Test-Path $debugExe)) {
