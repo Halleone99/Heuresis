@@ -1,5 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#1f2824"/>
-  <rect x="24" y="24" width="464" height="464" rx="92" fill="none" stroke="#b7a889" stroke-width="8" opacity="0.72"/>
-  <path fill="#f4eddf" d="M112 104h136v32h-40v104h96V136h-40v-32h136v32h-40v240h40v32H264v-32h40v-104h-96v104h40v32H112v-32h40V136h-40v-32Z"/>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff1a8"/>
+      <stop offset="0.28" stop-color="#e6b84c"/>
+      <stop offset="0.62" stop-color="#c88f24"/>
+      <stop offset="1" stop-color="#f2cf70"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#020b07" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0f2b21"/>
+  <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="url(#gold)" stroke-width="8"/>
+  <g filter="url(#shadow)" stroke="url(#gold)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M365 155C327 105 230 91 165 131C106 167 108 233 168 258C220 279 302 262 360 226"/>
+    <path d="M361 315C308 277 231 257 173 279C112 301 105 364 158 404C217 448 321 434 371 364"/>
+  </g>
+  <path d="M173 263C229 237 294 238 346 264C295 292 230 292 173 263Z" fill="url(#gold)" filter="url(#shadow)"/>
 </svg>
