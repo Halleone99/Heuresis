@@ -56,14 +56,23 @@ if ($needsBuild) {
 
   Set-Content -Path $lockFile -Value (Get-Date).ToString("o") -Encoding ascii
   try {
-    Push-Location $repoRoot
-    try {
-      "[$(Get-Date -Format o)] Building Heuresis from commit $currentCommit" | Set-Content $logFile -Encoding utf8
-      & npm.cmd run tauri -- build --debug --no-bundle *>> $logFile
-      $buildExit = $LASTEXITCODE
-    } finally {
-      Pop-Location
-    }
+    "[$(Get-Date -Format o)] Building Heuresis from commit $currentCommit" | Set-Content $logFile -Encoding utf8
+
+    # Tauri's icon generator writes normal progress messages to stderr on Windows.
+    # PowerShell 5 can wrap those messages as NativeCommandError when
+    # $ErrorActionPreference is Stop, even though the command itself is healthy.
+    # Run the build through cmd.exe and redirect there so only the real process
+    # exit code determines whether the build failed.
+    $escapedLog = $logFile.Replace('"', '""')
+    $buildCommand = "npm.cmd run tauri -- build --debug --no-bundle >> `"$escapedLog`" 2>&1"
+    $buildProcess = Start-Process \
+      -FilePath "cmd.exe" \
+      -ArgumentList "/d", "/c", $buildCommand \
+      -WorkingDirectory $repoRoot \
+      -WindowStyle Hidden \
+      -Wait \
+      -PassThru
+    $buildExit = $buildProcess.ExitCode
 
     if ($buildExit -ne 0 -or -not (Test-Path $debugExe)) {
       Show-HeuresisMessage "Heuresis could not update. The build log is here:`n$logFile"
