@@ -6,6 +6,7 @@ import "./styles.css";
 import "./standalone-v2.css";
 import "./settings-v2.css";
 import "./brand.css";
+import "./popup-system.css";
 import "./components/review-background.css";
 
 const params = new URLSearchParams(window.location.search);
