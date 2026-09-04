@@ -21,14 +21,27 @@ export async function setSortTags(cardId: string, tagIds: string[]) {
   if (error) throw error;
 }
 
+export async function setSortInterest(cardId: string, rank: number | null) {
+  const safeRank = rank == null ? null : Math.min(5, Math.max(1, Math.round(rank)));
+  const { error } = await db().from("heuresis_cards").update({
+    interest_rank: safeRank,
+    interesting: Boolean(safeRank && safeRank >= 4),
+  }).eq("id", cardId);
+  if (error) throw error;
+}
+
+export async function markCardSorted(card: CardWithStats) {
+  const existing = card.data[SORTED_AT_KEY];
+  if (typeof existing === "string" && existing.trim()) return card.data;
+  const data = { ...card.data, [SORTED_AT_KEY]: new Date().toISOString() };
+  const { error } = await db().from("heuresis_cards").update({ data }).eq("id", card.id);
+  if (error) throw error;
+  return data;
+}
+
 export async function completeCardSort(card: CardWithStats, rank: number, tagIds: string[]) {
   const safeRank = Math.min(5, Math.max(1, Math.round(rank)));
-  const data = { ...card.data, [SORTED_AT_KEY]: new Date().toISOString() };
-  const { error } = await db().from("heuresis_cards").update({
-    data,
-    interest_rank: safeRank,
-    interesting: safeRank >= 4,
-  }).eq("id", card.id);
-  if (error) throw error;
+  await setSortInterest(card.id, safeRank);
   await setSortTags(card.id, tagIds);
+  await markCardSorted({ ...card, interest_rank: safeRank });
 }
