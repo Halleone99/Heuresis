@@ -12,11 +12,11 @@ import {
   type HeuresisTag,
   type PackWithType,
 } from "../lib/heuresis";
+import { openCosmosWindow } from "../lib/cosmosWindow";
 import BrowseModal from "./BrowseModal";
 import ImportModal from "./ImportModal";
 import RelatedEditor from "./RelatedEditor";
 import RelatedView from "./RelatedView";
-import SortModal from "./SortModal";
 import StudyModal from "./StudyModal";
 
 type FilterKey = "all" | "new" | "favourite" | "interesting" | "again";
@@ -88,11 +88,11 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [editing, setEditing] = useState<CardWithStats | null>(null);
   const [studyOpen, setStudyOpen] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -130,6 +130,15 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     onChanged();
   }
 
+  async function openSort() {
+    setActionMessage("");
+    try {
+      await openCosmosWindow({ mode: "sort", packId: pack.id, source: "unsorted", order: "pack", count: "all" });
+    } catch (openError) {
+      setActionMessage(openError instanceof Error ? openError.message : "Could not open Sort.");
+    }
+  }
+
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
   return (
@@ -144,10 +153,11 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
         <button className="primary-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Flashcards</button>
         <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
         <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
-        <button className="secondary-button" disabled={!cards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort</button>
+        <button className="secondary-button" disabled={!cards.length} onClick={() => void openSort()}><SlidersHorizontal size={15} /> Sort</button>
         <button className="secondary-button" onClick={() => setImportOpen(true)}><FileUp size={15} /> Import</button>
         <button className="secondary-button" onClick={onCapture}><Plus size={15} /> Add card</button>
       </div>
+      {actionMessage ? <div className="editor-message">{actionMessage}</div> : null}
 
       <div className="pack-toolbar"><label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this topic" /></label><div className="filter-strip"><Filter size={14} />{([['all', 'All'], ['new', 'Never encountered'], ['favourite', 'Favourites'], ['interesting', 'Interest 4–5'], ['again', 'Often Again']] as Array<[FilterKey, string]>).map(([key, label]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div></div>
 
@@ -157,7 +167,6 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} /> : null}
       {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => void refreshAll()} /> : null}
-      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => { setSortOpen(false); void refreshAll(); }} onChanged={() => void refreshAll()} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
     </section>
