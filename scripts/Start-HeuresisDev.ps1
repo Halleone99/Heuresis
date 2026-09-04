@@ -3,64 +3,79 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $debugExe = Join-Path $repoRoot "src-tauri\target\debug\heuresis.exe"
 $stateDir = Join-Path $repoRoot ".dev"
-$lockFile = Join-Path $stateDir "launcher-starting.lock"
-$logFile = Join-Path $stateDir "last-launch.log"
+$stampFile = Join-Path $stateDir "built-commit.txt"
+$lockFile = Join-Path $stateDir "local-build.lock"
+$logFile = Join-Path $stateDir "last-build.log"
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 
-function Test-HeuresisDevServer {
-  $client = New-Object System.Net.Sockets.TcpClient
+function Show-HeuresisMessage([string]$message, [string]$title = "Heuresis") {
   try {
-    $result = $client.BeginConnect("127.0.0.1", 1421, $null, $null)
-    if (-not $result.AsyncWaitHandle.WaitOne(180)) { return $false }
-    $client.EndConnect($result)
-    return $true
+    Add-Type -AssemblyName PresentationFramework -ErrorAction Stop
+    [System.Windows.MessageBox]::Show($message, $title) | Out-Null
   } catch {
-    return $false
-  } finally {
-    $client.Close()
+    # If WPF is unavailable, fail quietly; diagnostics remain in the log file.
   }
 }
 
-# If the Vite/Tauri dev environment is already alive, just open another
-# Heuresis window from the existing debug binary.
-if ((Test-HeuresisDevServer) -and (Test-Path $debugExe)) {
-  Start-Process -FilePath $debugExe -WorkingDirectory $repoRoot
-  exit 0
+function Get-CurrentCommit {
+  try {
+    $commit = (& git -C $repoRoot rev-parse HEAD 2>$null).Trim()
+    if ($LASTEXITCODE -eq 0 -and $commit) { return $commit }
+  } catch {}
+  return "unknown"
 }
 
-# Avoid starting several Vite/Cargo stacks if the pinned icon is clicked twice
-# while the first development launch is still compiling.
-if (Test-Path $lockFile) {
-  $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
-  if ($lockAge.TotalSeconds -lt 90) { exit 0 }
-  Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-}
+$currentCommit = Get-CurrentCommit
+$builtCommit = if (Test-Path $stampFile) { (Get-Content $stampFile -Raw).Trim() } else { "" }
+$needsBuild = (-not (Test-Path $debugExe)) -or ($builtCommit -ne $currentCommit)
 
-Set-Content -Path $lockFile -Value (Get-Date).ToString("o") -Encoding ascii
-
-$npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
-if (-not $npm) {
-  Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-  throw "npm.cmd was not found. Install Node.js before launching Heuresis development mode."
-}
-
-# Keep the development terminal out of the way. Output is retained in
-# .dev\last-launch.log so a failed launch can still be diagnosed.
-$escapedRoot = $repoRoot.Replace('"', '""')
-$escapedLog = $logFile.Replace('"', '""')
-$command = "cd /d `"$escapedRoot`" && npm.cmd run tauri dev > `"$escapedLog`" 2>&1"
-Start-Process -FilePath "cmd.exe" -ArgumentList "/d", "/c", $command -WorkingDirectory $repoRoot -WindowStyle Hidden
-
-# Keep the lock while Vite/Tauri is starting, then release it. The Tauri CLI
-# opens the first app window itself; future clicks take the fast path above.
-for ($i = 0; $i -lt 240; $i += 1) {
-  Start-Sleep -Milliseconds 250
-  if (Test-HeuresisDevServer) {
+# The pinned app must be a bundled local build, not a `tauri dev` binary.
+# That removes the localhost/Vite dependency which caused ERR_CONNECTION_REFUSED.
+if ($needsBuild) {
+  if (Test-Path $lockFile) {
+    $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
+    if ($lockAge.TotalMinutes -lt 10) {
+      Show-HeuresisMessage "Heuresis is already updating. It will open when the local build is ready."
+      exit 0
+    }
     Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+  }
+
+  $running = Get-Process -Name "heuresis" -ErrorAction SilentlyContinue
+  if ($running) {
+    Show-HeuresisMessage "A newer Heuresis version is ready to build. Close the open Heuresis window, then click the pinned icon again."
     exit 0
   }
+
+  $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+  if (-not $npm) {
+    Show-HeuresisMessage "npm.cmd was not found. Node.js is required to update the local Heuresis app."
+    exit 1
+  }
+
+  Set-Content -Path $lockFile -Value (Get-Date).ToString("o") -Encoding ascii
+  try {
+    Push-Location $repoRoot
+    try {
+      "[$(Get-Date -Format o)] Building Heuresis from commit $currentCommit" | Set-Content $logFile -Encoding utf8
+      & npm.cmd run tauri -- build --debug --no-bundle *>> $logFile
+      $buildExit = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+
+    if ($buildExit -ne 0 -or -not (Test-Path $debugExe)) {
+      Show-HeuresisMessage "Heuresis could not update. The build log is here:`n$logFile"
+      exit 1
+    }
+
+    Set-Content -Path $stampFile -Value $currentCommit -Encoding ascii
+  } finally {
+    Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
+  }
 }
 
-Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-exit 0
+# This executable contains the built frontend, so it does not need localhost,
+# Vite, a terminal window, or a persistent development server.
+Start-Process -FilePath $debugExe -WorkingDirectory $repoRoot
