@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 
 export const CARD_PAGE_SIZE = 200;
+const MAX_CARD_PAGES = 50;
 
 export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | "slate" | "ink";
 export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
@@ -116,6 +117,37 @@ function first<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
 
+function mapCardRow(row: any): CardWithStats {
+  const stats = first(row.heuresis_card_stats) as Partial<CardStats> | null;
+  const tags = (Array.isArray(row.heuresis_card_tags) ? row.heuresis_card_tags : [])
+    .flatMap((link: any) => {
+      const tag = first(link.heuresis_tags) as HeuresisTag | null;
+      return tag?.id ? [tag] : [];
+    });
+
+  return {
+    id: row.id,
+    pack_id: row.pack_id,
+    data: cardData(row.data),
+    note: row.note ?? null,
+    favourite: Boolean(row.favourite),
+    interesting: Boolean(row.interesting),
+    interest_rank: row.interest_rank == null ? null : Number(row.interest_rank),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    tags,
+    stats: stats ? {
+      encounter_count: Number(stats.encounter_count ?? 0),
+      study_count: Number(stats.study_count ?? 0),
+      known_count: Number(stats.known_count ?? 0),
+      again_count: Number(stats.again_count ?? 0),
+      hard_count: Number(stats.hard_count ?? 0),
+      good_count: Number(stats.good_count ?? 0),
+      easy_count: Number(stats.easy_count ?? 0),
+    } : { ...EMPTY_STATS },
+  };
+}
+
 export function fieldByRole(type: CardType | null | undefined, role: FieldRole) {
   return type?.field_schema.find((field) => field.role === role) ?? null;
 }
@@ -189,44 +221,26 @@ export async function listTags(): Promise<HeuresisTag[]> {
 }
 
 export async function listCards(packId: string): Promise<CardWithStats[]> {
-  const { data, error } = await db()
-    .from("heuresis_cards")
-    .select("id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))")
-    .eq("pack_id", packId)
-    .eq("role", "main")
-    .order("created_at", { ascending: true })
-    .limit(CARD_PAGE_SIZE);
-  if (error) throw error;
+  const rows: any[] = [];
 
-  return (data ?? []).map((row: any) => {
-    const stats = first(row.heuresis_card_stats) as Partial<CardStats> | null;
-    const tags = (Array.isArray(row.heuresis_card_tags) ? row.heuresis_card_tags : [])
-      .flatMap((link: any) => {
-        const tag = first(link.heuresis_tags) as HeuresisTag | null;
-        return tag?.id ? [tag] : [];
-      });
-    return {
-      id: row.id,
-      pack_id: row.pack_id,
-      data: cardData(row.data),
-      note: row.note ?? null,
-      favourite: Boolean(row.favourite),
-      interesting: Boolean(row.interesting),
-      interest_rank: row.interest_rank == null ? null : Number(row.interest_rank),
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      tags,
-      stats: stats ? {
-        encounter_count: Number(stats.encounter_count ?? 0),
-        study_count: Number(stats.study_count ?? 0),
-        known_count: Number(stats.known_count ?? 0),
-        again_count: Number(stats.again_count ?? 0),
-        hard_count: Number(stats.hard_count ?? 0),
-        good_count: Number(stats.good_count ?? 0),
-        easy_count: Number(stats.easy_count ?? 0),
-      } : { ...EMPTY_STATS },
-    };
-  });
+  for (let page = 0; page < MAX_CARD_PAGES; page += 1) {
+    const start = page * CARD_PAGE_SIZE;
+    const { data, error } = await db()
+      .from("heuresis_cards")
+      .select("id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))")
+      .eq("pack_id", packId)
+      .eq("role", "main")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(start, start + CARD_PAGE_SIZE - 1);
+    if (error) throw error;
+
+    const pageRows = data ?? [];
+    rows.push(...pageRows);
+    if (pageRows.length < CARD_PAGE_SIZE) return rows.map(mapCardRow);
+  }
+
+  throw new Error(`This topic contains more than ${CARD_PAGE_SIZE * MAX_CARD_PAGES} cards. Raise the Heuresis safety limit before loading it.`);
 }
 
 function cleanCardValues(pack: PackWithType, values: Record<string, string>) {
