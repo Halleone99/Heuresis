@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 
 export type StudyGrade = "again" | "hard" | "good" | "easy";
 export type StudyEventType = "encountered" | "revealed" | StudyGrade;
+export type HeuresisSessionMode = "flashcards" | "sort" | "browse" | "related";
 
 export type StudyTemplate = {
   id: string;
@@ -52,14 +53,18 @@ export async function loadStudySetup(packId: string, cardTypeId: string) {
   };
 }
 
-export async function startStudySession(packId: string, templateId: string | null) {
+export async function startHeuresisSession(packId: string, mode: HeuresisSessionMode, templateId: string | null = null) {
   const { data, error } = await db()
     .from("heuresis_sessions")
-    .insert({ pack_id: packId, mode: "flashcards", template_id: templateId })
+    .insert({ pack_id: packId, mode, template_id: templateId })
     .select("id")
     .single();
   if (error) throw error;
   return data.id;
+}
+
+export async function startStudySession(packId: string, templateId: string | null) {
+  return startHeuresisSession(packId, "flashcards", templateId);
 }
 
 export async function finishStudySession(sessionId: string) {
