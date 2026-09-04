@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "pretauri": "tauri icon src-tauri/heuresis-icon.svg",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Install-HeuresisDevShortcut.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4",
