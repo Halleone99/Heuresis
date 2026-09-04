@@ -92,22 +92,10 @@ function HeuresisApp({ session }: { session: Session }) {
     "--heuresis-background-fit": background.settings.fit,
   };
 
-  function openLibrary() {
-    setView("library"); setActivePackId(null); setCapturePack(null);
-  }
-
-  function openPack(pack: PackWithType) {
-    setActivePackId(pack.id); setCapturePack(null); setView("pack");
-  }
-
-  function openCapture(pack: PackWithType | null = null) {
-    setCapturePack(pack); setView("capture");
-  }
-
-  function leaveCapture() {
-    if (capturePack) openPack(capturePack);
-    else openLibrary();
-  }
+  function openLibrary() { setView("library"); setActivePackId(null); setCapturePack(null); }
+  function openPack(pack: PackWithType) { setActivePackId(pack.id); setCapturePack(null); setView("pack"); }
+  function openCapture(pack: PackWithType | null = null) { setCapturePack(pack); setView("capture"); }
+  function leaveCapture() { if (capturePack) openPack(capturePack); else openLibrary(); }
 
   function openNewTopic(preferredCollectionId: string | null = null) {
     setTopicModalPack(null); setTopicPreferredCollectionId(preferredCollectionId); setTopicModalOpen(true);
@@ -132,10 +120,8 @@ function HeuresisApp({ session }: { session: Session }) {
     <div className="heuresis-desktop" style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
       <div className="heuresis-wallpaper" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
-
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={openLibrary}>Heuresis<span>.</span></button>
-        <span className="desktop-spacer" />
+        <button className="desktop-wordmark" onClick={openLibrary}>Heuresis<span>.</span></button><span className="desktop-spacer" />
         <button className="desktop-action" onClick={() => setSearchOpen(true)}><Search size={14} /> Search</button>
         <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); }}><BookOpen size={14} /> Catalogue</button>
         <button className={`desktop-action ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); }}><Link2 size={14} /> Related</button>
@@ -144,15 +130,8 @@ function HeuresisApp({ session }: { session: Session }) {
         <button className={`desktop-action ${view === "capture" ? "active" : ""}`} onClick={() => openCapture()}><Plus size={14} /> Capture</button>
         <button className="desktop-action" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
       </header>
-
-      <div className="desktop-account-strip">
-        <span>{session.user.email || "Supabase account"}</span>
-        <button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={13} /> Refresh</button>
-        <button onClick={() => void supabase?.auth.signOut()}><LogOut size={13} /> Sign out</button>
-      </div>
-
+      <div className="desktop-account-strip"><span>{session.user.email || "Supabase account"}</span><button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={13} /> Refresh</button><button onClick={() => void supabase?.auth.signOut()}><LogOut size={13} /> Sign out</button></div>
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div> : null}
-
       <main className="desktop-content">
         {loading ? <div className="content-state">Opening the Heuresis database…</div> : null}
         {!loading && error ? <div className="content-state error-state"><strong>Database connection failed.</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
@@ -162,9 +141,8 @@ function HeuresisApp({ session }: { session: Session }) {
         {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
         {!loading && !error && view === "capture" ? <CaptureView collections={collections} packs={packs} initialPack={capturePack} onBack={leaveCapture} onSaved={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
-
       {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
-      {settingsOpen ? <SettingsModal background={background} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} onClose={() => setCollectionsOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {topicModalOpen ? <TopicModal collections={collections} pack={topicModalPack} preferredCollectionId={topicPreferredCollectionId} onClose={() => { setTopicModalOpen(false); setTopicModalPack(null); }} onChanged={afterTopicChange} /> : null}
@@ -172,6 +150,4 @@ function HeuresisApp({ session }: { session: Session }) {
   );
 }
 
-export default function App() {
-  return <AuthGate>{(session) => <HeuresisApp session={session} />}</AuthGate>;
-}
+export default function App() { return <AuthGate>{(session) => <HeuresisApp session={session} />}</AuthGate>; }
