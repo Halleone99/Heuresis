@@ -6,6 +6,7 @@ import AuthGate from "./components/AuthGate";
 import CaptureView from "./components/CaptureView";
 import CatalogueView from "./components/CatalogueView";
 import CollectionsModal from "./components/CollectionsModal";
+import HeuresisMark from "./components/HeuresisMark";
 import LibraryView from "./components/LibraryView";
 import PackView from "./components/PackView";
 import RelatedCatalogueView from "./components/RelatedCatalogueView";
@@ -121,7 +122,7 @@ function HeuresisApp({ session }: { session: Session }) {
       <div className="heuresis-wallpaper" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={openLibrary}>Heuresis<span>.</span></button><span className="desktop-spacer" />
+        <button className="desktop-wordmark" onClick={openLibrary}><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button><span className="desktop-spacer" />
         <button className="desktop-action" onClick={() => setSearchOpen(true)}><Search size={14} /> Search</button>
         <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); }}><BookOpen size={14} /> Catalogue</button>
         <button className={`desktop-action ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); }}><Link2 size={14} /> Related</button>
