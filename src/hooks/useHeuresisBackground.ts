@@ -29,19 +29,13 @@ const DB_VERSION = 1;
 
 function clamp(settings: BackgroundSettings): BackgroundSettings {
   const number = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
-  return {
-    ...settings,
-    opacity: number(settings.opacity, 0, 1),
-    veil: number(settings.veil, 0, 1),
-    blur: number(settings.blur, 0, 20),
-  };
+  return { ...settings, opacity: number(settings.opacity, 0, 1), veil: number(settings.veil, 0, 1), blur: number(settings.blur, 0, 20) };
 }
 
 function readSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { ...DEFAULT_BACKGROUND_SETTINGS };
-    return clamp({ ...DEFAULT_BACKGROUND_SETTINGS, ...JSON.parse(raw) as Partial<BackgroundSettings> });
+    return raw ? clamp({ ...DEFAULT_BACKGROUND_SETTINGS, ...JSON.parse(raw) as Partial<BackgroundSettings> }) : { ...DEFAULT_BACKGROUND_SETTINGS };
   } catch {
     return { ...DEFAULT_BACKGROUND_SETTINGS };
   }
@@ -54,9 +48,7 @@ function writeSettings(settings: BackgroundSettings) {
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE_NAME)) request.result.createObjectStore(STORE_NAME);
-    };
+    request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains(STORE_NAME)) request.result.createObjectStore(STORE_NAME); };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open background cache."));
   });
@@ -67,8 +59,7 @@ async function readCachedBlob(): Promise<Blob | null> {
   try {
     const database = await openDb();
     return await new Promise<Blob | null>((resolve) => {
-      const transaction = database.transaction(STORE_NAME, "readonly");
-      const request = transaction.objectStore(STORE_NAME).get(PAGE);
+      const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(PAGE);
       request.onsuccess = () => { database.close(); resolve(request.result ?? null); };
       request.onerror = () => { database.close(); resolve(null); };
     });
@@ -80,8 +71,7 @@ async function writeCachedBlob(blob: Blob | null) {
   try {
     const database = await openDb();
     await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
+      const store = database.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME);
       const request = blob ? store.put(blob, PAGE) : store.delete(PAGE);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
@@ -128,20 +118,16 @@ export function useHeuresisBackground() {
   }, []);
 
   const loadCloud = useCallback(async () => {
-    if (!supabase) return;
-    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const client = supabase;
+    if (!client) return;
+    const { data: userData, error: userError } = await client.auth.getUser();
     if (userError) throw userError;
-    const user = userData.user;
-    if (!user) return;
-    const client = supabase as any;
-    const { data: row, error } = await client.from("page_backgrounds")
-      .select("storage_path,settings")
-      .eq("user_id", user.id)
-      .eq("page_key", PAGE)
-      .maybeSingle();
+    if (!userData.user) return;
+    const db = client as any;
+    const { data: row, error } = await db.from("page_backgrounds").select("storage_path,settings").eq("user_id", userData.user.id).eq("page_key", PAGE).maybeSingle();
     if (error) throw error;
     if (!row?.storage_path) return;
-    const download = await supabase.storage.from(BUCKET).download(String(row.storage_path));
+    const download = await client.storage.from(BUCKET).download(String(row.storage_path));
     if (download.error) throw download.error;
     if (!download.data) return;
     const next = cloudSettings(row.settings);
@@ -159,27 +145,23 @@ export function useHeuresisBackground() {
       if (!active) return;
       if (cached) showBlob(cached);
       setSettings(readSettings());
-      try { await loadCloud(); }
-      catch (error) { console.warn("Could not load the Personal OS Heuresis background.", error); }
+      try { await loadCloud(); } catch (error) { console.warn("Could not load the Personal OS Heuresis background.", error); }
       if (active) setLoading(false);
     })();
-    return () => {
-      active = false;
-      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
-    };
+    return () => { active = false; if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); };
   }, [loadCloud, showBlob]);
 
   const syncSettings = useCallback((next: BackgroundSettings) => {
-    if (!supabase || !cloudPath) return;
+    const client = supabase;
+    if (!client || !cloudPath) return;
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       void (async () => {
         try {
-          const { data: userData } = await supabase.auth.getUser();
+          const { data: userData } = await client.auth.getUser();
           if (!userData.user) return;
-          const client = supabase as any;
-          const { error } = await client.from("page_backgrounds").update({ settings: next, updated_at: new Date().toISOString() })
-            .eq("user_id", userData.user.id).eq("page_key", PAGE);
+          const db = client as any;
+          const { error } = await db.from("page_backgrounds").update({ settings: next, updated_at: new Date().toISOString() }).eq("user_id", userData.user.id).eq("page_key", PAGE);
           if (error) throw error;
           setSyncError("");
         } catch {
@@ -201,42 +183,40 @@ export function useHeuresisBackground() {
   const chooseImage = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
     if (file.size > MAX_UPLOAD_BYTES) throw new Error("Keep the background image under 12 MB.");
-    if (!supabase) throw new Error("Supabase is not configured.");
+    const client = supabase;
+    if (!client) throw new Error("Supabase is not configured.");
     setSyncing(true); setSyncError("");
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
+      const { data: userData, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!userData.user) throw new Error("Sign in before changing the background.");
       const userId = userData.user.id;
-      const client = supabase as any;
-      const current = await client.from("page_backgrounds").select("storage_path").eq("user_id", userId).eq("page_key", PAGE).maybeSingle();
+      const db = client as any;
+      const current = await db.from("page_backgrounds").select("storage_path").eq("user_id", userId).eq("page_key", PAGE).maybeSingle();
       if (current.error) throw current.error;
       const path = `${userId}/${PAGE}/${crypto.randomUUID()}.${extensionFor(file)}`;
-      const upload = await supabase.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", contentType: file.type, upsert: false });
+      const upload = await client.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", contentType: file.type, upsert: false });
       if (upload.error) throw upload.error;
       const next = clamp({ ...settings, enabled: true });
-      const metadata = await client.from("page_backgrounds").upsert({ user_id: userId, page_key: PAGE, storage_path: path, settings: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,page_key" });
-      if (metadata.error) {
-        await supabase.storage.from(BUCKET).remove([path]);
-        throw metadata.error;
-      }
-      if (current.data?.storage_path && current.data.storage_path !== path) void supabase.storage.from(BUCKET).remove([String(current.data.storage_path)]);
-      setCloudPath(path);
-      setSettings(next); writeSettings(next); showBlob(file); await writeCachedBlob(file);
+      const metadata = await db.from("page_backgrounds").upsert({ user_id: userId, page_key: PAGE, storage_path: path, settings: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,page_key" });
+      if (metadata.error) { await client.storage.from(BUCKET).remove([path]); throw metadata.error; }
+      if (current.data?.storage_path && current.data.storage_path !== path) void client.storage.from(BUCKET).remove([String(current.data.storage_path)]);
+      setCloudPath(path); setSettings(next); writeSettings(next); showBlob(file); await writeCachedBlob(file);
     } finally { setSyncing(false); }
   }, [settings, showBlob]);
 
   const removeImage = useCallback(async () => {
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
     setSyncing(true); setSyncError("");
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await client.auth.getUser();
       if (userData.user) {
-        const client = supabase as any;
-        const current = await client.from("page_backgrounds").select("storage_path").eq("user_id", userData.user.id).eq("page_key", PAGE).maybeSingle();
-        const deletion = await client.from("page_backgrounds").delete().eq("user_id", userData.user.id).eq("page_key", PAGE);
+        const db = client as any;
+        const current = await db.from("page_backgrounds").select("storage_path").eq("user_id", userData.user.id).eq("page_key", PAGE).maybeSingle();
+        const deletion = await db.from("page_backgrounds").delete().eq("user_id", userData.user.id).eq("page_key", PAGE);
         if (deletion.error) throw deletion.error;
-        if (current.data?.storage_path) void supabase.storage.from(BUCKET).remove([String(current.data.storage_path)]);
+        if (current.data?.storage_path) void client.storage.from(BUCKET).remove([String(current.data.storage_path)]);
       }
       setCloudPath(null); showBlob(null); await writeCachedBlob(null);
     } finally { setSyncing(false); }
