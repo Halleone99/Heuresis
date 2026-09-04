@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - "src/**"
       - "src-tauri/**"
       - "package.json"
       - "vite.config.ts"
