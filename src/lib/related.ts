@@ -50,7 +50,7 @@ function mapRow(value: any): RelatedCatalogueRow | null {
   };
 }
 
-export async function listRelatedCatalogue(packId: string, sourceCardId: string | null = null) {
+export async function listRelatedCatalogue(packId: string | null = null, sourceCardId: string | null = null) {
   const { data, error } = await db().rpc("heuresis_list_related_catalogue", {
     p_pack_id: packId,
     p_source_card_id: sourceCardId,
