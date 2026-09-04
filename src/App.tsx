@@ -18,7 +18,7 @@ import { listArchivedPacks } from "./lib/advanced";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { supabase } from "./lib/supabase";
 
-type View = "library" | "capture" | "pack" | "catalogue" | "related";
+type View = "library" | "pack" | "catalogue" | "related";
 
 type BackgroundStyle = CSSProperties & {
   "--heuresis-background-image"?: string;
@@ -41,6 +41,8 @@ function HeuresisApp({ session }: { session: Session }) {
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
   const [activePackId, setActivePackId] = useState<string | null>(null);
   const [capturePack, setCapturePack] = useState<PackWithType | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [relatedCollectionId, setRelatedCollectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -84,6 +86,7 @@ function HeuresisApp({ session }: { session: Session }) {
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
+  const relatedCollection = useMemo(() => collections.find((collection) => collection.id === relatedCollectionId) ?? null, [collections, relatedCollectionId]);
   const backgroundStyle: BackgroundStyle = {
     "--heuresis-background-image": background.imageUrl && background.settings.enabled ? `url("${background.imageUrl}")` : "none",
     "--heuresis-background-opacity": String(background.settings.opacity),
@@ -93,10 +96,11 @@ function HeuresisApp({ session }: { session: Session }) {
     "--heuresis-background-fit": background.settings.fit,
   };
 
-  function openLibrary() { setView("library"); setActivePackId(null); setCapturePack(null); }
-  function openPack(pack: PackWithType) { setActivePackId(pack.id); setCapturePack(null); setView("pack"); }
-  function openCapture(pack: PackWithType | null = null) { setCapturePack(pack); setView("capture"); }
-  function leaveCapture() { if (capturePack) openPack(capturePack); else openLibrary(); }
+  function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); }
+  function openPack(pack: PackWithType) { setActivePackId(pack.id); setRelatedCollectionId(null); setView("pack"); }
+  function openCapture(pack: PackWithType | null = null) { setCapturePack(pack); setCaptureOpen(true); }
+  function closeCapture() { setCaptureOpen(false); setCapturePack(null); }
+  function openNewWords(collection: Collection) { setRelatedCollectionId(collection.id); setActivePackId(null); setView("related"); }
 
   function openNewTopic(preferredCollectionId: string | null = null) {
     setTopicModalPack(null); setTopicPreferredCollectionId(preferredCollectionId); setTopicModalOpen(true);
@@ -124,11 +128,11 @@ function HeuresisApp({ session }: { session: Session }) {
       <header className="desktop-chrome">
         <button className="desktop-wordmark" onClick={openLibrary}><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button><span className="desktop-spacer" />
         <button className="desktop-action" onClick={() => setSearchOpen(true)}><Search size={14} /> Search</button>
-        <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); }}><BookOpen size={14} /> Catalogue</button>
-        <button className={`desktop-action ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); }}><Link2 size={14} /> Related</button>
+        <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
+        <button className={`desktop-action ${view === "related" && !relatedCollectionId ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); }}><Link2 size={14} /> Related</button>
         <button className="desktop-action" onClick={() => setCollectionsOpen(true)}><FolderTree size={14} /> Collections</button>
-        <button className="desktop-action desktop-primary" onClick={() => openNewTopic(activeCollection?.id ?? null)}><Plus size={14} /> Topic</button>
-        <button className={`desktop-action ${view === "capture" ? "active" : ""}`} onClick={() => openCapture()}><Plus size={14} /> Capture</button>
+        <button className="desktop-action desktop-primary" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? null)}><Plus size={14} /> Topic</button>
+        <button className="desktop-action" onClick={() => openCapture()}><Plus size={14} /> Capture</button>
         <button className="desktop-action" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
       </header>
       <div className="desktop-account-strip"><span>{session.user.email || "Supabase account"}</span><button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={13} /> Refresh</button><button onClick={() => void supabase?.auth.signOut()}><LogOut size={13} /> Sign out</button></div>
@@ -136,12 +140,12 @@ function HeuresisApp({ session }: { session: Session }) {
       <main className="desktop-content">
         {loading ? <div className="content-state">Opening the Heuresis database…</div> : null}
         {!loading && error ? <div className="content-state error-state"><strong>Database connection failed.</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onEditPack={openTopicSettings} onArchive={() => setArchiveOpen(true)} /> : null}
+        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} /> : null}
         {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
-        {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
+        {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} /> : null}
         {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
-        {!loading && !error && view === "capture" ? <CaptureView collections={collections} packs={packs} initialPack={capturePack} onBack={leaveCapture} onSaved={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
+      {captureOpen ? <CaptureView collections={collections} packs={packs} initialPack={capturePack} onBack={closeCapture} onSaved={() => void reload(true).catch(() => undefined)} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} onClose={() => setCollectionsOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
