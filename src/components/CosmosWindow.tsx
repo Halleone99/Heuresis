@@ -20,7 +20,13 @@ import {
   type LearningAction,
   type LearningCounts,
 } from "../lib/learning";
-import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
+import {
+  addRelatedWord,
+  listRelatedCatalogue,
+  removeRelatedRelation,
+  type RelatedCatalogueRow,
+  type RelationType,
+} from "../lib/related";
 import { cardHasCompletedSort, markCardSorted, setSortInterest, setSortTags } from "../lib/sort";
 import {
   finishStudySession,
@@ -44,6 +50,7 @@ type Source = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted
 type Order = "pack" | "random";
 
 type Config = {
+  valid: boolean;
   mode: StudyMode;
   packId: string;
   templateId: string;
@@ -77,14 +84,14 @@ const CONCEPT_DIMS: DimensionDef[] = [
 const REVIEW_ACTIONS: LearningAction[] = ["handwrite", "say", "hear", "sentence", "rephrase", "example"];
 const RELATION_TYPES: RelationType[] = ["synonym", "antonym", "related"];
 
-function parseConfig(): Config | null {
+function parseConfig(): Config {
   const params = new URLSearchParams(window.location.search);
   const packId = params.get("pack") ?? "";
-  if (!packId) return null;
   const rawCount = params.get("count") ?? "all";
   const numeric = Number(rawCount);
   const source = params.get("source");
   return {
+    valid: Boolean(packId),
     mode: params.get("mode") === "sort" ? "sort" : "review",
     packId,
     templateId: params.get("template") ?? "",
@@ -123,7 +130,7 @@ function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
         return [{ id: value.id, type: "text", text: value.text, dim: value.dim as DimensionId }];
       }
     } catch {
-      // A malformed old block should not make the card unusable.
+      // Keep a malformed legacy block from breaking the card.
     }
     return [];
   });
@@ -168,7 +175,7 @@ export default function CosmosWindow() {
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
-  const [templateId, setTemplateId] = useState(config?.templateId ?? "");
+  const [templateId, setTemplateId] = useState(config.templateId);
   const [order, setOrder] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -189,7 +196,7 @@ export default function CosmosWindow() {
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
 
-  const mode = config?.mode ?? "review";
+  const mode = config.mode;
   const currentId = order[index];
   const card = cards.find((item) => item.id === currentId) ?? null;
   const template = templates.find((item) => item.id === templateId) ?? templates[0] ?? null;
@@ -210,7 +217,7 @@ export default function CosmosWindow() {
   }, []);
 
   useEffect(() => {
-    if (!config) {
+    if (!config.valid) {
       setError("This Heuresis popup is missing its topic.");
       setLoading(false);
       return;
@@ -369,7 +376,7 @@ export default function CosmosWindow() {
   }
 
   async function saveRelated() {
-    if (!card || busy) return;
+    if (!card || !pack || busy) return;
     const term = relatedTerm.trim();
     const meaning = relatedMeaning.trim();
     if (!term) { setNotice("Add the related word or expression."); return; }
@@ -377,7 +384,7 @@ export default function CosmosWindow() {
     setBusy(true); setNotice("");
     try {
       await addRelatedWord({ sourceCardId: card.id, term, reading: relatedReading, meaning, relationType });
-      setRelatedRows(await listRelatedCatalogue(pack?.id ?? null, card.id));
+      setRelatedRows(await listRelatedCatalogue(pack.id, card.id));
       setRelatedTerm(""); setRelatedReading(""); setRelatedMeaning(""); setRelationType("related"); setAddingDim(null);
       setNotice("Saved to Words.");
     } catch (saveError) {
@@ -490,14 +497,15 @@ export default function CosmosWindow() {
   }
 
   async function switchMode(next: StudyMode) {
-    if (!config || next === mode || unsavedDraft) return;
+    if (next === mode || unsavedDraft) return;
     await closeSession();
     const params = new URLSearchParams(window.location.search);
     params.set("mode", next);
     params.set("source", next === "sort" ? "unsorted" : "all");
     params.set("order", "pack");
     params.set("count", "all");
-    params.delete("tag"); params.delete("q");
+    params.delete("tag");
+    params.delete("q");
     window.location.search = params.toString();
   }
 
@@ -505,12 +513,17 @@ export default function CosmosWindow() {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
-      if (event.key === "Escape" && !typing) { event.preventDefault(); void closeSession().then(closeDesktopWindow); return; }
+      if (event.key === "Escape" && !typing) {
+        event.preventDefault();
+        void closeSession().then(() => closeDesktopWindow());
+        return;
+      }
       if (typing || !card || busy || done) return;
       if (mode === "review") {
         if (!revealed && (event.key === " " || event.key === "Enter")) { event.preventDefault(); void reveal(); return; }
         const grades: Record<string, StudyGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" };
-        if (revealed && grades[event.key]) { event.preventDefault(); void answer(grades[event.key]); }
+        const grade = grades[event.key];
+        if (revealed && grade) { event.preventDefault(); void answer(grade); }
       } else {
         if (/^[1-5]$/.test(event.key)) { event.preventDefault(); void setInterest(Number(event.key)); }
         else if (event.key === "ArrowRight" || event.key === "Enter") { event.preventDefault(); void nextSort(); }
@@ -519,11 +532,11 @@ export default function CosmosWindow() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [answer, busy, card, closeSession, done, mode, nextSort, reveal, revealed, unsavedDraft]);
+  });
 
   if (loading) return <div className="cosmos-state">Opening Heuresis…</div>;
   if (error || !pack) return <div className="cosmos-state error"><strong>Heuresis could not open.</strong><p>{error || "Missing topic data."}</p><button onClick={() => void closeDesktopWindow()}>Close</button></div>;
-  if (done || !card) return <div className="cosmos-state done"><strong>{mode === "sort" ? "Sort pass complete." : "Review complete."}</strong><p>{order.length} cards in this session.</p><button onClick={() => void closeSession().then(closeDesktopWindow)}>Return to Heuresis</button></div>;
+  if (done || !card) return <div className="cosmos-state done"><strong>{mode === "sort" ? "Sort pass complete." : "Review complete."}</strong><p>{order.length} cards in this session.</p><button onClick={() => void closeSession().then(() => closeDesktopWindow())}>Return to Heuresis</button></div>;
 
   const type = pack.cardType;
   const term = fieldByRole(type, "term") ?? type?.field_schema[0] ?? null;
@@ -581,7 +594,7 @@ export default function CosmosWindow() {
   };
 
   return <main className="cosmos-shell">
-    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes"><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></div><span className="cosmos-mode-note">{mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(closeDesktopWindow)}><X size={18} /></button></header>
+    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes"><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></div><span className="cosmos-mode-note">{mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / order.length) * 100)}%` }} /></div>
     <section className="cosmos-stage"><div className="cosmos-work" data-l={openLeaf.l ? "open" : "closed"} data-r={openLeaf.r ? "open" : "closed"}>
       {renderLeaf("l")}
