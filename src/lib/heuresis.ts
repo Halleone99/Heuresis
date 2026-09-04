@@ -268,13 +268,28 @@ export async function createCard(pack: PackWithType, values: Record<string, stri
   return created;
 }
 
+export async function patchCardData(cardId: string, patch: Record<string, string | string[] | null>) {
+  const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
+  if (readError) throw readError;
+  const current = cardData(existing?.data);
+  const data = { ...current, ...patch };
+  const { error } = await db().from("heuresis_cards").update({ data }).eq("id", cardId);
+  if (error) throw error;
+  return data;
+}
+
 export async function updateCard(pack: PackWithType, cardId: string, values: Record<string, string>, extras: {
   note?: string;
   favourite?: boolean;
   interest_rank?: number | null;
   tagIds?: string[];
 }) {
-  const data = cleanCardValues(pack, values);
+  const visibleData = cleanCardValues(pack, values);
+  const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
+  if (readError) throw readError;
+  const previous = cardData(existing?.data);
+  const internalData = Object.fromEntries(Object.entries(previous).filter(([key]) => key.startsWith("_")));
+  const data = { ...visibleData, ...internalData };
   const rank = extras.interest_rank == null ? null : Math.min(5, Math.max(1, Math.round(extras.interest_rank)));
   const { error } = await db().from("heuresis_cards").update({
     data,
