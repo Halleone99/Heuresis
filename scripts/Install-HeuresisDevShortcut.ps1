@@ -9,8 +9,6 @@ $powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 if (-not (Test-Path $launcher)) { throw "Heuresis launcher script is missing: $launcher" }
 
-# Generate the current Heuresis icon if the local icon set has not yet been
-# created. This keeps the shortcut visually consistent with the app itself.
 if (-not (Test-Path $icon)) {
   Push-Location $repoRoot
   try {
@@ -26,19 +24,26 @@ function New-HeuresisShortcut([string]$path) {
   $shortcut.TargetPath = $powerShell
   $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcher`""
   $shortcut.WorkingDirectory = $repoRoot
-  $shortcut.Description = "Open the local Heuresis development app"
+  $shortcut.Description = "Open the local Heuresis app"
   $shortcut.WindowStyle = 7
   if (Test-Path $icon) { $shortcut.IconLocation = "$icon,0" }
   $shortcut.Save()
 }
 
-$desktopShortcut = Join-Path $desktop "Heuresis Dev.lnk"
-$startShortcut = Join-Path $programs "Heuresis Dev.lnk"
+# Replace the old development shortcut name so it cannot be confused with a
+# stale Tauri dev executable that still depends on localhost.
+$oldDesktopShortcut = Join-Path $desktop "Heuresis Dev.lnk"
+$oldStartShortcut = Join-Path $programs "Heuresis Dev.lnk"
+Remove-Item $oldDesktopShortcut -Force -ErrorAction SilentlyContinue
+Remove-Item $oldStartShortcut -Force -ErrorAction SilentlyContinue
+
+$desktopShortcut = Join-Path $desktop "Heuresis.lnk"
+$startShortcut = Join-Path $programs "Heuresis.lnk"
 New-HeuresisShortcut $desktopShortcut
 New-HeuresisShortcut $startShortcut
 
-Write-Host "Heuresis Dev shortcut created:" -ForegroundColor Green
+Write-Host "Heuresis shortcut created:" -ForegroundColor Green
 Write-Host "  $desktopShortcut"
 Write-Host "  $startShortcut"
 Write-Host ""
-Write-Host "Right-click 'Heuresis Dev' and choose 'Pin to taskbar'. You can then remove the old installed Heuresis pin if you no longer want it." -ForegroundColor Cyan
+Write-Host "Unpin any old Heuresis/Heuresis Dev taskbar item, then right-click this new Heuresis shortcut and choose Pin to taskbar." -ForegroundColor Cyan
