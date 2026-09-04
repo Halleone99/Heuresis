@@ -27,6 +27,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm install --ignore-scripts
 
+      - name: Generate Heuresis app icons
+        run: npm run tauri icon src-tauri/heuresis-icon.svg
+
       - name: Install Rust target
         shell: pwsh
         run: |
