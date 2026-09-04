@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Brain, Compass, FileUp, Filter, Link2, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, Compass, FileUp, Filter, Link2, Plus, Search, Settings2, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -12,7 +12,6 @@ import {
   type HeuresisTag,
   type PackWithType,
 } from "../lib/heuresis";
-import { openCosmosWindow } from "../lib/cosmosWindow";
 import BrowseModal from "./BrowseModal";
 import ImportModal from "./ImportModal";
 import RelatedEditor from "./RelatedEditor";
@@ -88,7 +87,6 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actionMessage, setActionMessage] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [editing, setEditing] = useState<CardWithStats | null>(null);
@@ -130,15 +128,6 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     onChanged();
   }
 
-  async function openSort() {
-    setActionMessage("");
-    try {
-      await openCosmosWindow({ mode: "sort", packId: pack.id, source: "unsorted", order: "pack", count: "all" });
-    } catch (openError) {
-      setActionMessage(openError instanceof Error ? openError.message : "Could not open Sort.");
-    }
-  }
-
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
   return (
@@ -153,11 +142,9 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
         <button className="primary-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Flashcards</button>
         <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
         <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
-        <button className="secondary-button" disabled={!cards.length} onClick={() => void openSort()}><SlidersHorizontal size={15} /> Sort</button>
         <button className="secondary-button" onClick={() => setImportOpen(true)}><FileUp size={15} /> Import</button>
         <button className="secondary-button" onClick={onCapture}><Plus size={15} /> Add card</button>
       </div>
-      {actionMessage ? <div className="editor-message">{actionMessage}</div> : null}
 
       <div className="pack-toolbar"><label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this topic" /></label><div className="filter-strip"><Filter size={14} />{([['all', 'All'], ['new', 'Never encountered'], ['favourite', 'Favourites'], ['interesting', 'Interest 4–5'], ['again', 'Often Again']] as Array<[FilterKey, string]>).map(([key, label]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div></div>
 
