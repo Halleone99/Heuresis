@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Filter, Plus, Search, Star } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, Filter, Plus, Search, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -12,6 +12,7 @@ import {
   type HeuresisTag,
   type PackWithType,
 } from "../lib/heuresis";
+import StudyModal from "./StudyModal";
 
 type FilterKey = "all" | "new" | "favourite" | "interesting" | "again";
 
@@ -83,6 +84,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onChange
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [editing, setEditing] = useState<CardWithStats | null>(null);
+  const [studyOpen, setStudyOpen] = useState(false);
 
   async function reload() {
     setLoading(true); setError("");
@@ -115,12 +117,16 @@ export default function PackView({ pack, collection, onBack, onCapture, onChange
     setEditing(null); await reload(); onChanged();
   }
 
+  async function afterStudy() {
+    await reload(); onChanged();
+  }
+
   return (
     <section className="pack-page">
       <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
       <header className="pack-page-head">
         <div><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{pack.card_count} cards · {pack.encountered_cards} encountered · {explored}% explored · opened {pack.open_count}×</span></div>
-        <button className="primary-button" onClick={onCapture}><Plus size={16} /> Add card</button>
+        <div className="editor-meta-row"><button className="text-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={16} /> Flashcards</button><button className="primary-button" onClick={onCapture}><Plus size={16} /> Add card</button></div>
       </header>
 
       <div className="pack-toolbar">
@@ -139,8 +145,9 @@ export default function PackView({ pack, collection, onBack, onCapture, onChange
         </button>)}
         {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>No matching cards.</strong><span>Change the filter or add a new card.</span></div> : null}
       </div> : null}
-      {pack.card_count > cards.length ? <div className="page-footnote">Showing the first {cards.length} cards. Pagination/review migration is the next layer.</div> : null}
+      {pack.card_count > cards.length ? <div className="page-footnote">This desktop cut currently loads the first {cards.length} cards from the topic. Full pagination is still to be migrated.</div> : null}
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void afterEdit()} onDeleted={() => void afterEdit()} /> : null}
+      {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => void afterStudy()} /> : null}
     </section>
   );
 }
