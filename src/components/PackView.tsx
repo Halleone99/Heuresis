@@ -13,6 +13,7 @@ import {
   type PackWithType,
 } from "../lib/heuresis";
 import BrowseModal from "./BrowseModal";
+import CardImagesEditor from "./CardImagesEditor";
 import ImportModal from "./ImportModal";
 import RelatedEditor from "./RelatedEditor";
 import RelatedView from "./RelatedView";
@@ -73,6 +74,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged }
           <label className="field-row"><span>Note</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>
           <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><label className="interest-control">Interest <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{[1, 2, 3, 4, 5].map((rank) => <option key={rank} value={rank}>{rank} / 5</option>)}</select></label></div>
           {tags.length ? <div className="tag-editor"><span className="eyebrow">TAGS</span><div className="tag-choice-list">{tags.map((tag) => { const selected = tagIds.includes(tag.id); return <button key={tag.id} className={`tag-choice ${selected ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} onClick={() => setTagIds((current) => selected ? current.filter((id) => id !== tag.id) : [...current, tag.id])}>{tag.name}</button>; })}</div></div> : null}
+          <CardImagesEditor card={card} onChanged={onChanged} />
           <RelatedEditor pack={pack} card={card} onChanged={onChanged} />
         </div>
         {message ? <div className="editor-message">{message}</div> : null}
@@ -100,6 +102,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     try {
       const [nextCards, nextTags] = await Promise.all([listCards(pack.id), listTags()]);
       setCards(nextCards); setTags(nextTags);
+      setEditing((current) => current ? nextCards.find((card) => card.id === current.id) ?? current : null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
     } finally { setLoading(false); }
