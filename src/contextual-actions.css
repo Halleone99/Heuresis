@@ -1,0 +1,59 @@
+/* Contextual creation actions: structure belongs to the page; Capture stays globally available. */
+
+/* Topic creation is only useful when a collection is actually open. */
+.desktop-topic-action {
+  display: none;
+}
+
+.heuresis-desktop:has(.collection-page) .desktop-topic-action {
+  display: inline-flex;
+}
+
+/* Capture behaves like a global utility rather than another navigation item. */
+.desktop-header-actions > .desktop-action.desktop-primary {
+  position: fixed;
+  right: 30px;
+  bottom: 28px;
+  z-index: 65;
+  height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 999px;
+  background: rgba(40, 35, 31, .97);
+  box-shadow: 0 14px 36px rgba(35, 28, 23, .20), 0 2px 8px rgba(35, 28, 23, .10);
+  backdrop-filter: blur(18px);
+  font-size: 11px;
+  letter-spacing: .01em;
+}
+
+.desktop-header-actions > .desktop-action.desktop-primary:hover {
+  background: #37302b;
+  box-shadow: 0 18px 44px rgba(35, 28, 23, .24), 0 3px 10px rgba(35, 28, 23, .11);
+  transform: translateY(-2px);
+}
+
+.desktop-header-actions > .desktop-action.desktop-primary:active {
+  transform: translateY(0);
+}
+
+/* Leave breathing room so the floating Capture control never covers the final row. */
+.desktop-content {
+  padding-bottom: 108px;
+}
+
+@media (max-width: 760px) {
+  .heuresis-desktop:has(.collection-page) .desktop-topic-action {
+    display: inline-flex;
+  }
+
+  .desktop-header-actions > .desktop-action.desktop-primary {
+    right: 18px;
+    bottom: 18px;
+    height: 44px;
+    padding: 0 14px;
+  }
+
+  .desktop-content {
+    padding-bottom: 88px;
+  }
+}
