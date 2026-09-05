@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { CardWithStats } from "./heuresis";
+import { patchCardData, type CardWithStats } from "./heuresis";
 
 export const SORTED_AT_KEY = "_sorted_at";
 
@@ -33,10 +33,7 @@ export async function setSortInterest(cardId: string, rank: number | null) {
 export async function markCardSorted(card: CardWithStats) {
   const existing = card.data[SORTED_AT_KEY];
   if (typeof existing === "string" && existing.trim()) return card.data;
-  const data = { ...card.data, [SORTED_AT_KEY]: new Date().toISOString() };
-  const { error } = await db().from("heuresis_cards").update({ data }).eq("id", card.id);
-  if (error) throw error;
-  return data;
+  return patchCardData(card.id, { [SORTED_AT_KEY]: new Date().toISOString() });
 }
 
 export async function completeCardSort(card: CardWithStats, rank: number, tagIds: string[]) {
