@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { LogIn } from "lucide-react";
 import { supabase, supabaseConfigured } from "../lib/supabase";
+import { reconcileStaleHeuresisSessions } from "../lib/sessionLifecycle";
 import HeuresisMark from "./HeuresisMark";
 
 type Props = { children: (session: Session) => ReactNode };
@@ -21,13 +22,26 @@ export default function AuthGate({ children }: Props) {
     }
 
     let alive = true;
+    let reconciledUserId = "";
+    const reconcile = (next: Session | null) => {
+      const userId = next?.user.id ?? "";
+      if (!userId || reconciledUserId === userId) return;
+      reconciledUserId = userId;
+      void reconcileStaleHeuresisSessions().catch((reconcileError) => {
+        console.warn("Could not reconcile stale Heuresis sessions", reconcileError);
+      });
+    };
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
-      if (alive) setSession(next);
+      if (!alive) return;
+      setSession(next);
+      reconcile(next);
     });
 
     void supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
       setSession(data.session);
+      reconcile(data.session);
       setLoading(false);
     });
 
