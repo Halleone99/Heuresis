@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { listCardsByIds, type CardWithStats } from "./heuresis";
 
 export type RelationType = "synonym" | "antonym" | "related";
 
@@ -57,6 +58,13 @@ export async function listRelatedCatalogue(packId: string | null = null, sourceC
   });
   if (error) throw error;
   return (data ?? []).map(mapRow).filter((row: RelatedCatalogueRow | null): row is RelatedCatalogueRow => Boolean(row));
+}
+
+/** Related review deliberately loads explicit target identities, ignoring role='main'. */
+export async function listRelatedCards(packId: string): Promise<CardWithStats[]> {
+  const catalogue = await listRelatedCatalogue(packId);
+  const ids = Array.from(new Set(catalogue.map((row) => row.target_card_id)));
+  return listCardsByIds(ids);
 }
 
 export async function addRelatedWord(input: {
