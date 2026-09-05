@@ -17,11 +17,13 @@ This branch compares standalone Heuresis against the more mature Personal OS imp
 
 ## Live database verification
 
-On 2026-09-05, the shared Supabase project showed:
+On 2026-09-05, read-only checks against the shared Supabase project showed:
 
 - all current Related relations are on `Vocabulary — Chinese`;
 - the query for relations whose source lacks `data.term` returned zero rows;
 - therefore no current Related relation is known to be affected by the field-key bug described below.
+
+No production DDL was applied as part of this audit branch.
 
 ## Still open
 
