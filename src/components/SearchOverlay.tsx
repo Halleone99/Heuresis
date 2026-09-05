@@ -1,7 +1,7 @@
 import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, type PackWithType } from "../lib/heuresis";
-import { searchCards, type SearchCardResult } from "../lib/advanced";
+import { searchCards, type SearchCardResult } from "../lib/search";
 
 type Props = { packs: PackWithType[]; onClose: () => void; onOpen: (pack: PackWithType) => void };
 
@@ -37,7 +37,7 @@ export default function SearchOverlay({ packs, onClose, onOpen }: Props) {
             const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
             const reading = fieldByRole(pack.cardType, "reading");
             const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
-            return <button key={item.id} className="search-result" onClick={() => { onOpen(pack); onClose(); }}><span><small>{pack.title}</small><strong>{fieldText(item.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(item.data, reading.key)}</em> : null}</span><p>{fieldText(item.data, meaning?.key)}{item.note ? <i> · {item.note}</i> : null}</p></button>;
+            return <button key={item.id} className="search-result" onClick={() => { onOpen(pack); onClose(); }}><span><small>{pack.title}{item.role === "related" ? " · Related" : ""}</small><strong>{fieldText(item.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(item.data, reading.key)}</em> : null}</span><p>{fieldText(item.data, meaning?.key)}{item.note ? <i> · {item.note}</i> : null}</p></button>;
           })}
           {!loading && !error && query.trim().length >= 2 && !items.length ? <div className="search-empty">No matching cards.</div> : null}
         </div>
