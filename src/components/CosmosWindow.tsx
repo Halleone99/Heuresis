@@ -37,6 +37,7 @@ import {
   type StudyGrade,
   type StudyTemplate,
 } from "../lib/study";
+import { signHeuresisCardImages } from "../lib/cardMedia";
 import { supabase } from "../lib/supabase";
 import "./cosmos.css";
 
@@ -46,7 +47,9 @@ type StudyMode = "review" | "sort";
 type Side = "l" | "r";
 type DimensionId = "neighbours" | "components" | "examples" | "structure" | "origin" | "facts" | "notes";
 type DimensionDef = { id: DimensionId; side: Side; label: string; sub: string };
-type WorkspaceBlock = { id: string; type: "text"; text: string; dim: DimensionId };
+type WorkspaceTextBlock = { id: string; type: "text"; text: string; dim: DimensionId };
+type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: string; dim: DimensionId };
+type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
 type Source = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
 type Order = "pack" | "random";
 
@@ -135,9 +138,18 @@ function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((entry) => {
     try {
-      const value = JSON.parse(entry) as Partial<WorkspaceBlock>;
+      const value = JSON.parse(entry) as Record<string, unknown>;
       if (value.type === "text" && typeof value.id === "string" && typeof value.text === "string") {
-        return [{ id: value.id, type: "text", text: value.text, dim: normaliseDimension(value.dim) }];
+        return [{ id: value.id, type: "text", text: value.text, dim: normaliseDimension(value.dim) } satisfies WorkspaceTextBlock];
+      }
+      if (value.type === "image" && typeof value.id === "string" && typeof value.path === "string") {
+        return [{
+          id: value.id,
+          type: "image",
+          path: value.path,
+          caption: typeof value.caption === "string" ? value.caption : "",
+          dim: normaliseDimension(value.dim),
+        } satisfies WorkspaceImageBlock];
       }
     } catch {
       // Unsupported or malformed legacy entries are preserved by patchCardData.
@@ -204,6 +216,7 @@ export default function CosmosWindow() {
   const [relationType, setRelationType] = useState<RelationType>("related");
   const [learningCounts, setLearningCounts] = useState<Record<string, LearningCounts>>({});
   const [selectedActions, setSelectedActions] = useState<Record<string, LearningAction[]>>({});
+  const [signedImages, setSignedImages] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
 
@@ -345,6 +358,19 @@ export default function CosmosWindow() {
       .catch(() => { if (alive) setRelatedRows([]); });
     return () => { alive = false; };
   }, [card?.id, pack?.id, structuredWords, relatedReview]);
+
+  useEffect(() => {
+    const paths = blocks.filter((block): block is WorkspaceImageBlock => block.type === "image").map((block) => block.path);
+    let alive = true;
+    if (!paths.length) {
+      setSignedImages({});
+      return;
+    }
+    void signHeuresisCardImages(paths)
+      .then((urls) => { if (alive) setSignedImages(urls); })
+      .catch(() => { if (alive) setSignedImages({}); });
+    return () => { alive = false; };
+  }, [card?.id, card?.updated_at]);
 
   useEffect(() => {
     if (!pinned.l) setOpenLeaf((current) => ({ ...current, l: null }));
@@ -591,7 +617,14 @@ export default function CosmosWindow() {
           {dimensionId === "notes" && card.note?.trim() ? <article className="cosmos-field"><small>Card note</small><p>{card.note}</p></article> : null}
           {entries.map((entry) => <article className="cosmos-field" key={entry.key}><small>{entry.label}</small><p>{entry.value}</p></article>)}
           {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}<button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button></article>) : null}
-          {dimensionBlocks.map((block) => <article className="cosmos-text-block" key={block.id}><p>{block.text}</p><button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button></article>)}
+          {dimensionBlocks.map((block) => block.type === "text"
+            ? <article className="cosmos-text-block" key={block.id}><p>{block.text}</p><button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button></article>
+            : <figure className="cosmos-image-block" key={block.id} style={{ margin: "12px 0", paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                {signedImages[block.path]
+                  ? <img src={signedImages[block.path]} alt={block.caption || "Card reference"} style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 4, background: "var(--paper)" }} />
+                  : <div style={{ padding: "18px 8px", color: "var(--faint)", font: "11px/1.4 var(--sans)", textAlign: "center" }}>Loading image…</div>}
+                {block.caption ? <figcaption style={{ marginTop: 7, color: "var(--muted)", font: "12px/1.45 var(--serif)" }}>{block.caption}</figcaption> : null}
+              </figure>)}
           {!entries.length && !dimensionBlocks.length && !showRelated && !(dimensionId === "notes" && card.note?.trim()) ? <p className="cosmos-empty">Nothing here yet. Add whatever makes this card easier to understand or remember.</p> : null}
         </div>
         <footer>
