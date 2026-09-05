@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { BookOpen, FolderTree, Link2, LogOut, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
+import CaptureInboxView from "./components/CaptureInboxView";
 import CatalogueView from "./components/CatalogueView";
 import CollectionsModal from "./components/CollectionsModal";
 import HeuresisMark from "./components/HeuresisMark";
@@ -18,7 +19,7 @@ import { openCaptureWindow } from "./lib/captureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { supabase } from "./lib/supabase";
 
-type View = "library" | "pack" | "catalogue" | "related";
+type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 
 type BackgroundStyle = CSSProperties & {
   "--heuresis-background-image"?: string;
@@ -41,6 +42,7 @@ function HeuresisApp({ session }: { session: Session }) {
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
   const [activePackId, setActivePackId] = useState<string | null>(null);
   const [relatedCollectionId, setRelatedCollectionId] = useState<string | null>(null);
+  const [captureInboxCollectionId, setCaptureInboxCollectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -92,6 +94,7 @@ function HeuresisApp({ session }: { session: Session }) {
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
   const relatedCollection = useMemo(() => collections.find((collection) => collection.id === relatedCollectionId) ?? null, [collections, relatedCollectionId]);
+  const captureInboxCollection = useMemo(() => collections.find((collection) => collection.id === captureInboxCollectionId) ?? null, [collections, captureInboxCollectionId]);
   const backgroundStyle: BackgroundStyle = {
     "--heuresis-background-image": background.imageUrl && background.settings.enabled ? `url("${background.imageUrl}")` : "none",
     "--heuresis-background-opacity": String(background.settings.opacity),
@@ -101,14 +104,14 @@ function HeuresisApp({ session }: { session: Session }) {
     "--heuresis-background-fit": background.settings.fit,
   };
 
-  function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); }
-  function openPack(pack: PackWithType) { setActivePackId(pack.id); setRelatedCollectionId(null); setView("pack"); }
+  function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
+  function openPack(pack: PackWithType) { setActivePackId(pack.id); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
   function openCapture(pack: PackWithType | null = null, collectionId: string | null = null) {
     void openCaptureWindow({ packId: pack?.id ?? null, collectionId: collectionId ?? pack?.collection_id ?? null })
       .catch((captureError) => setNotice(captureError instanceof Error ? captureError.message : "Could not open Capture."));
   }
-  function openCaptureForCollection(collection: Collection) { openCapture(null, collection.id); }
-  function openNewWords(collection: Collection) { setRelatedCollectionId(collection.id); setActivePackId(null); setView("related"); }
+  function openNewWords(collection: Collection) { setRelatedCollectionId(collection.id); setCaptureInboxCollectionId(null); setActivePackId(null); setView("related"); }
+  function openCaptureInbox(collection: Collection) { setCaptureInboxCollectionId(collection.id); setRelatedCollectionId(null); setActivePackId(null); setView("capture-inbox"); }
   function openCollections(startNew = false) { setCollectionsStartNew(startNew); setCollectionsOpen(true); }
   function closeCollections() { setCollectionsOpen(false); setCollectionsStartNew(false); }
 
@@ -138,10 +141,10 @@ function HeuresisApp({ session }: { session: Session }) {
       <header className="desktop-chrome">
         <button className="desktop-wordmark" onClick={openLibrary}><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button><span className="desktop-spacer" />
         <button className="desktop-action" onClick={() => setSearchOpen(true)}><Search size={14} /> Search</button>
-        <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
-        <button className={`desktop-action ${view === "related" && !relatedCollectionId ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); }}><Link2 size={14} /> Related</button>
+        <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
+        <button className={`desktop-action ${view === "related" && !relatedCollectionId ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Related</button>
         <button className="desktop-action" onClick={() => openCollections(false)}><FolderTree size={14} /> Collections</button>
-        <button className="desktop-action desktop-primary" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? null)}><Plus size={14} /> Topic</button>
+        <button className="desktop-action desktop-primary" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button>
         <button className="desktop-action" onClick={() => openCapture()}><Plus size={14} /> Capture</button>
         <button className="desktop-action" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
       </header>
@@ -150,9 +153,10 @@ function HeuresisApp({ session }: { session: Session }) {
       <main className="desktop-content">
         {loading ? <div className="content-state">Opening the Heuresis database…</div> : null}
         {!loading && error ? <div className="content-state error-state"><strong>Database connection failed.</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onCaptureCollection={openCaptureForCollection} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
         {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
         {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} /> : null}
+        {!loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
         {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
       {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
