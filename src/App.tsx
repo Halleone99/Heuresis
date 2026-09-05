@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { BookOpen, FolderTree, Link2, LogOut, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
+import { BookOpen, ChevronDown, FolderTree, Home, Link2, LogOut, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
 import CaptureInboxView from "./components/CaptureInboxView";
@@ -95,6 +95,8 @@ function HeuresisApp({ session }: { session: Session }) {
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
   const relatedCollection = useMemo(() => collections.find((collection) => collection.id === relatedCollectionId) ?? null, [collections, relatedCollectionId]);
   const captureInboxCollection = useMemo(() => collections.find((collection) => collection.id === captureInboxCollectionId) ?? null, [collections, captureInboxCollectionId]);
+  const accountLabel = session.user.email || "Supabase account";
+  const accountInitial = accountLabel.slice(0, 1).toUpperCase();
   const backgroundStyle: BackgroundStyle = {
     "--heuresis-background-image": background.imageUrl && background.settings.enabled ? `url("${background.imageUrl}")` : "none",
     "--heuresis-background-opacity": String(background.settings.opacity),
@@ -139,16 +141,30 @@ function HeuresisApp({ session }: { session: Session }) {
       <div className="heuresis-wallpaper" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={openLibrary}><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button><span className="desktop-spacer" />
-        <button className="desktop-action" onClick={() => setSearchOpen(true)}><Search size={14} /> Search</button>
-        <button className={`desktop-action ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
-        <button className={`desktop-action ${view === "related" && !relatedCollectionId ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Related</button>
-        <button className="desktop-action" onClick={() => openCollections(false)}><FolderTree size={14} /> Collections</button>
-        <button className="desktop-action desktop-primary" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button>
-        <button className="desktop-action" onClick={() => openCapture()}><Plus size={14} /> Capture</button>
-        <button className="desktop-action" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
+        <button className="desktop-wordmark" onClick={openLibrary} aria-label="Open library"><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
+        <nav className="desktop-nav-group" aria-label="Primary navigation">
+          <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
+          <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
+          <button className={`desktop-nav-item ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Related</button>
+          <button className="desktop-nav-item" onClick={() => openCollections(false)}><FolderTree size={14} /> Collections</button>
+        </nav>
+        <span className="desktop-spacer" />
+        <div className="desktop-header-actions">
+          <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search</span><kbd>⌘K</kbd></button>
+          <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button>
+          <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Capture</button>
+          <details className="desktop-account-menu">
+            <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
+            <div className="desktop-account-popover">
+              <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
+              <button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={14} /> Refresh data</button>
+              <button onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
+              <div className="desktop-account-divider" />
+              <button onClick={() => void supabase?.auth.signOut()}><LogOut size={14} /> Sign out</button>
+            </div>
+          </details>
+        </div>
       </header>
-      <div className="desktop-account-strip"><span>{session.user.email || "Supabase account"}</span><button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={13} /> Refresh</button><button onClick={() => void supabase?.auth.signOut()}><LogOut size={13} /> Sign out</button></div>
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div> : null}
       <main className="desktop-content">
         {loading ? <div className="content-state">Opening the Heuresis database…</div> : null}
