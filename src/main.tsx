@@ -8,6 +8,7 @@ import "./settings-v2.css";
 import "./brand.css";
 import "./popup-system.css";
 import "./components/review-background.css";
+import "./library-refinements.css";
 
 const params = new URLSearchParams(window.location.search);
 const content = params.get("cosmos") === "1" ? <CosmosWindow /> : <App />;
