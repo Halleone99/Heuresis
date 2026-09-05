@@ -3,7 +3,6 @@ import type { Session } from "@supabase/supabase-js";
 import { BookOpen, FolderTree, Link2, LogOut, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
-import CaptureView from "./components/CaptureView";
 import CatalogueView from "./components/CatalogueView";
 import CollectionsModal from "./components/CollectionsModal";
 import HeuresisMark from "./components/HeuresisMark";
@@ -15,6 +14,7 @@ import SettingsModal from "./components/SettingsModal";
 import TopicModal from "./components/TopicModal";
 import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
+import { openCaptureWindow } from "./lib/captureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { supabase } from "./lib/supabase";
 
@@ -40,8 +40,6 @@ function HeuresisApp({ session }: { session: Session }) {
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
   const [activePackId, setActivePackId] = useState<string | null>(null);
-  const [capturePack, setCapturePack] = useState<PackWithType | null>(null);
-  const [captureOpen, setCaptureOpen] = useState(false);
   const [relatedCollectionId, setRelatedCollectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -75,6 +73,12 @@ function HeuresisApp({ session }: { session: Session }) {
   useEffect(() => { void reload().catch(() => undefined); }, []);
 
   useEffect(() => {
+    const refreshOnFocus = () => { void reload(true).catch(() => undefined); };
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
       if (event.key === "/" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
@@ -99,8 +103,11 @@ function HeuresisApp({ session }: { session: Session }) {
 
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); }
   function openPack(pack: PackWithType) { setActivePackId(pack.id); setRelatedCollectionId(null); setView("pack"); }
-  function openCapture(pack: PackWithType | null = null) { setCapturePack(pack); setCaptureOpen(true); }
-  function closeCapture() { setCaptureOpen(false); setCapturePack(null); }
+  function openCapture(pack: PackWithType | null = null, collectionId: string | null = null) {
+    void openCaptureWindow({ packId: pack?.id ?? null, collectionId: collectionId ?? pack?.collection_id ?? null })
+      .catch((captureError) => setNotice(captureError instanceof Error ? captureError.message : "Could not open Capture."));
+  }
+  function openCaptureForCollection(collection: Collection) { openCapture(null, collection.id); }
   function openNewWords(collection: Collection) { setRelatedCollectionId(collection.id); setActivePackId(null); setView("related"); }
   function openCollections(startNew = false) { setCollectionsStartNew(startNew); setCollectionsOpen(true); }
   function closeCollections() { setCollectionsOpen(false); setCollectionsStartNew(false); }
@@ -143,12 +150,11 @@ function HeuresisApp({ session }: { session: Session }) {
       <main className="desktop-content">
         {loading ? <div className="content-state">Opening the Heuresis database…</div> : null}
         {!loading && error ? <div className="content-state error-state"><strong>Database connection failed.</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onCaptureCollection={openCaptureForCollection} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
         {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
         {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} /> : null}
         {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
-      {captureOpen ? <CaptureView collections={collections} packs={packs} initialPack={capturePack} onBack={closeCapture} onSaved={() => void reload(true).catch(() => undefined)} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
