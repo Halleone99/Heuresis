@@ -64,6 +64,67 @@
   background: rgba(255, 255, 255, .88);
 }
 
+.capture-hub-pack .topic-card-main::after {
+  content: "inbox";
+}
+
+.capture-hub-main {
+  cursor: default;
+  min-height: 188px;
+  padding-bottom: 16px;
+}
+
+.capture-hub-main > p:not(.eyebrow) {
+  min-height: 48px;
+  max-width: 92%;
+}
+
+.capture-hub-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid rgba(91,78,65,.13);
+  background: rgba(244,241,235,.58);
+}
+
+.capture-hub-actions button {
+  min-height: 42px;
+  padding: 0 13px;
+  border: 0;
+  background: transparent;
+  color: #5f6f62;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 10px;
+  text-align: left;
+  transition: background .15s ease, color .15s ease;
+}
+
+.capture-hub-actions button + button {
+  border-left: 1px solid rgba(91,78,65,.13);
+}
+
+.capture-hub-actions button:hover {
+  background: rgba(255,255,255,.52);
+  color: #355443;
+}
+
+.capture-hub-actions button span {
+  flex: 1;
+}
+
+.capture-hub-actions button em {
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(79,111,91,.09);
+  color: #62806d;
+  font: 8px 'DM Mono', ui-monospace, monospace;
+  font-style: normal;
+  text-align: center;
+}
+
 .related-table-head,
 .related-table-row {
   grid-template-columns: minmax(260px, 1.55fr) 88px minmax(150px, .72fr) 104px;
@@ -131,6 +192,15 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 18px;
+  }
+
+  .capture-hub-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .capture-hub-actions button + button {
+    border-left: 0;
+    border-top: 1px solid rgba(91,78,65,.13);
   }
 
   .related-table-row {
