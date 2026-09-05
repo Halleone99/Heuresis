@@ -22,7 +22,7 @@ The desktop client and Personal OS currently write the same Heuresis database. C
 Current invariants:
 
 - ordinary topic lists load `role = 'main'` cards only;
-- explicit Related review is allowed to load related identities by id and runs through the normal Cosmos review/session/event path;
+- pack-level Related review loads related identities explicitly and runs through the normal Cosmos review/session/event path;
 - Browse does not record review encounters;
 - review events are queued locally and flushed through `heuresis_record_events` so temporary connectivity loss does not discard grades;
 - stale abandoned sessions are reconciled after authentication;
