@@ -51,3 +51,7 @@ The Sort overwrite bug is narrowed, but `patchCardData` still performs client re
 ### P2 — import/catalogue parity
 
 Still missing from standalone: import-with-tags/progress/layout and cross-pack Catalogue sessions.
+
+## Merge gate
+
+Keep PR #1 in draft until the latest GitHub Actions run passes after the Related review/event-queue ports.
