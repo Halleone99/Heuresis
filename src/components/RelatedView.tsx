@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpRight, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Brain, Download, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   listRelatedCatalogue,
@@ -8,12 +8,14 @@ import {
   type RelationType,
 } from "../lib/related";
 import type { PackWithType } from "../lib/heuresis";
+import { openCosmosWindow } from "../lib/cosmosWindow";
 import "./related.css";
 
 type RelatedFilter = "all" | RelationType;
 const FILTERS: Array<[RelatedFilter, string]> = [["all","All"],["synonym","Synonyms"],["antonym","Antonyms"],["related","Related"]];
 
 function label(type: RelationType) { return type === "synonym" ? "Synonym" : type === "antonym" ? "Antonym" : "Related"; }
+function csvCell(value: string) { return `"${value.replace(/"/g, '""')}"`; }
 
 export default function RelatedView({ pack, onBack, onChanged }: { pack: PackWithType; onBack: () => void; onChanged: () => void }) {
   const [rows, setRows] = useState<RelatedCatalogueRow[]>([]);
@@ -57,9 +59,45 @@ export default function RelatedView({ pack, onBack, onChanged }: { pack: PackWit
     finally { setBusyId(""); }
   }
 
+  async function reviewRelated() {
+    if (!rows.length) return;
+    setError("");
+    try {
+      await openCosmosWindow({ mode: "review", packId: pack.id, related: true, count: "all", order: "pack" });
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : "Could not open related review.");
+    }
+  }
+
+  function exportCsv() {
+    if (!rows.length) return;
+    const header = ["Added word","Reading","Meaning","Relation","Source flashcard","Source reading","Source meaning","Pack","Tags"];
+    const body = rows.map((row) => [
+      row.term,
+      row.reading,
+      row.meaning,
+      label(row.relation_type),
+      row.source_term,
+      row.source_reading,
+      row.source_meaning,
+      row.pack_title,
+      row.source_tags.join(" | "),
+    ]);
+    const csv = [header, ...body].map((line) => line.map((cell) => csvCell(cell)).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${pack.title.replace(/[^a-z0-9\p{L}\p{N}]+/giu, "-").replace(/^-|-$/g, "") || "heuresis"}-related.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return <section className="related-page">
     <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> Cards</button>
-    <header className="related-page-head"><div><p className="eyebrow">RELATED VOCABULARY</p><h1>Words gathered while studying.</h1><p>{uniqueWords} words · {rows.length} connections · {pack.title}</p></div></header>
+    <header className="related-page-head"><div><p className="eyebrow">RELATED VOCABULARY</p><h1>Words gathered while studying.</h1><p>{uniqueWords} words · {rows.length} connections · {pack.title}</p></div><div className="related-page-actions"><button className="secondary-button" disabled={!rows.length} onClick={exportCsv}><Download size={14} /> CSV</button><button className="primary-button" disabled={!rows.length} onClick={() => void reviewRelated()}><Brain size={14} /> Review related</button></div></header>
     <div className="related-tools"><label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search added word or source flashcard" /></label><div className="filter-strip">{FILTERS.map(([key,text]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{text}</button>)}</div></div>
     {error ? <div className="related-error">{error}</div> : null}
     {loading ? <div className="content-state">Opening related vocabulary…</div> : <div className="related-table">
