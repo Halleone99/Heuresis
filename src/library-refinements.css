@@ -70,13 +70,12 @@
 
 .capture-hub-main {
   cursor: default;
-  min-height: 188px;
-  padding-bottom: 16px;
+  min-height: 124px;
+  padding-bottom: 18px;
 }
 
-.capture-hub-main > p:not(.eyebrow) {
-  min-height: 48px;
-  max-width: 92%;
+.capture-hub-main h3 {
+  margin-bottom: 0;
 }
 
 .capture-hub-actions {
@@ -130,6 +129,33 @@
   grid-template-columns: minmax(260px, 1.55fr) 88px minmax(150px, .72fr) 104px;
 }
 
+.capture-inbox-head,
+.capture-inbox-row {
+  grid-template-columns: minmax(260px, 1.55fr) 88px minmax(150px, .72fr) 118px;
+}
+
+.capture-inbox-card strong {
+  font-size: 20px;
+}
+
+.capture-state-badge {
+  justify-self: start;
+  padding: 4px 7px;
+  border: 1px solid rgba(104,91,79,.14);
+  border-radius: 999px;
+  background: rgba(239,235,228,.72);
+  color: #786d63;
+  font: 7px 'DM Mono', ui-monospace, monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.capture-state-badge.waiting {
+  border-color: rgba(79,111,91,.20);
+  background: rgba(231,239,232,.76);
+  color: #55745f;
+}
+
 .related-target strong {
   font-size: 20px;
 }
@@ -169,8 +195,10 @@
 
 @media (max-width: 1050px) {
   .related-table-head,
-  .related-table-row {
-    grid-template-columns: minmax(210px, 1.35fr) 82px minmax(135px, .72fr) 90px;
+  .related-table-row,
+  .capture-inbox-head,
+  .capture-inbox-row {
+    grid-template-columns: minmax(210px, 1.35fr) 82px minmax(135px, .72fr) 96px;
   }
 }
 
@@ -203,7 +231,8 @@
     border-top: 1px solid rgba(91,78,65,.13);
   }
 
-  .related-table-row {
+  .related-table-row,
+  .capture-inbox-row {
     grid-template-columns: 1fr;
   }
 
