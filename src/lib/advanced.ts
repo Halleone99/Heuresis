@@ -131,7 +131,11 @@ export async function archivePack(packId: string) {
   if (error) throw error;
 }
 export async function restorePack(packId: string) { const { error } = await db().from("heuresis_packs").update({ archived_at: null }).eq("id", packId); if (error) throw error; }
-export async function deletePack(packId: string) { const { error } = await db().from("heuresis_packs").delete().eq("id", packId); if (error) throw error; }
+export async function deletePack(packId: string) {
+  const { data, error } = await db().from("heuresis_packs").delete().eq("id", packId).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("The topic was not deleted. Refresh Heuresis and try again.");
+}
 
 export async function searchCards(query: string): Promise<SearchCardResult[]> {
   const term = query.trim();
