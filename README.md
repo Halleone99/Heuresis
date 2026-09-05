@@ -32,4 +32,4 @@ Current invariants:
 
 See `docs/INTEGRITY_AUDIT_STATUS.md` for the current parity audit and remaining work.
 
-The main unresolved schema issue is card-type field-key resolution in Related RPC/view logic: vocabulary types use `term/reading/meaning`, while sentence and concept types use different role keys. Live verification on 2026-09-05 found no currently affected relations, but the database contract must be fixed before Related creation is enabled more broadly.
+The main unresolved schema issue is card-type field-key resolution in Related RPC/view logic: vocabulary types use `term/reading/meaning`, while sentence and concept types use different role keys. Live read-only verification on 2026-09-05 found no currently affected relations. No production schema change was made by this branch.
