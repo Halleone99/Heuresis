@@ -30,4 +30,6 @@ Current invariants:
 - global Search includes both main and related identities and labels related hits;
 - Related schema/RPC migrations are versioned under `supabase/migrations/`.
 
-The remaining known schema issue is card-type field-key resolution in Related RPC/view logic: vocabulary types use `term/reading/meaning`, while sentence and concept types use different role keys. Do not enable Related creation on additional card types without fixing that database contract first.
+See `docs/INTEGRITY_AUDIT_STATUS.md` for the current parity audit and remaining work.
+
+The main unresolved schema issue is card-type field-key resolution in Related RPC/view logic: vocabulary types use `term/reading/meaning`, while sentence and concept types use different role keys. Live verification on 2026-09-05 found no currently affected relations, but the database contract must be fixed before Related creation is enabled more broadly.
