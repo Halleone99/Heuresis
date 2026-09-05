@@ -50,6 +50,10 @@ if (!cosmos.includes("listRelatedCards") || !cosmos.includes('relatedReview ? "r
   throw new Error("Cosmos must load related identities and record them as a Related session.");
 }
 
+if (!cosmos.includes("signHeuresisCardImages") || !cosmos.includes('type: "image"') || !cosmos.includes("signedImages[block.path]")) {
+  throw new Error("Cosmos must round-trip and render shared workspace image blocks.");
+}
+
 if (!study.includes("heuresis_record_events") || !study.includes("localStorage") || !study.includes("PARK_AFTER")) {
   throw new Error("Study events must use the durable queued event path.");
 }
