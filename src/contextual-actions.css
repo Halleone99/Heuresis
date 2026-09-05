@@ -1,59 +1,311 @@
-/* Contextual creation actions: structure belongs to the page; Capture stays globally available. */
+/* Final interface pass: preserve Heuresis' parchment/serif identity while fixing hierarchy, density and action consistency. */
 
-/* Topic creation is only useful when a collection is actually open. */
-.desktop-topic-action {
-  display: none;
+:root {
+  --h-page: #f1eee8;
+  --h-paper: #fbf9f4;
+  --h-paper-muted: #f6f2eb;
+  --h-ink: #27221e;
+  --h-text: #5f574f;
+  --h-muted: #8a8178;
+  --h-line: rgba(72, 61, 52, .14);
+  --h-line-strong: rgba(72, 61, 52, .22);
+  --h-focus: #875c43;
+  --h-radius-sm: 7px;
+  --h-radius-md: 10px;
+  --h-radius-lg: 14px;
+  --h-shadow-sm: 0 7px 22px rgba(39, 31, 25, .045);
+  --h-shadow-md: 0 16px 45px rgba(39, 31, 25, .075);
+  --h-space-1: 4px;
+  --h-space-2: 8px;
+  --h-space-3: 12px;
+  --h-space-4: 16px;
+  --h-space-5: 24px;
+  --h-space-6: 32px;
 }
 
-.heuresis-desktop:has(.collection-page) .desktop-topic-action {
-  display: inline-flex;
+.heuresis-desktop { background: var(--h-page); }
+
+/* The photograph is atmosphere for the hero only, never the reading surface. */
+.heuresis-wallpaper,
+.heuresis-veil {
+  position: absolute;
+  inset: 66px 0 auto;
+  height: 300px;
 }
 
-/* Capture behaves like a global utility rather than another navigation item. */
+.heuresis-wallpaper {
+  opacity: var(--heuresis-background-opacity, .30);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 72%, transparent 100%);
+}
+
+.heuresis-veil {
+  background: linear-gradient(to bottom, rgba(245,242,235,var(--heuresis-background-veil,.52)) 0%, rgba(245,242,235,.68) 72%, var(--h-page) 100%);
+}
+
+.heuresis-desktop:not([data-custom-background="heuresis"]) .heuresis-veil {
+  background: linear-gradient(to bottom, rgba(250,248,243,.72), var(--h-page));
+}
+
+.desktop-content { padding-top: 26px; padding-bottom: 64px; }
+
+/* Creation actions: one structural action in context, one global Capture action in the header. */
+.desktop-topic-action { display: none; }
+.heuresis-desktop:has(.collection-page) .desktop-topic-action { display: inline-flex; }
+
 .desktop-header-actions > .desktop-action.desktop-primary {
-  position: fixed;
-  right: 30px;
-  bottom: 28px;
-  z-index: 65;
-  height: 48px;
-  padding: 0 18px;
-  border: 1px solid rgba(255,255,255,.13);
-  border-radius: 999px;
-  background: rgba(40, 35, 31, .97);
-  box-shadow: 0 14px 36px rgba(35, 28, 23, .20), 0 2px 8px rgba(35, 28, 23, .10);
-  backdrop-filter: blur(18px);
-  font-size: 11px;
-  letter-spacing: .01em;
+  position: static;
+  inset: auto;
+  z-index: auto;
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #28231f;
+  color: #fff;
+  box-shadow: 0 7px 18px rgba(40,33,28,.13);
+  backdrop-filter: none;
+  font-size: 10.5px;
+  letter-spacing: 0;
 }
-
 .desktop-header-actions > .desktop-action.desktop-primary:hover {
-  background: #37302b;
-  box-shadow: 0 18px 44px rgba(35, 28, 23, .24), 0 3px 10px rgba(35, 28, 23, .11);
-  transform: translateY(-2px);
+  background: #3a332e;
+  box-shadow: 0 9px 22px rgba(40,33,28,.17);
+  transform: translateY(-1px);
+}
+.desktop-header-actions > .desktop-action.desktop-primary:active { transform: translateY(0); }
+
+/* Typography: display serif stays; metadata returns to readable sans. */
+.eyebrow {
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: .085em !important;
+  color: #847a71 !important;
 }
 
-.desktop-header-actions > .desktop-action.desktop-primary:active {
-  transform: translateY(0);
+.library-hero h1,
+.collection-page-head h1,
+.catalogue-heading h1 { font-size: clamp(46px, 4.4vw, 62px); }
+.pack-page-head h1 { font-size: clamp(42px, 4vw, 56px); }
+.topics-intro h2 { font-size: 25px; }
+.topic-card h3 { font-size: 25px; }
+
+.pack-record,
+.topic-meta,
+.collection-overview-meta,
+.library-summary-metrics,
+.collection-metrics {
+  font-family: Inter, system-ui, sans-serif !important;
+  letter-spacing: 0 !important;
+}
+.pack-record { font-size: 10px; text-transform: none; color: #746b63; }
+
+/* Library: compact collection cards, no decorative dead band. */
+.library-hero { padding: 16px 0 15px; }
+.library-summary { margin-bottom: 18px; }
+.library-summary-metrics > span,
+.collection-metrics > span {
+  min-width: 88px;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 10px;
+}
+.library-summary-metrics strong,
+.collection-metrics strong { font: 600 10px Inter, system-ui, sans-serif; }
+.library-summary-metrics em,
+.collection-metrics em { font: 500 8px Inter, system-ui, sans-serif; letter-spacing: .025em; }
+
+.collection-overview-grid { gap: 14px; }
+.collection-overview-card {
+  min-height: 190px;
+  padding: 22px 24px;
+  grid-template-columns: 62px 1fr;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px 18px;
+  border-radius: var(--h-radius-md);
+  background: var(--h-paper);
+  box-shadow: var(--h-shadow-sm);
+}
+.collection-overview-glyph {
+  grid-row: 1 / 4;
+  font-size: 46px;
+  align-self: start;
+  margin-top: 2px;
+}
+.collection-overview-card h2 { margin: 2px 0 5px; font-size: 29px; }
+.collection-overview-card p { font-size: 11px; line-height: 1.45; }
+.collection-overview-meta { align-self: end; font-size: 9px; color: #877e75; }
+.collection-open { align-self: end; font-size: 10px; }
+
+/* Collection hero: the glyph is a mark, not part of the collection name. */
+.collection-page-head { padding: 8px 0 22px; }
+.collection-title-block { gap: 18px; }
+.collection-page-glyph {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--h-line);
+  border-radius: 12px;
+  background: rgba(251,249,244,.72);
+  display: grid;
+  place-items: center;
+  font-size: 37px;
+  line-height: 1;
+  box-shadow: var(--h-shadow-sm);
+}
+.topics-intro { padding: 22px 0 13px; }
+
+/* One topic-card anatomy for normal topics and the learning inbox. */
+.topic-grid { gap: 12px; }
+.topic-card {
+  min-height: 0;
+  border-radius: var(--h-radius-md);
+  background: var(--h-paper);
+  box-shadow: var(--h-shadow-sm);
+}
+.topic-card-main {
+  min-height: 174px;
+  padding: 20px 21px 16px;
+}
+.topic-card-static { cursor: default; }
+.topic-card-main > p:not(.eyebrow) { min-height: 34px; max-width: 88%; font-size: 10.5px; }
+.topic-ghost { top: 4px; right: 14px; font-size: 67px; }
+.topic-meta { margin-top: 15px; font-size: 9px; }
+.topic-open { display: none; }
+.topic-card-tools,
+.topic-card-footer-actions {
+  min-height: 39px;
+  padding: 5px 7px;
+  background: var(--h-paper-muted);
+}
+.topic-card-footer-actions { display: flex; justify-content: flex-start; }
+.topic-card-footer-actions button { min-width: 0; }
+.topic-card-footer-actions button + button { border-left: 1px solid var(--h-line); }
+.footer-count {
+  margin-left: 3px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(55,47,41,.07);
+  display: inline-grid;
+  place-items: center;
+  font-size: 8px;
+}
+.topic-card-inbox { background: var(--h-paper); }
+
+/* Topic page: clear header action and a three-level button vocabulary. */
+.pack-page-head { padding-bottom: 20px; }
+.topic-settings-button { align-self: center; white-space: nowrap; }
+.topic-action-bar { margin: 17px 0 14px; }
+.primary-button,
+.secondary-button,
+.desktop-action,
+.library-new-collection,
+.filter-strip button {
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.primary-button:disabled,
+.secondary-button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
+
+/* Dense topic list. 56px is enough for term, gloss, tag and useful status. */
+.pack-toolbar { margin: 17px 0 10px; gap: 9px; }
+.pack-search { max-width: 480px; background: var(--h-paper); }
+.filter-strip { gap: 5px; }
+.filter-strip button { padding: 5px 9px; font-size: 9px; background: rgba(251,249,244,.58); }
+
+.card-table {
+  border: 1px solid var(--h-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--h-paper);
+  box-shadow: var(--h-shadow-sm);
+}
+.card-table-head {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  background: var(--h-paper-muted);
+  display: grid;
+  grid-template-columns: minmax(250px, .95fr) minmax(320px, 1.35fr) 220px;
+  gap: 18px;
+  align-items: center;
+  color: #8d837a;
+  font: 600 8px Inter, system-ui, sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.card-table-head span:last-child { text-align: right; }
+.card-data-row {
+  min-height: 56px;
+  padding: 7px 12px;
+  grid-template-columns: minmax(250px, .95fr) minmax(320px, 1.35fr) 220px;
+  gap: 18px;
+  border-top: 1px solid rgba(72,61,52,.105);
+  background: var(--h-paper) !important;
+}
+.card-data-row:hover { background: #fff !important; }
+.card-term { gap: 1px; }
+.card-term strong { font-size: 17px; line-height: 1.12; }
+.card-term em { font-size: 9.5px; }
+.card-meaning {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #514a43;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.card-meaning > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-tags { flex-wrap: nowrap; overflow: hidden; }
+.row-tags i { white-space: nowrap; }
+.card-tally { min-width: 0; justify-content: flex-end; gap: 5px; }
+.row-status {
+  padding: 3px 6px;
+  border: 1px solid rgba(76,64,54,.12);
+  border-radius: 999px;
+  background: #f6f2eb;
+  color: #766c63;
+  font: 500 8px Inter, system-ui, sans-serif;
+  white-space: nowrap;
 }
 
-/* Leave breathing room so the floating Capture control never covers the final row. */
-.desktop-content {
-  padding-bottom: 108px;
+/* Explicit keyboard focus across the product. */
+.heuresis-desktop button:focus-visible,
+.heuresis-desktop input:focus-visible,
+.heuresis-desktop textarea:focus-visible,
+.heuresis-desktop select:focus-visible,
+.heuresis-desktop summary:focus-visible {
+  outline: 2px solid var(--h-focus) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(135,92,67,.11);
+}
+
+@media (max-width: 1050px) {
+  .card-table-head,
+  .card-data-row { grid-template-columns: minmax(220px, .9fr) minmax(260px, 1.2fr) 170px; }
+  .row-status { padding-inline: 5px; }
 }
 
 @media (max-width: 760px) {
-  .heuresis-desktop:has(.collection-page) .desktop-topic-action {
-    display: inline-flex;
+  .heuresis-wallpaper,
+  .heuresis-veil { height: 240px; }
+  .heuresis-desktop:has(.collection-page) .desktop-topic-action { display: none; }
+  .desktop-header-actions > .desktop-action.desktop-primary { height: 36px; padding: 0 10px; }
+  .desktop-header-actions > .desktop-action.desktop-primary svg { margin-right: -2px; }
+  .collection-overview-grid { grid-template-columns: 1fr; }
+  .collection-overview-card { min-height: 170px; }
+  .collection-page-head { align-items: flex-start; }
+  .collection-title-block { align-items: flex-start; }
+  .collection-page-glyph { width: 48px; height: 48px; flex-basis: 48px; font-size: 31px; }
+  .topic-grid { grid-template-columns: 1fr; }
+  .card-table-head { display: none; }
+  .card-data-row {
+    min-height: 64px;
+    grid-template-columns: minmax(150px, .9fr) minmax(170px, 1.1fr);
+    gap: 12px;
   }
-
-  .desktop-header-actions > .desktop-action.desktop-primary {
-    right: 18px;
-    bottom: 18px;
-    height: 44px;
-    padding: 0 14px;
-  }
-
-  .desktop-content {
-    padding-bottom: 88px;
-  }
+  .card-tally { grid-column: 1 / -1; justify-content: flex-start; margin-top: -2px; }
 }
