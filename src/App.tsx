@@ -136,6 +136,13 @@ function HeuresisApp({ session }: { session: Session }) {
     if (activePackId && !next.packs.some((pack) => pack.id === activePackId)) openLibrary();
   }
 
+  async function afterRelatedTopicCreated(packId: string) {
+    const next = await reload(true);
+    const created = next.packs.find((pack) => pack.id === packId);
+    if (created) openPack(created);
+    setNotice("Topic created from New words.");
+  }
+
   return (
     <div className="heuresis-desktop" style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
       <div className="heuresis-wallpaper" aria-hidden="true" />
@@ -171,7 +178,7 @@ function HeuresisApp({ session }: { session: Session }) {
         {!loading && error ? <div className="content-state error-state"><strong>Database connection failed.</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
         {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
         {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
-        {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} /> : null}
+        {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
         {!loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
         {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
