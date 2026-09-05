@@ -136,7 +136,7 @@ function normaliseDimension(value: unknown): DimensionId {
 function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
   const raw = card?.data[WORKSPACE_BLOCKS_KEY];
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry) => {
+  return raw.flatMap<WorkspaceBlock>((entry) => {
     try {
       const value = JSON.parse(entry) as Record<string, unknown>;
       if (value.type === "text" && typeof value.id === "string" && typeof value.text === "string") {
