@@ -11,6 +11,15 @@ type Props = {
   onChanged: (createdId?: string) => Promise<void> | void;
 };
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export default function TopicModal({ collections, pack, preferredCollectionId, onClose, onChanged }: Props) {
   const [types, setTypes] = useState<CardType[]>([]);
   const [collectionId, setCollectionId] = useState(pack?.collection_id ?? preferredCollectionId ?? collections[0]?.id ?? "");
@@ -21,7 +30,7 @@ export default function TopicModal({ collections, pack, preferredCollectionId, o
   const [message, setMessage] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
-  useEffect(() => { void listCardTypes().then((items) => { setTypes(items); if (!pack && !typeId) setTypeId(items[0]?.id ?? ""); }).catch((error) => setMessage(error instanceof Error ? error.message : "Could not load card types.")); }, [pack, typeId]);
+  useEffect(() => { void listCardTypes().then((items) => { setTypes(items); if (!pack && !typeId) setTypeId(items[0]?.id ?? ""); }).catch((error) => setMessage(errorMessage(error, "Could not load card types."))); }, [pack, typeId]);
 
   async function save() {
     if (!title.trim() || !collectionId || (!pack && !typeId)) return;
@@ -30,7 +39,7 @@ export default function TopicModal({ collections, pack, preferredCollectionId, o
       if (pack) { await updatePack(pack.id, { collection_id: collectionId, title, description }); await onChanged(); }
       else { const id = await createPack({ collectionId, cardTypeId: typeId, title, description }); await onChanged(id); }
       onClose();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the topic."); }
+    } catch (error) { setMessage(errorMessage(error, "Could not save the topic.")); }
     finally { setBusy(false); }
   }
 
@@ -39,7 +48,7 @@ export default function TopicModal({ collections, pack, preferredCollectionId, o
     if (!window.confirm(`Archive ${pack.title}?`)) return;
     setBusy(true); setMessage("");
     try { await archivePack(pack.id); await onChanged(); onClose(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Could not archive the topic."); }
+    catch (error) { setMessage(errorMessage(error, "Could not archive the topic.")); }
     finally { setBusy(false); }
   }
 
@@ -47,7 +56,7 @@ export default function TopicModal({ collections, pack, preferredCollectionId, o
     if (!pack || !deleteConfirm) return;
     setBusy(true); setMessage("");
     try { await deletePack(pack.id); await onChanged(); onClose(); }
-    catch (error) { setDeleteConfirm(false); setMessage(error instanceof Error ? error.message : "Could not delete the topic."); }
+    catch (error) { setDeleteConfirm(false); setMessage(errorMessage(error, "Could not delete the topic.")); }
     finally { setBusy(false); }
   }
 
