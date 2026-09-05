@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
 export const CARD_PAGE_SIZE = 200;
-const MAX_CARD_PAGES = 50;
+const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
 export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | "slate" | "ink";
 export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
@@ -73,6 +73,13 @@ export type CardWithStats = {
   updated_at: string;
   tags: HeuresisTag[];
   stats: CardStats;
+};
+
+export type CardPage = {
+  items: CardWithStats[];
+  offset: number;
+  nextOffset: number | null;
+  total: number;
 };
 
 const EMPTY_STATS: CardStats = {
@@ -220,27 +227,65 @@ export async function listTags(): Promise<HeuresisTag[]> {
   return (data ?? []) as HeuresisTag[];
 }
 
-export async function listCards(packId: string): Promise<CardWithStats[]> {
-  const rows: any[] = [];
+const CARD_SELECT = "id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
 
-  for (let page = 0; page < MAX_CARD_PAGES; page += 1) {
-    const start = page * CARD_PAGE_SIZE;
-    const { data, error } = await db()
-      .from("heuresis_cards")
-      .select("id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))")
-      .eq("pack_id", packId)
-      .eq("role", "main")
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(start, start + CARD_PAGE_SIZE - 1);
-    if (error) throw error;
+export async function listCardsPage(packId: string, options: { offset?: number; limit?: number } = {}): Promise<CardPage> {
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
+  const limit = Math.min(500, Math.max(1, Math.floor(options.limit ?? CARD_PAGE_SIZE)));
+  const { data, error, count } = await db()
+    .from("heuresis_cards")
+    .select(CARD_SELECT, { count: "exact" })
+    .eq("pack_id", packId)
+    .eq("role", "main")
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  const items = (data ?? []).map(mapCardRow);
+  const total = Number(count ?? offset + items.length);
+  const nextOffset = offset + items.length < total ? offset + items.length : null;
+  return { items, offset, nextOffset, total };
+}
 
-    const pageRows = data ?? [];
-    rows.push(...pageRows);
-    if (pageRows.length < CARD_PAGE_SIZE) return rows.map(mapCardRow);
+export async function listAllCards(packId: string, onProgress?: (loaded: number, total: number) => void): Promise<CardWithStats[]> {
+  const result: CardWithStats[] = [];
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+  while (offset < total) {
+    const page = await listCardsPage(packId, { offset, limit: CARD_PAGE_SIZE });
+    result.push(...page.items);
+    total = page.total;
+    onProgress?.(result.length, total);
+    if (page.nextOffset == null || page.nextOffset <= offset) break;
+    offset = page.nextOffset;
   }
+  return result;
+}
 
-  throw new Error(`This topic contains more than ${CARD_PAGE_SIZE * MAX_CARD_PAGES} cards. Raise the Heuresis safety limit before loading it.`);
+/** Compatibility helper for callers that explicitly need the whole topic. */
+export async function listCards(packId: string): Promise<CardWithStats[]> {
+  return listAllCards(packId);
+}
+
+export async function getCard(cardId: string): Promise<CardWithStats | null> {
+  const { data, error } = await db().from("heuresis_cards").select(CARD_SELECT).eq("id", cardId).maybeSingle();
+  if (error) throw error;
+  return data ? mapCardRow(data) : null;
+}
+
+/** Deliberate role-blind lookup for explicit card-id sessions such as Related review. */
+export async function listCardsByIds(ids: string[]): Promise<CardWithStats[]> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (!uniqueIds.length) return [];
+  const rows: CardWithStats[] = [];
+  for (let start = 0; start < uniqueIds.length; start += CARD_PAGE_SIZE) {
+    const batch = uniqueIds.slice(start, start + CARD_PAGE_SIZE);
+    const { data, error } = await db().from("heuresis_cards").select(CARD_SELECT).in("id", batch);
+    if (error) throw error;
+    rows.push(...(data ?? []).map(mapCardRow));
+  }
+  const byId = new Map(rows.map((card) => [card.id, card]));
+  return uniqueIds.map((id) => byId.get(id)).filter((card): card is CardWithStats => Boolean(card));
 }
 
 function cleanCardValues(pack: PackWithType, values: Record<string, string>) {
@@ -255,11 +300,7 @@ function cleanCardValues(pack: PackWithType, values: Record<string, string>) {
 
 export async function createCard(pack: PackWithType, values: Record<string, string>, note?: string, tagIds: string[] = []) {
   const data = cleanCardValues(pack, values);
-  const { data: created, error } = await db()
-    .from("heuresis_cards")
-    .insert({ pack_id: pack.id, data, note: note?.trim() || null })
-    .select("id,created_at")
-    .single();
+  const { data: created, error } = await db().from("heuresis_cards").insert({ pack_id: pack.id, data, note: note?.trim() || null }).select("id,created_at").single();
   if (error) throw error;
   if (tagIds.length) {
     const { error: tagError } = await db().rpc("heuresis_set_card_tags", { p_card_id: created.id, p_tag_ids: tagIds });
@@ -268,14 +309,47 @@ export async function createCard(pack: PackWithType, values: Record<string, stri
   return created;
 }
 
+function canDesktopRoundTripWorkspaceEntry(entry: string) {
+  try {
+    const value = JSON.parse(entry) as Record<string, unknown>;
+    if (value?.type === "text") return typeof value.id === "string" && typeof value.text === "string";
+    if (value?.type === "image") return typeof value.id === "string" && typeof value.path === "string";
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function preserveUnsupportedWorkspaceEntries(current: Record<string, string | string[] | null>, patch: Record<string, string | string[] | null>) {
+  const existing = current[WORKSPACE_BLOCKS_KEY];
+  const incoming = patch[WORKSPACE_BLOCKS_KEY];
+  if (!Array.isArray(existing) || !Array.isArray(incoming)) return patch;
+  const next = [...incoming];
+  const seen = new Set(next);
+  for (const entry of existing) {
+    if (!canDesktopRoundTripWorkspaceEntry(entry) && !seen.has(entry)) {
+      next.push(entry);
+      seen.add(entry);
+    }
+  }
+  return { ...patch, [WORKSPACE_BLOCKS_KEY]: next };
+}
+
 export async function patchCardData(cardId: string, patch: Record<string, string | string[] | null>) {
-  const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
-  if (readError) throw readError;
-  const current = cardData(existing?.data);
-  const data = { ...current, ...patch };
-  const { error } = await db().from("heuresis_cards").update({ data }).eq("id", cardId);
+  let safePatch = patch;
+  if (Array.isArray(patch[WORKSPACE_BLOCKS_KEY])) {
+    const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
+    if (readError) throw readError;
+    safePatch = preserveUnsupportedWorkspaceEntries(cardData(existing?.data), patch);
+  }
+  const { data, error } = await db().rpc("heuresis_patch_card_data", { p_card_id: cardId, p_patch: safePatch });
   if (error) throw error;
-  return data;
+  return cardData(data);
+}
+
+export async function saveCardNote(cardId: string, note: string | null) {
+  const { error } = await db().from("heuresis_cards").update({ note: note?.trim() || null }).eq("id", cardId);
+  if (error) throw error;
 }
 
 export async function updateCard(pack: PackWithType, cardId: string, values: Record<string, string>, extras: {
@@ -307,5 +381,7 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
 
 export async function deleteCard(cardId: string) {
   const { error } = await db().from("heuresis_cards").delete().eq("id", cardId);
-  if (error) throw error;
+  if (!error) return;
+  if (error.code === "23503") throw new Error("Remove this card's Related connections before deleting it.");
+  throw error;
 }

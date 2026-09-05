@@ -22,6 +22,7 @@ import {
 } from "../lib/learning";
 import {
   addRelatedWord,
+  listRelatedCards,
   listRelatedCatalogue,
   removeRelatedRelation,
   type RelatedCatalogueRow,
@@ -36,6 +37,7 @@ import {
   type StudyGrade,
   type StudyTemplate,
 } from "../lib/study";
+import { signHeuresisCardImages } from "../lib/cardMedia";
 import { supabase } from "../lib/supabase";
 import "./cosmos.css";
 
@@ -45,13 +47,16 @@ type StudyMode = "review" | "sort";
 type Side = "l" | "r";
 type DimensionId = "neighbours" | "components" | "examples" | "structure" | "origin" | "facts" | "notes";
 type DimensionDef = { id: DimensionId; side: Side; label: string; sub: string };
-type WorkspaceBlock = { id: string; type: "text"; text: string; dim: DimensionId };
+type WorkspaceTextBlock = { id: string; type: "text"; text: string; dim: DimensionId };
+type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: string; dim: DimensionId };
+type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
 type Source = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
 type Order = "pack" | "random";
 
 type Config = {
   valid: boolean;
   mode: StudyMode;
+  relatedReview: boolean;
   packId: string;
   templateId: string;
   source: Source;
@@ -83,6 +88,7 @@ const CONCEPT_DIMS: DimensionDef[] = [
 
 const REVIEW_ACTIONS: LearningAction[] = ["handwrite", "say", "hear", "sentence", "rephrase", "example"];
 const RELATION_TYPES: RelationType[] = ["synonym", "antonym", "related"];
+const DIMENSION_IDS = new Set<DimensionId>(["neighbours", "components", "examples", "structure", "origin", "facts", "notes"]);
 
 function parseConfig(): Config {
   const params = new URLSearchParams(window.location.search);
@@ -90,9 +96,11 @@ function parseConfig(): Config {
   const rawCount = params.get("count") ?? "all";
   const numeric = Number(rawCount);
   const source = params.get("source");
+  const relatedReview = params.get("related") === "1";
   return {
     valid: Boolean(packId),
-    mode: params.get("mode") === "sort" ? "sort" : "review",
+    mode: relatedReview ? "review" : params.get("mode") === "sort" ? "sort" : "review",
+    relatedReview,
     packId,
     templateId: params.get("template") ?? "",
     source: source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
@@ -120,17 +128,31 @@ function sourceCards(cards: CardWithStats[], source: Source) {
   return cards;
 }
 
+function normaliseDimension(value: unknown): DimensionId {
+  if (value === "contrast") return "neighbours";
+  return typeof value === "string" && DIMENSION_IDS.has(value as DimensionId) ? value as DimensionId : "notes";
+}
+
 function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
   const raw = card?.data[WORKSPACE_BLOCKS_KEY];
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry) => {
+  return raw.flatMap<WorkspaceBlock>((entry) => {
     try {
-      const value = JSON.parse(entry) as Partial<WorkspaceBlock>;
-      if (value.type === "text" && typeof value.id === "string" && typeof value.text === "string" && typeof value.dim === "string") {
-        return [{ id: value.id, type: "text", text: value.text, dim: value.dim as DimensionId }];
+      const value = JSON.parse(entry) as Record<string, unknown>;
+      if (value.type === "text" && typeof value.id === "string" && typeof value.text === "string") {
+        return [{ id: value.id, type: "text", text: value.text, dim: normaliseDimension(value.dim) } satisfies WorkspaceTextBlock];
+      }
+      if (value.type === "image" && typeof value.id === "string" && typeof value.path === "string") {
+        return [{
+          id: value.id,
+          type: "image",
+          path: value.path,
+          caption: typeof value.caption === "string" ? value.caption : "",
+          dim: normaliseDimension(value.dim),
+        } satisfies WorkspaceImageBlock];
       }
     } catch {
-      // Keep a malformed legacy block from breaking the card.
+      // Unsupported or malformed legacy entries are preserved by patchCardData.
     }
     return [];
   });
@@ -187,16 +209,19 @@ export default function CosmosWindow() {
   const [addingDim, setAddingDim] = useState<DimensionId | null>(null);
   const [addingText, setAddingText] = useState("");
   const [relatedRows, setRelatedRows] = useState<RelatedCatalogueRow[]>([]);
+  const [relatedContext, setRelatedContext] = useState<RelatedCatalogueRow[]>([]);
   const [relatedTerm, setRelatedTerm] = useState("");
   const [relatedReading, setRelatedReading] = useState("");
   const [relatedMeaning, setRelatedMeaning] = useState("");
   const [relationType, setRelationType] = useState<RelationType>("related");
   const [learningCounts, setLearningCounts] = useState<Record<string, LearningCounts>>({});
   const [selectedActions, setSelectedActions] = useState<Record<string, LearningAction[]>>({});
+  const [signedImages, setSignedImages] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
 
   const mode = config.mode;
+  const relatedReview = config.relatedReview;
   const currentId = order[index];
   const card = cards.find((item) => item.id === currentId) ?? null;
   const template = templates.find((item) => item.id === templateId) ?? templates[0] ?? null;
@@ -236,10 +261,11 @@ export default function CosmosWindow() {
         const nextPack = packs.find((item) => item.id === config.packId) ?? null;
         if (!nextPack) throw new Error("This Heuresis topic no longer exists.");
 
-        const [allCards, allTags, setup] = await Promise.all([
-          listCards(nextPack.id),
+        const [allCards, allTags, setup, contextRows] = await Promise.all([
+          relatedReview ? listRelatedCards(nextPack.id) : listCards(nextPack.id),
           listTags(),
           loadStudySetup(nextPack.id, nextPack.card_type_id),
+          relatedReview ? listRelatedCatalogue(nextPack.id) : Promise.resolve([]),
         ]);
         if (cancelled) return;
 
@@ -250,12 +276,14 @@ export default function CosmosWindow() {
           ?? null;
         if (config.mode === "review" && !chosenTemplate) throw new Error("This topic has no review direction yet.");
 
-        let pool = config.mode === "sort"
-          ? (config.source === "unsorted" ? allCards.filter((item) => !cardHasCompletedSort(item)) : sourceCards(allCards, config.source))
-          : sourceCards(allCards.filter(cardHasCompletedSort), config.source === "unsorted" ? "all" : config.source);
+        let pool = relatedReview
+          ? [...allCards]
+          : config.mode === "sort"
+            ? (config.source === "unsorted" ? allCards.filter((item) => !cardHasCompletedSort(item)) : sourceCards(allCards, config.source))
+            : sourceCards(allCards.filter(cardHasCompletedSort), config.source === "unsorted" ? "all" : config.source);
 
-        if (config.mode === "sort" && config.tagId) pool = pool.filter((item) => item.tags.some((tag) => tag.id === config.tagId));
-        if (config.mode === "sort" && config.query) {
+        if (!relatedReview && config.mode === "sort" && config.tagId) pool = pool.filter((item) => item.tags.some((tag) => tag.id === config.tagId));
+        if (!relatedReview && config.mode === "sort" && config.query) {
           const q = config.query.toLocaleLowerCase();
           pool = pool.filter((item) => [
             item.note ?? "",
@@ -266,12 +294,14 @@ export default function CosmosWindow() {
         if (config.order === "random") pool = shuffle(pool);
         if (config.count !== "all") pool = pool.slice(0, Math.min(config.count, pool.length));
         if (!pool.length) {
-          throw new Error(config.mode === "sort"
-            ? "There are no cards in this sorting selection."
-            : "There are no sorted cards in this review selection. Use Sort first, or change the review filter.");
+          throw new Error(relatedReview
+            ? "There are no related words to review yet."
+            : config.mode === "sort"
+              ? "There are no cards in this sorting selection."
+              : "There are no sorted cards in this review selection. Use Sort first, or change the review filter.");
         }
 
-        const sessionId = await startHeuresisSession(nextPack.id, config.mode === "sort" ? "sort" : "flashcards", chosenTemplate?.id ?? null);
+        const sessionId = await startHeuresisSession(nextPack.id, relatedReview ? "related" : config.mode === "sort" ? "sort" : "flashcards", chosenTemplate?.id ?? null);
         if (cancelled) {
           await finishStudySession(sessionId).catch(() => undefined);
           return;
@@ -298,7 +328,8 @@ export default function CosmosWindow() {
         setIndex(0);
         setRevealed(config.mode === "sort");
         setLearningCounts(counts);
-        document.title = `${config.mode === "sort" ? "Sort" : "Flashcards"} · ${nextPack.title} · Heuresis`;
+        setRelatedContext(contextRows);
+        document.title = `${relatedReview ? "Related" : config.mode === "sort" ? "Sort" : "Flashcards"} · ${nextPack.title} · Heuresis`;
       } catch (openError) {
         setError(openError instanceof Error ? openError.message : "Could not open Heuresis.");
       } finally {
@@ -314,10 +345,10 @@ export default function CosmosWindow() {
       window.removeEventListener("pagehide", onPageHide);
       void closeSession();
     };
-  }, [config, closeSession]);
+  }, [config, closeSession, relatedReview]);
 
   useEffect(() => {
-    if (!card || !pack || !structuredWords) {
+    if (!card || !pack || !structuredWords || relatedReview) {
       setRelatedRows([]);
       return;
     }
@@ -326,7 +357,20 @@ export default function CosmosWindow() {
       .then((rows) => { if (alive) setRelatedRows(rows); })
       .catch(() => { if (alive) setRelatedRows([]); });
     return () => { alive = false; };
-  }, [card?.id, pack?.id, structuredWords]);
+  }, [card?.id, pack?.id, structuredWords, relatedReview]);
+
+  useEffect(() => {
+    const paths = blocks.filter((block): block is WorkspaceImageBlock => block.type === "image").map((block) => block.path);
+    let alive = true;
+    if (!paths.length) {
+      setSignedImages({});
+      return;
+    }
+    void signHeuresisCardImages(paths)
+      .then((urls) => { if (alive) setSignedImages(urls); })
+      .catch(() => { if (alive) setSignedImages({}); });
+    return () => { alive = false; };
+  }, [card?.id, card?.updated_at]);
 
   useEffect(() => {
     if (!pinned.l) setOpenLeaf((current) => ({ ...current, l: null }));
@@ -497,9 +541,10 @@ export default function CosmosWindow() {
   }
 
   async function switchMode(next: StudyMode) {
-    if (next === mode || unsavedDraft) return;
+    if (relatedReview || next === mode || unsavedDraft) return;
     await closeSession();
     const params = new URLSearchParams(window.location.search);
+    params.delete("related");
     params.set("mode", next);
     params.set("source", next === "sort" ? "unsorted" : "all");
     params.set("order", "pack");
@@ -536,7 +581,7 @@ export default function CosmosWindow() {
 
   if (loading) return <div className="cosmos-state">Opening Heuresis…</div>;
   if (error || !pack) return <div className="cosmos-state error"><strong>Heuresis could not open.</strong><p>{error || "Missing topic data."}</p><button onClick={() => void closeDesktopWindow()}>Close</button></div>;
-  if (done || !card) return <div className="cosmos-state done"><strong>{mode === "sort" ? "Sort pass complete." : "Review complete."}</strong><p>{order.length} cards in this session.</p><button onClick={() => void closeSession().then(() => closeDesktopWindow())}>Return to Heuresis</button></div>;
+  if (done || !card) return <div className="cosmos-state done"><strong>{relatedReview ? "Related review complete." : mode === "sort" ? "Sort pass complete." : "Review complete."}</strong><p>{order.length} cards in this session.</p><button onClick={() => void closeSession().then(() => closeDesktopWindow())}>Return to Heuresis</button></div>;
 
   const type = pack.cardType;
   const term = fieldByRole(type, "term") ?? type?.field_schema[0] ?? null;
@@ -548,6 +593,7 @@ export default function CosmosWindow() {
   const activeLearning = new Set(selectedActions[card.id] ?? []);
   const counts = learningCounts[card.id] ?? EMPTY_LEARNING_COUNTS;
   const badges = tags.filter((tag) => tag.is_badge).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  const context = relatedReview ? relatedContext.find((row) => row.target_card_id === card.id) ?? null : null;
 
   const fieldEntriesFor = (dimension: DimensionId) => (type?.field_schema ?? []).flatMap((field) => {
     if (fieldDimension(field) !== dimension) return [];
@@ -563,7 +609,7 @@ export default function CosmosWindow() {
     if (!dimensionId || !def) return <aside className={`cosmos-leaf ${side}`} aria-hidden="true" />;
     const entries = fieldEntriesFor(dimensionId);
     const dimensionBlocks = blocksFor(dimensionId);
-    const showRelated = dimensionId === "neighbours" && structuredWords;
+    const showRelated = dimensionId === "neighbours" && structuredWords && !relatedReview;
     return <aside className={`cosmos-leaf ${side} open`}>
       <div className="cosmos-leaf-inner">
         <header><div><h2>{def.label}</h2><span>{def.sub}</span></div><div><button aria-pressed={pinned[side]} title="Keep open" onClick={() => setPinned((current) => ({ ...current, [side]: !current[side] }))}><Pin size={14} /></button><button aria-label={`Close ${def.label}`} onClick={() => { setOpenLeaf((current) => ({ ...current, [side]: null })); setPinned((current) => ({ ...current, [side]: false })); }}><X size={14} /></button></div></header>
@@ -571,7 +617,14 @@ export default function CosmosWindow() {
           {dimensionId === "notes" && card.note?.trim() ? <article className="cosmos-field"><small>Card note</small><p>{card.note}</p></article> : null}
           {entries.map((entry) => <article className="cosmos-field" key={entry.key}><small>{entry.label}</small><p>{entry.value}</p></article>)}
           {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}<button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button></article>) : null}
-          {dimensionBlocks.map((block) => <article className="cosmos-text-block" key={block.id}><p>{block.text}</p><button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button></article>)}
+          {dimensionBlocks.map((block) => block.type === "text"
+            ? <article className="cosmos-text-block" key={block.id}><p>{block.text}</p><button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button></article>
+            : <figure className="cosmos-image-block" key={block.id} style={{ margin: "12px 0", paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+                {signedImages[block.path]
+                  ? <img src={signedImages[block.path]} alt={block.caption || "Card reference"} style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 4, background: "var(--paper)" }} />
+                  : <div style={{ padding: "18px 8px", color: "var(--faint)", font: "11px/1.4 var(--sans)", textAlign: "center" }}>Loading image…</div>}
+                {block.caption ? <figcaption style={{ marginTop: 7, color: "var(--muted)", font: "12px/1.45 var(--serif)" }}>{block.caption}</figcaption> : null}
+              </figure>)}
           {!entries.length && !dimensionBlocks.length && !showRelated && !(dimensionId === "notes" && card.note?.trim()) ? <p className="cosmos-empty">Nothing here yet. Add whatever makes this card easier to understand or remember.</p> : null}
         </div>
         <footer>
@@ -590,11 +643,11 @@ export default function CosmosWindow() {
       if (!value) return null;
       const field = type?.field_schema.find((item) => item.key === key);
       return <div className={`cosmos-core-field role-${field?.role ?? "extra"}`} key={key}>{position > 0 && field?.role === "meaning" ? <i className="cosmos-rule" /> : null}<span>{value}</span></div>;
-    })}{!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal</button> : null}</div>;
+    })}{revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}{!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal</button> : null}</div>;
   };
 
   return <main className="cosmos-shell">
-    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes"><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></div><span className="cosmos-mode-note">{mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
+    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes">{relatedReview ? <span>Related review</span> : <><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></>}</div><span className="cosmos-mode-note">{relatedReview ? "related vocabulary · reveal · grade" : mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / order.length) * 100)}%` }} /></div>
     <section className="cosmos-stage"><div className="cosmos-work" data-l={openLeaf.l ? "open" : "closed"} data-r={openLeaf.r ? "open" : "closed"}>
       {renderLeaf("l")}

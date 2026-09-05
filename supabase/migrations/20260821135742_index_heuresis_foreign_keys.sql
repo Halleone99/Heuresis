@@ -1,0 +1,10 @@
+create index if not exists heuresis_events_pack_idx on public.heuresis_card_events (pack_id);
+create index if not exists heuresis_events_template_idx on public.heuresis_card_events (template_id) where template_id is not null;
+create index if not exists heuresis_card_tags_user_idx on public.heuresis_card_tags (user_id);
+create index if not exists heuresis_cards_user_idx on public.heuresis_cards (user_id);
+create index if not exists heuresis_pack_stats_user_idx on public.heuresis_pack_stats (user_id);
+create index if not exists heuresis_packs_card_type_idx on public.heuresis_packs (card_type_id);
+create index if not exists heuresis_packs_default_template_idx on public.heuresis_packs (default_template_id) where default_template_id is not null;
+create index if not exists heuresis_sessions_template_idx on public.heuresis_sessions (template_id) where template_id is not null;
+create index if not exists heuresis_sessions_user_idx on public.heuresis_sessions (user_id);
+create index if not exists heuresis_templates_user_idx on public.heuresis_study_templates (user_id) where user_id is not null;

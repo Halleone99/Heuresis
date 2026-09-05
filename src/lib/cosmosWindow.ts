@@ -11,17 +11,20 @@ export type CosmosLaunch = {
   count?: number | "all";
   tagId?: string;
   query?: string;
+  related?: boolean;
 };
 
 function buildParams(options: CosmosLaunch) {
+  const related = Boolean(options.related && options.mode === "review");
   const params = new URLSearchParams({
     cosmos: "1",
     mode: options.mode,
     pack: options.packId,
-    source: options.source ?? (options.mode === "sort" ? "unsorted" : "all"),
+    source: related ? "all" : options.source ?? (options.mode === "sort" ? "unsorted" : "all"),
     order: options.order ?? "pack",
     count: String(options.count ?? "all"),
   });
+  if (related) params.set("related", "1");
   if (options.templateId) params.set("template", options.templateId);
   if (options.tagId) params.set("tag", options.tagId);
   if (options.query?.trim()) params.set("q", options.query.trim());
@@ -30,11 +33,11 @@ function buildParams(options: CosmosLaunch) {
 
 export async function openCosmosWindow(options: CosmosLaunch) {
   const params = buildParams(options);
-  const title = `${options.mode === "sort" ? "Sort" : "Flashcards"} · Heuresis`;
+  const title = `${options.related ? "Related" : options.mode === "sort" ? "Sort" : "Flashcards"} · Heuresis`;
 
   if ("__TAURI_INTERNALS__" in window) {
     const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-    const label = `cosmos-${options.mode}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const label = `cosmos-${options.related ? "related" : options.mode}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const popup = new WebviewWindow(label, {
       url: `index.html?${params.toString()}`,
       title,

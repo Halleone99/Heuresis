@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { listCardsByIds, type CardWithStats } from "./heuresis";
 
 export type RelationType = "synonym" | "antonym" | "related";
 
@@ -19,6 +20,8 @@ export type RelatedCatalogueRow = {
   reading: string;
   meaning: string;
 };
+
+export type RelatedPackCount = { pack_id: string; relation_count: number; word_count: number };
 
 function db() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -50,22 +53,34 @@ function mapRow(value: any): RelatedCatalogueRow | null {
   };
 }
 
-export async function listRelatedCatalogue(packId: string | null = null, sourceCardId: string | null = null) {
-  const { data, error } = await db().rpc("heuresis_list_related_catalogue", {
-    p_pack_id: packId,
-    p_source_card_id: sourceCardId,
-  });
+export async function listRelatedCatalogue(packId: string | null = null, sourceCardId: string | null = null): Promise<RelatedCatalogueRow[]> {
+  const { data, error } = await db().rpc("heuresis_list_related_catalogue", { p_pack_id: packId, p_source_card_id: sourceCardId });
   if (error) throw error;
   return (data ?? []).map(mapRow).filter((row: RelatedCatalogueRow | null): row is RelatedCatalogueRow => Boolean(row));
 }
 
-export async function addRelatedWord(input: {
-  sourceCardId: string;
-  term: string;
-  reading?: string;
-  meaning?: string;
-  relationType: RelationType;
-}) {
+export async function listRelatedForSource(sourceCardId: string) {
+  return listRelatedCatalogue(null, sourceCardId);
+}
+
+export async function listRelatedCounts(): Promise<RelatedPackCount[]> {
+  const { data, error } = await db().rpc("heuresis_related_counts");
+  if (error) throw error;
+  return (data ?? []).flatMap((row: any) => row?.pack_id ? [{
+    pack_id: String(row.pack_id),
+    relation_count: Number(row.relation_count ?? 0),
+    word_count: Number(row.word_count ?? 0),
+  }] : []);
+}
+
+/** Related review deliberately loads explicit target identities, ignoring role='main'. */
+export async function listRelatedCards(packId: string): Promise<CardWithStats[]> {
+  const catalogue = await listRelatedCatalogue(packId);
+  const ids = Array.from(new Set(catalogue.map((row) => row.target_card_id)));
+  return listCardsByIds(ids);
+}
+
+export async function addRelatedWord(input: { sourceCardId: string; term: string; reading?: string; meaning?: string; relationType: RelationType }) {
   const term = input.term.normalize("NFC").trim();
   if (!term) throw new Error("Give the related word or expression.");
   const { data, error } = await db().rpc("heuresis_add_related_word", {

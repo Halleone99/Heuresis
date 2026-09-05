@@ -1,9 +1,10 @@
-import { ArrowLeft, BookmarkPlus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, BookOpen, Brain, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { fieldByRole, fieldText, listCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
-import { createCatalogue, deleteCatalogue, listCatalogues, type CatalogueCriteria, type CatalogueStatus, type SavedCatalogue } from "../lib/advanced";
+import { fieldByRole, fieldText, listAllCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+import { createCatalogue, deleteCatalogue, listCatalogues, updateCatalogue, type CatalogueCriteria, type CatalogueStatus, type SavedCatalogue } from "../lib/advanced";
+import CatalogueSession, { type CatalogueSessionItem } from "./CatalogueSession";
 
-type Item = { card: CardWithStats; pack: PackWithType };
+type Item = CatalogueSessionItem;
 type Props = { collections: Collection[]; packs: PackWithType[]; onBack: () => void; onOpenPack: (pack: PackWithType) => void };
 
 const DEFAULT_CRITERIA: CatalogueCriteria = { collectionId: "all", packId: "all", tagIds: [], status: "all", query: "" };
@@ -19,6 +20,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
   const [error, setError] = useState("");
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
+  const [sessionMode, setSessionMode] = useState<"browse" | "review" | null>(null);
 
   const collectionPacks = useMemo(() => criteria.collectionId === "all" ? packs : packs.filter((pack) => pack.collection_id === criteria.collectionId), [criteria.collectionId, packs]);
   const selectedPacks = useMemo(() => criteria.packId === "all" ? collectionPacks : collectionPacks.filter((pack) => pack.id === criteria.packId), [criteria.packId, collectionPacks]);
@@ -38,9 +40,10 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
       const next: Item[] = [];
       try {
         for (let index = 0; index < selectedPacks.length; index += 1) {
-          setProgress(`${index} / ${selectedPacks.length} topics`);
           const pack = selectedPacks[index];
-          const cards = await listCards(pack.id);
+          const cards = await listAllCards(pack.id, (loaded, total) => {
+            if (!cancelled) setProgress(`${index} / ${selectedPacks.length} topics · ${loaded.toLocaleString()} / ${total.toLocaleString()} cards`);
+          });
           if (cancelled) return;
           next.push(...cards.map((card) => ({ card, pack })));
           setItems([...next]);
@@ -69,12 +72,19 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
 
   const orderedTags = useMemo(() => [...tags].sort((a, b) => Number(b.is_badge) - Number(a.is_badge) || a.sort_order - b.sort_order || a.name.localeCompare(b.name)), [tags]);
   const statuses: Array<[CatalogueStatus, string]> = [["all", "Any status"], ["new", "Never encountered"], ["favourites", "Favourites"], ["interesting", "Interest 4–5"], ["again", "Often Again"]];
+  const activeSaved = saved.find((catalogue) => catalogue.id === activeSavedId) ?? null;
 
   async function saveCatalogue() {
     const title = saveTitle.trim();
     if (!title) return;
     const created = await createCatalogue({ title, criteria });
     setSaved(await listCatalogues()); setActiveSavedId(created.id); setSaveOpen(false); setSaveTitle("");
+  }
+
+  async function updateSaved() {
+    if (!activeSavedId) return;
+    await updateCatalogue(activeSavedId, { criteria });
+    setSaved(await listCatalogues());
   }
 
   return (
@@ -93,7 +103,13 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
 
       {orderedTags.length ? <div className="catalogue-tags"><small>Badges & tags</small><div>{orderedTags.map((tag) => { const active = criteria.tagIds.includes(tag.id); return <button key={tag.id} className={tag.is_badge ? "badge" : ""} aria-pressed={active} onClick={() => { setActiveSavedId(null); setCriteria((current) => ({ ...current, tagIds: active ? current.tagIds.filter((id) => id !== tag.id) : [...current.tagIds, tag.id] })); }}>{tag.name}{tag.shortcut ? <em>{tag.shortcut}</em> : null}</button>; })}</div></div> : null}
 
-      <div className="catalogue-actions"><button className="secondary-button" onClick={() => setSaveOpen(true)}><BookmarkPlus size={14} /> Save catalogue</button>{activeSavedId ? <button className="text-button" onClick={() => void deleteCatalogue(activeSavedId).then(async () => { setSaved(await listCatalogues()); setActiveSavedId(null); })}><Trash2 size={14} /> Delete saved</button> : null}</div>
+      <div className="catalogue-actions">
+        <button className="secondary-button" disabled={!shown.length || loading} onClick={() => setSessionMode("browse")}><BookOpen size={14} /> Browse shown</button>
+        <button className="primary-button" disabled={!shown.length || loading} onClick={() => setSessionMode("review")}><Brain size={14} /> Review shown</button>
+        <button className="secondary-button" onClick={() => setSaveOpen(true)}><BookmarkPlus size={14} /> Save catalogue</button>
+        {activeSavedId ? <button className="text-button" onClick={() => void updateSaved()}>Update {activeSaved?.title ?? "saved"}</button> : null}
+        {activeSavedId ? <button className="text-button" onClick={() => void deleteCatalogue(activeSavedId).then(async () => { setSaved(await listCatalogues()); setActiveSavedId(null); })}><Trash2 size={14} /> Delete saved</button> : null}
+      </div>
 
       {loading && !items.length ? <div className="content-state compact">Loading the catalogue…</div> : error ? <div className="content-state error-state compact">{error}</div> : <div className="catalogue-list">{shown.map(({ card, pack }) => {
         const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
@@ -103,6 +119,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
       })}{!shown.length && !loading ? <div className="catalogue-empty">No cards match these filters.</div> : null}</div>}
 
       {saveOpen ? <div className="modal-backdrop inner-modal" onMouseDown={(event) => { if (event.currentTarget === event.target) setSaveOpen(false); }}><section className="small-modal"><p className="eyebrow">SAVE CATALOGUE</p><h2>Keep this view.</h2><label className="field-row"><span>Name</span><input autoFocus value={saveTitle} onChange={(event) => setSaveTitle(event.target.value)} placeholder="Chinese spoken sentences" /></label><div className="modal-actions"><button className="secondary-button" onClick={() => setSaveOpen(false)}>Cancel</button><button className="primary-button" disabled={!saveTitle.trim()} onClick={() => void saveCatalogue()}>Save</button></div></section></div> : null}
+      {sessionMode ? <CatalogueSession title={activeSaved?.title ?? "Current catalogue"} items={shown} mode={sessionMode} onClose={() => setSessionMode(null)} /> : null}
     </section>
   );
 }

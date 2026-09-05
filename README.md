@@ -1,37 +1,35 @@
-# Heuresis
+# Heuresis Desktop
 
-Standalone desktop application for learning, capture and review.
+Standalone Tauri client for Heuresis, using the same Supabase account and Heuresis schema as Personal OS.
 
-## Architecture
+## Development
 
-- React + Vite frontend
-- Tauri 2 desktop shell
-- Existing Supabase project remains the source of truth
-- Heuresis writes directly to the existing `heuresis_*` tables
-- Capture creates real `heuresis_cards` rows; it does not use the legacy Personal OS `knowledge_entries` workflow
-
-## First milestone
-
-1. Desktop shell boots independently of Personal OS.
-2. Supabase session can be established and persisted.
-3. Existing collections and packs can be read.
-4. Capture can create a card directly in a selected Heuresis pack.
-5. Existing Heuresis UI is migrated progressively after the data boundary is verified.
-
-## Local setup
-
-Create `.env` from `.env.example`, install dependencies, then run:
-
-```bash
+```powershell
 npm install
+npm run dev
+```
+
+For Tauri development:
+
+```powershell
 npm run tauri dev
 ```
 
-For the same Windows ARM64 target used by Engines:
+## Shared database contract
 
-```bash
-rustup target add aarch64-pc-windows-msvc
-npm run tauri build -- --target aarch64-pc-windows-msvc
-```
+The desktop client and Personal OS currently write the same Heuresis database. Compatibility is therefore a data-integrity requirement, not just a UI-parity goal.
 
-Do not put Supabase service-role or secret keys in this desktop app. Only the publishable client key belongs in `VITE_SUPABASE_PUBLISHABLE_KEY`.
+Current invariants:
+
+- ordinary topic lists load `role = 'main'` cards only;
+- pack-level Related review loads related identities explicitly and runs through the normal Cosmos review/session/event path;
+- Browse does not record review encounters;
+- review events are queued locally and flushed through `heuresis_record_events` so temporary connectivity loss does not discard grades;
+- stale abandoned sessions are reconciled after authentication;
+- desktop workspace edits preserve block formats the desktop client cannot render yet (including Personal OS image blocks and malformed/legacy entries);
+- global Search includes both main and related identities and labels related hits;
+- Related schema/RPC migrations are versioned under `supabase/migrations/`.
+
+See `docs/INTEGRITY_AUDIT_STATUS.md` for the current parity audit and remaining work.
+
+The main unresolved schema issue is card-type field-key resolution in Related RPC/view logic: vocabulary types use `term/reading/meaning`, while sentence and concept types use different role keys. Live read-only verification on 2026-09-05 found no currently affected relations. No production schema change was made by this branch.
