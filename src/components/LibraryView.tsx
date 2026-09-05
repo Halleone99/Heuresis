@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Archive, BookOpen, Link2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Collection, PackWithType } from "../lib/heuresis";
-import { listRelatedCatalogue, type RelatedCatalogueRow } from "../lib/related";
+import { listRelatedCounts } from "../lib/related";
 
 type Props = {
   collections: Collection[];
@@ -31,18 +31,15 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     let alive = true;
     const load = async () => {
       try {
-        const rows: RelatedCatalogueRow[] = await listRelatedCatalogue();
+        const counts = await listRelatedCounts();
         if (!alive) return;
         const packCollection = new Map(packs.map((pack) => [pack.id, pack.collection_id]));
-        const wordsByCollection = new Map<string, Set<string>>();
-        rows.forEach((row: RelatedCatalogueRow) => {
+        const byCollection: Record<string, number> = {};
+        counts.forEach((row) => {
           const nextCollectionId = packCollection.get(row.pack_id);
-          if (!nextCollectionId) return;
-          const words = wordsByCollection.get(nextCollectionId) ?? new Set<string>();
-          words.add(row.target_card_id);
-          wordsByCollection.set(nextCollectionId, words);
+          if (nextCollectionId) byCollection[nextCollectionId] = (byCollection[nextCollectionId] ?? 0) + row.word_count;
         });
-        setRelatedCounts(Object.fromEntries(Array.from(wordsByCollection.entries()).map(([id, words]) => [id, words.size])));
+        setRelatedCounts(byCollection);
       } catch {
         if (alive) setRelatedCounts({});
       }
@@ -67,7 +64,6 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     const collectionPacks = packs.filter((pack) => pack.collection_id === activeCollection.id);
     const collectionCards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
     const newWordsCount = relatedCounts[activeCollection.id] ?? 0;
-    const visibleTopicCount = collectionPacks.length + (newWordsCount ? 1 : 0);
     return (
       <section className="library-page collection-page" data-accent={activeCollection.accent}>
         <button className="text-button back-button" onClick={backToCollections}><ArrowLeft size={15} /> Library</button>
@@ -76,7 +72,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
             <span className="collection-page-glyph">{activeCollection.glyph || activeCollection.title.slice(0, 1)}</span>
             <div><p className="eyebrow">COLLECTION</p><h1>{activeCollection.title}</h1>{activeCollection.description ? <p>{activeCollection.description}</p> : null}</div>
           </div>
-          <span className="library-stat">{visibleTopicCount} topics · {collectionCards.toLocaleString()} cards{newWordsCount ? ` · ${newWordsCount} new words` : ""}</span>
+          <span className="library-stat">{collectionPacks.length} topics · {collectionCards.toLocaleString()} cards{newWordsCount ? ` · ${newWordsCount} new words` : ""}</span>
         </header>
 
         <div className="topics-intro"><div><p className="eyebrow">TOPICS</p><h2>Choose what you want to explore.</h2></div><span>Bounded sets: lessons, verbs, sentences, reviews, concepts.</span></div>
@@ -85,7 +81,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           {newWordsCount ? <article className="topic-card new-words-pack">
             <button className="topic-card-main" onClick={() => onOpenNewWords(activeCollection)}>
               <span className="topic-ghost">+</span>
-              <p className="eyebrow">AUTOMATIC PACK</p>
+              <p className="eyebrow">RELATED VOCABULARY</p>
               <h3>New words</h3>
               <p>Vocabulary you discovered from other flashcards. It stays linked to the card where you found it.</p>
               <div className="topic-meta"><span>{newWordsCount.toLocaleString()} words</span><span>·</span><span>synonyms, antonyms & related</span></div>
@@ -121,7 +117,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
         const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
         const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
         const newWords = relatedCounts[collection.id] ?? 0;
-        return <button className="collection-overview-card" key={collection.id} data-accent={collection.accent} onClick={() => openCollection(collection.id)}><span className="collection-overview-glyph">{collection.glyph || collection.title.slice(0, 1)}</span><div><h2>{collection.title}</h2>{collection.description ? <p>{collection.description}</p> : null}</div><span className="collection-overview-meta">{collectionPacks.length + (newWords ? 1 : 0)} topics · {cards.toLocaleString()} cards{newWords ? ` · ${newWords} new words` : ""}</span><span className="collection-open">Open <ArrowRight size={14} /></span></button>;
+        return <button className="collection-overview-card" key={collection.id} data-accent={collection.accent} onClick={() => openCollection(collection.id)}><span className="collection-overview-glyph">{collection.glyph || collection.title.slice(0, 1)}</span><div><h2>{collection.title}</h2>{collection.description ? <p>{collection.description}</p> : null}</div><span className="collection-overview-meta">{collectionPacks.length} topics · {cards.toLocaleString()} cards{newWords ? ` · ${newWords} new words` : ""}</span><span className="collection-open">Open <ArrowRight size={14} /></span></button>;
       })}</div>
       {!collections.length ? <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one from Collections in the top bar.</p></div> : null}
     </section>
