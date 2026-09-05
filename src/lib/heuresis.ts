@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 
 export const CARD_PAGE_SIZE = 200;
 const MAX_CARD_PAGES = 50;
+const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
 export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | "slate" | "ink";
 export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
@@ -220,6 +221,8 @@ export async function listTags(): Promise<HeuresisTag[]> {
   return (data ?? []) as HeuresisTag[];
 }
 
+const CARD_SELECT = "id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
+
 export async function listCards(packId: string): Promise<CardWithStats[]> {
   const rows: any[] = [];
 
@@ -227,7 +230,7 @@ export async function listCards(packId: string): Promise<CardWithStats[]> {
     const start = page * CARD_PAGE_SIZE;
     const { data, error } = await db()
       .from("heuresis_cards")
-      .select("id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))")
+      .select(CARD_SELECT)
       .eq("pack_id", packId)
       .eq("role", "main")
       .order("created_at", { ascending: true })
@@ -241,6 +244,24 @@ export async function listCards(packId: string): Promise<CardWithStats[]> {
   }
 
   throw new Error(`This topic contains more than ${CARD_PAGE_SIZE * MAX_CARD_PAGES} cards. Raise the Heuresis safety limit before loading it.`);
+}
+
+/** Deliberate role-blind lookup for explicit card-id sessions such as Related review. */
+export async function listCardsByIds(ids: string[]): Promise<CardWithStats[]> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (!uniqueIds.length) return [];
+  const rows: CardWithStats[] = [];
+  for (let start = 0; start < uniqueIds.length; start += CARD_PAGE_SIZE) {
+    const batch = uniqueIds.slice(start, start + CARD_PAGE_SIZE);
+    const { data, error } = await db()
+      .from("heuresis_cards")
+      .select(CARD_SELECT)
+      .in("id", batch);
+    if (error) throw error;
+    rows.push(...(data ?? []).map(mapCardRow));
+  }
+  const byId = new Map(rows.map((card) => [card.id, card]));
+  return uniqueIds.map((id) => byId.get(id)).filter((card): card is CardWithStats => Boolean(card));
 }
 
 function cleanCardValues(pack: PackWithType, values: Record<string, string>) {
@@ -268,11 +289,43 @@ export async function createCard(pack: PackWithType, values: Record<string, stri
   return created;
 }
 
+function canDesktopRoundTripWorkspaceEntry(entry: string) {
+  try {
+    const value = JSON.parse(entry) as Record<string, unknown>;
+    return value?.type === "text"
+      && typeof value.id === "string"
+      && typeof value.text === "string"
+      && typeof value.dim === "string";
+  } catch {
+    return false;
+  }
+}
+
+function preserveUnsupportedWorkspaceEntries(
+  current: Record<string, string | string[] | null>,
+  patch: Record<string, string | string[] | null>,
+) {
+  const existing = current[WORKSPACE_BLOCKS_KEY];
+  const incoming = patch[WORKSPACE_BLOCKS_KEY];
+  if (!Array.isArray(existing) || !Array.isArray(incoming)) return patch;
+
+  const next = [...incoming];
+  const seen = new Set(next);
+  for (const entry of existing) {
+    if (!canDesktopRoundTripWorkspaceEntry(entry) && !seen.has(entry)) {
+      next.push(entry);
+      seen.add(entry);
+    }
+  }
+  return { ...patch, [WORKSPACE_BLOCKS_KEY]: next };
+}
+
 export async function patchCardData(cardId: string, patch: Record<string, string | string[] | null>) {
   const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
   if (readError) throw readError;
   const current = cardData(existing?.data);
-  const data = { ...current, ...patch };
+  const safePatch = preserveUnsupportedWorkspaceEntries(current, patch);
+  const data = { ...current, ...safePatch };
   const { error } = await db().from("heuresis_cards").update({ data }).eq("id", cardId);
   if (error) throw error;
   return data;
