@@ -1,23 +1,28 @@
 export default function HeuresisMark({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 64 64" role="img" aria-label="Heuresis mark">
+    <svg className={className} viewBox="0 0 64 64" role="img" aria-label="Heuresis epsilon mark">
+      <defs>
+        <linearGradient id="heuresis-epsilon" x1="18" y1="10" x2="47" y2="53" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#fff7e6" />
+          <stop offset="0.55" stopColor="#ead9b8" />
+          <stop offset="1" stopColor="#c9a56f" />
+        </linearGradient>
+      </defs>
+      <text
+        x="8"
+        y="48"
+        fill="url(#heuresis-epsilon)"
+        fontFamily="'Libre Caslon Display', 'Times New Roman', Georgia, serif"
+        fontSize="53"
+        fontWeight="400"
+        letterSpacing="-2"
+      >
+        ε
+      </text>
       <path
-        d="M46 18.5C41.2 12.3 29.1 10.5 21 15.4C13.6 19.9 13.8 28.2 21.3 31.3C27.8 34 38 31.8 45.3 27.2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="5.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M49.5 18.2c.55 4.55 2.52 6.53 7.08 7.08-4.56.55-6.53 2.53-7.08 7.08-.56-4.55-2.53-6.53-7.09-7.08 4.56-.55 6.53-2.53 7.09-7.08Z"
+        fill="#d4b27d"
       />
-      <path
-        d="M45.5 39.1C38.9 34.3 29.3 31.9 22 34.6C14.4 37.4 13.4 45.2 20 50.1C27.3 55.6 40.3 53.8 46.5 45.1"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="5.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M21.9 32.2C28.9 28.9 37 29.1 43.4 32.3C37.1 35.8 29.1 35.7 21.9 32.2Z" fill="currentColor" />
     </svg>
   );
 }
