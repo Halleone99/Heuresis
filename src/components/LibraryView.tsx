@@ -9,6 +9,7 @@ type Props = {
   archivedCount: number;
   onOpen: (pack: PackWithType) => void;
   onCapture: (pack: PackWithType) => void;
+  onCaptureCollection: (collection: Collection) => void;
   onEditPack: (pack: PackWithType) => void;
   onOpenNewWords: (collection: Collection) => void;
   onArchive: () => void;
@@ -17,7 +18,7 @@ type Props = {
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
 
-export default function LibraryView({ collections, packs, archivedCount, onOpen, onCapture, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
+export default function LibraryView({ collections, packs, archivedCount, onOpen, onCapture, onCaptureCollection, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(() => {
     try {
       const stored = sessionStorage.getItem(LAST_COLLECTION_KEY);
@@ -78,17 +79,20 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
 
         <div className="topics-intro"><div><p className="eyebrow">TOPICS</p><h2>Choose what you want to explore.</h2></div><span>Bounded sets: lessons, verbs, sentences, reviews, concepts.</span></div>
 
-        {collectionPacks.length || newWordsCount ? <div className="topic-grid">
-          {newWordsCount ? <article className="topic-card new-words-pack">
-            <button className="topic-card-main" onClick={() => onOpenNewWords(activeCollection)}>
+        {collectionPacks.length ? <div className="topic-grid">
+          <article className="topic-card new-words-pack capture-hub-pack">
+            <div className="topic-card-main capture-hub-main">
               <span className="topic-ghost">+</span>
-              <p className="eyebrow">RELATED VOCABULARY</p>
-              <h3>New words</h3>
-              <p>Vocabulary you discovered from other flashcards. It stays linked to the card where you found it.</p>
-              <div className="topic-meta"><span>{newWordsCount.toLocaleString()} words</span><span>·</span><span>synonyms, antonyms & related</span></div>
-              <span className="topic-open"><Link2 size={14} /> Open new words <ArrowRight size={14} /></span>
-            </button>
-          </article> : null}
+              <p className="eyebrow">COLLECTION INBOX</p>
+              <h3>New words & capture</h3>
+              <p>Open vocabulary discovered from your cards, or capture new cards without creating another topic.</p>
+              <div className="topic-meta"><span>{newWordsCount.toLocaleString()} linked words</span><span>·</span><span>capture stays temporary until you add it</span></div>
+            </div>
+            <div className="capture-hub-actions">
+              <button onClick={() => onOpenNewWords(activeCollection)}><Link2 size={14} /><span>New words</span><em>{newWordsCount.toLocaleString()}</em></button>
+              <button onClick={() => onCaptureCollection(activeCollection)}><Plus size={14} /><span>Capture</span><ArrowRight size={14} /></button>
+            </div>
+          </article>
           {collectionPacks.map((pack) => (
             <article className="topic-card" key={pack.id}>
               <button className="topic-card-main" onClick={() => onOpen(pack)}>
@@ -105,7 +109,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
               </div>
             </article>
           ))}
-        </div> : <div className="library-empty"><BookOpen size={22} /><strong>No topics yet.</strong><p>Create a topic for a bounded thing you want to learn or review.</p></div>}
+        </div> : <div className="library-empty"><BookOpen size={22} /><strong>No topics yet.</strong><p>Create a topic first; Capture will then use that topic's card structure.</p></div>}
       </section>
     );
   }
