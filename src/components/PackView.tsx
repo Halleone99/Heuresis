@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Brain, Compass, FileUp, Filter, Link2, Plus, Search, Settings2, Star } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, Compass, FileUp, Filter, Link2, Search, Settings2, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -28,6 +28,10 @@ type Props = {
   onSettings: () => void;
   onChanged: () => void;
 };
+
+function plural(count: number, singular: string, pluralForm = `${singular}s`) {
+  return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
+}
 
 function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged }: {
   pack: PackWithType;
@@ -84,7 +88,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged }
   );
 }
 
-export default function PackView({ pack, collection, onBack, onCapture, onSettings, onChanged }: Props) {
+export default function PackView({ pack, collection, onBack, onSettings, onChanged }: Props) {
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,8 +141,8 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     <section className="pack-page desktop-pack-page" data-accent={collection?.accent ?? "ink"}>
       <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
       <header className="pack-page-head">
-        <div><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{pack.card_count} cards · {pack.encountered_cards} encountered · {explored}% explored · opened {pack.open_count}×</span></div>
-        <button className="text-button" onClick={onSettings}><Settings2 size={15} /> Rename / settings</button>
+        <div><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(pack.card_count, "card")} · {explored}% explored</span></div>
+        <button className="secondary-button topic-settings-button" onClick={onSettings}><Settings2 size={15} /> Settings</button>
       </header>
 
       <div className="topic-action-bar">
@@ -146,14 +150,13 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
         <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
         <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
         <button className="secondary-button" onClick={() => setImportOpen(true)}><FileUp size={15} /> Import</button>
-        <button className="secondary-button" onClick={onCapture}><Plus size={15} /> Add card</button>
       </div>
 
-      <div className="pack-toolbar"><label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this topic" /></label><div className="filter-strip"><Filter size={14} />{([['all', 'All'], ['new', 'Never encountered'], ['favourite', 'Favourites'], ['interesting', 'Interest 4–5'], ['again', 'Often Again']] as Array<[FilterKey, string]>).map(([key, label]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div></div>
+      <div className="pack-toolbar"><label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this topic" /></label><div className="filter-strip"><Filter size={14} />{([['all', 'All'], ['new', 'Unseen'], ['favourite', 'Favourites'], ['interesting', 'High interest'], ['again', 'Repeated misses']] as Array<[FilterKey, string]>).map(([key, label]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div></div>
 
       {loading ? <div className="content-state">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state"><strong>Could not load this topic.</strong><span>{error}</span></div> : null}
-      {!loading && !error ? <div className="card-table"><div className="card-table-head"><span>{shown.length} shown</span><span>{cards.length.toLocaleString()} loaded</span></div>{shown.map((card) => <button className="card-data-row" key={card.id} onClick={() => setEditing(card)}><span className="card-term"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(card.data, reading.key)}</em> : null}</span><span className="card-meaning"><span>{fieldText(card.data, meaning?.key)}</span>{card.tags.length ? <span className="row-tags">{card.tags.slice(0, 4).map((tag) => <i key={tag.id} className={tag.is_badge ? "badge" : ""}>{tag.name}</i>)}{card.tags.length > 4 ? <i>+{card.tags.length - 4}</i> : null}</span> : null}</span><span className="card-tally">{card.interest_rank ? <b>{card.interest_rank}</b> : null}{card.stats.encounter_count ? `${card.stats.encounter_count}×` : "—"}{card.favourite ? <Star size={12} fill="currentColor" /> : null}{card.note ? <span title="Has note">✎</span> : null}</span></button>)}{!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>No matching cards.</strong><span>Change the filter or add a new card.</span></div> : null}</div> : null}
+      {!loading && !error ? <div className="card-table"><div className="card-table-head"><span>Term</span><span>Meaning</span><span>Activity</span></div>{shown.map((card) => <button className="card-data-row" key={card.id} onClick={() => setEditing(card)}><span className="card-term"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(card.data, reading.key)}</em> : null}</span><span className="card-meaning"><span>{fieldText(card.data, meaning?.key)}</span>{card.tags.length ? <span className="row-tags">{card.tags.slice(0, 3).map((tag) => <i key={tag.id} className={tag.is_badge ? "badge" : ""}>{tag.name}</i>)}{card.tags.length > 3 ? <i>+{card.tags.length - 3}</i> : null}</span> : null}</span><span className="card-tally">{card.interest_rank ? <span className="row-status" title="Interest score">Interest {card.interest_rank}</span> : null}{card.stats.encounter_count ? <span className="row-status" title="Times encountered">Seen {card.stats.encounter_count}×</span> : null}{card.favourite ? <Star size={12} fill="currentColor" aria-label="Favourite" /> : null}{card.note ? <span title="Has note">✎</span> : null}</span></button>)}{!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>No matching cards.</strong><span>Change the filter or capture a new card.</span></div> : null}</div> : null}
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} /> : null}
       {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => void refreshAll()} /> : null}
