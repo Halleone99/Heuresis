@@ -16,6 +16,7 @@ import "./contextual-actions.css";
 import "./new-words-topic.css";
 import "./library-shell-elegance.css";
 import "./desktop-density-pass.css";
+import "./library-card-restoration.css";
 
 const params = new URLSearchParams(window.location.search);
 const content = params.get("capture") === "1"
