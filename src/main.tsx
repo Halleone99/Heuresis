@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import CaptureWindow from "./components/CaptureWindow";
 import CosmosWindow from "./components/CosmosWindow";
 import "./styles.css";
 import "./standalone-v2.css";
@@ -9,9 +10,14 @@ import "./brand.css";
 import "./popup-system.css";
 import "./components/review-background.css";
 import "./library-refinements.css";
+import "./capture-window.css";
 
 const params = new URLSearchParams(window.location.search);
-const content = params.get("cosmos") === "1" ? <CosmosWindow /> : <App />;
+const content = params.get("capture") === "1"
+  ? <CaptureWindow />
+  : params.get("cosmos") === "1"
+    ? <CosmosWindow />
+    : <App />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>{content}</React.StrictMode>,
