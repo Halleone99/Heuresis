@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, Archive, BookOpen, Link2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { countCaptureInbox } from "../lib/captureInbox";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import { listRelatedCounts } from "../lib/related";
 
@@ -9,7 +10,7 @@ type Props = {
   archivedCount: number;
   onOpen: (pack: PackWithType) => void;
   onCapture: (pack: PackWithType) => void;
-  onCaptureCollection: (collection: Collection) => void;
+  onOpenCaptureInbox: (collection: Collection) => void;
   onEditPack: (pack: PackWithType) => void;
   onOpenNewWords: (collection: Collection) => void;
   onArchive: () => void;
@@ -18,7 +19,7 @@ type Props = {
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
 
-export default function LibraryView({ collections, packs, archivedCount, onOpen, onCapture, onCaptureCollection, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
+export default function LibraryView({ collections, packs, archivedCount, onOpen, onCapture, onOpenCaptureInbox, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(() => {
     try {
       const stored = sessionStorage.getItem(LAST_COLLECTION_KEY);
@@ -26,6 +27,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     } catch { return null; }
   });
   const [relatedCounts, setRelatedCounts] = useState<Record<string, number>>({});
+  const [captureRevision, setCaptureRevision] = useState(0);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
   const totalCards = packs.reduce((sum, pack) => sum + pack.card_count, 0);
 
@@ -47,9 +49,15 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
       }
     };
     void load();
-    const onFocus = () => void load();
+    const onFocus = () => { void load(); setCaptureRevision((value) => value + 1); };
+    const onStorage = () => setCaptureRevision((value) => value + 1);
     window.addEventListener("focus", onFocus);
-    return () => { alive = false; window.removeEventListener("focus", onFocus); };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [packs]);
 
   function openCollection(id: string) {
@@ -66,6 +74,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     const collectionPacks = packs.filter((pack) => pack.collection_id === activeCollection.id);
     const collectionCards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
     const newWordsCount = relatedCounts[activeCollection.id] ?? 0;
+    void captureRevision;
+    const captureCount = countCaptureInbox(packs, activeCollection.id);
     return (
       <section className="library-page collection-page" data-accent={activeCollection.accent}>
         <button className="text-button back-button" onClick={backToCollections}><ArrowLeft size={15} /> Library</button>
@@ -85,12 +95,10 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
               <span className="topic-ghost">+</span>
               <p className="eyebrow">COLLECTION INBOX</p>
               <h3>New words & capture</h3>
-              <p>Open vocabulary discovered from your cards, or capture new cards without creating another topic.</p>
-              <div className="topic-meta"><span>{newWordsCount.toLocaleString()} linked words</span><span>·</span><span>capture stays temporary until you add it</span></div>
             </div>
             <div className="capture-hub-actions">
               <button onClick={() => onOpenNewWords(activeCollection)}><Link2 size={14} /><span>New words</span><em>{newWordsCount.toLocaleString()}</em></button>
-              <button onClick={() => onCaptureCollection(activeCollection)}><Plus size={14} /><span>Capture</span><ArrowRight size={14} /></button>
+              <button onClick={() => onOpenCaptureInbox(activeCollection)}><Plus size={14} /><span>Capture</span><em>{captureCount.toLocaleString()}</em><ArrowRight size={14} /></button>
             </div>
           </article>
           {collectionPacks.map((pack) => (
