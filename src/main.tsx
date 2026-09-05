@@ -13,6 +13,7 @@ import "./library-refinements.css";
 import "./capture-window.css";
 import "./shell-modern.css";
 import "./contextual-actions.css";
+import "./new-words-topic.css";
 
 const params = new URLSearchParams(window.location.search);
 const content = params.get("capture") === "1"
