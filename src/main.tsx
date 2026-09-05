@@ -11,6 +11,7 @@ import "./popup-system.css";
 import "./components/review-background.css";
 import "./library-refinements.css";
 import "./capture-window.css";
+import "./shell-modern.css";
 
 const params = new URLSearchParams(window.location.search);
 const content = params.get("capture") === "1"
