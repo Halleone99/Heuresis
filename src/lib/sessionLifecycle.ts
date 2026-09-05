@@ -10,13 +10,14 @@ type SessionEvent = { session_id: string; created_at: string };
  * closed at its last persisted event, or at started_at if it recorded none.
  */
 export async function reconcileStaleHeuresisSessions(now = Date.now()) {
-  if (!supabase) return 0;
-  const { data: authData } = await supabase.auth.getUser();
+  const client = supabase;
+  if (!client) return 0;
+  const { data: authData } = await client.auth.getUser();
   const user = authData.user;
   if (!user) return 0;
 
   const cutoff = new Date(now - STALE_AFTER_MS).toISOString();
-  const { data: sessions, error: sessionError } = await supabase
+  const { data: sessions, error: sessionError } = await client
     .from("heuresis_sessions")
     .select("id,started_at")
     .eq("user_id", user.id)
@@ -28,7 +29,7 @@ export async function reconcileStaleHeuresisSessions(now = Date.now()) {
   if (!stale.length) return 0;
 
   const ids = stale.map((session) => session.id);
-  const { data: events, error: eventError } = await supabase
+  const { data: events, error: eventError } = await client
     .from("heuresis_card_events")
     .select("session_id,created_at")
     .eq("user_id", user.id)
@@ -43,7 +44,7 @@ export async function reconcileStaleHeuresisSessions(now = Date.now()) {
 
   await Promise.all(stale.map(async (session) => {
     const endedAt = lastEventBySession.get(session.id) ?? session.started_at;
-    const { error } = await supabase
+    const { error } = await client
       .from("heuresis_sessions")
       .update({ ended_at: endedAt })
       .eq("id", session.id)
