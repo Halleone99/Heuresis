@@ -15,6 +15,7 @@ import "./shell-modern.css";
 import "./contextual-actions.css";
 import "./new-words-topic.css";
 import "./library-shell-elegance.css";
+import "./desktop-density-pass.css";
 
 const params = new URLSearchParams(window.location.search);
 const content = params.get("capture") === "1"
