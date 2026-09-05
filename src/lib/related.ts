@@ -51,7 +51,7 @@ function mapRow(value: any): RelatedCatalogueRow | null {
   };
 }
 
-export async function listRelatedCatalogue(packId: string | null = null, sourceCardId: string | null = null) {
+export async function listRelatedCatalogue(packId: string | null = null, sourceCardId: string | null = null): Promise<RelatedCatalogueRow[]> {
   const { data, error } = await db().rpc("heuresis_list_related_catalogue", {
     p_pack_id: packId,
     p_source_card_id: sourceCardId,
@@ -62,8 +62,8 @@ export async function listRelatedCatalogue(packId: string | null = null, sourceC
 
 /** Related review deliberately loads explicit target identities, ignoring role='main'. */
 export async function listRelatedCards(packId: string): Promise<CardWithStats[]> {
-  const catalogue = await listRelatedCatalogue(packId);
-  const ids = Array.from(new Set(catalogue.map((row) => row.target_card_id)));
+  const catalogue: RelatedCatalogueRow[] = await listRelatedCatalogue(packId);
+  const ids: string[] = Array.from(new Set(catalogue.map((row: RelatedCatalogueRow) => row.target_card_id)));
   return listCardsByIds(ids);
 }
 
