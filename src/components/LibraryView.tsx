@@ -141,17 +141,19 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
 
   return (
     <section className="library-page">
-      <div className="library-hero">
-        <div><p className="eyebrow">LIBRARY</p><h1>Your learning world.</h1></div>
-        <button className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button>
+      <div className="library-hero library-identity-hero">
+        <div className="library-identity-title"><p className="eyebrow">LIBRARY</p><h1>Heuresis<span className="library-title-dot">.</span></h1></div>
       </div>
-      <div className="library-summary">
+      <div className="library-summary library-summary-bar">
         <div className="library-summary-metrics" aria-label="Library totals">
           <span><strong>{collections.length.toLocaleString()}</strong><em>{collections.length === 1 ? "collection" : "collections"}</em></span>
           <span><strong>{packs.length.toLocaleString()}</strong><em>{packs.length === 1 ? "topic" : "topics"}</em></span>
           <span><strong>{totalCards.toLocaleString()}</strong><em>{totalCards === 1 ? "card" : "cards"}</em></span>
         </div>
-        {archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}
+        <div className="library-summary-actions">
+          {archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}
+          <button className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button>
+        </div>
       </div>
       <div className="collection-overview-grid">{collections.map((collection) => {
         const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
