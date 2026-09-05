@@ -19,7 +19,16 @@ type Props = {
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
 
-export default function LibraryView({ collections, packs, archivedCount, onOpen, onCapture, onOpenCaptureInbox, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
+function plural(count: number, singular: string, pluralForm = `${singular}s`) {
+  return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
+}
+
+function collectionGlyph(collection: Collection) {
+  if (collection.title.trim().toLowerCase() === "english" || collection.glyph === "þ") return "A";
+  return collection.glyph || collection.title.slice(0, 1);
+}
+
+export default function LibraryView({ collections, packs, archivedCount, onOpen, onOpenCaptureInbox, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(() => {
     try {
       const stored = sessionStorage.getItem(LAST_COLLECTION_KEY);
@@ -76,52 +85,56 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     const newWordsCount = relatedCounts[activeCollection.id] ?? 0;
     void captureRevision;
     const captureCount = countCaptureInbox(packs, activeCollection.id);
+    const glyph = collectionGlyph(activeCollection);
+
     return (
       <section className="library-page collection-page" data-accent={activeCollection.accent}>
         <button className="text-button back-button" onClick={backToCollections}><ArrowLeft size={15} /> Library</button>
         <header className="collection-page-head">
           <div className="collection-title-block">
-            <span className="collection-page-glyph">{activeCollection.glyph || activeCollection.title.slice(0, 1)}</span>
+            <span className="collection-page-glyph" aria-hidden="true">{glyph}</span>
             <div><p className="eyebrow">COLLECTION</p><h1>{activeCollection.title}</h1>{activeCollection.description ? <p>{activeCollection.description}</p> : null}</div>
           </div>
           <div className="collection-metrics" aria-label="Collection totals">
-            <span><strong>{collectionPacks.length.toLocaleString()}</strong><em>topics</em></span>
-            <span><strong>{collectionCards.toLocaleString()}</strong><em>cards</em></span>
+            <span><strong>{collectionPacks.length.toLocaleString()}</strong><em>{collectionPacks.length === 1 ? "topic" : "topics"}</em></span>
+            <span><strong>{collectionCards.toLocaleString()}</strong><em>{collectionCards === 1 ? "card" : "cards"}</em></span>
             {newWordsCount ? <span><strong>{newWordsCount.toLocaleString()}</strong><em>new words</em></span> : null}
           </div>
         </header>
 
-        <div className="topics-intro"><div><p className="eyebrow">TOPICS</p><h2>Choose what you want to explore.</h2></div><span>Bounded sets: lessons, verbs, sentences, reviews, concepts.</span></div>
+        <div className="topics-intro"><div><p className="eyebrow">TOPICS</p><h2>Choose what you want to explore.</h2></div></div>
 
         {collectionPacks.length ? <div className="topic-grid">
-          <article className="topic-card new-words-pack capture-hub-pack">
-            <div className="topic-card-main capture-hub-main">
+          <article className="topic-card topic-card-inbox">
+            <div className="topic-card-main topic-card-static">
               <span className="topic-ghost">+</span>
-              <p className="eyebrow">COLLECTION INBOX</p>
-              <h3>New words & capture</h3>
+              <p className="eyebrow">INBOX</p>
+              <h3>Learning inbox</h3>
+              <p>New vocabulary and drafts waiting for you.</p>
+              <div className="topic-meta"><span>{plural(newWordsCount, "new word")}</span><span>·</span><span>{plural(captureCount, "draft")}</span></div>
             </div>
-            <div className="capture-hub-actions">
-              <button onClick={() => onOpenNewWords(activeCollection)}><Link2 size={14} /><span>New words</span><em>{newWordsCount.toLocaleString()}</em></button>
-              <button onClick={() => onOpenCaptureInbox(activeCollection)}><Plus size={14} /><span>Capture</span><em>{captureCount.toLocaleString()}</em><ArrowRight size={14} /></button>
+            <div className="topic-card-tools topic-card-footer-actions">
+              <button onClick={() => onOpenNewWords(activeCollection)}><Link2 size={14} /> New words <span className="footer-count">{newWordsCount}</span></button>
+              <button onClick={() => onOpenCaptureInbox(activeCollection)}><Plus size={14} /> Drafts <span className="footer-count">{captureCount}</span></button>
             </div>
           </article>
           {collectionPacks.map((pack) => (
             <article className="topic-card" key={pack.id}>
               <button className="topic-card-main" onClick={() => onOpen(pack)}>
-                <span className="topic-ghost">{activeCollection.glyph || "·"}</span>
+                <span className="topic-ghost">{glyph}</span>
                 <p className="eyebrow">TOPIC</p>
                 <h3>{pack.title}</h3>
                 {pack.description ? <p>{pack.description}</p> : null}
-                <div className="topic-meta"><span>{pack.card_count.toLocaleString()} cards</span><span>·</span><span>{pack.encountered_cards.toLocaleString()} encountered</span></div>
+                <div className="topic-meta"><span>{plural(pack.card_count, "card")}</span><span>·</span><span>{pack.encountered_cards.toLocaleString()} seen</span></div>
                 <span className="topic-open">Open <ArrowRight size={14} /></span>
               </button>
-              <div className="topic-card-tools">
-                <button onClick={() => onCapture(pack)} title={`Add a card to ${pack.title}`}><Plus size={14} /> Add</button>
-                <button onClick={() => onEditPack(pack)} title={`Edit ${pack.title}`}><Pencil size={14} /> Edit</button>
+              <div className="topic-card-tools topic-card-footer-actions">
+                <button onClick={() => onOpen(pack)}><ArrowRight size={14} /> Open</button>
+                <button onClick={() => onEditPack(pack)} title={`Edit ${pack.title}`}><Pencil size={14} /> Settings</button>
               </div>
             </article>
           ))}
-        </div> : <div className="library-empty"><BookOpen size={22} /><strong>No topics yet.</strong><p>Create a topic first; Capture will then use that topic's card structure.</p></div>}
+        </div> : <div className="library-empty"><BookOpen size={22} /><strong>No topics yet.</strong><p>Create a topic to start building this collection.</p></div>}
       </section>
     );
   }
@@ -134,9 +147,9 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
       </div>
       <div className="library-summary">
         <div className="library-summary-metrics" aria-label="Library totals">
-          <span><strong>{collections.length.toLocaleString()}</strong><em>collections</em></span>
-          <span><strong>{packs.length.toLocaleString()}</strong><em>topics</em></span>
-          <span><strong>{totalCards.toLocaleString()}</strong><em>cards</em></span>
+          <span><strong>{collections.length.toLocaleString()}</strong><em>{collections.length === 1 ? "collection" : "collections"}</em></span>
+          <span><strong>{packs.length.toLocaleString()}</strong><em>{packs.length === 1 ? "topic" : "topics"}</em></span>
+          <span><strong>{totalCards.toLocaleString()}</strong><em>{totalCards === 1 ? "card" : "cards"}</em></span>
         </div>
         {archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}
       </div>
@@ -144,7 +157,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
         const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
         const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
         const newWords = relatedCounts[collection.id] ?? 0;
-        return <button className="collection-overview-card" key={collection.id} data-accent={collection.accent} onClick={() => openCollection(collection.id)}><span className="collection-overview-glyph">{collection.glyph || collection.title.slice(0, 1)}</span><div><h2>{collection.title}</h2>{collection.description ? <p>{collection.description}</p> : null}</div><span className="collection-overview-meta">{collectionPacks.length} topics · {cards.toLocaleString()} cards{newWords ? ` · ${newWords} new words` : ""}</span><span className="collection-open">Open <ArrowRight size={14} /></span></button>;
+        return <button className="collection-overview-card" key={collection.id} data-accent={collection.accent} onClick={() => openCollection(collection.id)}><span className="collection-overview-glyph">{collectionGlyph(collection)}</span><div><h2>{collection.title}</h2>{collection.description ? <p>{collection.description}</p> : null}</div><span className="collection-overview-meta">{plural(collectionPacks.length, "topic")} · {plural(cards, "card")}{newWords ? ` · ${plural(newWords, "new word")}` : ""}</span><span className="collection-open">Open <ArrowRight size={14} /></span></button>;
       })}</div>
       {!collections.length ? <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p></div> : null}
     </section>
