@@ -103,3 +103,18 @@ export async function promoteRelatedCard(cardId: string) {
   const { error } = await db().rpc("heuresis_promote_related_card", { p_card_id: cardId });
   if (error) throw error;
 }
+
+export async function createTopicFromRelatedWords(input: { collectionId: string; title: string; cardIds: string[] }) {
+  const title = input.title.trim();
+  const cardIds = Array.from(new Set(input.cardIds.filter(Boolean)));
+  if (!title) throw new Error("Give the new topic a name.");
+  if (!cardIds.length) throw new Error("Select at least one word.");
+  const { data, error } = await db().rpc("heuresis_create_topic_from_related_words", {
+    p_collection_id: input.collectionId,
+    p_title: title,
+    p_card_ids: cardIds,
+  });
+  if (error) throw error;
+  if (!data) throw new Error("The topic was not created.");
+  return String(data);
+}
