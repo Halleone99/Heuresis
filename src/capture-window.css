@@ -1,0 +1,89 @@
+.capture-window-host {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 10%, rgba(255,255,255,.72), transparent 36%),
+    #f2eee6;
+}
+
+.capture-window-host .capture-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.capture-window-host .capture-composer,
+.capture-window-host .capture-composer.expanded {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.capture-window-host .capture-composer-head {
+  min-height: 54px;
+  -webkit-app-region: drag;
+}
+
+.capture-window-host .capture-context-pickers,
+.capture-window-host .capture-window-actions,
+.capture-window-host select,
+.capture-window-host button,
+.capture-window-host textarea,
+.capture-window-host input {
+  -webkit-app-region: no-drag;
+}
+
+.capture-window-host .capture-editor-scroll {
+  padding: 18px 19px 16px;
+}
+
+.capture-window-host .capture-card-surface {
+  box-shadow: 0 14px 36px rgba(45,34,26,.055);
+}
+
+.capture-window-state {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  padding: 28px;
+  background: #f2eee6;
+  color: #756b62;
+  font-size: 12px;
+  text-align: center;
+}
+
+.capture-window-state strong {
+  color: #3c342e;
+  font: 400 26px 'Libre Caslon Display', Georgia, serif;
+}
+
+.capture-window-state button {
+  margin-top: 8px;
+  border: 1px solid #cfc5b8;
+  border-radius: 8px;
+  background: #fbf9f5;
+  color: #5f564e;
+  padding: 8px 13px;
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .capture-window-host .capture-composer.expanded .capture-queue-panel {
+    width: 220px;
+    flex-basis: 220px;
+  }
+
+  .capture-window-host .capture-context-pickers select {
+    max-width: 132px;
+  }
+}
