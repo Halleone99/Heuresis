@@ -14,7 +14,7 @@ export const EMPTY_LEARNING_COUNTS: LearningCounts = {
 };
 
 export const LEARNING_ACTION_LABELS: Record<LearningAction, string> = {
-  handwrite: "Write",
+  handwrite: "Hand-write",
   type: "Type",
   sentence: "Sentence",
   rephrase: "Rephrase",
