@@ -112,7 +112,7 @@
 .retention-typed-compare {
   width:min(650px,calc(100% - 68px));
   align-self:center;
-  margin:0 auto 16px;
+  margin:0 auto 10px;
   padding:10px 14px;
   border:1px solid var(--line);
   border-radius:6px;
@@ -133,6 +133,30 @@
   color:var(--ink-2);
   font:15px/1.45 var(--serif);
   white-space:pre-wrap;
+}
+
+.retention-revealed-tools {
+  display:flex;
+  justify-content:center;
+  margin:0 auto 13px;
+}
+
+.retention-revealed-tools button {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 11px;
+  border:1px solid var(--line-2);
+  border-radius:999px;
+  background:transparent;
+  color:var(--ink-2);
+  cursor:pointer;
+  font:12px/1 var(--serif);
+}
+
+.retention-revealed-tools button:hover {
+  border-color:var(--muted);
+  background:rgba(244,239,228,.42);
 }
 
 @media (max-width:860px) {
