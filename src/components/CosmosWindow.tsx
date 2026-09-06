@@ -14,7 +14,6 @@ import {
 } from "../lib/heuresis";
 import {
   EMPTY_LEARNING_COUNTS,
-  LEARNING_ACTION_LABELS,
   getLearningCounts,
   toggleLearningAction,
   type LearningAction,
@@ -39,6 +38,7 @@ import {
 } from "../lib/study";
 import { signHeuresisCardImages } from "../lib/cardMedia";
 import { supabase } from "../lib/supabase";
+import RetentionPractice from "./RetentionPractice";
 import "./cosmos.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
@@ -86,7 +86,6 @@ const CONCEPT_DIMS: DimensionDef[] = [
   { id: "notes", side: "r", label: "Notes", sub: "my own" },
 ];
 
-const REVIEW_ACTIONS: LearningAction[] = ["handwrite", "say", "hear", "sentence", "rephrase", "example"];
 const RELATION_TYPES: RelationType[] = ["synonym", "antonym", "related"];
 const DIMENSION_IDS = new Set<DimensionId>(["neighbours", "components", "examples", "structure", "origin", "facts", "notes"]);
 
@@ -475,22 +474,27 @@ export default function CosmosWindow() {
     } finally { setBusy(false); }
   }
 
-  async function toggleLearning(action: LearningAction) {
+  async function markLearning(actions: LearningAction[]) {
     if (!card || !pack || !sessionRef.current || busy) return;
+    const alreadySelected = new Set(selectedActions[card.id] ?? []);
+    const pending = Array.from(new Set(actions)).filter((action) => !alreadySelected.has(action));
+    if (!pending.length) return;
     setBusy(true); setNotice("");
     try {
-      const result = await toggleLearningAction({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, action });
-      setSelectedActions((current) => {
-        const previous = current[card.id] ?? [];
-        const next = result.selected ? (previous.includes(action) ? previous : [...previous, action]) : previous.filter((item) => item !== action);
-        return { ...current, [card.id]: next };
-      });
-      setLearningCounts((current) => ({
-        ...current,
-        [card.id]: { ...(current[card.id] ?? EMPTY_LEARNING_COUNTS), [action]: result.count },
-      }));
+      for (const action of pending) {
+        const result = await toggleLearningAction({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, action });
+        setSelectedActions((current) => {
+          const previous = current[card.id] ?? [];
+          const next = result.selected ? (previous.includes(action) ? previous : [...previous, action]) : previous.filter((item) => item !== action);
+          return { ...current, [card.id]: next };
+        });
+        setLearningCounts((current) => ({
+          ...current,
+          [card.id]: { ...(current[card.id] ?? EMPTY_LEARNING_COUNTS), [action]: result.count },
+        }));
+      }
     } catch (actionError) {
-      setNotice(actionError instanceof Error ? actionError.message : "Could not save the learning action.");
+      setNotice(actionError instanceof Error ? actionError.message : "Could not save the retention action.");
     } finally { setBusy(false); }
   }
 
@@ -655,8 +659,8 @@ export default function CosmosWindow() {
         <nav className="cosmos-tabs left">{dimensions.filter((item) => item.side === "l").map((dimension) => <button key={dimension.id} disabled={mode === "review" && !revealed} aria-expanded={openLeaf.l === dimension.id} data-empty={countFor(dimension.id) ? "0" : "1"} onClick={() => toggleLeaf(dimension.id, "l")}><span>{countFor(dimension.id) || "+"}</span><b>{dimension.label}</b></button>)}</nav>
         <nav className="cosmos-tabs right">{dimensions.filter((item) => item.side === "r").map((dimension) => <button key={dimension.id} disabled={mode === "review" && !revealed} aria-expanded={openLeaf.r === dimension.id} data-empty={countFor(dimension.id) ? "0" : "1"} onClick={() => toggleLeaf(dimension.id, "r")}><span>{countFor(dimension.id) || "+"}</span><b>{dimension.label}</b></button>)}</nav>
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
-        {mode === "review" && revealed ? <div className="cosmos-practice"><span>RETENTION</span>{REVIEW_ACTIONS.map((action) => <button key={action} aria-pressed={activeLearning.has(action)} disabled={busy} onClick={() => void toggleLearning(action)}>{LEARNING_ACTION_LABELS[action]}{counts[action] ? <small>×{counts[action]}</small> : null}</button>)}</div> : null}
-        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <><button disabled={busy} onClick={() => void answer("again")}>Again <small>1</small></button><button disabled={busy} onClick={() => void answer("hard")}>Hard <small>2</small></button><button className="primary" disabled={busy} onClick={() => void answer("good")}>Good <small>3</small></button><button disabled={busy} onClick={() => void answer("easy")}>Easy <small>4</small></button></> : <span>Reveal the card before opening its knowledge panels.</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((item) => item.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+        {mode === "review" ? <RetentionPractice card={card} pack={pack} template={template} revealed={revealed} busy={busy} counts={counts} selectedActions={activeLearning} onMark={markLearning} onNotice={setNotice} /> : null}
+        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <><button disabled={busy} onClick={() => void answer("again")}>Again <small>1</small></button><button disabled={busy} onClick={() => void answer("hard")}>Hard <small>2</small></button><button className="primary" disabled={busy} onClick={() => void answer("good")}>Good <small>3</small></button><button disabled={busy} onClick={() => void answer("easy")}>Easy <small>4</small></button></> : <span>Use a retention action if useful, then reveal the card.</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((item) => item.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {renderLeaf("r")}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
