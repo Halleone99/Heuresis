@@ -1,7 +1,9 @@
+import { Link2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "../lib/heuresis";
 import { type LearningAction, type LearningCounts } from "../lib/learning";
 import { type StudyTemplate } from "../lib/study";
+import ConnectionsPanel from "./ConnectionsPanel";
 import "./retention-practice.css";
 
 type Props = {
@@ -50,11 +52,13 @@ export default function RetentionPractice({
   const [panel, setPanel] = useState<PracticePanel>(null);
   const [typedAttempt, setTypedAttempt] = useState("");
   const [submittedAttempt, setSubmittedAttempt] = useState("");
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
 
   useEffect(() => {
     setPanel(null);
     setTypedAttempt("");
     setSubmittedAttempt("");
+    setConnectionsOpen(false);
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }, [card.id]);
 
@@ -114,7 +118,11 @@ export default function RetentionPractice({
   }
 
   if (revealed) {
-    return submittedAttempt ? <div className="retention-typed-compare"><small>YOUR TYPED ANSWER</small><p>{submittedAttempt}</p></div> : null;
+    return <>
+      {submittedAttempt ? <div className="retention-typed-compare"><small>YOUR TYPED ANSWER</small><p>{submittedAttempt}</p></div> : null}
+      <div className="retention-revealed-tools"><button type="button" onClick={() => setConnectionsOpen(true)}><Link2 size={13} /> Connections</button></div>
+      {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
+    </>;
   }
 
   return <section className="retention-practice" aria-label="Retention practice">
