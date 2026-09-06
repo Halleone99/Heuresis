@@ -59,6 +59,9 @@ export type CardStats = {
   hard_count: number;
   good_count: number;
   easy_count: number;
+  first_encountered_at: string | null;
+  last_encountered_at: string | null;
+  by_template: Record<string, Record<string, number>>;
 };
 
 export type CardWithStats = {
@@ -90,6 +93,9 @@ const EMPTY_STATS: CardStats = {
   hard_count: 0,
   good_count: 0,
   easy_count: 0,
+  first_encountered_at: null,
+  last_encountered_at: null,
+  by_template: {},
 };
 
 function db() {
@@ -124,6 +130,16 @@ function first<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
 
+function templateStats(value: unknown): Record<string, Record<string, number>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result: Record<string, Record<string, number>> = {};
+  for (const [templateId, counts] of Object.entries(value as Record<string, unknown>)) {
+    if (!counts || typeof counts !== "object" || Array.isArray(counts)) continue;
+    result[templateId] = Object.fromEntries(Object.entries(counts as Record<string, unknown>).map(([key, count]) => [key, Number(count ?? 0)]));
+  }
+  return result;
+}
+
 function mapCardRow(row: any): CardWithStats {
   const stats = first(row.heuresis_card_stats) as Partial<CardStats> | null;
   const tags = (Array.isArray(row.heuresis_card_tags) ? row.heuresis_card_tags : [])
@@ -151,6 +167,9 @@ function mapCardRow(row: any): CardWithStats {
       hard_count: Number(stats.hard_count ?? 0),
       good_count: Number(stats.good_count ?? 0),
       easy_count: Number(stats.easy_count ?? 0),
+      first_encountered_at: typeof stats.first_encountered_at === "string" ? stats.first_encountered_at : null,
+      last_encountered_at: typeof stats.last_encountered_at === "string" ? stats.last_encountered_at : null,
+      by_template: templateStats(stats.by_template),
     } : { ...EMPTY_STATS },
   };
 }
@@ -227,7 +246,7 @@ export async function listTags(): Promise<HeuresisTag[]> {
   return (data ?? []) as HeuresisTag[];
 }
 
-const CARD_SELECT = "id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
+const CARD_SELECT = "id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count,first_encountered_at,last_encountered_at,by_template),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
 
 export async function listCardsPage(packId: string, options: { offset?: number; limit?: number } = {}): Promise<CardPage> {
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
