@@ -22,7 +22,7 @@ type Props = {
   templateByPackId?: Record<string, string>;
 };
 
-export default function CatalogueSession({ title, items, mode, onClose, templateByPackId = {} }: Props) {
+export default function CatalogueSession({ title, items, mode, onClose, templateByPackId }: Props) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(mode === "browse");
   const [loading, setLoading] = useState(true);
@@ -30,6 +30,7 @@ export default function CatalogueSession({ title, items, mode, onClose, template
   const sessions = useRef(new Map<string, SessionInfo>());
   const current = items[index] ?? null;
   const info = current ? sessions.current.get(current.pack.id) ?? null : null;
+  const forcedTemplateKey = Object.entries(templateByPackId ?? {}).sort(([a], [b]) => a.localeCompare(b)).map(([packId, templateId]) => `${packId}:${templateId}`).join("|");
 
   const closeSessions = useCallback(async () => {
     const open = Array.from(sessions.current.values());
@@ -46,7 +47,7 @@ export default function CatalogueSession({ title, items, mode, onClose, template
           let template: StudyTemplate | null = null;
           if (mode === "review") {
             const setup = await loadStudySetup(pack.id, pack.card_type_id);
-            const forcedId = templateByPackId[pack.id];
+            const forcedId = templateByPackId?.[pack.id];
             template = (forcedId ? setup.templates.find((item) => item.id === forcedId) : null)
               ?? setup.templates.find((item) => item.id === setup.defaultTemplateId)
               ?? setup.templates[0]
@@ -66,7 +67,7 @@ export default function CatalogueSession({ title, items, mode, onClose, template
       } finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; void closeSessions(); };
-  }, [closeSessions, items, mode, templateByPackId]);
+  }, [closeSessions, forcedTemplateKey, items, mode]);
 
   const template = info?.template ?? null;
   const term = current ? fieldByRole(current.pack.cardType, "term") ?? current.pack.cardType?.field_schema[0] ?? null : null;
