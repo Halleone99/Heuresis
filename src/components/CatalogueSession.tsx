@@ -19,9 +19,10 @@ type Props = {
   items: CatalogueSessionItem[];
   mode: Mode;
   onClose: () => void;
+  templateByPackId?: Record<string, string>;
 };
 
-export default function CatalogueSession({ title, items, mode, onClose }: Props) {
+export default function CatalogueSession({ title, items, mode, onClose, templateByPackId = {} }: Props) {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(mode === "browse");
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,11 @@ export default function CatalogueSession({ title, items, mode, onClose }: Props)
           let template: StudyTemplate | null = null;
           if (mode === "review") {
             const setup = await loadStudySetup(pack.id, pack.card_type_id);
-            template = setup.templates.find((item) => item.id === setup.defaultTemplateId) ?? setup.templates[0] ?? null;
+            const forcedId = templateByPackId[pack.id];
+            template = (forcedId ? setup.templates.find((item) => item.id === forcedId) : null)
+              ?? setup.templates.find((item) => item.id === setup.defaultTemplateId)
+              ?? setup.templates[0]
+              ?? null;
             if (!template) throw new Error(`${pack.title} has no review direction.`);
           }
           const id = await startHeuresisSession(pack.id, mode === "review" ? "flashcards" : "browse", template?.id ?? null);
@@ -61,7 +66,7 @@ export default function CatalogueSession({ title, items, mode, onClose }: Props)
       } finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; void closeSessions(); };
-  }, [closeSessions, items, mode]);
+  }, [closeSessions, items, mode, templateByPackId]);
 
   const template = info?.template ?? null;
   const term = current ? fieldByRole(current.pack.cardType, "term") ?? current.pack.cardType?.field_schema[0] ?? null : null;
