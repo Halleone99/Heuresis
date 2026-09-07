@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, BookOpen, Brain, Compass, FileUp, Filter, Link2, Network, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BookOpen, Brain, Compass, FileUp, Link2, Network, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -36,9 +36,9 @@ type Props = {
 };
 
 type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
-type StatusFilter = "all" | "unsorted" | "sorted" | "reviewed";
+type StatusFilter = "unsorted" | "sorted" | "reviewed";
 type InterestFilter = "all" | "none" | "1" | "2" | "3" | "4" | "5";
-type DetailFilter = "all" | "never" | "favourite" | "again" | "production" | "stale";
+type DetailFilter = "favourite" | "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
 type SortDirection = "asc" | "desc";
 
@@ -138,10 +138,10 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
-  const [detailFilter, setDetailFilter] = useState<DetailFilter>("all");
+  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -169,10 +169,10 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
 
   useEffect(() => {
     setSelectedCardId(null);
-    setStatusFilter("all");
+    setStatusFilters([]);
     setInterestFilter("all");
     setTagFilter("all");
-    setDetailFilter("all");
+    setDetailFilters([]);
     setSortField("status");
     setSortDirection("asc");
     void reload();
@@ -186,8 +186,9 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
-  const unsortedCards = useMemo(() => cards.filter((card) => !cardHasCompletedSort(card)), [cards]);
-  const reviewedCards = useMemo(() => cards.filter((card) => card.stats.study_count > 0), [cards]);
+  const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
+  const sortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "sorted"), [cards]);
+  const reviewedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "reviewed"), [cards]);
 
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
   const richDiagnostics = explored >= 20;
@@ -197,9 +198,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
     const needle = query.trim().toLowerCase();
     const filtered = cards.filter((card) => {
       const status = workflowStatus(card);
-      if (statusFilter === "unsorted" && status !== "unsorted") return false;
-      if (statusFilter === "sorted" && !cardHasCompletedSort(card)) return false;
-      if (statusFilter === "reviewed" && status !== "reviewed") return false;
+      if (statusFilters.length && !statusFilters.includes(status)) return false;
 
       if (interestFilter === "none" && card.interest_rank != null) return false;
       if (interestFilter !== "all" && interestFilter !== "none" && card.interest_rank !== Number(interestFilter)) return false;
@@ -207,11 +206,15 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
       if (tagFilter === "none" && card.tags.length) return false;
       if (tagFilter !== "all" && tagFilter !== "none" && !card.tags.some((tag) => tag.id === tagFilter)) return false;
 
-      if (detailFilter === "never" && card.stats.encounter_count !== 0) return false;
-      if (detailFilter === "favourite" && !card.favourite) return false;
-      if (detailFilter === "again" && !isKeepMissing(card)) return false;
-      if (detailFilter === "production" && !isWeakProduction(card, directions)) return false;
-      if (detailFilter === "stale" && !isNotSeenRecently(card)) return false;
+      if (detailFilters.length) {
+        const matchesSignal = detailFilters.some((detail) => {
+          if (detail === "favourite") return card.favourite;
+          if (detail === "again") return isKeepMissing(card);
+          if (detail === "production") return isWeakProduction(card, directions);
+          return isNotSeenRecently(card);
+        });
+        if (!matchesSignal) return false;
+      }
 
       if (!needle) return true;
       return Object.values(card.data).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean).join(" ").toLowerCase().includes(needle)
@@ -229,9 +232,9 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
       if (delta === 0) delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
       return delta * direction;
     });
-  }, [cards, detailFilter, directions, interestFilter, query, sortDirection, sortField, statusFilter, tagFilter, term?.key]);
+  }, [cards, detailFilters, directions, interestFilter, query, sortDirection, sortField, statusFilters, tagFilter, term?.key]);
 
-  const activeFilterCount = [statusFilter !== "all", interestFilter !== "all", tagFilter !== "all", detailFilter !== "all"].filter(Boolean).length;
+  const activeFilterCount = statusFilters.length + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0);
   const selectedCard = selectedCardId ? cards.find((card) => card.id === selectedCardId) ?? null : null;
 
   async function refreshAll(closeEditor = false) {
@@ -255,11 +258,19 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
     setSortDirection(field === "status" || field === "term" ? "asc" : "desc");
   }
 
+  function toggleStatus(status: StatusFilter) {
+    setStatusFilters((current) => current.includes(status) ? current.filter((item) => item !== status) : [...current, status]);
+  }
+
+  function toggleDetail(detail: DetailFilter) {
+    setDetailFilters((current) => current.includes(detail) ? current.filter((item) => item !== detail) : [...current, detail]);
+  }
+
   function clearFilters() {
-    setStatusFilter("all");
+    setStatusFilters([]);
     setInterestFilter("all");
     setTagFilter("all");
-    setDetailFilter("all");
+    setDetailFilters([]);
   }
 
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
@@ -299,16 +310,28 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
         </div>
       </div>
 
-      <div className="modern-topic-toolbar excel-topic-toolbar">
+      <div className="modern-topic-toolbar ticker-topic-toolbar">
         <label className="modern-topic-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search term, meaning or tag" /></label>
-        <div className="excel-filter-group"><Filter size={14} />
-          <label className="excel-filter"><span>Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}><option value="all">All</option><option value="unsorted">Unsorted</option><option value="sorted">Sorted</option><option value="reviewed">Reviewed</option></select></label>
-          <label className="excel-filter"><span>Interest</span><select value={interestFilter} onChange={(event) => setInterestFilter(event.target.value as InterestFilter)}><option value="all">All</option><option value="none">None</option>{[1,2,3,4,5].map((rank) => <option key={rank} value={String(rank)}>{rank} / 5</option>)}</select></label>
-          <label className="excel-filter"><span>Tag</span><select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}><option value="all">All</option><option value="none">No tags</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
-          <label className="excel-filter"><span>More</span><select value={detailFilter} onChange={(event) => setDetailFilter(event.target.value as DetailFilter)}><option value="all">All</option><option value="never">Never met</option><option value="favourite">Favourites</option>{richDiagnostics ? <><option value="again">Keep missing</option><option value="production">Weak production</option><option value="stale">30d+ quiet</option></> : null}</select></label>
-          <label className="excel-filter sort-filter"><span>Sort</span><select value={sortField} onChange={(event) => changeSort(event.target.value as SortField)}><option value="status">Status</option><option value="term">Term</option><option value="interest">Interest</option><option value="reviews">Reviews</option><option value="lastSeen">Last seen</option></select></label>
-          <button className="sort-direction-button" onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")} title="Reverse sort direction">{sortDirection === "asc" ? "↑" : "↓"}</button>
-          {activeFilterCount ? <button className="filter-clear-button" onClick={clearFilters}>Clear {activeFilterCount}</button> : null}
+        <div className="ticker-filter-line">
+          <div className="filter-ticker-cluster status-filter-tickers"><span className="filter-ticker-label">Status</span>
+            <button className={statusFilters.includes("unsorted") ? "selected" : ""} aria-pressed={statusFilters.includes("unsorted")} onClick={() => toggleStatus("unsorted")}><i />Unsorted <b>{unsortedCards.length}</b></button>
+            <button className={statusFilters.includes("sorted") ? "selected" : ""} aria-pressed={statusFilters.includes("sorted")} onClick={() => toggleStatus("sorted")}><i />Sorted <b>{sortedCards.length}</b></button>
+            <button className={statusFilters.includes("reviewed") ? "selected" : ""} aria-pressed={statusFilters.includes("reviewed")} onClick={() => toggleStatus("reviewed")}><i />Reviewed <b>{reviewedCards.length}</b></button>
+          </div>
+
+          <label className="ticker-select"><span>Interest</span><select value={interestFilter} onChange={(event) => setInterestFilter(event.target.value as InterestFilter)}><option value="all">Any</option><option value="none">None</option>{[1,2,3,4,5].map((rank) => <option key={rank} value={String(rank)}>{rank} / 5</option>)}</select></label>
+          <label className="ticker-select tag-select"><span>Tag</span><select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}><option value="all">Any</option><option value="none">No tags</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
+
+          <div className="filter-ticker-cluster signal-filter-tickers"><span className="filter-ticker-label">Signals</span>
+            <button className={detailFilters.includes("favourite") ? "selected" : ""} aria-pressed={detailFilters.includes("favourite")} onClick={() => toggleDetail("favourite")}><Star size={11} />Favourite</button>
+            {richDiagnostics ? <>
+              <button className={detailFilters.includes("again") ? "selected" : ""} aria-pressed={detailFilters.includes("again")} onClick={() => toggleDetail("again")}>Missing</button>
+              <button className={detailFilters.includes("production") ? "selected" : ""} aria-pressed={detailFilters.includes("production")} onClick={() => toggleDetail("production")}>Production</button>
+              <button className={detailFilters.includes("stale") ? "selected" : ""} aria-pressed={detailFilters.includes("stale")} onClick={() => toggleDetail("stale")}>30d+</button>
+            </> : null}
+          </div>
+
+          {activeFilterCount ? <button className="ticker-clear-button" onClick={clearFilters}>Clear {activeFilterCount}</button> : null}
         </div>
       </div>
 
@@ -316,10 +339,11 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
 
       {loading ? <div className="content-state">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state"><strong>Could not load this topic.</strong><span>{error}</span></div> : null}
-      {!loading && !error ? <div className="modern-topic-table excel-topic-table">
-        <div className="modern-topic-thead excel-topic-thead">
+      {!loading && !error ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
+        <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATUS <ArrowUpDown size={11} /></button>
+          <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>INTEREST <ArrowUpDown size={11} /></button>
           <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>LEARNING <ArrowUpDown size={11} /></button>
           <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>RECALL <ArrowUpDown size={11} /></button>
           <span>TAGS & LINKS</span>
@@ -337,7 +361,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
           const status = workflowStatus(card);
           const selected = selectedCardId === card.id;
           return <div
-            className={`modern-topic-row excel-topic-row ${selected ? "selected" : ""}`}
+            className={`modern-topic-row excel-topic-row ticker-topic-row ${selected ? "selected" : ""}`}
             key={card.id}
             role="row"
             tabIndex={0}
@@ -350,12 +374,14 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
             }}
           >
             <div className="modern-card-cell">
-              <span className="modern-card-title"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}{rank ? <i className={`interest-badge interest-${rank}`}>Interest {rank}/5</i> : null}</span>
+              <span className="modern-card-title"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}</span>
               {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
               <p>{fieldText(card.data, meaning?.key)}</p>
             </div>
 
-            <div className="topic-status-cell"><span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "sorted" ? "Sorted" : "Reviewed"}</span>{status === "reviewed" ? <small>sorted + reviewed</small> : null}</div>
+            <div className="topic-status-cell"><span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "sorted" ? "Sorted" : "Reviewed"}</span></div>
+
+            <div className="topic-interest-cell">{rank ? <i className={`interest-badge interest-${rank}`}>{rank}/5</i> : <span>—</span>}</div>
 
             <div className="modern-learning-cell">
               <strong>{card.stats.study_count.toLocaleString()} <small>{card.stats.study_count === 1 ? "review" : "reviews"}</small></strong>
