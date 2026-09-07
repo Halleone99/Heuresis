@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Brain, Compass, FileUp, Filter, Link2, Search, Settings2, Star } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, Compass, FileUp, Filter, Link2, Network, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -12,6 +12,7 @@ import {
   type HeuresisTag,
   type PackWithType,
 } from "../lib/heuresis";
+import { getLearningCounts, type LearningAction, type LearningCounts } from "../lib/learning";
 import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
 import { cardHasCompletedSort } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
@@ -22,6 +23,7 @@ import ConnectionsPanel from "./ConnectionsPanel";
 import ImportModal from "./ImportModal";
 import RelatedEditor from "./RelatedEditor";
 import RelatedView from "./RelatedView";
+import SortModal from "./SortModal";
 import StudyModal from "./StudyModal";
 
 type FilterKey = "all" | "new" | "favourite" | "interesting" | "again" | "production" | "stale" | "unsorted";
@@ -36,11 +38,26 @@ type Props = {
 
 type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
 
+const LEARNING_SHORT: Array<[LearningAction, string]> = [
+  ["handwrite", "Hand"],
+  ["type", "Type"],
+  ["sentence", "Sentence"],
+  ["rephrase", "Rephrase"],
+  ["example", "Example"],
+  ["say", "Say"],
+  ["hear", "Hear"],
+];
+
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
 }
 
 function pct(value: number | null | undefined) { return value == null ? null : Math.round(value * 100); }
+
+function compactLearning(counts: LearningCounts | undefined) {
+  if (!counts) return [];
+  return LEARNING_SHORT.flatMap(([key, label]) => counts[key] ? [{ key, label, count: counts[key] }] : []);
+}
 
 function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, onConnections }: {
   pack: PackWithType;
@@ -80,7 +97,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className="card-editor-modal" role="dialog" aria-modal="true">
-        <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><Link2 size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
+        <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><Network size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
         <div className="editor-fields">
           {(pack.cardType?.field_schema ?? []).map((field) => (
             <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
@@ -102,6 +119,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
+  const [learningCounts, setLearningCounts] = useState<Record<string, LearningCounts>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -109,6 +127,8 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
   const [editing, setEditing] = useState<CardWithStats | null>(null);
   const [connectionsCard, setConnectionsCard] = useState<CardWithStats | null>(null);
   const [studyOpen, setStudyOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [sortStartCardId, setSortStartCardId] = useState<string | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -118,7 +138,8 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
     setLoading(true); setError("");
     try {
       const [nextCards, nextTags, setup] = await Promise.all([listCards(pack.id), listTags(), loadStudySetup(pack.id, pack.card_type_id)]);
-      setCards(nextCards); setTags(nextTags); setTemplates(setup.templates);
+      const nextLearning = await getLearningCounts(nextCards.map((card) => card.id)).catch(() => ({} as Record<string, LearningCounts>));
+      setCards(nextCards); setTags(nextTags); setTemplates(setup.templates); setLearningCounts(nextLearning);
       setEditing((current) => current ? nextCards.find((card) => card.id === current.id) ?? current : null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
@@ -137,6 +158,15 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
   const unsortedCards = useMemo(() => cards.filter((card) => !cardHasCompletedSort(card)), [cards]);
 
+  const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
+  const richDiagnostics = explored >= 20;
+  const totalReviews = useMemo(() => cards.reduce((sum, card) => sum + card.stats.study_count, 0), [cards]);
+  const filterOptions = useMemo<Array<[FilterKey, string]>>(() => {
+    const base: Array<[FilterKey, string]> = [["all", "All"], ["new", "Never met"], ["favourite", "Favourites"], ["interesting", "High interest"], ["unsorted", "Unsorted"]];
+    if (richDiagnostics) base.splice(2, 0, ["again", "Keep missing"], ["production", "Weak production"], ["stale", "30d+ quiet"]);
+    return base;
+  }, [richDiagnostics]);
+
   const shown = useMemo(() => cards.filter((card) => {
     if (filter === "new" && card.stats.encounter_count !== 0) return false;
     if (filter === "favourite" && !card.favourite) return false;
@@ -150,8 +180,6 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
     return Object.values(card.data).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean).join(" ").toLowerCase().includes(needle)
       || card.tags.some((tag) => tag.name.toLowerCase().includes(needle));
   }), [cards, directions, filter, query]);
-  const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
-  const richDiagnostics = explored >= 20;
 
   async function refreshAll(closeEditor = false) {
     if (closeEditor) setEditing(null);
@@ -165,52 +193,100 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
     setTargetedSession({ title, cards: next, templateId });
   }
 
+  function openSort(cardId: string | null = null) {
+    setSortStartCardId(cardId);
+    setSortOpen(true);
+  }
+
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
   return (
-    <section className="pack-page desktop-pack-page intelligent-topic" data-accent={collection?.accent ?? "ink"}>
-      <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
-      <header className="pack-page-head intelligent-topic-head">
-        <div><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(pack.card_count, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
-        <button className="secondary-button topic-settings-button" onClick={onSettings}><Settings2 size={15} /> Settings</button>
+    <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
+      <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
+
+      <header className="modern-topic-head">
+        <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(pack.card_count, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
+        <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
       </header>
 
-      {!richDiagnostics && neverCards.length ? <button className="topic-start-here" onClick={() => openTargeted("Never met", neverCards, 20)}><strong>{neverCards.length.toLocaleString()}</strong><span><b>Never met</b><small>Most of this topic is still unexplored. Start with twenty rather than pretending the weak-card signals are meaningful yet.</small></span><em>START TWENTY</em></button> : null}
-
-      {richDiagnostics ? <div className="intelligent-question-band topic-question-band">
-        <button data-tone="indigo" disabled={!neverCards.length} onClick={() => openTargeted("Never met", neverCards, 20)}><strong>{neverCards.length.toLocaleString()}</strong><b>Never met</b><span>Cards with no encounter yet.</span><em>START TWENTY</em></button>
-        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>You keep missing</b><span>Repeated Again grades outweigh successful recalls.</span><em>WORK THROUGH THEM</em></button>
-        <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak in production</b><span>Production trails recognition for this card structure.</span><em>DRILL THE REVERSE</em></button>
-        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>Not seen in a month</b><span>Encountered before, quiet for at least 30 days.</span><em>REFRESH THIRTY</em></button>
-      </div> : null}
-
-      <div className="topic-action-bar intelligent-topic-actions">
-        <button className="primary-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Flashcards</button>
-        <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
-        <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
-        <button className="secondary-button" onClick={() => setImportOpen(true)}><FileUp size={15} /> Import</button>
+      <div className="topic-overview-strip">
+        <span><strong>{neverCards.length.toLocaleString()}</strong><small>unseen</small></span>
+        <span><strong>{totalReviews.toLocaleString()}</strong><small>reviews</small></span>
+        <span><strong>{unsortedCards.length.toLocaleString()}</strong><small>to sort</small></span>
+        {neverCards.length ? <button onClick={() => openTargeted("Never met", neverCards, 20)}>Start 20 unseen</button> : <span className="overview-complete">All cards encountered</span>}
       </div>
 
-      <div className="pack-toolbar intelligent-topic-tools"><label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this topic" /></label><div className="filter-strip"><Filter size={14} />{([['all', 'All'], ['new', 'Never met'], ['again', 'Keep missing'], ['production', 'Weak production'], ['stale', '30d+ quiet'], ['favourite', 'Favourites'], ['interesting', 'High interest'], ['unsorted', 'Unsorted']] as Array<[FilterKey, string]>).map(([key, label]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div></div>
+      {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
+        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Repeated Again grades.</span><em>REVIEW</em></button>
+        <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
+        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously met, now stale.</span><em>REFRESH</em></button>
+      </div> : null}
+
+      <div className="topic-command-bar">
+        <div className="topic-learning-actions">
+          <button className="primary-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Flashcards</button>
+          <button className="sort-command" disabled={!unsortedCards.length} onClick={() => openSort()}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
+          <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
+        </div>
+        <div className="topic-utility-actions">
+          <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
+          <button className="secondary-button" onClick={() => setImportOpen(true)}><FileUp size={15} /> Import</button>
+        </div>
+      </div>
+
+      <div className="modern-topic-toolbar">
+        <label className="modern-topic-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search term, meaning or tag" /></label>
+        <div className="modern-topic-filters"><Filter size={14} />{filterOptions.map(([key, label]) => <button key={key} className={filter === key ? "selected" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div>
+      </div>
 
       {loading ? <div className="content-state">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state"><strong>Could not load this topic.</strong><span>{error}</span></div> : null}
-      {!loading && !error ? <div className="intelligent-topic-table"><div className="intelligent-topic-thead"><span>TERM</span><span>MEANING</span><span>RECALL BY DIRECTION</span><span>FLAGS</span></div>{shown.map((card) => {
-        const recognition = recognitionPerformance(card, directions);
-        const production = productionPerformance(card, directions);
-        const rp = pct(recognition?.score); const pp = pct(production?.score);
-        const missing = isKeepMissing(card); const weakProduction = isWeakProduction(card, directions); const stale = isNotSeenRecently(card);
-        return <button className="intelligent-topic-row" key={card.id} onClick={() => setEditing(card)}>
-          <span className="topic-row-term"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(card.data, reading.key)}</em> : null}</span>
-          <span className="topic-row-meaning">{fieldText(card.data, meaning?.key)}</span>
-          <span className="direction-signal compact">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}{rp === null && pp === null ? <small>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "NOT MET YET"}</small> : <small>{formatSeen(card.stats.last_encountered_at)}{card.stats.again_count ? ` · ${card.stats.again_count} Again` : ""}</small>}</span>
-          <span className="topic-row-flags">{missing ? <i className="danger">KEEPS MISSING</i> : null}{weakProduction ? <i className="warn">PRODUCTION</i> : null}{stale && !missing ? <i>QUIET</i> : null}{!cardHasCompletedSort(card) ? <i>UNSORTED</i> : null}</span>
-        </button>;
-      })}{!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>No matching cards.</strong><span>Change the filter or capture a new card.</span></div> : null}</div> : null}
+      {!loading && !error ? <div className="modern-topic-table">
+        <div className="modern-topic-thead"><span>CARD</span><span>LEARNING</span><span>RECALL</span><span>TAGS & LINKS</span></div>
+        {shown.map((card) => {
+          const recognition = recognitionPerformance(card, directions);
+          const production = productionPerformance(card, directions);
+          const rp = pct(recognition?.score); const pp = pct(production?.score);
+          const missing = richDiagnostics && isKeepMissing(card);
+          const weakProduction = richDiagnostics && isWeakProduction(card, directions);
+          const stale = richDiagnostics && isNotSeenRecently(card);
+          const learning = compactLearning(learningCounts[card.id]);
+          const rank = card.interest_rank;
+          const visibleTags = card.tags.slice(0, 3);
+          return <div className="modern-topic-row" key={card.id}>
+            <button className="modern-card-cell" onClick={() => setEditing(card)} title="Edit card">
+              <span className="modern-card-title"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}{rank ? <i className={`interest-badge interest-${rank}`}>Interest {rank}/5</i> : null}</span>
+              {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
+              <p>{fieldText(card.data, meaning?.key)}</p>
+            </button>
+
+            <div className="modern-learning-cell">
+              <strong>{card.stats.study_count.toLocaleString()} <small>{card.stats.study_count === 1 ? "review" : "reviews"}</small></strong>
+              {learning.length ? <div className="learning-mini-chips">{learning.slice(0, 4).map((item) => <span key={item.key}>{item.label} {item.count}</span>)}{learning.length > 4 ? <span>+{learning.length - 4}</span> : null}</div> : <small className="learning-none">No active exercise yet</small>}
+            </div>
+
+            <div className="modern-recall-cell">
+              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "Not met yet"}</strong>}
+              <small>{card.stats.again_count ? `${card.stats.again_count} Again` : ""}{card.stats.again_count && card.stats.good_count ? " · " : ""}{card.stats.good_count ? `${card.stats.good_count} Good` : ""}{card.stats.easy_count ? `${card.stats.good_count || card.stats.again_count ? " · " : ""}${card.stats.easy_count} Easy` : ""}</small>
+              {missing ? <i className="signal-note danger">Keeps missing</i> : null}{weakProduction ? <i className="signal-note warn">Production</i> : null}{stale && !missing ? <i className="signal-note">Quiet</i> : null}
+            </div>
+
+            <div className="modern-meta-cell">
+              <div className="row-tags">{visibleTags.map((tag) => <span key={tag.id} className={tag.is_badge ? "badge" : ""}>{tag.name}</span>)}{card.tags.length > visibleTags.length ? <span>+{card.tags.length - visibleTags.length}</span> : null}{!card.tags.length ? <small>No tags</small> : null}</div>
+              <div className="row-mini-actions">
+                {!cardHasCompletedSort(card) ? <button className="row-sort-button" onClick={() => openSort(card.id)}><SlidersHorizontal size={13} /> Sort</button> : null}
+                <button className="row-connections-button" onClick={() => setConnectionsCard(card)} title="Open connections tree"><Network size={14} /> Connections</button>
+              </div>
+            </div>
+          </div>;
+        })}
+        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>No matching cards.</strong><span>Change the filter or capture a new card.</span></div> : null}
+      </div> : null}
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} /> : null}
       {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} /> : null}
       {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => void refreshAll()} /> : null}
+      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} startCardId={sortStartCardId} onClose={() => { setSortOpen(false); setSortStartCardId(null); }} onChanged={() => void refreshAll()} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
       {targetedSession ? <CatalogueSession title={targetedSession.title} items={targetedSession.cards.map((item) => ({ card: item, pack }))} mode="review" templateByPackId={targetedSession.templateId ? { [pack.id]: targetedSession.templateId } : undefined} onClose={() => setTargetedSession(null)} /> : null}
