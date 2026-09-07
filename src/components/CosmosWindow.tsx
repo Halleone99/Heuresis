@@ -59,10 +59,11 @@ type Config = {
   relatedReview: boolean;
   packId: string;
   templateId: string;
+  templateIds: string[];
   source: Source;
   order: Order;
   count: number | "all";
-  tagId: string;
+  tagIds: string[];
   query: string;
 };
 
@@ -96,16 +97,18 @@ function parseConfig(): Config {
   const numeric = Number(rawCount);
   const source = params.get("source");
   const relatedReview = params.get("related") === "1";
+  const templateIds = (params.get("templates") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   return {
     valid: Boolean(packId),
     mode: relatedReview ? "review" : params.get("mode") === "sort" ? "sort" : "review",
     relatedReview,
     packId,
     templateId: params.get("template") ?? "",
+    templateIds,
     source: source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
     order: params.get("order") === "random" ? "random" : "pack",
     count: rawCount === "all" || !Number.isFinite(numeric) || numeric <= 0 ? "all" : Math.floor(numeric),
-    tagId: params.get("tag") ?? "",
+    tagIds: params.getAll("tag").filter(Boolean),
     query: params.get("q")?.trim() ?? "",
   };
 }
@@ -197,6 +200,7 @@ export default function CosmosWindow() {
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [templateId, setTemplateId] = useState(config.templateId);
+  const [reviewTemplateIds, setReviewTemplateIds] = useState<string[]>(config.templateIds.length ? config.templateIds : config.templateId ? [config.templateId] : []);
   const [order, setOrder] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -223,7 +227,12 @@ export default function CosmosWindow() {
   const relatedReview = config.relatedReview;
   const currentId = order[index];
   const card = cards.find((item) => item.id === currentId) ?? null;
-  const template = templates.find((item) => item.id === templateId) ?? templates[0] ?? null;
+  const templateForIndex = (position: number) => {
+    const ids = reviewTemplateIds.length ? reviewTemplateIds : templateId ? [templateId] : [];
+    const id = ids.length ? ids[position % ids.length] : "";
+    return templates.find((item) => item.id === id) ?? templates[0] ?? null;
+  };
+  const template = templateForIndex(index);
   const done = Boolean(order.length && index >= order.length);
   const dimensions = pack && isConceptualPack(pack) ? CONCEPT_DIMS : LANGUAGE_DIMS;
   const structuredWords = Boolean(pack && !isConceptualPack(pack));
@@ -273,7 +282,10 @@ export default function CosmosWindow() {
           ?? nextTemplates.find((item) => item.id === setup.defaultTemplateId)
           ?? nextTemplates[0]
           ?? null;
-        if (config.mode === "review" && !chosenTemplate) throw new Error("This topic has no review direction yet.");
+        const requestedIds = config.templateIds.length ? config.templateIds : config.templateId ? [config.templateId] : [];
+        const selectedTemplates = requestedIds.map((id) => nextTemplates.find((item) => item.id === id)).filter((item): item is StudyTemplate => Boolean(item));
+        const activeTemplates = selectedTemplates.length ? selectedTemplates : chosenTemplate ? [chosenTemplate] : [];
+        if (config.mode === "review" && !activeTemplates.length) throw new Error("This topic has no review direction yet.");
 
         let pool = relatedReview
           ? [...allCards]
@@ -281,7 +293,7 @@ export default function CosmosWindow() {
             ? (config.source === "unsorted" ? allCards.filter((item) => !cardHasCompletedSort(item)) : sourceCards(allCards, config.source))
             : sourceCards(allCards.filter(cardHasCompletedSort), config.source === "unsorted" ? "all" : config.source);
 
-        if (!relatedReview && config.mode === "sort" && config.tagId) pool = pool.filter((item) => item.tags.some((tag) => tag.id === config.tagId));
+        if (!relatedReview && config.mode === "sort" && config.tagIds.length) pool = pool.filter((item) => item.tags.some((tag) => config.tagIds.includes(tag.id)));
         if (!relatedReview && config.mode === "sort" && config.query) {
           const q = config.query.toLocaleLowerCase();
           pool = pool.filter((item) => [
@@ -300,7 +312,8 @@ export default function CosmosWindow() {
               : "There are no sorted cards in this review selection. Use Sort first, or change the review filter.");
         }
 
-        const sessionId = await startHeuresisSession(nextPack.id, relatedReview ? "related" : config.mode === "sort" ? "sort" : "flashcards", chosenTemplate?.id ?? null);
+        const sessionTemplateId = activeTemplates.length === 1 ? activeTemplates[0].id : null;
+        const sessionId = await startHeuresisSession(nextPack.id, relatedReview ? "related" : config.mode === "sort" ? "sort" : "flashcards", sessionTemplateId);
         if (cancelled) {
           await finishStudySession(sessionId).catch(() => undefined);
           return;
@@ -312,7 +325,7 @@ export default function CosmosWindow() {
             cardId: pool[0].id,
             packId: nextPack.id,
             sessionId,
-            templateId: chosenTemplate?.id ?? null,
+            templateId: activeTemplates[0]?.id ?? null,
             eventType: "encountered",
           });
         }
@@ -322,7 +335,8 @@ export default function CosmosWindow() {
         setCards(allCards);
         setTags(allTags);
         setTemplates(nextTemplates);
-        setTemplateId(chosenTemplate?.id ?? "");
+        setTemplateId(activeTemplates[0]?.id ?? "");
+        setReviewTemplateIds(activeTemplates.map((item) => item.id));
         setOrder(pool.map((item) => item.id));
         setIndex(0);
         setRevealed(config.mode === "sort");
@@ -465,7 +479,8 @@ export default function CosmosWindow() {
       const nextIndex = index + 1;
       const nextId = order[nextIndex];
       if (nextId) {
-        await recordStudyEvent({ cardId: nextId, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: "encountered" });
+        const nextTemplate = templateForIndex(nextIndex);
+        await recordStudyEvent({ cardId: nextId, packId: pack.id, sessionId: sessionRef.current, templateId: nextTemplate?.id ?? template.id, eventType: "encountered" });
       }
       setIndex(nextIndex);
       setRevealed(false);
@@ -554,6 +569,7 @@ export default function CosmosWindow() {
     params.set("order", "pack");
     params.set("count", "all");
     params.delete("tag");
+    params.delete("templates");
     params.delete("q");
     window.location.search = params.toString();
   }
