@@ -1,0 +1,104 @@
+/* Keep Browse compact: tags stay behind a menu until requested. */
+.ultra-compact-browse {
+  width: min(820px, calc(100vw - 32px)) !important;
+}
+.ultra-compact-browse .browse-setup-head {
+  padding: 15px 18px 12px !important;
+}
+.ultra-compact-browse .browse-setup-head h2 {
+  font-size: 20px !important;
+}
+.ultra-compact-browse .browse-match-summary {
+  margin: 9px 18px 2px !important;
+  padding: 8px 10px !important;
+}
+.ultra-compact-browse-sections {
+  padding: 6px 18px 10px !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 7px !important;
+  position: relative;
+}
+.ultra-compact-browse-sections .browse-filter-section {
+  padding: 9px !important;
+  border-radius: 11px !important;
+}
+.ultra-compact-browse-sections .browse-status-section {
+  grid-column: 1 / -1;
+}
+.ultra-compact-browse-sections .browse-status-grid > button {
+  min-height: 34px !important;
+}
+.browse-collapsed-tags {
+  position: relative;
+  min-width: 0;
+}
+.browse-collapsed-tags > summary {
+  list-style: none;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid rgba(72,65,59,.075);
+  border-radius: 11px;
+  background: rgba(250,250,248,.72);
+  color: #706860;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.browse-collapsed-tags > summary::-webkit-details-marker { display: none; }
+.browse-collapsed-tags > summary.active,
+.browse-collapsed-tags[open] > summary {
+  background: #45413d;
+  border-color: #45413d;
+  color: #fff;
+}
+.browse-collapsed-tags > summary b {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.14);
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+}
+.browse-tags-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 60;
+  width: 330px;
+  padding: 10px;
+  border: 1px solid rgba(72,65,59,.10);
+  border-radius: 13px;
+  background: rgba(250,250,248,.98);
+  box-shadow: 0 18px 44px rgba(35,30,27,.14);
+  backdrop-filter: blur(20px);
+}
+.browse-tags-popover section + section {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(72,65,59,.07);
+}
+.browse-tags-popover section > p {
+  margin: 0 0 6px;
+  color: #9a928a;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.browse-tags-popover .browse-lesson-grid {
+  grid-template-columns: repeat(5, 1fr) !important;
+}
+.ultra-compact-browse .browse-setup-footer {
+  min-height: 52px !important;
+  padding: 7px 18px !important;
+}
+@media (max-width: 700px) {
+  .ultra-compact-browse-sections { grid-template-columns: 1fr !important; }
+  .browse-tags-popover { width: min(330px, calc(100vw - 56px)); }
+}
