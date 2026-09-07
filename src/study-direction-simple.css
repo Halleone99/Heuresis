@@ -1,0 +1,90 @@
+/* Review direction: choose the concept first, then the exact side only if needed. */
+.compact-direction-picker {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(72,65,59,.075);
+  border-radius: 12px;
+  background: rgba(255,255,255,.56);
+  display: grid;
+  gap: 8px;
+}
+.compact-direction-picker > span {
+  color: #746d66;
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.direction-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.direction-mode-toggle button {
+  min-height: 36px;
+  border: 1px solid rgba(72,65,59,.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,.72);
+  color: #716960;
+  font-size: 10px;
+  font-weight: 680;
+  cursor: pointer;
+}
+.direction-mode-toggle button:hover:not(:disabled) { background: #fff; }
+.direction-mode-toggle button.selected {
+  border-color: #45413d;
+  background: #45413d;
+  color: #fff;
+}
+.direction-mode-toggle button:disabled { opacity: .34; cursor: default; }
+.direction-detail {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+}
+.direction-detail select {
+  width: 100%;
+  height: 36px;
+  padding: 0 34px 0 10px;
+  border: 1px solid rgba(72,65,59,.08);
+  border-radius: 9px;
+  outline: 0;
+  background: rgba(250,250,248,.82);
+  color: #514a44;
+  font-size: 10px;
+}
+.direction-detail strong {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(72,65,59,.045);
+  color: #665f58;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+/* Multi-select tag popover: selection stays open and shows the active count. */
+.study-tags-menu > summary.active { border-color: rgba(75,89,80,.24) !important; }
+.study-tags-menu > summary.active b {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: #55665c;
+  color: #fff;
+  display: inline-grid;
+  place-items: center;
+  font-size: 8px;
+}
+.study-tags-popover button.selected {
+  background: #45413d !important;
+  border-color: #45413d !important;
+  color: #fff !important;
+}
+
+@media (max-width: 720px) {
+  .direction-mode-toggle { grid-template-columns: 1fr; }
+}
