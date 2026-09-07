@@ -1,0 +1,248 @@
+/* Third topic-table pass: modern ticker filters and distinct workflow states. */
+
+.ticker-topic-toolbar {
+  margin-top: 12px !important;
+  padding: 10px !important;
+  display: grid !important;
+  grid-template-columns: minmax(300px, 1fr) auto;
+  gap: 10px !important;
+  align-items: center !important;
+  border-radius: 15px !important;
+  background: rgba(252,251,248,.76) !important;
+  box-shadow: 0 10px 28px rgba(42,36,31,.035) !important;
+}
+
+.ticker-topic-toolbar .modern-topic-search {
+  min-height: 42px !important;
+  border-radius: 11px !important;
+  background: rgba(255,255,255,.76) !important;
+}
+
+.ticker-filter-line {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-ticker-cluster {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 42px;
+  padding: 5px 6px;
+  border: 1px solid rgba(74,67,61,.085);
+  border-radius: 11px;
+  background: rgba(255,255,255,.46);
+}
+
+.filter-ticker-label,
+.ticker-select > span {
+  margin: 0 3px 0 2px;
+  color: #9b938b;
+  font-size: 7px;
+  font-weight: 760;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.filter-ticker-cluster > button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #726b64;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .13s ease, color .13s ease, border-color .13s ease, box-shadow .13s ease;
+}
+
+.filter-ticker-cluster > button:hover {
+  background: rgba(255,255,255,.76);
+  color: #3f3934;
+}
+
+.filter-ticker-cluster > button.selected {
+  border-color: rgba(62,56,51,.13);
+  background: #3d3935;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(45,39,34,.08);
+}
+
+.filter-ticker-cluster > button > i {
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  opacity: .72;
+}
+
+.filter-ticker-cluster > button.selected > i {
+  background: currentColor;
+  box-shadow: inset 0 0 0 2px #3d3935;
+}
+
+.filter-ticker-cluster > button > b {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(70,64,58,.07);
+  display: inline-grid;
+  place-items: center;
+  color: #918980;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.filter-ticker-cluster > button.selected > b {
+  background: rgba(255,255,255,.14);
+  color: rgba(255,255,255,.88);
+}
+
+.status-filter-tickers > button:nth-of-type(1).selected {
+  background: #865d43;
+  border-color: rgba(134,93,67,.22);
+}
+.status-filter-tickers > button:nth-of-type(1).selected > i { box-shadow: inset 0 0 0 2px #865d43; }
+.status-filter-tickers > button:nth-of-type(2).selected {
+  background: #647462;
+  border-color: rgba(100,116,98,.22);
+}
+.status-filter-tickers > button:nth-of-type(2).selected > i { box-shadow: inset 0 0 0 2px #647462; }
+.status-filter-tickers > button:nth-of-type(3).selected {
+  background: #58647c;
+  border-color: rgba(88,100,124,.22);
+}
+.status-filter-tickers > button:nth-of-type(3).selected > i { box-shadow: inset 0 0 0 2px #58647c; }
+
+.ticker-select {
+  min-height: 42px;
+  padding: 5px 6px 5px 8px;
+  border: 1px solid rgba(74,67,61,.085);
+  border-radius: 11px;
+  background: rgba(255,255,255,.46);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ticker-select select {
+  min-width: 78px;
+  height: 30px;
+  padding: 0 24px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  outline: 0;
+  background: rgba(255,255,255,.68);
+  color: #5e5750;
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.ticker-select select:hover,
+.ticker-select select:focus {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(71,64,58,.11);
+}
+
+.ticker-select.tag-select select {
+  min-width: 116px;
+  max-width: 150px;
+}
+
+.signal-filter-tickers > button.selected {
+  background: #5d5751;
+}
+
+.ticker-clear-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #9a674c;
+  font-size: 9px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.ticker-clear-button:hover { background: rgba(255,255,255,.72); color: #704831; }
+
+/* Interest gets its own sortable column instead of being squeezed into the card title. */
+.ticker-topic-thead,
+.ticker-topic-row {
+  grid-template-columns: minmax(245px, 1.32fr) minmax(92px, .46fr) minmax(80px, .38fr) minmax(145px, .70fr) minmax(160px, .76fr) minmax(190px, .90fr) !important;
+  column-gap: 13px !important;
+}
+
+.topic-interest-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.topic-interest-cell > span {
+  color: #b1aaa3;
+  font-size: 10px;
+}
+
+.topic-interest-cell .interest-badge {
+  margin: 0 !important;
+  min-width: 38px;
+  min-height: 24px !important;
+  justify-content: center;
+  padding-inline: 8px !important;
+  font-size: 9px !important;
+}
+
+/* Statuses are exclusive in the table: reviewed is not also presented as sorted. */
+.ticker-topic-row .topic-status-cell > small {
+  display: none;
+}
+
+/* Header sorting is the only sorting control. */
+.ticker-topic-thead > button {
+  min-height: 30px;
+  border-radius: 6px;
+}
+.ticker-topic-thead > button:hover {
+  background: rgba(255,255,255,.42);
+}
+.ticker-topic-thead > button.active {
+  color: #45403a !important;
+}
+
+@media (max-width: 1280px) {
+  .ticker-topic-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+  .ticker-filter-line {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1080px) {
+  .ticker-topic-thead,
+  .ticker-topic-row {
+    grid-template-columns: minmax(220px,1.25fr) 90px 72px 135px 145px minmax(170px,.85fr) !important;
+    column-gap: 9px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .ticker-topic-row {
+    grid-template-columns: 1fr auto !important;
+  }
+  .topic-interest-cell { justify-content: flex-end; }
+  .ticker-filter-line { align-items: stretch; }
+  .filter-ticker-cluster,
+  .ticker-select { flex-wrap: wrap; }
+}
