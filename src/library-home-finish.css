@@ -1,5 +1,5 @@
 /* Final library-home corrections: remove the strip under the chrome, centre the visual mass,
-   and force custom wallpaper to remain a true full-viewport background. */
+   and keep the custom wallpaper on a clean, modern off-white canvas. */
 
 /* The previous chrome border/shadow created a pale strip below the dark bar. */
 .desktop-chrome {
@@ -9,10 +9,11 @@
   backdrop-filter: blur(26px) saturate(1.06) !important;
 }
 
-/* Do not honour a stored "contain" setting on the desktop shell: it leaves the lower
-   viewport uncovered with panoramic images. Heuresis should always use the image as wallpaper. */
+/* Heuresis uses the image as wallpaper, never as a contained picture. The fallback surface is
+   deliberately a neutral pearl/off-white rather than beige paper, so the lower viewport feels
+   like a modern application canvas rather than an aged page. */
 .heuresis-desktop[data-custom-background="heuresis"] {
-  background: #f3efe8 !important;
+  background: linear-gradient(180deg, #f8f8f6 0%, #f6f7f7 58%, #f7f7f5 100%) !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
   inset: 0 !important;
@@ -24,11 +25,12 @@
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
   background:
-    radial-gradient(circle at 72% 8%, rgba(255,255,255,.16), transparent 42%),
+    radial-gradient(circle at 72% 8%, rgba(255,255,255,.14), transparent 42%),
     linear-gradient(180deg,
-      rgba(246,243,238,.10) 0%,
-      rgba(245,242,237,.16) 42%,
-      rgba(243,239,232,.28) 100%) !important;
+      rgba(249,249,247,.07) 0%,
+      rgba(249,249,248,.10) 42%,
+      rgba(248,248,247,.14) 72%,
+      rgba(248,248,247,.18) 100%) !important;
 }
 
 /* Keep the working area visually centred. A slightly narrower selected card and a broader
