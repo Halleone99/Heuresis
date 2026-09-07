@@ -1,7 +1,7 @@
 import { isAndroidRuntime, openInCurrentApp } from "./platform";
 
 export type CosmosMode = "review" | "sort";
-export type CosmosSource = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
+export type CosmosSource = "all" | "new" | "ready" | "reviewed" | "favourites" | "interesting" | "again" | "unsorted";
 export type CosmosOrder = "pack" | "random";
 
 export type CosmosLaunch = {
