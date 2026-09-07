@@ -10,7 +10,8 @@
     "pretauri": "tauri icon src-tauri/heuresis-icon.svg",
     "tauri": "tauri",
     "open": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-HeuresisDev.ps1",
-    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Install-HeuresisDevShortcut.ps1"
+    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Install-HeuresisDevShortcut.ps1",
+    "windows:latest": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-HeuresisWindows.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4",
