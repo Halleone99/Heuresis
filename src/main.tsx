@@ -22,6 +22,7 @@ import "./library-home-modern.css";
 import "./library-home-finish.css";
 import "./topic-modern.css";
 import "./topic-table-v2.css";
+import "./topic-filter-popovers.css";
 import "./topic-filter-tickers.css";
 import "./tablet.css";
 

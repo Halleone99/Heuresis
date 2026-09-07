@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, BookOpen, Brain, Compass, FileUp, Link2, Network, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -36,9 +36,9 @@ type Props = {
 };
 
 type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
-type StatusFilter = "unsorted" | "sorted" | "reviewed";
+type StatusFilter = "unsorted" | "sorted" | "reviewed" | "favourite";
 type InterestFilter = "all" | "none" | "1" | "2" | "3" | "4" | "5";
-type DetailFilter = "favourite" | "again" | "production" | "stale";
+type DetailFilter = "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
 type SortDirection = "asc" | "desc";
 
@@ -112,7 +112,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className="card-editor-modal" role="dialog" aria-modal="true">
-        <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><Network size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
+        <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><GitFork size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
         <div className="editor-fields">
           {(pack.cardType?.field_schema ?? []).map((field) => (
             <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
@@ -189,6 +189,10 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
   const sortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "sorted"), [cards]);
   const reviewedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "reviewed"), [cards]);
+  const favouriteCards = useMemo(() => cards.filter((card) => card.favourite), [cards]);
+  const lessonTags = useMemo(() => tags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tags]);
+  const otherTags = useMemo(() => tags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => a.name.localeCompare(b.name)), [tags]);
+  const selectedTag = tagFilter !== "all" && tagFilter !== "none" ? tags.find((tag) => tag.id === tagFilter) ?? null : null;
 
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
   const richDiagnostics = explored >= 20;
@@ -198,7 +202,10 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
     const needle = query.trim().toLowerCase();
     const filtered = cards.filter((card) => {
       const status = workflowStatus(card);
-      if (statusFilters.length && !statusFilters.includes(status)) return false;
+      if (statusFilters.length) {
+        const matchesStatus = statusFilters.some((filter) => filter === "favourite" ? card.favourite : status === filter);
+        if (!matchesStatus) return false;
+      }
 
       if (interestFilter === "none" && card.interest_rank != null) return false;
       if (interestFilter !== "all" && interestFilter !== "none" && card.interest_rank !== Number(interestFilter)) return false;
@@ -208,7 +215,6 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
 
       if (detailFilters.length) {
         const matchesSignal = detailFilters.some((detail) => {
-          if (detail === "favourite") return card.favourite;
           if (detail === "again") return isKeepMissing(card);
           if (detail === "production") return isWeakProduction(card, directions);
           return isNotSeenRecently(card);
@@ -310,28 +316,53 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
         </div>
       </div>
 
-      <div className="modern-topic-toolbar ticker-topic-toolbar">
+      <div className="modern-topic-toolbar compact-filter-toolbar">
         <label className="modern-topic-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search term, meaning or tag" /></label>
-        <div className="ticker-filter-line">
-          <div className="filter-ticker-cluster status-filter-tickers"><span className="filter-ticker-label">Status</span>
-            <button className={statusFilters.includes("unsorted") ? "selected" : ""} aria-pressed={statusFilters.includes("unsorted")} onClick={() => toggleStatus("unsorted")}><i />Unsorted <b>{unsortedCards.length}</b></button>
-            <button className={statusFilters.includes("sorted") ? "selected" : ""} aria-pressed={statusFilters.includes("sorted")} onClick={() => toggleStatus("sorted")}><i />Sorted <b>{sortedCards.length}</b></button>
-            <button className={statusFilters.includes("reviewed") ? "selected" : ""} aria-pressed={statusFilters.includes("reviewed")} onClick={() => toggleStatus("reviewed")}><i />Reviewed <b>{reviewedCards.length}</b></button>
-          </div>
+        <div className="compact-filter-actions">
+          <details className="filter-menu">
+            <summary className={statusFilters.length ? "active" : ""}><span>Status</span>{statusFilters.length ? <b>{statusFilters.length}</b> : null}<ChevronDown size={14} /></summary>
+            <div className="filter-menu-popover status-menu-popover">
+              <p>Workflow</p>
+              <div className="filter-chip-grid">
+                <button className={statusFilters.includes("unsorted") ? "selected" : ""} onClick={() => toggleStatus("unsorted")}><i />Unsorted <b>{unsortedCards.length}</b></button>
+                <button className={statusFilters.includes("sorted") ? "selected" : ""} onClick={() => toggleStatus("sorted")}><i />Sorted <b>{sortedCards.length}</b></button>
+                <button className={statusFilters.includes("reviewed") ? "selected" : ""} onClick={() => toggleStatus("reviewed")}><i />Reviewed <b>{reviewedCards.length}</b></button>
+                <button className={statusFilters.includes("favourite") ? "selected" : ""} onClick={() => toggleStatus("favourite")}><Star size={12} />Favourite <b>{favouriteCards.length}</b></button>
+              </div>
+            </div>
+          </details>
 
-          <label className="ticker-select"><span>Interest</span><select value={interestFilter} onChange={(event) => setInterestFilter(event.target.value as InterestFilter)}><option value="all">Any</option><option value="none">None</option>{[1,2,3,4,5].map((rank) => <option key={rank} value={String(rank)}>{rank} / 5</option>)}</select></label>
-          <label className="ticker-select tag-select"><span>Tag</span><select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}><option value="all">Any</option><option value="none">No tags</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
+          <details className="filter-menu">
+            <summary className={interestFilter !== "all" ? "active" : ""}><span>Interest</span>{interestFilter !== "all" ? <b className={interestFilter === "none" ? "neutral" : `interest-dot interest-${interestFilter}`}>{interestFilter === "none" ? "—" : interestFilter}</b> : null}<ChevronDown size={14} /></summary>
+            <div className="filter-menu-popover interest-menu-popover">
+              <p>Interest score</p>
+              <div className="interest-score-grid">
+                {[5,4,3,2,1].map((rank) => <button key={rank} className={`interest-score-option interest-${rank} ${interestFilter === String(rank) ? "selected" : ""}`} onClick={() => setInterestFilter(interestFilter === String(rank) ? "all" : String(rank) as InterestFilter)}>{rank}</button>)}
+                <button className={`interest-score-option neutral ${interestFilter === "none" ? "selected" : ""}`} onClick={() => setInterestFilter(interestFilter === "none" ? "all" : "none")}>—</button>
+              </div>
+              {interestFilter !== "all" ? <button className="menu-reset" onClick={() => setInterestFilter("all")}>Show any score</button> : null}
+            </div>
+          </details>
 
-          <div className="filter-ticker-cluster signal-filter-tickers"><span className="filter-ticker-label">Signals</span>
-            <button className={detailFilters.includes("favourite") ? "selected" : ""} aria-pressed={detailFilters.includes("favourite")} onClick={() => toggleDetail("favourite")}><Star size={11} />Favourite</button>
-            {richDiagnostics ? <>
-              <button className={detailFilters.includes("again") ? "selected" : ""} aria-pressed={detailFilters.includes("again")} onClick={() => toggleDetail("again")}>Missing</button>
-              <button className={detailFilters.includes("production") ? "selected" : ""} aria-pressed={detailFilters.includes("production")} onClick={() => toggleDetail("production")}>Production</button>
-              <button className={detailFilters.includes("stale") ? "selected" : ""} aria-pressed={detailFilters.includes("stale")} onClick={() => toggleDetail("stale")}>30d+</button>
-            </> : null}
-          </div>
+          <details className="filter-menu tag-filter-menu">
+            <summary className={tagFilter !== "all" ? "active" : ""}><span>{selectedTag ? selectedTag.name : tagFilter === "none" ? "No tags" : "Tags"}</span><ChevronDown size={14} /></summary>
+            <div className="filter-menu-popover tag-menu-popover">
+              {lessonTags.length ? <section><p>HSK2 Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{lesson}</button>; })}</div></section> : null}
+              {otherTags.length ? <section><p>Other tags</p><div className="other-tag-list">{otherTags.map((tag) => <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{tag.name}</button>)}</div></section> : null}
+              <div className="tag-menu-footer"><button className={tagFilter === "none" ? "selected" : ""} onClick={() => setTagFilter(tagFilter === "none" ? "all" : "none")}>No tags</button>{tagFilter !== "all" ? <button onClick={() => setTagFilter("all")}>Any tag</button> : null}</div>
+            </div>
+          </details>
 
-          {activeFilterCount ? <button className="ticker-clear-button" onClick={clearFilters}>Clear {activeFilterCount}</button> : null}
+          {richDiagnostics ? <details className="filter-menu">
+            <summary className={detailFilters.length ? "active" : ""}><span>Signals</span>{detailFilters.length ? <b>{detailFilters.length}</b> : null}<ChevronDown size={14} /></summary>
+            <div className="filter-menu-popover signal-menu-popover"><p>Learning signals</p><div className="filter-chip-grid">
+              <button className={detailFilters.includes("again") ? "selected" : ""} onClick={() => toggleDetail("again")}>Missing</button>
+              <button className={detailFilters.includes("production") ? "selected" : ""} onClick={() => toggleDetail("production")}>Production</button>
+              <button className={detailFilters.includes("stale") ? "selected" : ""} onClick={() => toggleDetail("stale")}>30d+</button>
+            </div></div>
+          </details> : null}
+
+          {activeFilterCount ? <button className="compact-clear-filter" onClick={clearFilters}>Clear {activeFilterCount}</button> : null}
         </div>
       </div>
 
@@ -381,7 +412,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
 
             <div className="topic-status-cell"><span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "sorted" ? "Sorted" : "Reviewed"}</span></div>
 
-            <div className="topic-interest-cell">{rank ? <i className={`interest-badge interest-${rank}`}>{rank}/5</i> : <span>—</span>}</div>
+            <div className="topic-interest-cell">{rank ? <i className={`interest-badge interest-${rank}`}>{rank}</i> : <span>—</span>}</div>
 
             <div className="modern-learning-cell">
               <strong>{card.stats.study_count.toLocaleString()} <small>{card.stats.study_count === 1 ? "review" : "reviews"}</small></strong>
@@ -396,7 +427,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
 
             <div className="modern-meta-cell compact-meta-cell">
               <div className="row-tags">{visibleTags.map((tag) => <span key={tag.id} className={tag.is_badge ? "badge" : ""}>{tag.name}</span>)}{card.tags.length > visibleTags.length ? <span>+{card.tags.length - visibleTags.length}</span> : null}{!card.tags.length ? <small>No tags</small> : null}</div>
-              <button className="row-connections-icon" onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><Network size={15} /></button>
+              <button className="row-connections-icon" onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><GitFork size={15} /></button>
             </div>
           </div>;
         })}

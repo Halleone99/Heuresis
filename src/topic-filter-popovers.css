@@ -1,0 +1,207 @@
+/* Compact topic filters: controls stay quiet until opened. */
+
+.compact-filter-toolbar {
+  align-items: center !important;
+  gap: 10px !important;
+  overflow: visible !important;
+  position: relative;
+  z-index: 20;
+}
+.compact-filter-toolbar .modern-topic-search { min-height: 40px !important; }
+.compact-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.filter-menu { position: relative; }
+.filter-menu > summary {
+  list-style: none;
+  min-height: 38px;
+  padding: 0 11px 0 12px;
+  border: 1px solid rgba(67,61,56,.10);
+  border-radius: 10px;
+  background: rgba(255,255,255,.62);
+  color: #665f58;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+  transition: background .14s ease, border-color .14s ease, box-shadow .14s ease;
+}
+.filter-menu > summary::-webkit-details-marker { display: none; }
+.filter-menu > summary:hover,
+.filter-menu > summary.active,
+.filter-menu[open] > summary {
+  background: rgba(255,255,255,.90);
+  border-color: rgba(64,57,52,.18);
+  box-shadow: 0 5px 16px rgba(40,34,30,.05);
+}
+.filter-menu > summary svg { color: #999189; transition: transform .14s ease; }
+.filter-menu[open] > summary svg { transform: rotate(180deg); }
+.filter-menu > summary > b {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: #ece9e4;
+  color: #625b54;
+  font-size: 9px;
+}
+.filter-menu-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  min-width: 238px;
+  padding: 12px;
+  border: 1px solid rgba(65,58,52,.11);
+  border-radius: 14px;
+  background: rgba(251,250,247,.96);
+  box-shadow: 0 18px 46px rgba(35,29,25,.14);
+  backdrop-filter: blur(22px) saturate(1.06);
+  z-index: 50;
+}
+.filter-menu-popover > p,
+.filter-menu-popover section > p {
+  margin: 0 0 8px;
+  color: #938b83;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.filter-chip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.filter-chip-grid button,
+.other-tag-list button,
+.tag-menu-footer button {
+  min-height: 31px;
+  padding: 0 9px;
+  border: 1px solid rgba(72,64,58,.09);
+  border-radius: 8px;
+  background: rgba(255,255,255,.62);
+  color: #6d655e;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  cursor: pointer;
+}
+.filter-chip-grid button b { margin-left: auto; color: #9a928a; font-size: 8px; }
+.filter-chip-grid button i { width: 7px; height: 7px; border: 1.5px solid currentColor; border-radius: 2px; }
+.filter-chip-grid button.selected,
+.other-tag-list button.selected,
+.tag-menu-footer button.selected {
+  border-color: rgba(65,84,67,.24);
+  background: rgba(224,235,224,.72);
+  color: #536854;
+}
+.filter-chip-grid button.selected i { background: currentColor; }
+
+.interest-menu-popover { min-width: 226px; }
+.interest-score-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.interest-score-option {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  opacity: .78;
+}
+.interest-score-option:hover, .interest-score-option.selected { opacity: 1; transform: translateY(-1px); }
+.interest-score-option.selected { box-shadow: 0 0 0 2px rgba(55,50,46,.16); }
+.interest-score-option.neutral,
+.filter-menu > summary > b.neutral { background: #efede9; color: #777067; }
+.menu-reset {
+  margin-top: 9px;
+  border: 0;
+  background: transparent;
+  color: #81786f;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.tag-menu-popover { min-width: 300px; }
+.tag-menu-popover section + section { margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(72,64,58,.08); }
+.lesson-tag-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.lesson-tag-grid button {
+  min-height: 30px;
+  border: 1px solid rgba(72,64,58,.09);
+  border-radius: 8px;
+  background: rgba(255,255,255,.60);
+  color: #6f675f;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lesson-tag-grid button:hover, .lesson-tag-grid button.selected { background: #3e3934; color: #fff; border-color: #3e3934; }
+.other-tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag-menu-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(72,64,58,.08); display: flex; justify-content: space-between; gap: 6px; }
+
+.compact-clear-filter {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #946b55;
+  font-size: 10px;
+  cursor: pointer;
+}
+.compact-clear-filter:hover { color: #633f2f; }
+
+/* Interest is a score, not a fraction. High scores are green; low scores warm towards yellow. */
+.topic-interest-cell .interest-badge,
+.interest-dot {
+  width: 27px !important;
+  height: 25px !important;
+  min-height: 25px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  font-style: normal !important;
+}
+.interest-5 { background: #597a61 !important; color: #fff !important; }
+.interest-4 { background: #d9ead9 !important; color: #45614b !important; }
+.interest-3 { background: #e9efcf !important; color: #657044 !important; }
+.interest-2 { background: #f2e7b8 !important; color: #7a6736 !important; }
+.interest-1 { background: #f2d49a !important; color: #815f2f !important; }
+
+/* A fork glyph reads more clearly as a knowledge tree than the old network box. */
+.row-connections-icon {
+  width: 29px !important;
+  height: 29px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(67,79,70,.075) !important;
+  color: #667168 !important;
+  box-shadow: inset 0 0 0 1px rgba(67,79,70,.08);
+  transition: transform .14s ease, background .14s ease, color .14s ease !important;
+}
+.row-connections-icon:hover {
+  transform: translateY(-1px) scale(1.04);
+  background: rgba(66,86,70,.13) !important;
+  color: #405448 !important;
+}
+
+@media (max-width: 1100px) {
+  .compact-filter-toolbar { display: grid !important; grid-template-columns: 1fr; }
+  .compact-filter-actions { justify-content: flex-start; }
+  .filter-menu-popover { left: 0; right: auto; }
+}
