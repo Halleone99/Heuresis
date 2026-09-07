@@ -153,7 +153,7 @@ function HeuresisApp({ session }: { session: Session }) {
         <nav className="desktop-nav-group" aria-label="Primary navigation">
           <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
           <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
-          <button className={`desktop-nav-item ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Related</button>
+          <button className={`desktop-nav-item ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Vocabulary</button>
           <button className="desktop-nav-item" onClick={() => openCollections(false)}><FolderTree size={14} /> Collections</button>
         </nav>
         <span className="desktop-spacer" />
