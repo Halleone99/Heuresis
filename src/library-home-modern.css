@@ -1,0 +1,278 @@
+/* Library home + warm modern shell pass.
+   Keeps the existing Heuresis marks/glyphs; changes only presentation and home behaviour. */
+
+/* Let the chosen background remain a real full-screen surface rather than fading into flat grey. */
+.heuresis-desktop[data-custom-background="heuresis"] {
+  background: #e9e3da !important;
+}
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
+  opacity: calc(var(--heuresis-background-opacity, .32) + .10) !important;
+}
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
+  background:
+    linear-gradient(180deg,
+      rgba(245,242,235,var(--heuresis-background-veil,.55)) 0%,
+      rgba(245,242,235,.30) 42%,
+      rgba(245,242,235,.16) 100%) !important;
+}
+.desktop-content {
+  background: transparent !important;
+}
+
+/* Warm brown application chrome: compact, modern, high-contrast, without replacing the logo. */
+.desktop-chrome {
+  height: 58px !important;
+  padding: 0 clamp(20px, 2.2vw, 34px) !important;
+  border-bottom: 1px solid rgba(255,255,255,.10) !important;
+  background: linear-gradient(135deg, rgba(53,42,35,.985), rgba(69,52,42,.965)) !important;
+  box-shadow: 0 9px 30px rgba(39,28,21,.16), inset 0 -1px 0 rgba(255,255,255,.035) !important;
+  backdrop-filter: blur(18px) saturate(1.12) !important;
+}
+.desktop-wordmark {
+  background: transparent !important;
+}
+.desktop-wordmark:hover {
+  background: rgba(255,255,255,.07) !important;
+}
+.desktop-mark-wrap {
+  border-color: rgba(255,255,255,.13) !important;
+  background: rgba(255,255,255,.075) !important;
+  color: #f2e8dc !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06) !important;
+}
+.desktop-mark-wrap svg {
+  filter: none !important;
+}
+.desktop-wordmark-name {
+  color: #f5eee5 !important;
+}
+.desktop-wordmark-name span {
+  color: #cf9472 !important;
+}
+.desktop-nav-item {
+  color: rgba(238,230,220,.72) !important;
+}
+.desktop-nav-item:hover {
+  background: rgba(255,255,255,.075) !important;
+  color: #fffaf3 !important;
+}
+.desktop-nav-item.active {
+  background: rgba(255,255,255,.11) !important;
+  color: #fffaf3 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055) !important;
+}
+.desktop-nav-item.active::after {
+  background: #c9906e !important;
+  opacity: 1 !important;
+}
+.desktop-search-action {
+  background: rgba(255,255,255,.075) !important;
+  border-color: rgba(255,255,255,.105) !important;
+  color: rgba(244,237,229,.84) !important;
+}
+.desktop-search-action:hover {
+  background: rgba(255,255,255,.11) !important;
+}
+.desktop-search-action kbd {
+  border-color: rgba(255,255,255,.11) !important;
+  background: rgba(255,255,255,.07) !important;
+  color: rgba(238,230,220,.60) !important;
+}
+.desktop-topic-action {
+  border-color: rgba(255,255,255,.12) !important;
+  background: rgba(255,255,255,.055) !important;
+  color: rgba(245,238,229,.82) !important;
+}
+.desktop-topic-action:hover {
+  background: rgba(255,255,255,.09) !important;
+  color: #fffaf3 !important;
+}
+.desktop-action.desktop-primary {
+  background: #f0e6da !important;
+  color: #382b24 !important;
+  box-shadow: 0 7px 18px rgba(20,14,11,.18) !important;
+}
+.desktop-action.desktop-primary:hover {
+  background: #fff8ef !important;
+  color: #2d211b !important;
+}
+.desktop-account-menu > summary {
+  color: rgba(239,231,221,.72) !important;
+}
+.desktop-account-menu > summary:hover,
+.desktop-account-menu[open] > summary {
+  background: rgba(255,255,255,.075) !important;
+  color: #fffaf3 !important;
+}
+.desktop-account-avatar {
+  background: rgba(245,235,223,.15) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  color: #f4eadf !important;
+}
+
+/* Library home: centred working surface, stronger wallpaper presence, clearer hierarchy. */
+.intelligent-library {
+  width: min(1240px, calc(100vw - 104px)) !important;
+  max-width: 1240px !important;
+  margin: 0 auto !important;
+  padding: 44px 0 96px !important;
+}
+.intelligent-library-head {
+  align-items: flex-end !important;
+  margin-bottom: 26px !important;
+}
+.intelligent-library-head h1 {
+  font-size: 54px !important;
+  line-height: .95 !important;
+  text-shadow: 0 2px 16px rgba(250,247,241,.72) !important;
+}
+.intelligent-library-head p {
+  color: #6f675f !important;
+  text-shadow: 0 1px 12px rgba(250,247,241,.92) !important;
+}
+.library-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.library-new-collection,
+.library-archive-link {
+  backdrop-filter: blur(14px) saturate(1.06);
+}
+.library-new-collection {
+  min-height: 36px !important;
+  padding: 0 13px !important;
+  border: 1px solid rgba(83,68,56,.13) !important;
+  border-radius: 10px !important;
+  background: rgba(252,249,244,.78) !important;
+  box-shadow: 0 7px 22px rgba(52,38,29,.055) !important;
+}
+
+.library-desk {
+  grid-template-columns: minmax(0, 1.62fr) minmax(315px, .86fr) !important;
+  gap: 24px !important;
+  align-items: start !important;
+}
+.library-resume {
+  border-color: rgba(88,72,59,.14) !important;
+  border-radius: 18px !important;
+  background: rgba(253,250,246,.79) !important;
+  box-shadow: 0 18px 58px rgba(45,32,24,.075), inset 0 1px 0 rgba(255,255,255,.62) !important;
+  backdrop-filter: blur(18px) saturate(1.06) !important;
+}
+.library-resume::before {
+  background: radial-gradient(115% 85% at 92% -15%, color-mix(in srgb,var(--accent,#a4402f) 12%,transparent), transparent 64%) !important;
+}
+.library-resume-head {
+  padding: 30px 32px 27px !important;
+}
+.library-resume-glyph {
+  flex-basis: 112px !important;
+  height: 112px !important;
+  border-radius: 15px !important;
+  background: linear-gradient(160deg, rgba(255,255,255,.92), color-mix(in srgb,var(--accent,#a4402f) 8%,rgba(248,244,237,.88))) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.78) !important;
+}
+.library-resume-title {
+  font-size: 36px !important;
+}
+.library-resume-title:hover {
+  color: var(--accent,#8f6747) !important;
+}
+.library-resume-figs {
+  gap: 25px !important;
+  margin-top: 16px !important;
+}
+.library-resume-topics>button {
+  padding: 19px 32px !important;
+  transition: background .16s ease !important;
+}
+.library-resume-topics>button:hover {
+  background: rgba(255,255,255,.72) !important;
+}
+.library-resume-topics>button>b {
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.78) !important;
+}
+.library-waiting {
+  padding: 17px 32px !important;
+}
+
+.library-stack {
+  gap: 10px !important;
+}
+.library-stack>.eyebrow {
+  padding: 0 3px 5px !important;
+  color: rgba(83,71,61,.68) !important;
+}
+.library-mini {
+  min-height: 82px !important;
+  padding: 16px !important;
+  border-color: rgba(86,72,60,.13) !important;
+  border-radius: 15px !important;
+  background: rgba(253,250,246,.72) !important;
+  box-shadow: 0 9px 28px rgba(44,32,24,.04), inset 0 1px 0 rgba(255,255,255,.55) !important;
+  backdrop-filter: blur(15px) saturate(1.05) !important;
+  transition: transform .16s ease, background .16s ease, box-shadow .16s ease !important;
+}
+.library-mini:hover {
+  transform: translateX(-3px) !important;
+  background: rgba(255,253,249,.91) !important;
+  box-shadow: 0 13px 34px rgba(44,32,24,.065) !important;
+}
+.library-mini-glyph {
+  flex-basis: 54px !important;
+  height: 54px !important;
+  border-radius: 11px !important;
+  background: rgba(255,255,255,.70) !important;
+}
+.library-mini.off {
+  opacity: .72;
+  border-style: solid !important;
+  background: rgba(249,246,239,.48) !important;
+}
+.library-mini.off:hover {
+  opacity: .92;
+}
+.library-mini.off .library-mini-glyph {
+  border-style: solid !important;
+  background: rgba(255,255,255,.35) !important;
+}
+
+@media (max-width: 1180px) {
+  .intelligent-library {
+    width: min(calc(100% - 48px), 1100px) !important;
+  }
+  .library-desk {
+    grid-template-columns: minmax(0, 1.48fr) minmax(290px, .9fr) !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .intelligent-library {
+    width: min(calc(100% - 32px), 760px) !important;
+    padding-top: 30px !important;
+  }
+  .intelligent-library-head {
+    align-items: flex-start !important;
+  }
+  .library-desk {
+    grid-template-columns: 1fr !important;
+  }
+  .library-stack {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .library-stack>.eyebrow {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .library-stack {
+    grid-template-columns: 1fr !important;
+  }
+  .intelligent-library-head {
+    display: grid !important;
+  }
+}
