@@ -1,5 +1,5 @@
 /* Final library-home corrections: remove the strip under the chrome, centre the visual mass,
-   and keep the custom wallpaper on a clean, modern off-white canvas. */
+   and keep the custom wallpaper visible across the full viewport. */
 
 /* The previous chrome border/shadow created a pale strip below the dark bar. */
 .desktop-chrome {
@@ -9,32 +9,49 @@
   backdrop-filter: blur(26px) saturate(1.06) !important;
 }
 
-/* Heuresis uses the image as wallpaper, never as a contained picture. The fallback surface is
-   deliberately a neutral pearl/off-white rather than beige paper, so the lower viewport feels
-   like a modern application canvas rather than an aged page. */
+/* Use the chosen image as the actual page background from top to bottom. The neutral base is only
+   a fallback behind the image; it should never become a separate lower panel. */
 .heuresis-desktop[data-custom-background="heuresis"] {
-  background: linear-gradient(180deg, #f8f8f6 0%, #f6f7f7 58%, #f7f7f5 100%) !important;
+  background: #f7f8f8 !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
   inset: 0 !important;
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
-  opacity: calc(var(--heuresis-background-opacity, .32) + .16) !important;
-  transform: scale(1.02) !important;
-}
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
-  background:
-    radial-gradient(circle at 72% 8%, rgba(255,255,255,.14), transparent 42%),
-    linear-gradient(180deg,
-      rgba(249,249,247,.07) 0%,
-      rgba(249,249,248,.10) 42%,
-      rgba(248,248,247,.14) 72%,
-      rgba(248,248,247,.18) 100%) !important;
+  opacity: calc(var(--heuresis-background-opacity, .32) + .23) !important;
+  filter: blur(var(--heuresis-background-blur, 0px)) saturate(.92) contrast(1.01) !important;
+  transform: scale(1.025) !important;
 }
 
-/* Keep the working area visually centred. A slightly narrower selected card and a broader
-   switcher balance the page better than the previous strongly left-heavy 1.68/.82 split. */
+/* Keep the upper image crisp and legible. The lower half is the same wallpaper, progressively
+   blurred, desaturated and neutralised so it remains quiet behind empty page space. */
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
+  overflow: hidden !important;
+  background:
+    radial-gradient(circle at 72% 8%, rgba(255,255,255,.10), transparent 43%),
+    linear-gradient(180deg,
+      rgba(248,249,249,.04) 0%,
+      rgba(248,249,249,.06) 40%,
+      rgba(248,249,249,.10) 100%) !important;
+}
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
+  content: "";
+  position: absolute;
+  inset: 38% 0 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(247,248,248,0) 0%,
+    rgba(247,248,248,.14) 20%,
+    rgba(247,248,248,.30) 52%,
+    rgba(247,248,248,.42) 100%);
+  -webkit-backdrop-filter: blur(16px) saturate(.66) contrast(.98);
+  backdrop-filter: blur(16px) saturate(.66) contrast(.98);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, #000 34%);
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, #000 34%);
+}
+
+/* Keep the working area visually centred. */
 .desktop-content {
   padding-left: 0 !important;
   padding-right: 0 !important;
@@ -77,5 +94,8 @@
   }
   .library-desk {
     grid-template-columns: 1fr !important;
+  }
+  .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
+    inset-top: 46%;
   }
 }
