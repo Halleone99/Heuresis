@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronDown, FolderTree, GitFork, PenLine, Plus, Search } from "lucide-react";
+import { ArrowLeft, ChevronDown, FolderTree, GitFork, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createTopicFromRelatedWords, listRelatedCatalogue, promoteRelatedCard, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
 import { listCardsByIds, patchCardData, type CardWithStats, type Collection, type PackWithType } from "../lib/heuresis";
@@ -45,12 +45,12 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
   const [collectionFilters, setCollectionFilters] = useState<string[]>([]);
   const [packFilters, setPackFilters] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [activeRow, setActiveRow] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [topicTitle, setTopicTitle] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [editing, setEditing] = useState<EditingWord | null>(null);
   const [editBusy, setEditBusy] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("word");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [connections, setConnections] = useState<ConnectionTarget | null>(null);
@@ -110,22 +110,25 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
     return sortDirection === "asc" ? result : -result;
   }), [filtered, sortDirection, sortKey]);
 
-  const visibleWordIds = useMemo(() => Array.from(new Set(shown.map((row) => row.target_card_id))), [shown]);
+  const visibleRelationIds = useMemo(() => shown.map((row) => row.relation_id), [shown]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
-  const uniqueWords = visibleWordIds.length;
-  const allVisibleSelected = visibleWordIds.length > 0 && visibleWordIds.every((id) => selectedSet.has(id));
+  const selectedRows = useMemo(() => collectionRows.filter((row) => selectedSet.has(row.relation_id)), [collectionRows, selectedSet]);
+  const selectedCardIds = useMemo(() => Array.from(new Set(selectedRows.map((row) => row.target_card_id))), [selectedRows]);
+  const selectedVocabularyCardIds = useMemo(() => Array.from(new Set(selectedRows.filter((row) => row.target_role === "related").map((row) => row.target_card_id))), [selectedRows]);
+  const uniqueWords = uniqueWordCount(shown);
+  const allVisibleSelected = visibleRelationIds.length > 0 && visibleRelationIds.every((id) => selectedSet.has(id));
   const scopeFilterCount = collectionFilters.length + packFilters.length;
   const activeFilterCount = relationFilters.length + statusFilters.length + scopeFilterCount;
 
-  function toggleSelected(cardId: string) {
-    setSelected((current) => current.includes(cardId) ? current.filter((id) => id !== cardId) : [...current, cardId]);
+  function toggleSelected(relationId: string) {
+    setSelected((current) => current.includes(relationId) ? current.filter((id) => id !== relationId) : [...current, relationId]);
   }
 
   function toggleVisible() {
     setSelected((current) => {
       const currentSet = new Set(current);
-      if (allVisibleSelected) return current.filter((id) => !visibleWordIds.includes(id));
-      visibleWordIds.forEach((id) => currentSet.add(id));
+      if (allVisibleSelected) return current.filter((id) => !visibleRelationIds.includes(id));
+      visibleRelationIds.forEach((id) => currentSet.add(id));
       return Array.from(currentSet);
     });
   }
@@ -162,6 +165,7 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
     try {
       await removeRelatedRelation(editing.relationId);
       setEditing(null);
+      setSelected((current) => current.filter((id) => id !== editing.relationId));
       await reload();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not delete this connection.");
@@ -169,10 +173,10 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
   }
 
   async function createTopic() {
-    if (!collection || !selected.length) return;
+    if (!collection || !selectedCardIds.length) return;
     setCreateBusy(true); setError("");
     try {
-      const packId = await createTopicFromRelatedWords({ collectionId: collection.id, title: topicTitle, cardIds: selected });
+      const packId = await createTopicFromRelatedWords({ collectionId: collection.id, title: topicTitle, cardIds: selectedCardIds });
       setSelected([]); setTopicTitle(""); setCreating(false);
       await reload();
       await onTopicCreated?.(packId);
@@ -184,6 +188,31 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
   async function promote(row: RelatedCatalogueRow) {
     try { await promoteRelatedCard(row.target_card_id); await reload(); }
     catch (loadError) { setError(loadError instanceof Error ? loadError.message : "Could not make this word a flashcard."); }
+  }
+
+  async function promoteSelected() {
+    if (!selectedVocabularyCardIds.length || bulkBusy) return;
+    setBulkBusy(true); setError("");
+    try {
+      await Promise.all(selectedVocabularyCardIds.map((cardId) => promoteRelatedCard(cardId)));
+      setSelected([]);
+      await reload();
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : "Could not make the selected words flashcards.");
+    } finally { setBulkBusy(false); }
+  }
+
+  async function deleteSelected() {
+    if (!selected.length || bulkBusy) return;
+    if (!window.confirm(`Remove ${selected.length} selected ${selected.length === 1 ? "connection" : "connections"}?`)) return;
+    setBulkBusy(true); setError("");
+    try {
+      await Promise.all(selected.map((relationId) => removeRelatedRelation(relationId)));
+      setSelected([]);
+      await reload();
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : "Could not remove the selected connections.");
+    } finally { setBulkBusy(false); }
   }
 
   async function openConnections(row: RelatedCatalogueRow) {
@@ -205,13 +234,13 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
 
       <header className="vocabulary-heading">
         <div><p className="eyebrow">VOCABULARY</p><h1>{collection ? "New words" : "Vocabulary"}</h1><p>{collection ? collection.title : "Words discovered from your cards."}</p></div>
-        {collection ? <div className="vocabulary-heading-side"><button className="primary-button" disabled={!selected.length} onClick={() => setCreating(true)}><Plus size={14} /> New topic{selected.length ? ` · ${selected.length}` : ""}</button></div> : null}
+        {collection ? <div className="vocabulary-heading-side"><button className="primary-button" disabled={!selectedCardIds.length} onClick={() => setCreating(true)}><Plus size={14} /> New topic{selectedCardIds.length ? ` · ${selectedCardIds.length}` : ""}</button></div> : null}
       </header>
 
       {collection && creating ? <div className="related-create-topic vocabulary-inline-editor vocabulary-create-editor">
-        <div><span className="eyebrow">NEW TOPIC</span><strong>{selected.length} selected</strong></div>
+        <div><span className="eyebrow">NEW TOPIC</span><strong>{selectedCardIds.length} selected</strong></div>
         <input autoFocus value={topicTitle} onChange={(event) => setTopicTitle(event.target.value)} placeholder="Topic name" onKeyDown={(event) => { if (event.key === "Enter" && topicTitle.trim() && !createBusy) void createTopic(); }} />
-        <div className="vocabulary-editor-actions"><button className="secondary-button" disabled={createBusy} onClick={() => setCreating(false)}>Cancel</button><button className="primary-button" disabled={createBusy || !topicTitle.trim() || !selected.length} onClick={() => void createTopic()}>{createBusy ? "Creating…" : "Create"}</button></div>
+        <div className="vocabulary-editor-actions"><button className="secondary-button" disabled={createBusy} onClick={() => setCreating(false)}>Cancel</button><button className="primary-button" disabled={createBusy || !topicTitle.trim() || !selectedCardIds.length} onClick={() => void createTopic()}>{createBusy ? "Creating…" : "Create"}</button></div>
       </div> : null}
 
       {editing ? <div className="related-edit-word vocabulary-inline-editor vocabulary-edit-editor">
@@ -254,8 +283,21 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
         </details>
 
         {activeFilterCount ? <button className="vocabulary-clear" onClick={() => { setRelationFilters([]); setStatusFilters([]); setCollectionFilters([]); setPackFilters([]); }}>Clear {activeFilterCount}</button> : null}
-        {collection ? <button className="vocabulary-select-visible" disabled={!visibleWordIds.length} onClick={toggleVisible}>{allVisibleSelected ? "Clear visible" : "Select visible"}</button> : null}
+        <button className="vocabulary-select-visible" disabled={!visibleRelationIds.length} onClick={toggleVisible}>{allVisibleSelected ? "Clear visible" : "Select visible"}</button>
       </div>
+
+      {selected.length ? <div className="vocabulary-selection-bar">
+        <span><b>{selected.length}</b> selected</span>
+        <button className="vocabulary-selection-clear" onClick={() => setSelected([])}>Clear</button>
+        {collection ? <button className="vocabulary-selection-topic" onClick={() => setCreating(true)}><Plus size={13} /> New topic</button> : null}
+        <details className="vocabulary-selection-menu">
+          <summary><MoreHorizontal size={16} /> Actions</summary>
+          <div>
+            {selectedVocabularyCardIds.length ? <button disabled={bulkBusy} onClick={(event) => { event.preventDefault(); void promoteSelected(); }}><Plus size={14} /><span>Make flashcards</span><small>{selectedVocabularyCardIds.length}</small></button> : null}
+            <button className="danger" disabled={bulkBusy} onClick={(event) => { event.preventDefault(); void deleteSelected(); }}><Trash2 size={14} /><span>Remove connections</span><small>{selected.length}</small></button>
+          </div>
+        </details>
+      </div> : null}
 
       {loading ? <div className="content-state compact">Loading vocabulary…</div> : error ? <div className="content-state error-state compact">{error}</div> : <div className="vocabulary-table">
         <div className="vocabulary-table-head">
@@ -268,11 +310,11 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
         {shown.map((row) => {
           const pack = packMap.get(row.pack_id);
           const sourceTitle = [row.pack_title, row.source_term, row.source_reading, row.source_meaning].filter(Boolean).join(" · ");
-          const isSelected = collection ? selectedSet.has(row.target_card_id) : activeRow === row.relation_id;
+          const isSelected = selectedSet.has(row.relation_id);
           return <div
             className={`vocabulary-row ${isSelected ? "selected" : ""}`}
             key={row.relation_id}
-            onClick={() => { if (collection) toggleSelected(row.target_card_id); else setActiveRow(row.relation_id); }}
+            onClick={() => toggleSelected(row.relation_id)}
             onDoubleClick={(event) => { event.preventDefault(); beginEdit(row); }}
             title="Click to select · double-click to edit"
           >
@@ -281,9 +323,8 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
             {pack ? <button className="vocabulary-source vocabulary-source-button" title={sourceTitle} onClick={(event) => { event.stopPropagation(); onOpenPack(pack); }}><small>{collectionMap.get(pack.collection_id)?.title ?? row.pack_title}</small><span>{row.pack_title}</span><em>{row.source_term || "Untitled"}{row.source_reading ? ` · ${row.source_reading}` : ""}</em></button> : <div className="vocabulary-source" title={sourceTitle}><small>{row.pack_title}</small><span>{row.source_term || "Untitled"}</span></div>}
             <span className={`vocabulary-status ${statusOf(row)}`}>{statusOf(row) === "flashcard" ? "Flashcard" : "Vocabulary"}</span>
             <div className="vocabulary-actions">
-              {row.target_role === "related" ? <button className="vocabulary-promote" title="Make this a flashcard" onClick={(event) => { event.stopPropagation(); void promote(row); }}><Plus size={13} /><span>Flashcard</span></button> : null}
+              {row.target_role === "related" ? <button className="vocabulary-promote" title="Make this a flashcard" onClick={(event) => { event.stopPropagation(); void promote(row); }}><Plus size={12} /><span>Flashcard</span></button> : null}
               <button className="vocabulary-tree-action" title="Open connections" disabled={treeBusyId === row.relation_id} onClick={(event) => { event.stopPropagation(); void openConnections(row); }}><GitFork size={15} /></button>
-              <button className="vocabulary-edit-action" title="Edit or delete" onClick={(event) => { event.stopPropagation(); beginEdit(row); }}><PenLine size={15} /></button>
             </div>
           </div>;
         })}
