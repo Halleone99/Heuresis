@@ -1,0 +1,274 @@
+/* Second topic-table pass: selection-first rows, compact connection controls and explicit filters/sorting. */
+
+.excel-topic-toolbar {
+  align-items: stretch !important;
+  gap: 8px !important;
+  padding: 8px !important;
+}
+
+.excel-filter-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: #8a8179;
+}
+
+.excel-filter {
+  min-width: 92px;
+  display: grid;
+  gap: 2px;
+}
+.excel-filter > span {
+  padding-left: 2px;
+  color: #9a928a;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.excel-filter select {
+  min-height: 32px;
+  padding: 0 26px 0 8px;
+  border: 1px solid rgba(75,67,60,.10);
+  border-radius: 8px;
+  outline: 0;
+  background: rgba(255,255,255,.68);
+  color: #5e5750;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.excel-filter select:hover,
+.excel-filter select:focus {
+  border-color: rgba(62,56,51,.22);
+  background: rgba(255,255,255,.90);
+}
+.sort-filter { min-width: 100px; }
+
+.sort-direction-button,
+.filter-clear-button {
+  align-self: end;
+  min-height: 32px;
+  border: 1px solid rgba(75,67,60,.10);
+  border-radius: 8px;
+  background: rgba(255,255,255,.66);
+  color: #655e57;
+  font-size: 11px;
+  cursor: pointer;
+}
+.sort-direction-button {
+  width: 32px;
+  padding: 0;
+  font-size: 15px;
+}
+.filter-clear-button {
+  padding: 0 9px;
+  color: #8e5c43;
+}
+.sort-direction-button:hover,
+.filter-clear-button:hover { background: #fff; color: #332f2b; }
+
+.topic-selection-hint {
+  min-height: 23px;
+  padding: 5px 4px 0;
+  color: #9b938b;
+  font-size: 9px;
+}
+.topic-selection-hint strong {
+  color: #5b544d;
+  font-weight: 650;
+}
+
+.excel-topic-table {
+  margin-top: 2px !important;
+}
+.excel-topic-thead,
+.excel-topic-row {
+  grid-template-columns: minmax(275px, 1.42fr) minmax(105px, .48fr) minmax(165px, .72fr) minmax(170px, .78fr) minmax(205px, .90fr) !important;
+  column-gap: 14px !important;
+}
+.excel-topic-thead {
+  min-height: 38px !important;
+}
+.excel-topic-thead > button,
+.excel-topic-thead > span {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9b938a;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-weight: 750;
+  letter-spacing: .13em;
+  text-align: left;
+}
+.excel-topic-thead > button {
+  cursor: pointer;
+}
+.excel-topic-thead > button:hover,
+.excel-topic-thead > button.active {
+  color: #504a44;
+}
+.excel-topic-thead > button svg {
+  opacity: .45;
+}
+.excel-topic-thead > button.active svg {
+  opacity: .85;
+}
+
+.excel-topic-row {
+  min-height: 76px !important;
+  cursor: default;
+  outline: none;
+}
+.excel-topic-row:hover {
+  background: rgba(255,255,255,.68) !important;
+}
+.excel-topic-row.selected,
+.excel-topic-row:focus-visible {
+  background: rgba(255,255,255,.88) !important;
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb,var(--accent,#a4402f) 72%,transparent),
+    inset 0 0 0 1px color-mix(in srgb,var(--accent,#a4402f) 13%,transparent) !important;
+}
+.excel-topic-row.selected .modern-card-title > strong {
+  color: #221f1c;
+}
+
+.excel-topic-row .modern-card-cell {
+  padding: 10px 0 !important;
+  cursor: default !important;
+}
+.excel-topic-row .modern-card-title > strong {
+  font-size: 19px !important;
+}
+.excel-topic-row .modern-card-cell > em {
+  margin-top: 2px !important;
+  font-size: 10px !important;
+}
+.excel-topic-row .modern-card-cell > p {
+  margin-top: 4px !important;
+  font-size: 11px !important;
+}
+
+.topic-status-cell {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+.workflow-status {
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.status-unsorted {
+  border-color: rgba(154,103,68,.15);
+  background: rgba(169,112,70,.08);
+  color: #946749;
+}
+.status-sorted {
+  border-color: rgba(90,105,89,.13);
+  background: rgba(93,115,92,.08);
+  color: #687a66;
+}
+.status-reviewed {
+  border-color: rgba(65,75,97,.13);
+  background: rgba(71,84,111,.09);
+  color: #5e6882;
+}
+.topic-status-cell > small {
+  color: #aaa29a;
+  font-size: 8px;
+}
+
+.excel-topic-row .modern-learning-cell > strong {
+  font-size: 15px !important;
+}
+.excel-topic-row .learning-mini-chips {
+  margin-top: 5px !important;
+}
+.excel-topic-row .learning-mini-chips > span {
+  min-height: 18px !important;
+  padding-inline: 5px !important;
+  font-size: 8px !important;
+}
+.excel-topic-row .learning-none {
+  margin-top: 4px !important;
+}
+
+.compact-meta-cell {
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: 8px !important;
+}
+.compact-meta-cell .row-tags {
+  min-width: 0;
+}
+.row-connections-icon {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(74,66,59,.10);
+  border-radius: 8px;
+  background: rgba(255,255,255,.58);
+  color: #746c64;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.row-connections-icon:hover {
+  background: #fff;
+  color: #332f2b;
+  border-color: rgba(64,57,51,.18);
+}
+
+/* Keep interest visible but prevent it from pushing the word apart. */
+.excel-topic-row .interest-badge {
+  margin-left: 2px !important;
+  min-height: 19px !important;
+  padding-inline: 6px !important;
+  font-size: 8px !important;
+}
+
+@media (max-width: 1180px) {
+  .excel-topic-toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr;
+  }
+  .excel-filter-group {
+    justify-content: flex-start;
+  }
+  .excel-topic-thead,
+  .excel-topic-row {
+    grid-template-columns: minmax(230px, 1.25fr) 94px 145px 155px minmax(180px,.9fr) !important;
+    column-gap: 10px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .excel-topic-thead {
+    display: none !important;
+  }
+  .excel-topic-row {
+    grid-template-columns: 1fr auto !important;
+    gap: 8px 14px !important;
+    padding: 12px 14px !important;
+  }
+  .excel-topic-row .modern-card-cell { grid-column: 1 / -1; }
+  .topic-status-cell,
+  .modern-learning-cell,
+  .modern-recall-cell { min-width: 0; }
+  .compact-meta-cell { grid-column: 1 / -1; }
+}
