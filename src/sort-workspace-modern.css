@@ -1,0 +1,53 @@
+/* Final Sort workspace details: grouped tags and compact metadata. */
+.sort-panel-heading {
+  display: flex !important;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sort-panel-heading > p { margin: 0 !important; }
+.sort-panel-heading > small { margin: 0 !important; font-size: 8px !important; }
+
+.sort-tags > .sort-panel-heading,
+.sort-tags > .sort-tag-group {
+  display: block !important;
+  margin-top: 0 !important;
+}
+.sort-tags > .sort-panel-heading {
+  display: flex !important;
+}
+.sort-tag-group + .sort-tag-group {
+  margin-top: 10px !important;
+  padding-top: 9px;
+  border-top: 1px solid rgba(72,65,59,.07);
+}
+.sort-tag-group > p {
+  margin: 0 0 6px;
+  color: #999189;
+  font-size: 7px;
+  font-weight: 760;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.sort-tag-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sort-tag-group button {
+  min-height: 28px;
+  padding: 0 8px !important;
+}
+.sort-lesson-tags {
+  display: grid !important;
+  grid-template-columns: repeat(8, minmax(28px, 1fr));
+  gap: 4px !important;
+}
+.sort-lesson-tags button {
+  min-width: 0;
+  padding: 0 4px !important;
+}
+
+@media (max-width: 920px) {
+  .sort-lesson-tags { grid-template-columns: repeat(6, minmax(28px, 1fr)); }
+}
