@@ -19,6 +19,7 @@ import "./desktop-density-pass.css";
 import "./library-card-restoration.css";
 import "./intelligent-ui.css";
 import "./library-home-modern.css";
+import "./library-home-finish.css";
 import "./tablet.css";
 
 const params = new URLSearchParams(window.location.search);
