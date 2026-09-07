@@ -1,7 +1,6 @@
 /* Final library-home corrections: remove the strip under the chrome, centre the visual mass,
-   and keep the custom wallpaper visible across the full viewport. */
+   and keep the custom wallpaper visibly continuous across the full viewport. */
 
-/* The previous chrome border/shadow created a pale strip below the dark bar. */
 .desktop-chrome {
   border-bottom: 0 !important;
   box-shadow: none !important;
@@ -9,49 +8,58 @@
   backdrop-filter: blur(26px) saturate(1.06) !important;
 }
 
-/* Use the chosen image as the actual page background from top to bottom. The neutral base is only
-   a fallback behind the image; it should never become a separate lower panel. */
+/* Neutral fallback only. The actual visual surface is always the wallpaper. */
 .heuresis-desktop[data-custom-background="heuresis"] {
   background: #f7f8f8 !important;
 }
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
-  inset: 0 !important;
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper,
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--heuresis-background-image, none);
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
-  opacity: calc(var(--heuresis-background-opacity, .32) + .23) !important;
-  filter: blur(var(--heuresis-background-blur, 0px)) saturate(.92) contrast(1.01) !important;
+}
+
+/* Main wallpaper remains visible from top to bottom. */
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
+  z-index: -4 !important;
+  opacity: .68 !important;
+  filter: blur(var(--heuresis-background-blur, 0px)) saturate(.94) contrast(1.02) !important;
   transform: scale(1.025) !important;
 }
 
-/* Keep the upper image crisp and legible. The lower half is the same wallpaper, progressively
-   blurred, desaturated and neutralised so it remains quiet behind empty page space. */
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
-  overflow: hidden !important;
-  background:
-    radial-gradient(circle at 72% 8%, rgba(255,255,255,.10), transparent 43%),
-    linear-gradient(180deg,
-      rgba(248,249,249,.04) 0%,
-      rgba(248,249,249,.06) 40%,
-      rgba(248,249,249,.10) 100%) !important;
-}
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
-  content: "";
-  position: absolute;
-  inset: 38% 0 0;
-  pointer-events: none;
-  background: linear-gradient(180deg,
-    rgba(247,248,248,0) 0%,
-    rgba(247,248,248,.14) 20%,
-    rgba(247,248,248,.30) 52%,
-    rgba(247,248,248,.42) 100%);
-  -webkit-backdrop-filter: blur(16px) saturate(.66) contrast(.98);
-  backdrop-filter: blur(16px) saturate(.66) contrast(.98);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, #000 34%);
-  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, #000 34%);
+/* A second copy of the same wallpaper is revealed only across the lower portion.
+   This makes the continuation unmistakable while letting us blur and neutralise it independently. */
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
+  z-index: -3 !important;
+  top: 34% !important;
+  opacity: .42 !important;
+  filter: blur(24px) saturate(.52) contrast(.96) brightness(1.08) !important;
+  transform: scale(1.07) !important;
+  transform-origin: center center;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.20) 10%, rgba(0,0,0,.72) 28%, #000 52%);
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.20) 10%, rgba(0,0,0,.72) 28%, #000 52%);
 }
 
-/* Keep the working area visually centred. */
+/* Only a light neutral wash now. Do not hide the lower image behind white. */
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
+  z-index: -2 !important;
+  overflow: hidden !important;
+  background:
+    radial-gradient(circle at 72% 8%, rgba(255,255,255,.10), transparent 44%),
+    linear-gradient(180deg,
+      rgba(248,249,249,.04) 0%,
+      rgba(248,249,249,.05) 46%,
+      rgba(246,248,248,.10) 72%,
+      rgba(244,247,247,.16) 100%) !important;
+}
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
+  content: none !important;
+}
+
 .desktop-content {
   padding-left: 0 !important;
   padding-right: 0 !important;
@@ -68,8 +76,6 @@
   gap: 20px !important;
 }
 
-/* The right column should align tightly with the selected collection rather than appearing
-   as an attachment floating to its side. */
 .library-stack-head {
   padding-top: 0 !important;
   padding-bottom: 7px !important;
@@ -95,7 +101,7 @@
   .library-desk {
     grid-template-columns: 1fr !important;
   }
-  .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
-    inset: 46% 0 0;
+  .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
+    top: 42% !important;
   }
 }
