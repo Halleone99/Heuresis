@@ -29,6 +29,7 @@ import "./browse-modern.css";
 import "./browse-compact.css";
 import "./study-launch-modern.css";
 import "./study-compact.css";
+import "./study-direction-simple.css";
 import "./sort-workspace-modern.css";
 import "./tablet.css";
 
