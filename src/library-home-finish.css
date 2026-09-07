@@ -96,6 +96,6 @@
     grid-template-columns: 1fr !important;
   }
   .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
-    inset-top: 46%;
+    inset: 46% 0 0;
   }
 }
