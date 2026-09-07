@@ -1,0 +1,228 @@
+/* Final topic-page polish: smaller workflow, quieter glass, more elegant actions. */
+
+/* ---- Workflow: compact, continuous and calm ---- */
+.topic-workflow-overview {
+  margin-top: 12px !important;
+  min-height: 0 !important;
+  padding: 6px 8px !important;
+  grid-template-columns: 82px minmax(0, 1fr) !important;
+  gap: 6px !important;
+  border: 1px solid rgba(57, 53, 49, .075) !important;
+  border-radius: 14px !important;
+  background: rgba(252, 252, 250, .52) !important;
+  box-shadow: 0 10px 28px rgba(35, 31, 28, .035), inset 0 1px 0 rgba(255,255,255,.68) !important;
+  backdrop-filter: blur(16px) saturate(1.02) !important;
+}
+
+.workflow-overview-label {
+  padding: 0 9px 0 5px !important;
+  gap: 2px !important;
+  border-right-color: rgba(61, 56, 51, .07) !important;
+}
+.workflow-overview-label > span {
+  font-size: 6.5px !important;
+  letter-spacing: .14em !important;
+  color: #979089 !important;
+}
+.workflow-overview-label > small {
+  font-size: 9px !important;
+  font-weight: 650 !important;
+  color: #625c56 !important;
+}
+
+.workflow-overview-stages {
+  grid-template-columns: minmax(0,1fr) 14px minmax(0,1fr) 14px minmax(0,1fr) !important;
+  gap: 2px !important;
+}
+.workflow-overview-stages > button {
+  height: 46px !important;
+  padding: 0 11px !important;
+  grid-template-columns: 7px minmax(0,1fr) auto !important;
+  gap: 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease, box-shadow .16s ease !important;
+}
+.workflow-overview-stages > button:hover {
+  transform: translateY(-1px) !important;
+  background: rgba(255,255,255,.60) !important;
+  border-color: rgba(58,53,49,.07) !important;
+  box-shadow: 0 5px 14px rgba(35,31,28,.035) !important;
+}
+.workflow-overview-stages > button.active {
+  background: rgba(255,255,255,.78) !important;
+  border-color: rgba(58,53,49,.10) !important;
+  box-shadow: 0 5px 16px rgba(35,31,28,.045) !important;
+}
+.workflow-stage-dot {
+  width: 6px !important;
+  height: 6px !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.02) !important;
+}
+.workflow-stage-copy {
+  gap: 1px !important;
+}
+.workflow-stage-copy > b {
+  font-size: 10px !important;
+  font-weight: 670 !important;
+  color: #4f4944 !important;
+}
+.workflow-stage-copy > small {
+  font-size: 7.5px !important;
+  color: #aaa29a !important;
+}
+.workflow-overview-stages > button > strong {
+  font-size: 18px !important;
+  font-weight: 620 !important;
+  color: #37322e !important;
+}
+.workflow-stage-arrow {
+  font-size: 11px !important;
+  color: rgba(74,68,62,.22) !important;
+}
+
+/* Give each stage only a whisper of colour rather than three heavy cards. */
+.workflow-overview-stages > button[data-stage="unsorted"]:hover,
+.workflow-overview-stages > button[data-stage="unsorted"].active { background: rgba(202,143,98,.075) !important; }
+.workflow-overview-stages > button[data-stage="ready"]:hover,
+.workflow-overview-stages > button[data-stage="ready"].active { background: rgba(124,147,167,.075) !important; }
+.workflow-overview-stages > button[data-stage="reviewed"]:hover,
+.workflow-overview-stages > button[data-stage="reviewed"].active { background: rgba(111,146,119,.075) !important; }
+
+/* ---- Actions: one elegant hierarchy, not a row of unrelated boxes ---- */
+.topic-command-bar {
+  margin-top: 10px !important;
+  padding: 0 2px !important;
+  gap: 10px !important;
+}
+.topic-learning-actions,
+.topic-utility-actions {
+  gap: 6px !important;
+}
+.topic-command-bar button {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 999px !important;
+  font-size: 10.5px !important;
+  font-weight: 620 !important;
+  letter-spacing: -.005em;
+  box-shadow: none !important;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease !important;
+}
+.topic-command-bar button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.topic-command-bar .primary-button {
+  min-width: 112px !important;
+  border: 1px solid rgba(30,27,25,.10) !important;
+  background: linear-gradient(180deg, rgba(54,49,45,.98), rgba(43,39,36,.98)) !important;
+  color: rgba(255,255,255,.94) !important;
+  box-shadow: 0 7px 18px rgba(34,30,27,.11), inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+.topic-command-bar .primary-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #3c3733, #2f2b28) !important;
+  box-shadow: 0 9px 22px rgba(34,30,27,.14), inset 0 1px 0 rgba(255,255,255,.10) !important;
+}
+.topic-command-bar .primary-button svg {
+  opacity: .88;
+}
+
+.sort-command {
+  border: 1px solid rgba(142,92,66,.16) !important;
+  background: rgba(248,242,237,.64) !important;
+  color: #66564d !important;
+}
+.sort-command:hover:not(:disabled) {
+  border-color: rgba(142,92,66,.24) !important;
+  background: rgba(250,245,241,.88) !important;
+}
+.sort-command b {
+  min-width: 20px !important;
+  height: 20px !important;
+  padding: 0 6px !important;
+  border-radius: 999px !important;
+  background: rgba(148,95,67,.09) !important;
+  color: #8b624d !important;
+  font-size: 8.5px !important;
+}
+
+.topic-learning-actions .secondary-button {
+  border: 1px solid rgba(65,59,54,.09) !important;
+  background: rgba(255,255,255,.50) !important;
+  color: #615b55 !important;
+  backdrop-filter: blur(12px);
+}
+.topic-learning-actions .secondary-button:hover:not(:disabled) {
+  background: rgba(255,255,255,.78) !important;
+  border-color: rgba(65,59,54,.14) !important;
+}
+
+.topic-utility-actions .secondary-button {
+  border: 1px solid rgba(65,59,54,.075) !important;
+  background: rgba(255,255,255,.30) !important;
+  color: #787069 !important;
+}
+.topic-utility-actions .secondary-button:hover:not(:disabled) {
+  background: rgba(255,255,255,.64) !important;
+  color: #514b45 !important;
+  border-color: rgba(65,59,54,.12) !important;
+}
+
+/* Settings should belong to the page chrome, not look like a large form control. */
+.modern-topic-head-actions .secondary-button {
+  min-height: 33px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(64,58,53,.09) !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.44) !important;
+  color: #6b645d !important;
+  box-shadow: 0 5px 14px rgba(42,36,31,.025) !important;
+  backdrop-filter: blur(12px);
+  font-size: 10px !important;
+}
+.modern-topic-head-actions .secondary-button:hover {
+  background: rgba(255,255,255,.72) !important;
+  border-color: rgba(64,58,53,.14) !important;
+}
+
+/* Search/filter dock: slightly slimmer so the page breathes after the action row. */
+.compact-filter-toolbar {
+  margin-top: 10px !important;
+  padding: 7px 8px !important;
+  border-radius: 13px !important;
+  background: rgba(252,252,250,.58) !important;
+  box-shadow: 0 8px 24px rgba(40,35,31,.025) !important;
+}
+.compact-filter-toolbar .modern-topic-search {
+  min-height: 37px !important;
+  border-radius: 10px !important;
+  background: rgba(255,255,255,.62) !important;
+}
+.filter-menu > summary {
+  min-height: 35px !important;
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.46) !important;
+}
+
+@media (max-width: 1100px) {
+  .topic-workflow-overview {
+    grid-template-columns: 1fr !important;
+  }
+  .workflow-overview-label {
+    padding: 2px 5px 6px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .workflow-overview-stages > button {
+    height: 44px !important;
+  }
+  .topic-command-bar {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}
