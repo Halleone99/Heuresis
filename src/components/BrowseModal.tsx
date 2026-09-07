@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Filter, Shuffle, SlidersHorizontal, Star, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Filter, Shuffle, SlidersHorizontal, Star, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "../lib/heuresis";
 import { cardHasCompletedSort } from "../lib/sort";
@@ -112,25 +112,14 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
   if (phase === "setup") {
     const activeFilterCount = statuses.length + interests.length + tagIds.length + (limit === "all" ? 0 : 1);
     return <div className="browse-setup-layer" role="presentation">
-      <section className="browse-setup-shell compact-browse-shell" role="dialog" aria-modal="true" aria-label="Browse setup">
-        <header className="browse-setup-head">
-          <div>
-            <p className="eyebrow">BROWSE</p>
-            <h2>Choose what you want to browse</h2>
-            <span>Read through selected cards without changing review statistics.</span>
-          </div>
-          <button className="browse-icon-button" onClick={close} aria-label="Close browse"><X size={17} /></button>
-        </header>
+      <section className="browse-setup-shell compact-browse-shell ultra-compact-browse" role="dialog" aria-modal="true" aria-label="Browse setup">
+        <header className="browse-setup-head"><div><p className="eyebrow">BROWSE</p><h2>Browse cards</h2></div><button className="browse-icon-button" onClick={close} aria-label="Close browse"><X size={17} /></button></header>
 
-        <div className="browse-match-summary compact-browse-summary">
-          <span><Filter size={15} /></span>
-          <strong>{filteredCards.length.toLocaleString()}</strong>
-          <div><b>{filteredCards.length === 1 ? "card matches" : "cards match"}</b><small>{browseCount === filteredCards.length ? `Browsing all ${browseCount}` : `${browseCount} selected to browse`}</small></div>
-        </div>
+        <div className="browse-match-summary compact-browse-summary"><span><Filter size={15} /></span><strong>{filteredCards.length.toLocaleString()}</strong><div><b>matching</b><small>{browseCount} selected</small></div></div>
 
-        <div className="browse-filter-sections compact-browse-sections">
+        <div className="browse-filter-sections compact-browse-sections ultra-compact-browse-sections">
           <section className="browse-filter-section browse-status-section">
-            <div className="browse-filter-heading"><span>Status</span><small>Select one or several</small></div>
+            <div className="browse-filter-heading"><span>Status</span></div>
             <div className="browse-choice-grid browse-status-grid">
               <button className={statuses.includes("unsorted") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "unsorted"))}><i data-tone="unsorted" /><span>Unsorted</span><b>{statusCounts.unsorted}</b></button>
               <button className={statuses.includes("ready") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "ready"))}><i data-tone="ready" /><span>Ready</span><b>{statusCounts.ready}</b></button>
@@ -139,38 +128,16 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
             </div>
           </section>
 
-          <section className="browse-filter-section browse-compact-half">
-            <div className="browse-filter-heading"><span>Interest</span><small>Optional</small></div>
-            <div className="browse-interest-row">
-              {[5,4,3,2,1].map((rank) => <button key={rank} className={`interest-${rank} ${interests.includes(rank) ? "selected" : ""}`} onClick={() => setInterests((current) => toggleValue(current, rank))}>{rank}</button>)}
-            </div>
-          </section>
+          <section className="browse-filter-section browse-compact-half"><div className="browse-filter-heading"><span>Interest</span></div><div className="browse-interest-row">{[5,4,3,2,1].map((rank) => <button key={rank} className={`interest-${rank} ${interests.includes(rank) ? "selected" : ""}`} onClick={() => setInterests((current) => toggleValue(current, rank))}>{rank}</button>)}</div></section>
 
-          <section className="browse-filter-section browse-compact-half browse-amount-section">
-            <div className="browse-filter-heading"><span>Amount</span><strong>{browseCount}</strong></div>
-            <input type="range" min={1} max={Math.max(1, filteredCards.length)} value={Math.max(1, browseCount)} disabled={!filteredCards.length} onChange={(event) => setLimit(Number(event.target.value))} />
-            <div className="browse-amount-shortcuts">{[10,20,50].filter((count) => count < filteredCards.length).map((count) => <button key={count} className={limit !== "all" && browseCount === count ? "selected" : ""} onClick={() => setLimit(count)}>{count}</button>)}<button className={limit === "all" ? "selected" : ""} disabled={!filteredCards.length} onClick={() => setLimit("all")}>All</button></div>
-          </section>
+          <section className="browse-filter-section browse-compact-half browse-amount-section"><div className="browse-filter-heading"><span>Amount</span><strong>{browseCount}</strong></div><input type="range" min={1} max={Math.max(1, filteredCards.length)} value={Math.max(1, browseCount)} disabled={!filteredCards.length} onChange={(event) => setLimit(Number(event.target.value))} /><div className="browse-amount-shortcuts">{[10,20,50].filter((count) => count < filteredCards.length).map((count) => <button key={count} className={limit !== "all" && browseCount === count ? "selected" : ""} onClick={() => setLimit(count)}>{count}</button>)}<button className={limit === "all" ? "selected" : ""} disabled={!filteredCards.length} onClick={() => setLimit("all")}>All</button></div></section>
 
-          <section className="browse-filter-section browse-tags-section">
-            <div className="browse-filter-heading"><span>Tags</span><small>Any selected tag can match</small></div>
-            {lessonTags.length ? <div className="browse-tag-group"><p>HSK2 Lessons</p><div className="browse-lesson-grid">{lessonTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={() => setTagIds((current) => toggleValue(current, tag.id))}>{tag.name.match(/\d+/)?.[0] ?? tag.name}</button>)}</div></div> : null}
-            {otherTags.length ? <div className="browse-tag-group"><p>Other tags</p><div className="browse-other-tags">{otherTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={() => setTagIds((current) => toggleValue(current, tag.id))}>{tag.name}</button>)}</div></div> : null}
-          </section>
+          {tags.length ? <details className="browse-collapsed-tags"><summary className={tagIds.length ? "active" : ""}><Tag size={14} /><span>Tags</span>{tagIds.length ? <b>{tagIds.length}</b> : null}</summary><div className="browse-tags-popover">{lessonTags.length ? <section><p>HSK2 Lessons</p><div className="browse-lesson-grid">{lessonTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={(event) => { event.preventDefault(); setTagIds((current) => toggleValue(current, tag.id)); }}>{tag.name.match(/\d+/)?.[0] ?? tag.name}</button>)}</div></section> : null}{otherTags.length ? <section><p>Other</p><div className="browse-other-tags">{otherTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={(event) => { event.preventDefault(); setTagIds((current) => toggleValue(current, tag.id)); }}>{tag.name}</button>)}</div></section> : null}</div></details> : null}
 
-          <section className="browse-filter-section browse-order-section">
-            <div className="browse-filter-heading"><span>Order</span><small>Sequence</small></div>
-            <div className="browse-order-row">
-              {([['current','Current'],['term','A–Z'],['interest','Interest'],['random','Random']] as Array<[BrowseOrder,string]>).map(([value,label]) => <button key={value} className={order === value ? "selected" : ""} onClick={() => setOrder(value)}>{value === "random" ? <Shuffle size={12} /> : null}{label}</button>)}
-            </div>
-          </section>
+          <section className="browse-filter-section browse-order-section"><div className="browse-filter-heading"><span>Order</span></div><div className="browse-order-row">{([['current','Current'],['term','A–Z'],['interest','Interest'],['random','Random']] as Array<[BrowseOrder,string]>).map(([value,label]) => <button key={value} className={order === value ? "selected" : ""} onClick={() => setOrder(value)}>{value === "random" ? <Shuffle size={12} /> : null}{label}</button>)}</div></section>
         </div>
 
-        <footer className="browse-setup-footer">
-          <button className="browse-reset-button" disabled={!activeFilterCount && order === "current"} onClick={resetFilters}>Reset</button>
-          <span>Read-only · {filteredCards.length.toLocaleString()} matching</span>
-          <button className="browse-start-button" disabled={!filteredCards.length} onClick={startBrowse}>Browse {browseCount.toLocaleString()} {browseCount === 1 ? "card" : "cards"} <ArrowRight size={15} /></button>
-        </footer>
+        <footer className="browse-setup-footer"><button className="browse-reset-button" disabled={!activeFilterCount && order === "current"} onClick={resetFilters}>Reset</button><span>{filteredCards.length.toLocaleString()} matching</span><button className="browse-start-button" disabled={!filteredCards.length} onClick={startBrowse}>Browse {browseCount.toLocaleString()} <ArrowRight size={15} /></button></footer>
       </section>
     </div>;
   }
@@ -180,20 +147,9 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
   const progress = browseCards.length ? ((index + 1) / browseCards.length) * 100 : 0;
 
   return <div className="immersive-layer browse-layer modern-browse-layer">
-    <header className="immersive-bar modern-browse-bar">
-      <div><b>{pack.title}</b><span>Browse · {index + 1} of {browseCards.length}</span></div>
-      <div className="modern-browse-bar-actions"><button onClick={() => setPhase("setup")}><SlidersHorizontal size={14} /> Filters</button><button onClick={close}><X size={15} /> Close</button></div>
-    </header>
+    <header className="immersive-bar modern-browse-bar"><div><b>{pack.title}</b><span>Browse · {index + 1} of {browseCards.length}</span></div><div className="modern-browse-bar-actions"><button onClick={() => setPhase("setup")}><SlidersHorizontal size={14} /> Filters</button><button onClick={close}><X size={15} /> Close</button></div></header>
     <div className="modern-browse-progress"><i style={{ width: `${progress}%` }} /></div>
-    <main className="browse-stage modern-browse-stage">
-      <article className="browse-card modern-browse-card">
-        <div className="browse-main"><p className="eyebrow">CARD {index + 1}</p><h1>{fieldText(currentCard.data, term?.key) || "Untitled"}</h1>{reading ? <h2>{fieldText(currentCard.data, reading.key)}</h2> : null}<div className="browse-meaning">{fieldText(currentCard.data, meaning?.key)}</div></div>
-        {currentCard.interest_rank || currentCard.favourite ? <div className="modern-browse-signals">{currentCard.interest_rank ? <span className={`interest-${currentCard.interest_rank}`}>Interest {currentCard.interest_rank}</span> : null}{currentCard.favourite ? <span><Star size={12} fill="currentColor" /> Favourite</span> : null}</div> : null}
-        {extraFields.length ? <div className="browse-details">{extraFields.map((field) => <div key={field.key}><span>{field.label}</span><p>{fieldText(currentCard.data, field.key)}</p></div>)}</div> : null}
-        {currentCard.tags.length ? <div className="browse-tags">{currentCard.tags.map((tag) => <span className={tag.is_badge ? "badge" : ""} key={tag.id}>{tag.name}</span>)}</div> : null}
-        {currentCard.note ? <aside>{currentCard.note}</aside> : null}
-      </article>
-    </main>
-    <footer className="immersive-controls modern-browse-controls"><button className="secondary-button" disabled={index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={15} /> Previous</button><span>Read-only · no review statistics changed</span><button className="primary-button" onClick={() => { if (index >= browseCards.length - 1) close(); else setIndex((value) => value + 1); }}>{index >= browseCards.length - 1 ? "Finish" : <>Next <ArrowRight size={15} /></>}</button></footer>
+    <main className="browse-stage modern-browse-stage"><article className="browse-card modern-browse-card"><div className="browse-main"><p className="eyebrow">CARD {index + 1}</p><h1>{fieldText(currentCard.data, term?.key) || "Untitled"}</h1>{reading ? <h2>{fieldText(currentCard.data, reading.key)}</h2> : null}<div className="browse-meaning">{fieldText(currentCard.data, meaning?.key)}</div></div>{currentCard.interest_rank || currentCard.favourite ? <div className="modern-browse-signals">{currentCard.interest_rank ? <span className={`interest-${currentCard.interest_rank}`}>Interest {currentCard.interest_rank}</span> : null}{currentCard.favourite ? <span><Star size={12} fill="currentColor" /> Favourite</span> : null}</div> : null}{extraFields.length ? <div className="browse-details">{extraFields.map((field) => <div key={field.key}><span>{field.label}</span><p>{fieldText(currentCard.data, field.key)}</p></div>)}</div> : null}{currentCard.tags.length ? <div className="browse-tags">{currentCard.tags.map((tag) => <span className={tag.is_badge ? "badge" : ""} key={tag.id}>{tag.name}</span>)}</div> : null}{currentCard.note ? <aside>{currentCard.note}</aside> : null}</article></main>
+    <footer className="immersive-controls modern-browse-controls"><button className="secondary-button" disabled={index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={15} /> Previous</button><span>Read-only</span><button className="primary-button" onClick={() => { if (index >= browseCards.length - 1) close(); else setIndex((value) => value + 1); }}>{index >= browseCards.length - 1 ? "Finish" : <>Next <ArrowRight size={15} /></>}</button></footer>
   </div>;
 }
