@@ -2,6 +2,9 @@ name: Build Heuresis Windows ARM64
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/heuresis-desktop-build-trigger"
 
 jobs:
   windows-arm64:
