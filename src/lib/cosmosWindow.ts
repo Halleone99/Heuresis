@@ -8,10 +8,12 @@ export type CosmosLaunch = {
   mode: CosmosMode;
   packId: string;
   templateId?: string | null;
+  templateIds?: string[];
   source?: CosmosSource;
   order?: CosmosOrder;
   count?: number | "all";
   tagId?: string;
+  tagIds?: string[];
   query?: string;
   related?: boolean;
 };
@@ -27,8 +29,11 @@ function buildParams(options: CosmosLaunch) {
     count: String(options.count ?? "all"),
   });
   if (related) params.set("related", "1");
-  if (options.templateId) params.set("template", options.templateId);
-  if (options.tagId) params.set("tag", options.tagId);
+  const templateIds = (options.templateIds ?? []).filter(Boolean);
+  if (templateIds.length) params.set("templates", templateIds.join(","));
+  else if (options.templateId) params.set("template", options.templateId);
+  const tagIds = Array.from(new Set([...(options.tagIds ?? []), ...(options.tagId ? [options.tagId] : [])].filter(Boolean)));
+  tagIds.forEach((tagId) => params.append("tag", tagId));
   if (options.query?.trim()) params.set("q", options.query.trim());
   return params;
 }
