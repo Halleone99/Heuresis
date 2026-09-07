@@ -146,6 +146,7 @@ function HeuresisApp({ session }: { session: Session }) {
   return (
     <div className="heuresis-desktop" style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
       <div className="heuresis-wallpaper" aria-hidden="true" />
+      <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
         <button className="desktop-wordmark" onClick={openLibrary} aria-label="Open library"><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
