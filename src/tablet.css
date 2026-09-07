@@ -1,0 +1,120 @@
+/* Tablet adaptation: preserve the desktop Heuresis visual system while making
+   the same controls comfortable for touch. This stylesheet is deliberately
+   coarse-pointer scoped so the Windows desktop layout remains unchanged. */
+
+html, body, #root {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (pointer: coarse) {
+  html, body, #root {
+    min-height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  [role="button"],
+  summary,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  .desktop-chrome {
+    min-height: 72px;
+    height: 72px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+
+  .desktop-nav-group {
+    gap: 4px;
+    margin-left: clamp(18px, 2.6vw, 38px);
+  }
+
+  .desktop-nav-item,
+  .desktop-action,
+  .desktop-account-menu > summary {
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .desktop-nav-item,
+  .desktop-action {
+    padding-inline: 12px;
+    font-size: 11.5px;
+  }
+
+  .desktop-action.desktop-primary {
+    height: 44px;
+    padding-inline: 16px;
+  }
+
+  .desktop-account-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .desktop-account-popover {
+    width: min(280px, calc(100vw - 32px));
+  }
+
+  .desktop-account-popover button {
+    min-height: 44px;
+    font-size: 11.5px;
+  }
+
+  .desktop-content {
+    padding-top: 30px;
+    padding-left: max(22px, env(safe-area-inset-left));
+    padding-right: max(22px, env(safe-area-inset-right));
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
+  }
+
+  .desktop-notice {
+    top: 82px;
+  }
+
+  .library-new-collection,
+  .secondary-button,
+  .primary-button {
+    min-height: 44px;
+  }
+
+  .capture-window-host,
+  .cosmos-window,
+  .cosmos-shell {
+    min-height: 100dvh;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* MagicPad-class landscape widths normally land around this range in CSS
+   pixels depending on display scaling. Keep the PC hierarchy, but remove only
+   the least useful chrome before anything starts wrapping. */
+@media (pointer: coarse) and (max-width: 1180px) {
+  .desktop-wordmark-name { display: none; }
+  .desktop-nav-group { margin-left: 10px; }
+  .desktop-search-action span,
+  .desktop-search-action kbd { display: none; }
+  .desktop-search-action { width: 44px; padding: 0; justify-content: center; }
+  .library-hero h1 { font-size: clamp(44px, 6vw, 62px); }
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  .desktop-topic-action { display: none; }
+  .desktop-nav-item { padding-inline: 9px; }
+  .desktop-content { padding-inline: 18px; }
+}
