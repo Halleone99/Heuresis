@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": "all",
+    "category": "Education",
+    "android": {
+      "minSdkVersion": 24,
+      "debugApplicationIdSuffix": ".tablet"
+    }
+  }
+}

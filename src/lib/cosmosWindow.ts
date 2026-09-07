@@ -1,3 +1,5 @@
+import { isAndroidRuntime, openInCurrentApp } from "./platform";
+
 export type CosmosMode = "review" | "sort";
 export type CosmosSource = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
 export type CosmosOrder = "pack" | "random";
@@ -34,6 +36,13 @@ function buildParams(options: CosmosLaunch) {
 export async function openCosmosWindow(options: CosmosLaunch) {
   const params = buildParams(options);
   const title = `${options.related ? "Related" : options.mode === "sort" ? "Sort" : "Flashcards"} · Heuresis`;
+
+  // Android uses the main app webview for study/review so sessions and auth remain
+  // in the same persisted client rather than relying on desktop popup windows.
+  if (isAndroidRuntime()) {
+    openInCurrentApp(params);
+    return;
+  }
 
   if ("__TAURI_INTERNALS__" in window) {
     const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");

@@ -1,0 +1,65 @@
+name: Build Heuresis MagicPad Android APK
+
+on:
+  push:
+    branches:
+      - feature/magicpad-android
+  workflow_dispatch:
+
+jobs:
+  android-aarch64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VITE_SUPABASE_URL: https://qbxyiamrbqmdaubzcxpk.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_EyQguSeCT2BVi04m_DtlyA_9bcMp-R9
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install frontend dependencies
+        run: npm install --ignore-scripts
+
+      - name: Install Rust Android target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android
+
+      - name: Resolve Android NDK
+        shell: bash
+        run: |
+          NDK_PATH="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -n "$NDK_PATH"
+          echo "NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
+          echo "Using NDK $NDK_PATH"
+
+      - name: Initialise Android project
+        run: npm run tauri android init -- --ci --skip-targets-install
+
+      - name: Type-check and build web app
+        run: npm run build
+
+      - name: Build signed debug APK for MagicPad ARM64
+        run: npm run tauri android build -- --debug --apk --target aarch64 --ci
+
+      - name: Show generated APKs
+        shell: bash
+        run: find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' -print
+
+      - name: Upload MagicPad APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: heuresis-magicpad2-arm64-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 90

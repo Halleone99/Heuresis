@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import AuthGate from "./AuthGate";
 import CaptureView from "./CaptureView";
 import { listCollections, listPacks, type Collection, type PackWithType } from "../lib/heuresis";
+import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
 
 async function closeCaptureWindow() {
+  if (isAndroidRuntime()) {
+    returnToHeuresisApp();
+    return;
+  }
   if ("__TAURI_INTERNALS__" in window) {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().close();
