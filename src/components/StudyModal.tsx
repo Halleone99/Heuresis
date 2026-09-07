@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Search, Shuffle, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search, Shuffle, SlidersHorizontal, Sparkles, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { openCosmosWindow, type CosmosSource } from "../lib/cosmosWindow";
@@ -40,15 +40,28 @@ function clampCount(value: number, available: number) {
 
 function CountControl({ value, available, onChange }: { value: number; available: number; onChange: (value: number) => void }) {
   const safe = clampCount(value, available);
-  const quick = [10, 20, 50].filter((count) => count < available);
-  return <div className="study-count-control">
-    <div className="study-control-heading"><span>How many</span><strong>{available ? safe : 0} of {available}</strong></div>
+  return <div className="study-count-control compact-count-control">
+    <div className="study-compact-label"><span>Amount</span><b>{available ? safe : 0}/{available}</b></div>
     <input type="range" min={1} max={Math.max(1, available)} value={safe} disabled={!available} onChange={(event) => onChange(Number(event.target.value))} />
-    <div className="study-count-shortcuts">
-      {quick.map((count) => <button key={count} className={safe === count ? "selected" : ""} onClick={() => onChange(count)}>{count}</button>)}
+    <div className="study-count-shortcuts compact-count-shortcuts">
+      {[10, 20, 50].filter((count) => count < available).map((count) => <button key={count} className={safe === count ? "selected" : ""} onClick={() => onChange(count)}>{count}</button>)}
       <button className={available > 0 && safe === available ? "selected" : ""} disabled={!available} onClick={() => onChange(Math.max(1, available))}>All</button>
     </div>
   </div>;
+}
+
+function TagPicker({ tags, selected, onSelect }: { tags: HeuresisTag[]; selected: string; onSelect: (id: string) => void }) {
+  const lessons = tags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name));
+  const others = tags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name));
+  const selectedTag = tags.find((tag) => tag.id === selected);
+  return <details className="study-tags-menu">
+    <summary className={selected ? "active" : ""}><Tag size={14} /><span>{selectedTag ? selectedTag.name : "Tags"}</span>{selected ? <b>1</b> : null}</summary>
+    <div className="study-tags-popover">
+      <button className={!selected ? "selected" : ""} onClick={(event) => { event.preventDefault(); onSelect(""); }}>All tags</button>
+      {lessons.length ? <section><p>HSK2 Lessons</p><div className="study-tag-grid">{lessons.map((tag) => <button key={tag.id} className={selected === tag.id ? "selected" : ""} onClick={(event) => { event.preventDefault(); onSelect(tag.id); }}>{tag.name.match(/\d+/)?.[0] ?? tag.name}</button>)}</div></section> : null}
+      {others.length ? <section><p>Other</p><div className="study-tag-wrap">{others.map((tag) => <button key={tag.id} className={selected === tag.id ? "selected" : ""} onClick={(event) => { event.preventDefault(); onSelect(tag.id); }}>{tag.name}</button>)}</div></section> : null}
+    </div>
+  </details>;
 }
 
 export default function StudyModal({ pack, cards, onClose }: Props) {
@@ -78,8 +91,6 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
     cards.forEach((card) => card.tags.forEach((tag) => { if (!tag.is_badge) byId.set(tag.id, tag); }));
     return Array.from(byId.values()).sort(compareFilterTags);
   }, [cards]);
-  const lessonTags = useMemo(() => filterTags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)), [filterTags]);
-  const otherTags = useMemo(() => filterTags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)), [filterTags]);
 
   const sortPool = useMemo(() => {
     let next = unsortedCards;
@@ -127,114 +138,61 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
     if (!sortPool.length || busy) return;
     setBusy(true); setError("");
     try {
-      await openCosmosWindow({
-        mode: "sort",
-        packId: pack.id,
-        source: "unsorted",
-        order: sortRandom ? "random" : "pack",
-        count: clampCount(sortCount, sortPool.length),
-        tagId: sortTagId || undefined,
-        query: sortQuery || undefined,
-      });
+      await openCosmosWindow({ mode: "sort", packId: pack.id, source: "unsorted", order: sortRandom ? "random" : "pack", count: clampCount(sortCount, sortPool.length), tagId: sortTagId || undefined, query: sortQuery || undefined });
       onClose();
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Could not open Sort.");
     } finally { setBusy(false); }
   }
 
-  const sourceOptions: Array<[ReviewSource, string, number]> = [
+  const reviewSources: Array<[ReviewSource, string, number]> = [
     ["all", "All ready", readyCards.length],
-    ["new", "New", readyCards.filter((card) => card.stats.encounter_count === 0).length],
-    ["favourites", "Favourite", readyCards.filter((card) => card.favourite).length],
+    ["new", "First review", firstReviewCards.length],
+    ["favourites", "Favourites", readyCards.filter((card) => card.favourite).length],
     ["interesting", "Interest 4–5", readyCards.filter((card) => (card.interest_rank ?? 0) >= 4 || card.interesting).length],
     ["again", "Often Again", readyCards.filter((card) => card.stats.again_count >= 2).length],
   ];
 
   return <div className="study-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <section className="study-modal review-launcher modern-study-launcher" role="dialog" aria-modal="true">
+    <section className="study-modal review-launcher modern-study-launcher compact-study-launcher" role="dialog" aria-modal="true">
       <header className="study-topbar"><div><span className="eyebrow">FLASHCARDS</span><strong>{pack.title}</strong></div><button className="study-close" onClick={onClose} aria-label="Close"><X size={18} /></button></header>
 
-      {mode === "choose" ? <div className="study-mode-picker modern-mode-picker">
-        <div className="study-mode-intro"><p className="eyebrow">CHOOSE A MODE</p><h2>Sort or review?</h2><p>Sort prepares cards. Review tests memory. Keeping those actions separate keeps the data honest.</p></div>
-        <div className="study-mode-grid modern-mode-grid">
-          <button className="study-mode-card sort" onClick={() => setMode("sort")}><span className="mode-index">01 · ORGANISE</span><SlidersHorizontal size={22} /><strong>Sort</strong><p>Set interest, organise tags and finish cards before they enter review.</p><em>Prepare cards <ArrowRight size={14} /></em></button>
-          <button className="study-mode-card review" onClick={() => setMode("review")}><span className="mode-index">02 · RECALL</span><Sparkles size={22} /><strong>Review</strong><p>Choose a review pool, direction, amount and order before opening the session.</p><em>Review cards <ArrowRight size={14} /></em></button>
+      {mode === "choose" ? <div className="study-mode-picker modern-mode-picker compact-mode-picker">
+        <div className="study-mode-intro"><p className="eyebrow">MODE</p><h2>Sort or review</h2></div>
+        <div className="study-mode-grid modern-mode-grid compact-mode-grid">
+          <button className="study-mode-card sort" onClick={() => setMode("sort")}><SlidersHorizontal size={21} /><strong>Sort</strong><em>Prepare cards <ArrowRight size={14} /></em></button>
+          <button className="study-mode-card review" onClick={() => setMode("review")}><Sparkles size={21} /><strong>Review</strong><em>Review cards <ArrowRight size={14} /></em></button>
         </div>
       </div> : null}
 
-      {mode === "review" ? <div className="study-launch study-launch-modern">
-        <div className="study-launch-header">
-          <button className="study-back-link" onClick={() => setMode("choose")}><ArrowLeft size={14} /> Modes</button>
-          <div><p className="eyebrow">REVIEW</p><h2>Choose a review set</h2><p>Only sorted cards are available. Select the pool and session size you actually want.</p></div>
-        </div>
+      {mode === "review" ? <div className="study-launch compact-study-screen">
+        <div className="compact-study-heading"><button className="study-back-link" onClick={() => setMode("choose")}><ArrowLeft size={14} /> Modes</button><div><p className="eyebrow">REVIEW</p><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> first</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
 
-        <div className="study-mini-stats">
-          <span><strong>{readyCards.length}</strong><small>available</small></span>
-          <span><strong>{firstReviewCards.length}</strong><small>first review</small></span>
-          <span><strong>{reviewedCards.length}</strong><small>reviewed before</small></span>
-        </div>
-
-        {loading ? <div className="study-state">Loading review directions…</div> : null}
-        {!loading && !templates.length ? <div className="study-state">No review direction exists for this card structure yet.</div> : null}
-        {!loading && templates.length ? <div className="study-control-surface">
-          <section className="study-control-section study-direction-section">
-            <div className="study-control-heading"><span>Direction</span><small>What appears first</small></div>
-            <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-          </section>
-
-          <section className="study-control-section study-source-section">
-            <div className="study-control-heading"><span>Cards</span><small>Choose one pool</small></div>
-            <div className="study-source-tickers">{sourceOptions.map(([value, label, count]) => <button key={value} className={source === value ? "selected" : ""} disabled={!count && value !== "all"} onClick={() => setSource(value)}><span>{label}</span><b>{count}</b></button>)}</div>
-          </section>
-
-          <section className="study-control-section study-count-section"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
-
-          <section className="study-control-section study-order-section">
-            <div className="study-control-heading"><span>Order</span><small>Session sequence</small></div>
-            <div className="study-order-toggle"><button className={!randomOrder ? "selected" : ""} onClick={() => setRandomOrder(false)}>Topic order</button><button className={randomOrder ? "selected" : ""} onClick={() => setRandomOrder(true)}><Shuffle size={13} /> Random</button></div>
-          </section>
+        {loading ? <div className="study-state">Loading…</div> : null}
+        {!loading && !templates.length ? <div className="study-state">No review direction is configured.</div> : null}
+        {!loading && templates.length ? <div className="compact-study-controls review-controls">
+          <label className="compact-field"><span>Direction</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="compact-field"><span>Cards</span><select value={source} onChange={(event) => setSource(event.target.value as ReviewSource)}>{reviewSources.map(([value, label, count]) => <option key={value} value={value} disabled={!count && value !== "all"}>{label} · {count}</option>)}</select></label>
+          <section className="compact-count-panel"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
+          <section className="compact-order-panel"><span>Order</span><div className="study-order-toggle"><button className={!randomOrder ? "selected" : ""} onClick={() => setRandomOrder(false)}>Topic</button><button className={randomOrder ? "selected" : ""} onClick={() => setRandomOrder(true)}><Shuffle size={13} /> Random</button></div></section>
         </div> : null}
 
         {error ? <div className="study-error">{error}</div> : null}
-        {!readyCards.length ? <div className="study-state">Nothing is ready for Review yet. Sort some cards first.</div> : null}
-        <div className="study-launch-footer"><span>{pool.length ? `${pool.length} cards match this review pool` : "No cards match"}</span><button className="study-start" disabled={loading || !template || !pool.length || busy} onClick={() => void startReview()}>{busy ? "Opening…" : `Review ${pool.length ? clampCount(reviewCount, pool.length) : 0} cards`} <ArrowRight size={16} /></button></div>
+        <div className="compact-study-footer"><button className="study-start" disabled={loading || !template || !pool.length || busy} onClick={() => void startReview()}>{busy ? "Opening…" : `Review ${pool.length ? clampCount(reviewCount, pool.length) : 0}`} <ArrowRight size={16} /></button></div>
       </div> : null}
 
-      {mode === "sort" ? <div className="study-launch study-launch-modern">
-        <div className="study-launch-header">
-          <button className="study-back-link" onClick={() => setMode("choose")}><ArrowLeft size={14} /> Modes</button>
-          <div><p className="eyebrow">SORT</p><h2>Prepare unsorted cards</h2><p>Filter the unsorted queue, choose how much you want to process, then open the sorting workspace.</p></div>
-        </div>
+      {mode === "sort" ? <div className="study-launch compact-study-screen">
+        <div className="compact-study-heading"><button className="study-back-link" onClick={() => setMode("choose")}><ArrowLeft size={14} /> Modes</button><div><p className="eyebrow">SORT</p><h2>Sort cards</h2></div><div className="compact-study-meta"><span><b>{unsortedCards.length}</b> unsorted</span><span><b>{sortPool.length}</b> match</span></div></div>
 
-        <div className="study-mini-stats sort-stats">
-          <span><strong>{unsortedCards.length}</strong><small>unsorted</small></span>
-          <span><strong>{sortPool.length}</strong><small>matching</small></span>
-          <span><strong>{cards.length - unsortedCards.length}</strong><small>already prepared</small></span>
-        </div>
-
-        <div className="study-control-surface sort-control-surface">
-          {filterTags.length ? <section className="study-control-section study-tags-launch-section">
-            <div className="study-control-heading"><span>Tags</span><small>Optional filter</small></div>
-            {lessonTags.length ? <div className="study-launch-tag-group"><p>HSK2 Lessons</p><div>{lessonTags.map((tag) => <button key={tag.id} className={sortTagId === tag.id ? "selected" : ""} onClick={() => setSortTagId((current) => current === tag.id ? "" : tag.id)}>{tag.name.match(/\d+/)?.[0] ?? tag.name}</button>)}</div></div> : null}
-            {otherTags.length ? <div className="study-launch-tag-group"><p>Other tags</p><div>{otherTags.map((tag) => <button key={tag.id} className={sortTagId === tag.id ? "selected" : ""} onClick={() => setSortTagId((current) => current === tag.id ? "" : tag.id)}>{tag.name}</button>)}</div></div> : null}
-          </section> : null}
-
-          <section className="study-control-section study-search-launch-section">
-            <div className="study-control-heading"><span>Search</span><small>Optional</small></div>
-            <label className="study-modern-search"><Search size={14} /><input value={sortQuery} onChange={(event) => setSortQuery(event.target.value)} placeholder="word, meaning, note…" /></label>
-          </section>
-
-          <section className="study-control-section study-count-section"><CountControl value={sortCount} available={sortPool.length} onChange={setSortCount} /></section>
-
-          <section className="study-control-section study-order-section">
-            <div className="study-control-heading"><span>Order</span><small>Queue sequence</small></div>
-            <div className="study-order-toggle"><button className={!sortRandom ? "selected" : ""} onClick={() => setSortRandom(false)}>Topic order</button><button className={sortRandom ? "selected" : ""} onClick={() => setSortRandom(true)}><Shuffle size={13} /> Random</button></div>
-          </section>
+        <div className="compact-study-controls sort-controls">
+          <label className="compact-search"><Search size={14} /><input value={sortQuery} onChange={(event) => setSortQuery(event.target.value)} placeholder="Search" /></label>
+          {filterTags.length ? <TagPicker tags={filterTags} selected={sortTagId} onSelect={setSortTagId} /> : null}
+          <section className="compact-count-panel"><CountControl value={sortCount} available={sortPool.length} onChange={setSortCount} /></section>
+          <section className="compact-order-panel"><span>Order</span><div className="study-order-toggle"><button className={!sortRandom ? "selected" : ""} onClick={() => setSortRandom(false)}>Topic</button><button className={sortRandom ? "selected" : ""} onClick={() => setSortRandom(true)}><Shuffle size={13} /> Random</button></div></section>
         </div>
 
         {error ? <div className="study-error">{error}</div> : null}
-        {!sortPool.length ? <div className="study-state">No unsorted cards match this selection.</div> : null}
-        <div className="study-launch-footer"><span>Skipped cards stay unsorted and return later.</span><button className="study-start" disabled={!sortPool.length || busy} onClick={() => void startSort()}>{busy ? "Opening…" : `Sort ${sortPool.length ? clampCount(sortCount, sortPool.length) : 0} cards`} <ArrowRight size={16} /></button></div>
+        <div className="compact-study-footer"><button className="study-start" disabled={!sortPool.length || busy} onClick={() => void startSort()}>{busy ? "Opening…" : `Sort ${sortPool.length ? clampCount(sortCount, sortPool.length) : 0}`} <ArrowRight size={16} /></button></div>
       </div> : null}
     </section>
   </div>;
