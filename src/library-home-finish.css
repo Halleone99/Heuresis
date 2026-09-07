@@ -12,23 +12,23 @@
 /* Do not honour a stored "contain" setting on the desktop shell: it leaves the lower
    viewport uncovered with panoramic images. Heuresis should always use the image as wallpaper. */
 .heuresis-desktop[data-custom-background="heuresis"] {
-  background: #d9d4cb !important;
+  background: #f3efe8 !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
   inset: 0 !important;
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
-  opacity: calc(var(--heuresis-background-opacity, .32) + .20) !important;
+  opacity: calc(var(--heuresis-background-opacity, .32) + .16) !important;
   transform: scale(1.02) !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
   background:
-    radial-gradient(circle at 72% 8%, rgba(255,255,255,.18), transparent 42%),
+    radial-gradient(circle at 72% 8%, rgba(255,255,255,.16), transparent 42%),
     linear-gradient(180deg,
-      rgba(243,241,236,.12) 0%,
-      rgba(239,235,228,.15) 42%,
-      rgba(230,224,215,.22) 100%) !important;
+      rgba(246,243,238,.10) 0%,
+      rgba(245,242,237,.16) 42%,
+      rgba(243,239,232,.28) 100%) !important;
 }
 
 /* Keep the working area visually centred. A slightly narrower selected card and a broader
