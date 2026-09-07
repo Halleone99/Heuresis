@@ -26,6 +26,7 @@ import "./topic-filter-popovers.css";
 import "./topic-filter-tickers.css";
 import "./topic-elegance-pass.css";
 import "./browse-modern.css";
+import "./study-launch-modern.css";
 import "./tablet.css";
 
 const params = new URLSearchParams(window.location.search);
