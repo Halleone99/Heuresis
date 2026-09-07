@@ -32,16 +32,16 @@
 }
 
 /* A second copy of the same wallpaper is revealed only across the lower portion.
-   This makes the continuation unmistakable while letting us blur and neutralise it independently. */
+   Keep it softer and more neutral than the top, but still recognisably the same image. */
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
   z-index: -3 !important;
   top: 34% !important;
-  opacity: .42 !important;
-  filter: blur(24px) saturate(.52) contrast(.96) brightness(1.08) !important;
-  transform: scale(1.07) !important;
+  opacity: .40 !important;
+  filter: blur(14px) saturate(.64) contrast(.98) brightness(1.05) !important;
+  transform: scale(1.045) !important;
   transform-origin: center center;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.20) 10%, rgba(0,0,0,.72) 28%, #000 52%);
-  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.20) 10%, rgba(0,0,0,.72) 28%, #000 52%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, rgba(0,0,0,.70) 28%, #000 52%);
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, rgba(0,0,0,.70) 28%, #000 52%);
 }
 
 /* Only a light neutral wash now. Do not hide the lower image behind white. */
@@ -53,8 +53,8 @@
     linear-gradient(180deg,
       rgba(248,249,249,.04) 0%,
       rgba(248,249,249,.05) 46%,
-      rgba(246,248,248,.10) 72%,
-      rgba(244,247,247,.16) 100%) !important;
+      rgba(246,248,248,.09) 72%,
+      rgba(244,247,247,.14) 100%) !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
   content: none !important;
