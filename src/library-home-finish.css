@@ -1,0 +1,79 @@
+/* Final library-home corrections: remove the strip under the chrome, centre the visual mass,
+   and force custom wallpaper to remain a true full-viewport background. */
+
+/* The previous chrome border/shadow created a pale strip below the dark bar. */
+.desktop-chrome {
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  background: linear-gradient(180deg, rgba(20,20,20,.84), rgba(27,27,27,.76)) !important;
+  backdrop-filter: blur(26px) saturate(1.06) !important;
+}
+
+/* Do not honour a stored "contain" setting on the desktop shell: it leaves the lower
+   viewport uncovered with panoramic images. Heuresis should always use the image as wallpaper. */
+.heuresis-desktop[data-custom-background="heuresis"] {
+  background: #d9d4cb !important;
+}
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
+  inset: 0 !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  opacity: calc(var(--heuresis-background-opacity, .32) + .20) !important;
+  transform: scale(1.02) !important;
+}
+.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
+  background:
+    radial-gradient(circle at 72% 8%, rgba(255,255,255,.18), transparent 42%),
+    linear-gradient(180deg,
+      rgba(243,241,236,.12) 0%,
+      rgba(239,235,228,.15) 42%,
+      rgba(230,224,215,.22) 100%) !important;
+}
+
+/* Keep the working area visually centred. A slightly narrower selected card and a broader
+   switcher balance the page better than the previous strongly left-heavy 1.68/.82 split. */
+.desktop-content {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+.intelligent-library {
+  width: min(1160px, calc(100vw - 88px)) !important;
+  max-width: 1160px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-top: clamp(46px, 6vh, 68px) !important;
+}
+.library-desk {
+  grid-template-columns: minmax(0, 1.55fr) minmax(350px, .95fr) !important;
+  gap: 20px !important;
+}
+
+/* The right column should align tightly with the selected collection rather than appearing
+   as an attachment floating to its side. */
+.library-stack-head {
+  padding-top: 0 !important;
+  padding-bottom: 7px !important;
+}
+.library-mini {
+  width: 100% !important;
+}
+
+@media (max-width: 1240px) {
+  .intelligent-library {
+    width: min(1080px, calc(100vw - 56px)) !important;
+  }
+  .library-desk {
+    grid-template-columns: minmax(0, 1.48fr) minmax(320px, .92fr) !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .intelligent-library {
+    width: min(760px, calc(100vw - 32px)) !important;
+    padding-top: 30px !important;
+  }
+  .library-desk {
+    grid-template-columns: 1fr !important;
+  }
+}
