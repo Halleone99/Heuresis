@@ -1,3 +1,5 @@
+import { isAndroidRuntime, openInCurrentApp } from "./platform";
+
 export type CaptureLaunch = {
   packId?: string | null;
   collectionId?: string | null;
@@ -12,6 +14,13 @@ function buildParams(options: CaptureLaunch) {
 
 export async function openCaptureWindow(options: CaptureLaunch = {}) {
   const params = buildParams(options);
+
+  // Android has one application surface. Reuse the same Heuresis route instead
+  // of creating a desktop WebviewWindow, preserving the exact Capture UI/data path.
+  if (isAndroidRuntime()) {
+    openInCurrentApp(params);
+    return;
+  }
 
   if ("__TAURI_INTERNALS__" in window) {
     const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
