@@ -290,13 +290,43 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
         <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
       </header>
 
-      <div className="topic-overview-strip">
-        <span><strong>{neverCards.length.toLocaleString()}</strong><small>unseen</small></span>
-        <span><strong>{reviewedCards.length.toLocaleString()}</strong><small>reviewed cards</small></span>
-        <span><strong>{unsortedCards.length.toLocaleString()}</strong><small>to sort</small></span>
-        <span><strong>{totalReviews.toLocaleString()}</strong><small>review passes</small></span>
-        {neverCards.length ? <button onClick={() => openTargeted("Never met", neverCards, 20)}>Start 20 unseen</button> : <span className="overview-complete">All cards encountered</span>}
-      </div>
+      <section className="topic-workflow-overview" aria-label="Card workflow">
+        <div className="workflow-overview-label">
+          <span>Card workflow</span>
+          <small>{cards.length.toLocaleString()} total</small>
+        </div>
+        <div className="workflow-overview-stages">
+          <button
+            className={statusFilters.includes("unsorted") ? "active" : ""}
+            data-stage="unsorted"
+            onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "unsorted" ? [] : ["unsorted"])}
+          >
+            <span className="workflow-stage-dot" />
+            <span className="workflow-stage-copy"><b>Unsorted</b><small>Needs sorting</small></span>
+            <strong>{unsortedCards.length.toLocaleString()}</strong>
+          </button>
+          <span className="workflow-stage-arrow" aria-hidden="true">→</span>
+          <button
+            className={statusFilters.includes("sorted") ? "active" : ""}
+            data-stage="ready"
+            onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "sorted" ? [] : ["sorted"])}
+          >
+            <span className="workflow-stage-dot" />
+            <span className="workflow-stage-copy"><b>Ready to review</b><small>Sorted, not reviewed</small></span>
+            <strong>{sortedCards.length.toLocaleString()}</strong>
+          </button>
+          <span className="workflow-stage-arrow" aria-hidden="true">→</span>
+          <button
+            className={statusFilters.includes("reviewed") ? "active" : ""}
+            data-stage="reviewed"
+            onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "reviewed" ? [] : ["reviewed"])}
+          >
+            <span className="workflow-stage-dot" />
+            <span className="workflow-stage-copy"><b>Reviewed</b><small>Seen in flashcards</small></span>
+            <strong>{reviewedCards.length.toLocaleString()}</strong>
+          </button>
+        </div>
+      </section>
 
       {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
         <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Repeated Again grades.</span><em>REVIEW</em></button>
