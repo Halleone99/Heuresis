@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// One-off patch for the compact three-stage topic workflow overview.
 const path = 'src/components/PackView.tsx';
 const source = fs.readFileSync(path, 'utf8');
 const oldBlock = `      <div className="topic-overview-strip">\n        <span><strong>{neverCards.length.toLocaleString()}</strong><small>unseen</small></span>\n        <span><strong>{reviewedCards.length.toLocaleString()}</strong><small>reviewed cards</small></span>\n        <span><strong>{unsortedCards.length.toLocaleString()}</strong><small>to sort</small></span>\n        <span><strong>{totalReviews.toLocaleString()}</strong><small>review passes</small></span>\n        {neverCards.length ? <button onClick={() => openTargeted("Never met", neverCards, 20)}>Start 20 unseen</button> : <span className="overview-complete">All cards encountered</span>}\n      </div>`;
