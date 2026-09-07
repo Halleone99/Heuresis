@@ -194,7 +194,10 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
 
   return (
     <section className="library-page intelligent-library">
-      <header className="intelligent-library-head"><div><h1>Heuresis<span>.</span></h1><p>{totalCards.toLocaleString()} cards across {plural(collections.length, "collection")}.{waitingTotal ? ` ${waitingTotal.toLocaleString()} words waiting to be sorted.` : ""}</p></div><div className="library-summary-actions">{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}<button className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div></header>
+      <header className="intelligent-library-head">
+        <div><h1>Heuresis<span>.</span></h1><p>{totalCards.toLocaleString()} cards across {plural(collections.length, "collection")}.{waitingTotal ? ` ${waitingTotal.toLocaleString()} words waiting to be sorted.` : ""}</p></div>
+        <div className="library-summary-actions">{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}</div>
+      </header>
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent}>
@@ -205,19 +208,22 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           {selectedPacks.length ? <div className="library-resume-topics">{selectedPacks.map((pack) => {
             const progress = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
             const unsorted = unsortedCounts[pack.id] ?? 0;
-            return <button key={pack.id} onClick={() => onOpen(pack)}><span><strong>{pack.title}</strong><small>{pack.card_count.toLocaleString()} CARDS{unsorted ? ` · ${unsorted.toLocaleString()} UNSORTED` : ""}</small></span><i><em style={{ width: `${progress}%` }} /></i><b>Continue</b></button>;
+            return <button key={pack.id} onClick={() => onOpen(pack)}><span><strong>{pack.title}</strong><small>{pack.card_count.toLocaleString()} CARDS{unsorted ? ` · ${unsorted.toLocaleString()} UNSORTED` : ""}</small></span><i><em style={{ width: `${progress}%` }} /></i><b>Continue →</b></button>;
           })}</div> : <button className="library-resume-empty" onClick={() => openCollection(selectedCollection.id)}>Add the first topic <ArrowRight size={14} /></button>}
-          {selectedNewWords ? <button className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}><strong>{selectedNewWords.toLocaleString()}</strong><span>words gathered while studying, not yet cards.</span><b>Sort them</b></button> : null}
+          {selectedNewWords ? <button className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}><strong>{selectedNewWords.toLocaleString()}</strong><span>words gathered while studying, not yet cards.</span><b>Sort now →</b></button> : null}
         </section>
 
-        <aside className="library-stack"><p className="eyebrow">OTHER COLLECTIONS</p>{otherCollections.map((collection) => {
-          const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
-          const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
-          const seen = collectionPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-          const progress = cards ? Math.round((seen / cards) * 100) : 0;
-          return <button key={collection.id} className={collectionPacks.length ? "library-mini" : "library-mini off"} data-accent={collection.accent} onClick={() => selectCollection(collection.id)} title={`Show ${collection.title} here`}><span className="library-mini-glyph">{collectionGlyph(collection)}</span><span><strong>{collection.title}</strong><small>{collectionPacks.length ? `${cards.toLocaleString()} CARDS · ${plural(collectionPacks.length, "TOPIC")} · ${progress}%` : "+ ADD THE FIRST TOPIC"}</small></span>{collectionPacks.length ? <i><em style={{ width: `${progress}%` }} /></i> : null}</button>;
-        })}</aside>
-      </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p></div>}
+        <aside className="library-stack">
+          <div className="library-stack-head"><p className="eyebrow">COLLECTIONS</p><button className="library-stack-new" onClick={onNewCollection}><Plus size={13} /> New</button></div>
+          {otherCollections.map((collection) => {
+            const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
+            const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
+            const seen = collectionPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
+            const progress = cards ? Math.round((seen / cards) * 100) : 0;
+            return <button key={collection.id} className={collectionPacks.length ? "library-mini" : "library-mini off"} data-accent={collection.accent} onClick={() => selectCollection(collection.id)} title={`Show ${collection.title} here`}><span className="library-mini-glyph">{collectionGlyph(collection)}</span><span><strong>{collection.title}</strong><small>{collectionPacks.length ? `${cards.toLocaleString()} CARDS · ${plural(collectionPacks.length, "TOPIC")} · ${progress}%` : "NO TOPICS · ADD FIRST TOPIC"}</small></span>{collectionPacks.length ? <i><em style={{ width: `${progress}%` }} /></i> : null}</button>;
+          })}
+        </aside>
+      </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
     </section>
   );
 }
