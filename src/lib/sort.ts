@@ -10,7 +10,11 @@ function db() {
 
 export function cardHasCompletedSort(card: CardWithStats) {
   const marker = card.data[SORTED_AT_KEY];
-  return (typeof marker === "string" && Boolean(marker.trim())) || card.interest_rank != null;
+  // Review is downstream of sorting in the Heuresis workflow. Historical cards that
+  // already reached flashcard review should therefore never fall back into the sort queue.
+  return card.stats.study_count > 0
+    || (typeof marker === "string" && Boolean(marker.trim()))
+    || card.interest_rank != null;
 }
 
 export async function setSortTags(cardId: string, tagIds: string[]) {
