@@ -6,6 +6,7 @@ import { cardHasCompletedSort } from "../lib/sort";
 type Props = { pack: PackWithType; cards: CardWithStats[]; onClose: () => void; onComplete: () => void };
 type BrowseStatus = "unsorted" | "ready" | "reviewed" | "favourite";
 type BrowseOrder = "current" | "term" | "interest" | "random";
+type BrowseLimit = number | "all";
 
 function workflowStatus(card: CardWithStats) {
   if (card.stats.study_count > 0) return "reviewed" as const;
@@ -32,6 +33,7 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
   const [interests, setInterests] = useState<number[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [order, setOrder] = useState<BrowseOrder>("current");
+  const [limit, setLimit] = useState<BrowseLimit>("all");
   const [browseCards, setBrowseCards] = useState<CardWithStats[]>([]);
   const [index, setIndex] = useState(0);
 
@@ -66,6 +68,7 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
     return true;
   }), [cards, interests, statuses, tagIds]);
 
+  const browseCount = filteredCards.length ? (limit === "all" ? filteredCards.length : Math.min(Math.max(1, limit), filteredCards.length)) : 0;
   const currentCard = browseCards[index] ?? null;
 
   function close() {
@@ -82,7 +85,7 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
 
   function startBrowse() {
     if (!filteredCards.length) return;
-    setBrowseCards(ordered(filteredCards));
+    setBrowseCards(ordered(filteredCards).slice(0, browseCount));
     setIndex(0);
     setPhase("browse");
   }
@@ -92,6 +95,7 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
     setInterests([]);
     setTagIds([]);
     setOrder("current");
+    setLimit("all");
   }
 
   useEffect(() => {
@@ -106,9 +110,9 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
   }, [browseCards.length, phase]);
 
   if (phase === "setup") {
-    const activeFilterCount = statuses.length + interests.length + tagIds.length;
+    const activeFilterCount = statuses.length + interests.length + tagIds.length + (limit === "all" ? 0 : 1);
     return <div className="browse-setup-layer" role="presentation">
-      <section className="browse-setup-shell" role="dialog" aria-modal="true" aria-label="Browse setup">
+      <section className="browse-setup-shell compact-browse-shell" role="dialog" aria-modal="true" aria-label="Browse setup">
         <header className="browse-setup-head">
           <div>
             <p className="eyebrow">BROWSE</p>
@@ -118,14 +122,14 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
           <button className="browse-icon-button" onClick={close} aria-label="Close browse"><X size={17} /></button>
         </header>
 
-        <div className="browse-match-summary">
+        <div className="browse-match-summary compact-browse-summary">
           <span><Filter size={15} /></span>
           <strong>{filteredCards.length.toLocaleString()}</strong>
-          <div><b>{filteredCards.length === 1 ? "card" : "cards"} match</b><small>{activeFilterCount ? `${activeFilterCount} filters active` : `All ${cards.length.toLocaleString()} cards`}</small></div>
+          <div><b>{filteredCards.length === 1 ? "card matches" : "cards match"}</b><small>{browseCount === filteredCards.length ? `Browsing all ${browseCount}` : `${browseCount} selected to browse`}</small></div>
         </div>
 
-        <div className="browse-filter-sections">
-          <section className="browse-filter-section">
+        <div className="browse-filter-sections compact-browse-sections">
+          <section className="browse-filter-section browse-status-section">
             <div className="browse-filter-heading"><span>Status</span><small>Select one or several</small></div>
             <div className="browse-choice-grid browse-status-grid">
               <button className={statuses.includes("unsorted") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "unsorted"))}><i data-tone="unsorted" /><span>Unsorted</span><b>{statusCounts.unsorted}</b></button>
@@ -135,11 +139,17 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
             </div>
           </section>
 
-          <section className="browse-filter-section">
-            <div className="browse-filter-heading"><span>Interest</span><small>Any score if none selected</small></div>
+          <section className="browse-filter-section browse-compact-half">
+            <div className="browse-filter-heading"><span>Interest</span><small>Optional</small></div>
             <div className="browse-interest-row">
               {[5,4,3,2,1].map((rank) => <button key={rank} className={`interest-${rank} ${interests.includes(rank) ? "selected" : ""}`} onClick={() => setInterests((current) => toggleValue(current, rank))}>{rank}</button>)}
             </div>
+          </section>
+
+          <section className="browse-filter-section browse-compact-half browse-amount-section">
+            <div className="browse-filter-heading"><span>Amount</span><strong>{browseCount}</strong></div>
+            <input type="range" min={1} max={Math.max(1, filteredCards.length)} value={Math.max(1, browseCount)} disabled={!filteredCards.length} onChange={(event) => setLimit(Number(event.target.value))} />
+            <div className="browse-amount-shortcuts">{[10,20,50].filter((count) => count < filteredCards.length).map((count) => <button key={count} className={limit !== "all" && browseCount === count ? "selected" : ""} onClick={() => setLimit(count)}>{count}</button>)}<button className={limit === "all" ? "selected" : ""} disabled={!filteredCards.length} onClick={() => setLimit("all")}>All</button></div>
           </section>
 
           <section className="browse-filter-section browse-tags-section">
@@ -148,8 +158,8 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
             {otherTags.length ? <div className="browse-tag-group"><p>Other tags</p><div className="browse-other-tags">{otherTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={() => setTagIds((current) => toggleValue(current, tag.id))}>{tag.name}</button>)}</div></div> : null}
           </section>
 
-          <section className="browse-filter-section">
-            <div className="browse-filter-heading"><span>Order</span><small>How the cards will appear</small></div>
+          <section className="browse-filter-section browse-order-section">
+            <div className="browse-filter-heading"><span>Order</span><small>Sequence</small></div>
             <div className="browse-order-row">
               {([['current','Current'],['term','A–Z'],['interest','Interest'],['random','Random']] as Array<[BrowseOrder,string]>).map(([value,label]) => <button key={value} className={order === value ? "selected" : ""} onClick={() => setOrder(value)}>{value === "random" ? <Shuffle size={12} /> : null}{label}</button>)}
             </div>
@@ -158,8 +168,8 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
 
         <footer className="browse-setup-footer">
           <button className="browse-reset-button" disabled={!activeFilterCount && order === "current"} onClick={resetFilters}>Reset</button>
-          <span>Browsing is read-only.</span>
-          <button className="browse-start-button" disabled={!filteredCards.length} onClick={startBrowse}>Browse {filteredCards.length.toLocaleString()} {filteredCards.length === 1 ? "card" : "cards"} <ArrowRight size={15} /></button>
+          <span>Read-only · {filteredCards.length.toLocaleString()} matching</span>
+          <button className="browse-start-button" disabled={!filteredCards.length} onClick={startBrowse}>Browse {browseCount.toLocaleString()} {browseCount === 1 ? "card" : "cards"} <ArrowRight size={15} /></button>
         </footer>
       </section>
     </div>;
