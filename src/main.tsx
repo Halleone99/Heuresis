@@ -27,6 +27,7 @@ import "./topic-filter-tickers.css";
 import "./topic-elegance-pass.css";
 import "./browse-modern.css";
 import "./study-launch-modern.css";
+import "./study-compact.css";
 import "./sort-workspace-modern.css";
 import "./tablet.css";
 
