@@ -21,6 +21,7 @@ import "./intelligent-ui.css";
 import "./library-home-modern.css";
 import "./library-home-finish.css";
 import "./topic-modern.css";
+import "./topic-table-v2.css";
 import "./tablet.css";
 
 const params = new URLSearchParams(window.location.search);
