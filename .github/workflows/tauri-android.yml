@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/magicpad-android
+      - build/heuresis-android-latest
   workflow_dispatch:
 
 jobs:
