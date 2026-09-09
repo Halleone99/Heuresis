@@ -1,0 +1,58 @@
+.crm-read-filters{
+  display:flex;
+  align-items:flex-end;
+  gap:18px;
+  padding:18px 0 14px;
+  border-bottom:1px solid var(--crm-rule-faint);
+  flex-wrap:wrap;
+}
+.crm-scope-tabs{display:flex;gap:3px;padding:3px;background:rgba(51,41,31,.045);border:1px solid var(--crm-rule);}
+.crm-scope-tabs button{
+  border:0;
+  background:transparent;
+  padding:7px 13px;
+  font-size:14px;
+  font-style:italic;
+  color:var(--crm-soft);
+  cursor:pointer;
+}
+.crm-scope-tabs button[aria-pressed="true"]{background:var(--crm-ink);color:var(--crm-paper);}
+.crm-read-filters label{display:grid;gap:4px;min-width:180px;}
+.crm-read-filters label>span{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--crm-faint);font-family:ui-sans-serif,system-ui,sans-serif;}
+.crm-read-filters select{
+  border:0;
+  border-bottom:1px solid var(--crm-rule);
+  background:transparent;
+  padding:5px 24px 5px 0;
+  color:var(--crm-ink);
+  font:italic 15px/1.4 "EB Garamond",Garamond,Georgia,serif;
+  outline:none;
+}
+.crm-read-filters select:focus{border-bottom-color:var(--crm-rubric);}
+.crm-read-button:disabled{opacity:.38;cursor:default;}
+.crm-read-empty{padding:34px 0;color:var(--crm-faint);font-style:italic;border-bottom:1px solid var(--crm-rule-faint);}
+.crm-retention-toggle{
+  margin-top:11px;
+  border:0;
+  border-bottom:1px solid var(--crm-rule);
+  background:transparent;
+  padding:0;
+  color:var(--crm-faint)!important;
+  font-size:14px!important;
+  font-style:italic;
+  cursor:pointer;
+}
+.crm-retention-toggle:hover{color:var(--crm-rubric)!important;border-bottom-color:var(--crm-rubric);}
+.crm-retention-toggle:disabled{opacity:.45;cursor:default;}
+.crm-retention-error{margin:9px 0 0;color:var(--crm-rubric);font-size:14px;font-style:italic;}
+
+@media (max-width:720px){
+  .crm-read-filters{display:grid;grid-template-columns:1fr;gap:10px;}
+  .crm-scope-tabs{width:100%;}
+  .crm-scope-tabs button{flex:1;padding:7px 8px;}
+  .crm-read-filters label{min-width:0;width:100%;}
+}
+
+@media print{
+  .crm-read-filters,.crm-retention-toggle,.crm-retention-error{display:none!important;}
+}
