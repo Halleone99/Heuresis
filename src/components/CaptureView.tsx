@@ -213,8 +213,8 @@ function workspaceBlockType(kind: BlockKind) {
   return "text";
 }
 
-function exampleLanguageMeta(pack: PackWithType) {
-  const name = pack.cardType?.name.toLocaleLowerCase() ?? "";
+function exampleLanguageMeta(pack: PackWithType | null) {
+  const name = pack?.cardType?.name.toLocaleLowerCase() ?? "";
   if (name.includes("chinese")) return { source_language: "zh", translation_language: "en", reading_system: "pinyin" };
   if (name.includes("cyrillic")) return { source_language: "ru", translation_language: "en" };
   return { source_language: "und", translation_language: "en" };
