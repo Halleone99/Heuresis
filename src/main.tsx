@@ -33,6 +33,7 @@ import "./study-direction-simple.css";
 import "./sort-workspace-modern.css";
 import "./vocabulary-modern.css";
 import "./vocabulary-actions-polish.css";
+import "./connections-general.css";
 import "./tablet.css";
 
 const params = new URLSearchParams(window.location.search);
