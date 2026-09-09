@@ -1,7 +1,18 @@
 import { ArrowLeft, BookOpen, Printer, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { signHeuresisCardImages } from "../lib/cardMedia";
-import { fieldByRole, fieldText, getCard, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
+import {
+  fieldByRole,
+  fieldText,
+  getCard,
+  listCollections,
+  setCardRetention,
+  type CardRetention,
+  type CardWithStats,
+  type Collection,
+  type FieldDef,
+  type PackWithType,
+} from "../lib/heuresis";
 import { listRelatedCatalogue, relationLabel, type RelatedCatalogueRow } from "../lib/related";
 import type { CatalogueSessionItem } from "./CatalogueSession";
 import "../catalogue-read-mode.css";
@@ -28,6 +39,7 @@ type ReadBlock = {
 
 type TrailStep = { id: string; fromId: string | null };
 type DrawerView = "preview" | "raw";
+type ReadScope = "all" | CardRetention;
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 const CJK = /[\u3400-\u9FFF\uF900-\uFAFF]/;
@@ -144,6 +156,13 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
   const [hideStudyNotes, setHideStudyNotes] = useState(false);
   const [relations, setRelations] = useState<RelatedCatalogueRow[]>([]);
   const [relationsError, setRelationsError] = useState("");
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [scope, setScope] = useState<ReadScope>("all");
+  const [collectionId, setCollectionId] = useState("all");
+  const [topicId, setTopicId] = useState("all");
+  const [retentionById, setRetentionById] = useState<Record<string, CardRetention>>(() => Object.fromEntries(items.map(({ card }) => [card.id, card.retention])));
+  const [retentionBusy, setRetentionBusy] = useState<string | null>(null);
+  const [retentionError, setRetentionError] = useState("");
   const [cardCache, setCardCache] = useState<Record<string, CardWithStats>>(() => Object.fromEntries(items.map(({ card }) => [card.id, card])));
   const [signedImages, setSignedImages] = useState<Record<string, string>>({});
   const [trail, setTrail] = useState<TrailStep[]>([]);
@@ -154,7 +173,27 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
 
   const packMap = useMemo(() => new Map(packs.map((pack) => [pack.id, pack])), [packs]);
   const itemMap = useMemo(() => new Map(items.map((item) => [item.card.id, item])), [items]);
-  const topicCount = useMemo(() => new Set(items.map((item) => item.pack.id)).size, [items]);
+  const collectionMap = useMemo(() => new Map(collections.map((collection) => [collection.id, collection])), [collections]);
+  const itemPackIds = useMemo(() => new Set(items.map((item) => item.pack.id)), [items]);
+  const availableCollections = useMemo(() => {
+    const ids = new Set(items.map((item) => item.pack.collection_id));
+    return collections.filter((collection) => ids.has(collection.id));
+  }, [collections, items]);
+  const availablePacks = useMemo(() => packs.filter((pack) => itemPackIds.has(pack.id) && (collectionId === "all" || pack.collection_id === collectionId)), [collectionId, itemPackIds, packs]);
+
+  function retentionFor(card: CardWithStats): CardRetention {
+    return retentionById[card.id] ?? card.retention;
+  }
+
+  const visibleItems = useMemo(() => items.filter(({ card, pack }) => {
+    const retention = retentionById[card.id] ?? card.retention;
+    if (scope !== "all" && retention !== scope) return false;
+    if (collectionId !== "all" && pack.collection_id !== collectionId) return false;
+    if (topicId !== "all" && pack.id !== topicId) return false;
+    return true;
+  }), [collectionId, items, retentionById, scope, topicId]);
+  const visibleItemMap = useMemo(() => new Map(visibleItems.map((item) => [item.card.id, item])), [visibleItems]);
+  const topicCount = useMemo(() => new Set(visibleItems.map((item) => item.pack.id)).size, [visibleItems]);
   const compiledAt = useMemo(formatCompiledDate, []);
   const currentStep = trail[trail.length - 1] ?? null;
   const currentCard = currentStep ? cardCache[currentStep.id] ?? null : null;
@@ -163,17 +202,26 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
   useEffect(() => {
     let alive = true;
     setRelationsError("");
-    void listRelatedCatalogue()
-      .then((rows) => { if (alive) setRelations(rows); })
+    void Promise.all([listRelatedCatalogue(), listCollections()])
+      .then(([rows, nextCollections]) => {
+        if (!alive) return;
+        setRelations(rows);
+        setCollections(nextCollections);
+      })
       .catch((error) => { if (alive) setRelationsError(error instanceof Error ? error.message : "Connections could not be loaded."); });
     return () => { alive = false; };
   }, []);
 
   useEffect(() => {
     setCardCache((current) => ({ ...current, ...Object.fromEntries(items.map(({ card }) => [card.id, card])) }));
+    setRetentionById((current) => ({ ...Object.fromEntries(items.map(({ card }) => [card.id, card.retention])), ...current }));
     const paths = items.flatMap(({ card }) => imagePaths(card));
     void signHeuresisCardImages(paths).then((next) => setSignedImages((current) => ({ ...current, ...next }))).catch(() => undefined);
   }, [items]);
+
+  useEffect(() => {
+    if (topicId !== "all" && !availablePacks.some((pack) => pack.id === topicId)) setTopicId("all");
+  }, [availablePacks, topicId]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -209,11 +257,31 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
       const card = await getCard(id);
       if (!card) return null;
       setCardCache((current) => ({ ...current, [card.id]: card }));
+      setRetentionById((current) => ({ ...current, [card.id]: card.retention }));
       const nextSigned = await signHeuresisCardImages(imagePaths(card)).catch(() => ({} as Record<string, string>));
       if (Object.keys(nextSigned).length) setSignedImages((current) => ({ ...current, ...nextSigned }));
       return card;
     } finally {
       setDrawerLoading(false);
+    }
+  }
+
+  async function toggleRetention(card: CardWithStats) {
+    if (!itemMap.has(card.id) || retentionBusy) return;
+    const previous = retentionFor(card);
+    const next: CardRetention = previous === "learning" ? "reference" : "learning";
+    setRetentionBusy(card.id);
+    setRetentionError("");
+    setRetentionById((current) => ({ ...current, [card.id]: next }));
+    setCardCache((current) => current[card.id] ? { ...current, [card.id]: { ...current[card.id], retention: next } } : current);
+    try {
+      await setCardRetention(card.id, next);
+    } catch (error) {
+      setRetentionById((current) => ({ ...current, [card.id]: previous }));
+      setCardCache((current) => current[card.id] ? { ...current, [card.id]: { ...current[card.id], retention: previous } } : current);
+      setRetentionError(error instanceof Error ? error.message : "Could not change review state.");
+    } finally {
+      setRetentionBusy(null);
     }
   }
 
@@ -240,6 +308,7 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
   }
 
   function beginAt(cardId?: string) {
+    if (!visibleItems.length) return;
     setReading(true);
     if (cardId) window.setTimeout(() => document.getElementById(`read-entry-${cardId}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
   }
@@ -312,14 +381,28 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
 
     {!reading ? <div className="crm-index-scroll">
       <main className="crm-index">
-        <header className="crm-index-head"><div><h1>{title}</h1><p>{items.length.toLocaleString()} entries across {topicCount.toLocaleString()} topic{topicCount === 1 ? "" : "s"}</p></div><button className="crm-read-button" onClick={() => beginAt()}><BookOpen size={16} /> Read mode</button></header>
-        <div className="crm-index-rows">{items.map(({ card, pack }) => {
+        <header className="crm-index-head"><div><h1>{title}</h1><p>{visibleItems.length.toLocaleString()} entries across {topicCount.toLocaleString()} topic{topicCount === 1 ? "" : "s"}</p></div><button className="crm-read-button" disabled={!visibleItems.length} onClick={() => beginAt()}><BookOpen size={16} /> Read mode</button></header>
+
+        <div className="crm-read-filters">
+          <div className="crm-scope-tabs" aria-label="Read scope">
+            <button aria-pressed={scope === "all"} onClick={() => setScope("all")}>All catalogue</button>
+            <button aria-pressed={scope === "learning"} onClick={() => setScope("learning")}>In review</button>
+            <button aria-pressed={scope === "reference"} onClick={() => setScope("reference")}>Reference</button>
+          </div>
+          {availableCollections.length > 1 ? <label><span>Collection</span><select value={collectionId} onChange={(event) => { setCollectionId(event.target.value); setTopicId("all"); }}><option value="all">All collections</option>{availableCollections.map((collection) => <option key={collection.id} value={collection.id}>{collection.title}</option>)}</select></label> : null}
+          {availablePacks.length > 1 ? <label><span>Topic</span><select value={topicId} onChange={(event) => setTopicId(event.target.value)}><option value="all">All topics</option>{availablePacks.map((pack) => <option key={pack.id} value={pack.id}>{pack.title}</option>)}</select></label> : null}
+        </div>
+        {retentionError ? <p className="crm-retention-error">{retentionError}</p> : null}
+
+        <div className="crm-index-rows">{visibleItems.map(({ card, pack }) => {
           const termField = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
           const meaningField = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
           const term = fieldText(card.data, termField?.key) || "Untitled";
           const meaning = fieldText(card.data, meaningField?.key);
-          return <button className="crm-index-row" key={card.id} onClick={() => beginAt(card.id)}><strong className={scriptClass(term)}>{term}</strong><span>{meaning}</span><small>{topicCount > 1 ? pack.title : card.stats.study_count ? "in review" : "catalogued"}</small></button>;
-        })}</div>
+          const retention = retentionFor(card);
+          const context = topicCount > 1 ? `${collectionMap.get(pack.collection_id)?.title ? `${collectionMap.get(pack.collection_id)?.title} · ` : ""}${pack.title} · ` : "";
+          return <button className="crm-index-row" key={card.id} onClick={() => beginAt(card.id)}><strong className={scriptClass(term)}>{term}</strong><span>{meaning}</span><small>{context}{retention === "learning" ? "in review" : "reference"}</small></button>;
+        })}{!visibleItems.length ? <div className="crm-read-empty">Nothing in this reading set yet.</div> : null}</div>
       </main>
     </div> : <div className="crm-reading-scroll" ref={scrollRef}>
       <div className="crm-reading-controls">
@@ -329,22 +412,23 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
         <button onClick={onClose}><X size={15} /> Close</button>
       </div>
       <main className="crm-sheet">
-        <section className="crm-title-page"><h1>{title}</h1><p>{items.length.toLocaleString()} entries selected from {topicCount.toLocaleString()} topic{topicCount === 1 ? "" : "s"}, read as one document rather than a queue.</p><i /><small>{items.map((item) => item.pack.title).filter((value, index, all) => all.indexOf(value) === index).join(" · ")}<br />Compiled {compiledAt}</small></section>
-        {items.map(({ card, pack }) => {
+        <section className="crm-title-page"><h1>{title}</h1><p>{visibleItems.length.toLocaleString()} entries selected from {topicCount.toLocaleString()} topic{topicCount === 1 ? "" : "s"}, read as one document rather than a queue.</p><i /><small>{visibleItems.map((item) => item.pack.title).filter((value, index, all) => all.indexOf(value) === index).join(" · ")}<br />Compiled {compiledAt}</small></section>
+        {visibleItems.map(({ card, pack }) => {
           const termField = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
           const readingField = fieldByRole(pack.cardType, "reading");
           const meaningField = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
           const term = fieldText(card.data, termField?.key) || "Untitled";
           const readingText = fieldText(card.data, readingField?.key);
           const meaning = fieldText(card.data, meaningField?.key);
+          const retention = retentionFor(card);
           return <article className="crm-entry" id={`read-entry-${card.id}`} key={card.id}>
-            <header><strong className={`crm-specimen ${scriptClass(term)}`}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<div className="crm-apparatus">{card.stats.study_count ? <><b>Held in review.</b> Met {card.stats.encounter_count.toLocaleString()} time{card.stats.encounter_count === 1 ? "" : "s"}; last {monthsAgo(card.stats.last_encountered_at)}.{card.stats.again_count ? ` ${card.stats.again_count} Again.` : ""}</> : <><b>Catalogued.</b> Kept in Heuresis without a review history yet.</>}</div></header>
+            <header><strong className={`crm-specimen ${scriptClass(term)}`}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<div className="crm-apparatus">{retention === "reference" ? <><b>Reference.</b> Kept in the catalogue and never added to the review queue.</> : card.stats.study_count ? <><b>Held in review.</b> Met {card.stats.encounter_count.toLocaleString()} time{card.stats.encounter_count === 1 ? "" : "s"}; last {monthsAgo(card.stats.last_encountered_at)}.{card.stats.again_count ? ` ${card.stats.again_count} Again.` : ""}</> : <><b>In review.</b> This is learning material, but it has not been reviewed yet.</>}</div>{itemMap.has(card.id) ? <button className="crm-retention-toggle" disabled={retentionBusy === card.id} onClick={() => void toggleRetention(card)}>{retention === "learning" ? "Keep as reference" : "Add to review"}</button> : null}</header>
             {renderSections(card, pack)}
             {rowsFor(card.id).length || relationsError ? <section className="crm-section"><p className="crm-section-label">Connections</p>{renderConnectionGroups(card.id)}</section> : null}
             <button className="crm-source-link" onClick={() => openRaw(card.id)}>Your card</button>
           </article>;
         })}
-        <p className="crm-colophon">Generated from the live Heuresis catalogue on {compiledAt}. Connections remain live: following one can leave this reading selection without leaving the catalogue.</p>
+        <p className="crm-colophon">Generated from the live Heuresis catalogue on {compiledAt}. Reference entries create no review debt; connections remain live across the catalogue.</p>
       </main>
     </div>}
 
@@ -363,11 +447,11 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
           const term = fieldText(currentCard.data, fieldByRole(currentPack.cardType, "term")?.key ?? currentPack.cardType?.field_schema[0]?.key) || "Untitled";
           const readingText = fieldText(currentCard.data, fieldByRole(currentPack.cardType, "reading")?.key);
           const meaning = fieldText(currentCard.data, fieldByRole(currentPack.cardType, "meaning")?.key ?? currentPack.cardType?.field_schema[1]?.key);
-          return <><strong className={scriptClass(term)}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<small>{currentPack.title}</small></>;
+          return <><strong className={scriptClass(term)}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<small>{currentPack.title} · {retentionFor(currentCard) === "learning" ? "in review" : "reference"}</small></>;
         })()}</div>
         {fromRow && currentStep?.fromId ? <p className="crm-because">Connected as <b>{relationSemantic(fromRow, currentStep.fromId)}</b>.</p> : null}
         {drawerView === "raw" ? renderRaw(currentCard, currentPack) : <>{renderSections(currentCard, currentPack, true)}{rowsFor(currentCard.id).length ? <section className="crm-drawer-section"><p className="crm-section-label">Connections</p>{renderConnectionGroups(currentCard.id, true)}</section> : null}</>}
-        <footer className="crm-drawer-actions"><button onClick={() => setDrawerView((view) => view === "raw" ? "preview" : "raw")}>{drawerView === "raw" ? "Back to reading view" : "Your card"}</button>{itemMap.has(currentCard.id) ? <button onClick={() => goToDocument(currentCard.id)}>Open full entry</button> : null}<button onClick={() => { setTrail([]); onOpenPack(currentPack); }}>Open topic</button></footer>
+        <footer className="crm-drawer-actions"><button onClick={() => setDrawerView((view) => view === "raw" ? "preview" : "raw")}>{drawerView === "raw" ? "Back to reading view" : "Your card"}</button>{itemMap.has(currentCard.id) ? <button disabled={retentionBusy === currentCard.id} onClick={() => void toggleRetention(currentCard)}>{retentionFor(currentCard) === "learning" ? "Keep as reference" : "Add to review"}</button> : null}{visibleItemMap.has(currentCard.id) ? <button onClick={() => goToDocument(currentCard.id)}>Open full entry</button> : null}<button onClick={() => { setTrail([]); onOpenPack(currentPack); }}>Open topic</button></footer>
       </> : <p className="crm-drawer-state">That entry is no longer available.</p>}</div>
     </aside>
   </div>;
