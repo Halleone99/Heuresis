@@ -1,7 +1,33 @@
 import { supabase } from "./supabase";
 import { listCardsByIds, type CardWithStats } from "./heuresis";
 
-export type RelationType = "synonym" | "antonym" | "related";
+export type RelationType =
+  | "synonym"
+  | "antonym"
+  | "related"
+  | "part_of"
+  | "depends_on"
+  | "contrasts_with"
+  | "example_of";
+
+export const RELATION_TYPES: RelationType[] = [
+  "related",
+  "part_of",
+  "depends_on",
+  "contrasts_with",
+  "example_of",
+  "synonym",
+  "antonym",
+];
+
+export function relationLabel(value: RelationType) {
+  if (value === "part_of") return "Part of";
+  if (value === "depends_on") return "Depends on";
+  if (value === "contrasts_with" || value === "antonym") return "Contrasts with";
+  if (value === "example_of") return "Example of";
+  if (value === "synonym") return "Similar";
+  return "Related";
+}
 
 export type RelatedCatalogueRow = {
   relation_id: string;
@@ -29,7 +55,7 @@ function db() {
 }
 
 function relationType(value: unknown): RelationType {
-  return value === "synonym" || value === "antonym" ? value : "related";
+  return RELATION_TYPES.includes(value as RelationType) ? value as RelationType : "related";
 }
 
 function mapRow(value: any): RelatedCatalogueRow | null {
@@ -80,9 +106,10 @@ export async function listRelatedCards(packId: string): Promise<CardWithStats[]>
   return listCardsByIds(ids);
 }
 
+/** Create a new connected identity in the source topic. Existing callers keep this name for compatibility. */
 export async function addRelatedWord(input: { sourceCardId: string; term: string; reading?: string; meaning?: string; relationType: RelationType }) {
   const term = input.term.normalize("NFC").trim();
-  if (!term) throw new Error("Give the related word or expression.");
+  if (!term) throw new Error("Give the connected entry a name.");
   const { data, error } = await db().rpc("heuresis_add_related_word", {
     p_source_card_id: input.sourceCardId,
     p_term: term,
@@ -92,6 +119,17 @@ export async function addRelatedWord(input: { sourceCardId: string; term: string
   });
   if (error) throw error;
   return data?.[0] ?? null;
+}
+
+/** Connect two existing entries anywhere in Heuresis, including across topics and collections. */
+export async function connectCards(sourceCardId: string, targetCardId: string, relationType: RelationType = "related") {
+  const { data, error } = await db().rpc("heuresis_connect_cards", {
+    p_source_card_id: sourceCardId,
+    p_target_card_id: targetCardId,
+    p_relation_type: relationType,
+  });
+  if (error) throw error;
+  return data ? String(data) : null;
 }
 
 export async function removeRelatedRelation(relationId: string) {
@@ -108,7 +146,7 @@ export async function createTopicFromRelatedWords(input: { collectionId: string;
   const title = input.title.trim();
   const cardIds = Array.from(new Set(input.cardIds.filter(Boolean)));
   if (!title) throw new Error("Give the new topic a name.");
-  if (!cardIds.length) throw new Error("Select at least one word.");
+  if (!cardIds.length) throw new Error("Select at least one entry.");
   const { data, error } = await db().rpc("heuresis_create_topic_from_related_words", {
     p_collection_id: input.collectionId,
     p_title: title,
