@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   deleteCard,
@@ -130,7 +130,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   );
 }
 
-export default function PackView({ pack, collection, onBack, onSettings, onChanged }: Props) {
+export default function PackView({ pack, collection, onBack, onCapture, onSettings, onChanged }: Props) {
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
@@ -339,6 +339,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
           <button className="primary-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Flashcards</button>
           <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
+          <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
         </div>
         <div className="topic-utility-actions">
           <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
@@ -396,7 +397,7 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
         </div>
       </div>
 
-      <div className="topic-selection-hint">{selectedCard ? <><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · double-click or press Enter to edit</> : <>Click once to select · double-click to edit</>}</div>
+      <div className="topic-selection-hint">{selectedCard ? <><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · use Edit on the right</> : <>Select a card to reveal Edit · double-click still opens directly</>}</div>
 
       {loading ? <div className="content-state">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state"><strong>Could not load this topic.</strong><span>{error}</span></div> : null}
@@ -457,7 +458,10 @@ export default function PackView({ pack, collection, onBack, onSettings, onChang
 
             <div className="modern-meta-cell compact-meta-cell">
               <div className="row-tags">{visibleTags.map((tag) => <span key={tag.id} className={tag.is_badge ? "badge" : ""}>{tag.name}</span>)}{card.tags.length > visibleTags.length ? <span>+{card.tags.length - visibleTags.length}</span> : null}{!card.tags.length ? <small>No tags</small> : null}</div>
-              <button className="row-connections-icon" onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><GitFork size={15} /></button>
+              <div className="row-mini-actions">
+                {selected ? <button onClick={(event) => { event.stopPropagation(); setEditing(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Edit card"><Pencil size={13} /> Edit</button> : null}
+                <button className="row-connections-icon" onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><GitFork size={15} /></button>
+              </div>
             </div>
           </div>;
         })}
