@@ -1,0 +1,18 @@
+/* Domain-neutral connection states layered over the legacy vocabulary class names. */
+.vocabulary-status.raw{background:#f1ece4;color:#8d6a4d}
+.relation-part_of{background:#eee8dc;color:#766345}
+.relation-depends_on{background:#e7ece4;color:#5e6d56}
+.relation-contrasts_with{background:#f4e5df;color:#915848}
+.relation-example_of{background:#ebe6ef;color:#675b79}
+.connections-filters i[data-type="part_of"]{background:#8b744f}
+.connections-filters i[data-type="depends_on"]{background:#697a60}
+.connections-filters i[data-type="contrasts_with"]{background:var(--signal-red,#a4402f)}
+.connections-filters i[data-type="example_of"]{background:#76678b}
+.connection-line.type-part_of{stroke:color-mix(in srgb,#8b744f 42%,#d2cbc0)}
+.connection-line.type-depends_on{stroke:color-mix(in srgb,#697a60 42%,#d2cbc0)}
+.connection-line.type-contrasts_with{stroke:color-mix(in srgb,var(--signal-red,#a4402f) 38%,#d2cbc0)}
+.connection-line.type-example_of{stroke:color-mix(in srgb,#76678b 42%,#d2cbc0)}
+.connection-chord.type-part_of{stroke:#b5a789}
+.connection-chord.type-depends_on{stroke:#a5b09d}
+.connection-chord.type-contrasts_with{stroke:#c7a19a}
+.connection-chord.type-example_of{stroke:#b4a9c1}
