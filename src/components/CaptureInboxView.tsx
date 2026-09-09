@@ -46,19 +46,19 @@ export default function CaptureInboxView({ packs, collection, onBack, onOpenPack
   return <section className="related-catalogue-page capture-inbox-page">
     <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> {collection?.title ?? "Library"}</button>
     <header className="catalogue-heading">
-      <div><p className="eyebrow">CAPTURE</p><h1>Captured cards</h1></div>
-      <span>{rows.length.toLocaleString()} waiting</span>
+      <div><p className="eyebrow">CAPTURE</p><h1>Captures</h1></div>
+      <span>{rows.length.toLocaleString()} raw</span>
     </header>
     <div className="related-toolbar">
-      <label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search captured cards" /></label>
+      <label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search captures" /></label>
     </div>
     <div className="related-table capture-inbox-table">
-      <div className="related-table-head capture-inbox-head"><span>Captured card</span><span>Status</span><span>Topic</span><span>Actions</span></div>
+      <div className="related-table-head capture-inbox-head"><span>Capture</span><span>Status</span><span>Topic</span><span>Actions</span></div>
       {shown.map((row) => {
         const pack = packMap.get(row.packId);
         return <div className="related-table-row capture-inbox-row" key={`${row.packId}-${row.id}`}>
           <div className="related-target capture-inbox-card"><strong>{row.front}</strong>{row.back ? <p>{row.back}</p> : null}{row.enrichmentCount ? <small>{row.enrichmentCount} enrichment{row.enrichmentCount === 1 ? "" : "s"}</small> : null}</div>
-          <span className={`capture-state-badge ${row.state}`}>{row.state === "waiting" ? "Waiting" : "Draft"}</span>
+          <span className={`capture-state-badge ${row.state}`}>{row.state === "waiting" ? "Raw" : "Draft"}</span>
           <div className="related-source-badge"><small>TOPIC</small><span>{row.packTitle}</span></div>
           <div className="related-actions">
             {pack ? <button title="Open Capture" onClick={() => onOpenCapture(pack)}><PenLine size={14} /></button> : null}
@@ -67,7 +67,7 @@ export default function CaptureInboxView({ packs, collection, onBack, onOpenPack
           </div>
         </div>;
       })}
-      {!shown.length ? <div className="catalogue-empty">{rows.length ? "No captures match this search." : "Nothing waiting in Capture yet."}</div> : null}
+      {!shown.length ? <div className="catalogue-empty">{rows.length ? "No captures match this search." : "Nothing in Raw yet."}</div> : null}
     </div>
   </section>;
 }
