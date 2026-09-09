@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import CaptureWindow from "./components/CaptureWindow";
 import CosmosWindow from "./components/CosmosWindow";
+import ReviewScratchpad from "./components/ReviewScratchpad";
 import "./styles.css";
 import "./standalone-v2.css";
 import "./settings-v2.css";
@@ -41,7 +42,7 @@ const params = new URLSearchParams(window.location.search);
 const content = params.get("capture") === "1"
   ? <CaptureWindow />
   : params.get("cosmos") === "1"
-    ? <CosmosWindow />
+    ? <><CosmosWindow /><ReviewScratchpad /></>
     : <App />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
