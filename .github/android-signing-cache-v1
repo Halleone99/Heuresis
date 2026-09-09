@@ -1,0 +1,1 @@
+Heuresis Android debug APKs use a repository-private GitHub Actions cache for ~/.android/debug.keystore. This marker documents signing cache generation v1; the private key itself is not committed.
