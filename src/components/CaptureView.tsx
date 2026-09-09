@@ -51,7 +51,7 @@ const CAPTURE_STORAGE_PREFIX = "heuresis.capture.v1";
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
 const BLOCKS: BlockDef[] = [
-  { id: "example", label: "Example", dimension: "examples", hint: "A useful sentence or context" },
+  { id: "example", label: "Example", dimension: "examples", hint: "Chinese / source sentence" },
   { id: "grammar", label: "Grammar", dimension: "structure", hint: "Pattern, usage or construction" },
   { id: "related", label: "Related", relation: "related", hint: "Related word or expression" },
   { id: "synonym", label: "Synonym", relation: "synonym", hint: "Synonym" },
@@ -177,9 +177,11 @@ function EnrichmentBlock({ block, onChange, onRemove }: {
   onRemove: () => void;
 }) {
   const def = blockDef(block.kind);
+  const isExample = block.kind === "example";
   return <div className="capture-enrichment-block">
     <div className="capture-enrichment-head">
       <span>{def.label}</span>
+      {isExample ? <em>source + translation</em> : null}
       {def.relation ? <em>linked vocabulary</em> : null}
       <button type="button" onClick={onRemove} aria-label={`Remove ${def.label}`}><X size={12} /></button>
     </div>
@@ -190,11 +192,32 @@ function EnrichmentBlock({ block, onChange, onRemove }: {
       placeholder={def.hint}
       onChange={(event) => onChange({ ...block, value: event.target.value })}
     />
+    {isExample ? <div className="capture-relation-fields">
+      <input value={block.reading ?? ""} placeholder="Pinyin / reading" onChange={(event) => onChange({ ...block, reading: event.target.value })} />
+      <input value={block.meaning ?? ""} placeholder="English / translation" onChange={(event) => onChange({ ...block, meaning: event.target.value })} />
+    </div> : null}
     {def.relation ? <div className="capture-relation-fields">
       <input value={block.reading ?? ""} placeholder="reading / pinyin (optional)" onChange={(event) => onChange({ ...block, reading: event.target.value })} />
       <input value={block.meaning ?? ""} placeholder="meaning" onChange={(event) => onChange({ ...block, meaning: event.target.value })} />
     </div> : null}
   </div>;
+}
+
+function workspaceBlockType(kind: BlockKind) {
+  if (kind === "example") return "example";
+  if (kind === "grammar") return "grammar";
+  if (kind === "parts") return "parts";
+  if (kind === "origin") return "origin";
+  if (kind === "fact") return "fact";
+  if (kind === "note") return "note";
+  return "text";
+}
+
+function exampleLanguageMeta(pack: PackWithType) {
+  const name = pack.cardType?.name.toLocaleLowerCase() ?? "";
+  if (name.includes("chinese")) return { source_language: "zh", translation_language: "en", reading_system: "pinyin" };
+  if (name.includes("cyrillic")) return { source_language: "ru", translation_language: "en" };
+  return { source_language: "und", translation_language: "en" };
 }
 
 export default function CaptureView({ collections, packs, initialPack, onBack, onSaved }: Props) {
@@ -297,7 +320,30 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
     const workspace = item.blocks.flatMap((block) => {
       const def = blockDef(block.kind);
       if (!def.dimension || !block.value.trim()) return [];
-      return [JSON.stringify({ id: uid(), type: "text", text: block.value.trim(), dim: def.dimension })];
+      if (block.kind === "example") {
+        const source = block.value.trim();
+        const reading = block.reading?.trim() ?? "";
+        const translation = block.meaning?.trim() ?? "";
+        const text = [source, reading, translation].filter(Boolean).join("\n");
+        return [JSON.stringify({
+          id: uid(),
+          type: "example",
+          schema_version: 2,
+          dim: def.dimension,
+          source,
+          reading,
+          translation,
+          text,
+          ...exampleLanguageMeta(pack),
+        })];
+      }
+      return [JSON.stringify({
+        id: uid(),
+        type: workspaceBlockType(block.kind),
+        schema_version: 2,
+        text: block.value.trim(),
+        dim: def.dimension,
+      })];
     });
     if (workspace.length) await patchCardData(cardId, { [WORKSPACE_BLOCKS_KEY]: workspace });
 
