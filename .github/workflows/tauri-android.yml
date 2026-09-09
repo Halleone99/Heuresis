@@ -27,6 +27,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Restore stable Android debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: heuresis-android-debug-signing-v1
+
       - name: Install frontend dependencies
         run: npm install --ignore-scripts
 
