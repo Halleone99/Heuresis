@@ -5,6 +5,7 @@ import { createCatalogue, deleteCatalogue, listCatalogues, updateCatalogue, type
 import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
 import { loadStudySetup } from "../lib/study";
 import CatalogueSession, { type CatalogueSessionItem } from "./CatalogueSession";
+import CatalogueReadMode from "./CatalogueReadMode";
 
 type Item = CatalogueSessionItem;
 type Props = { collections: Collection[]; packs: PackWithType[]; onBack: () => void; onOpenPack: (pack: PackWithType) => void };
@@ -36,6 +37,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [sessionMode, setSessionMode] = useState<"browse" | "review" | null>(null);
+  const [readModeOpen, setReadModeOpen] = useState(false);
 
   const collectionPacks = useMemo(() => criteria.collectionId === "all" ? packs : packs.filter((pack) => pack.collection_id === criteria.collectionId), [criteria.collectionId, packs]);
   const selectedPacks = useMemo(() => criteria.packId === "all" ? collectionPacks : collectionPacks.filter((pack) => pack.id === criteria.packId), [criteria.packId, collectionPacks]);
@@ -127,6 +129,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
   const statuses: Array<[CatalogueStatus, string]> = [["all", "Any status"], ["new", "Never met"], ["favourites", "Favourites"], ["interesting", "Interest 4–5"], ["again", "Often Again"]];
   const activeSaved = saved.find((catalogue) => catalogue.id === activeSavedId) ?? null;
   const spansMultiplePacks = new Set(shown.map((item) => item.pack.id)).size > 1;
+  const readModeTitle = smartPreset === "production" ? "Weak production" : activeSaved?.title ?? (criteria.packId !== "all" ? packs.find((pack) => pack.id === criteria.packId)?.title : null) ?? "Current catalogue";
 
   const productionTemplates = useMemo(() => Object.fromEntries(Object.entries(directionsByPack).flatMap(([packId, directions]) => directions.production ? [[packId, directions.production.id]] : [])), [directionsByPack]);
 
@@ -192,6 +195,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
 
       <div className="intelligent-action-row">
         <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}><option value="attention">Needs attention first</option><option value="recent">Recently added</option><option value="production">Weakest production first</option><option value="alphabetical">Alphabetical</option></select>
+        <button className="secondary-button" disabled={!shown.length || loading} onClick={() => setReadModeOpen(true)}><BookOpen size={14} /> Read mode</button>
         <button className="secondary-button" disabled={!shown.length || loading} onClick={() => setSessionMode("browse")}><BookOpen size={14} /> Browse these {shown.length.toLocaleString()}</button>
         <button className="primary-button" disabled={!shown.length || loading} onClick={() => setSessionMode("review")}><Brain size={14} /> Review these {shown.length.toLocaleString()}</button>
         <button className="secondary-button" disabled={smartPreset !== "none"} title={smartPreset !== "none" ? "Save the underlying filters after clearing the smart question." : undefined} onClick={() => setSaveOpen(true)}><BookmarkPlus size={14} /> Save as a catalogue</button>
@@ -224,6 +228,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
       })}{!shown.length && !loading ? <div className="catalogue-empty">No cards match these filters.</div> : null}</div>}
 
       {saveOpen ? <div className="modal-backdrop inner-modal" onMouseDown={(event) => { if (event.currentTarget === event.target) setSaveOpen(false); }}><section className="small-modal"><p className="eyebrow">SAVE CATALOGUE</p><h2>Keep this view.</h2><label className="field-row"><span>Name</span><input autoFocus value={saveTitle} onChange={(event) => setSaveTitle(event.target.value)} placeholder="Chinese spoken sentences" /></label><div className="modal-actions"><button className="secondary-button" onClick={() => setSaveOpen(false)}>Cancel</button><button className="primary-button" disabled={!saveTitle.trim()} onClick={() => void saveCatalogue()}>Save</button></div></section></div> : null}
+      {readModeOpen ? <CatalogueReadMode title={readModeTitle} items={shown} packs={packs} onClose={() => setReadModeOpen(false)} onOpenPack={(pack) => { setReadModeOpen(false); onOpenPack(pack); }} /> : null}
       {sessionMode ? <CatalogueSession title={smartPreset === "production" ? "Weak production" : activeSaved?.title ?? "Current catalogue"} items={shown} mode={sessionMode} templateByPackId={smartPreset === "production" ? productionTemplates : undefined} onClose={() => setSessionMode(null)} /> : null}
     </section>
   );
