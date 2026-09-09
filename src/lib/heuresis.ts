@@ -5,6 +5,7 @@ const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
 export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | "slate" | "ink";
 export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
+export type CardRetention = "reference" | "learning";
 
 export type FieldDef = {
   key: string;
@@ -67,6 +68,7 @@ export type CardStats = {
 export type CardWithStats = {
   id: string;
   pack_id: string;
+  retention: CardRetention;
   data: Record<string, string | string[] | null>;
   note: string | null;
   favourite: boolean;
@@ -151,6 +153,7 @@ function mapCardRow(row: any): CardWithStats {
   return {
     id: row.id,
     pack_id: row.pack_id,
+    retention: row.retention === "reference" ? "reference" : "learning",
     data: cardData(row.data),
     note: row.note ?? null,
     favourite: Boolean(row.favourite),
@@ -246,7 +249,7 @@ export async function listTags(): Promise<HeuresisTag[]> {
   return (data ?? []) as HeuresisTag[];
 }
 
-const CARD_SELECT = "id,pack_id,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count,first_encountered_at,last_encountered_at,by_template),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
+const CARD_SELECT = "id,pack_id,retention,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count,first_encountered_at,last_encountered_at,by_template),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
 
 export async function listCardsPage(packId: string, options: { offset?: number; limit?: number } = {}): Promise<CardPage> {
   const offset = Math.max(0, Math.floor(options.offset ?? 0));
@@ -281,9 +284,9 @@ export async function listAllCards(packId: string, onProgress?: (loaded: number,
   return result;
 }
 
-/** Compatibility helper for callers that explicitly need the whole topic. */
+/** Ordinary topic/review surfaces contain learning cards only. Catalogue reads use listAllCards. */
 export async function listCards(packId: string): Promise<CardWithStats[]> {
-  return listAllCards(packId);
+  return (await listAllCards(packId)).filter((card) => card.retention === "learning");
 }
 
 export async function getCard(cardId: string): Promise<CardWithStats | null> {
@@ -292,7 +295,7 @@ export async function getCard(cardId: string): Promise<CardWithStats | null> {
   return data ? mapCardRow(data) : null;
 }
 
-/** Deliberate role-blind lookup for explicit card-id sessions such as Related review. */
+/** Deliberate role-blind lookup for explicit card-id sessions such as Related review and connection previews. */
 export async function listCardsByIds(ids: string[]): Promise<CardWithStats[]> {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   if (!uniqueIds.length) return [];
@@ -305,6 +308,11 @@ export async function listCardsByIds(ids: string[]): Promise<CardWithStats[]> {
   }
   const byId = new Map(rows.map((card) => [card.id, card]));
   return uniqueIds.map((id) => byId.get(id)).filter((card): card is CardWithStats => Boolean(card));
+}
+
+export async function setCardRetention(cardId: string, retention: CardRetention) {
+  const { error } = await db().rpc("heuresis_set_card_retention", { p_card_id: cardId, p_retention: retention });
+  if (error) throw error;
 }
 
 function cleanCardValues(pack: PackWithType, values: Record<string, string>) {
