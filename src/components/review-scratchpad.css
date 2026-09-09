@@ -1,0 +1,78 @@
+.review-scratchpad-canvas {
+  position: fixed;
+  z-index: 24;
+  display: block;
+  background: transparent;
+  pointer-events: none;
+}
+
+.review-scratchpad-canvas.active {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.review-scratchpad-tools {
+  position: fixed;
+  z-index: 34;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(95, 84, 72, .18);
+  border-radius: 999px;
+  background: rgba(251, 248, 241, .88);
+  box-shadow: 0 9px 24px -18px rgba(38, 32, 25, .62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: left .18s ease, background .15s ease, box-shadow .15s ease;
+}
+
+.review-scratchpad-tools.active {
+  background: rgba(251, 248, 241, .95);
+  box-shadow: 0 12px 28px -18px rgba(38, 32, 25, .72);
+}
+
+.review-scratchpad-tools button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #756b61;
+  cursor: pointer;
+}
+
+.review-scratchpad-tools button:hover {
+  background: rgba(40, 36, 31, .06);
+  color: #28241f;
+}
+
+.review-scratchpad-tools button.selected {
+  background: #332e29;
+  color: #fbf8f1;
+}
+
+.review-scratchpad-tools button.reveal {
+  color: #4d7566;
+}
+
+.review-scratchpad-tools button.reveal:hover {
+  background: #e7efea;
+  color: #365d50;
+}
+
+@media (max-width: 720px), (pointer: coarse) {
+  .review-scratchpad-tools {
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .review-scratchpad-tools button {
+    width: 36px;
+    height: 36px;
+  }
+}
