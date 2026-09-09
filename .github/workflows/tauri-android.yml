@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/magicpad-android
+      - main
   workflow_dispatch:
 
 jobs:
