@@ -17,7 +17,9 @@ import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
+import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { supabase } from "./lib/supabase";
+import { synchroniseHeuresis } from "./lib/sync";
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 
@@ -54,6 +56,7 @@ function HeuresisApp({ session }: { session: Session }) {
   const [topicModalOpen, setTopicModalOpen] = useState(false);
   const [topicModalPack, setTopicModalPack] = useState<PackWithType | null>(null);
   const [topicPreferredCollectionId, setTopicPreferredCollectionId] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState(getOfflineSyncState());
   const background = useHeuresisBackground();
 
   async function reload(silent = false) {
@@ -72,7 +75,32 @@ function HeuresisApp({ session }: { session: Session }) {
     } finally { if (!silent) setLoading(false); }
   }
 
+  async function runSync(silent = false) {
+    try {
+      const result = await synchroniseHeuresis();
+      await reload(true);
+      if (!silent) setNotice(`Synced ${result.cards} cards to this device.`);
+    } catch (syncError) {
+      if (!silent) setNotice(syncError instanceof Error ? syncError.message : "Could not synchronise Heuresis.");
+    }
+  }
+
   useEffect(() => { void reload().catch(() => undefined); }, []);
+
+  useEffect(() => subscribeOfflineSync(setSyncState), []);
+
+  useEffect(() => {
+    const onOnline = () => { void runSync(true); };
+    window.addEventListener("online", onOnline);
+    const interval = window.setInterval(() => {
+      if (navigator.onLine && !getOfflineSyncState().syncing) void runSync(true);
+    }, 5 * 60 * 1000);
+    if (navigator.onLine) void runSync(true);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const refreshOnFocus = () => { void reload(true).catch(() => undefined); };
@@ -97,6 +125,18 @@ function HeuresisApp({ session }: { session: Session }) {
   const captureInboxCollection = useMemo(() => collections.find((collection) => collection.id === captureInboxCollectionId) ?? null, [collections, captureInboxCollectionId]);
   const accountLabel = session.user.email || "Supabase account";
   const accountInitial = accountLabel.slice(0, 1).toUpperCase();
+  const syncLabel = syncState.syncing
+    ? "Syncing…"
+    : !syncState.online
+      ? syncState.pending ? `Offline · ${syncState.pending}` : "Offline"
+      : syncState.pending
+        ? `Sync · ${syncState.pending}`
+        : syncState.lastSyncedAt ? "Synced" : "Sync";
+  const syncTitle = !syncState.online
+    ? "Heuresis is using the local copy on this device. Changes will upload when internet returns."
+    : syncState.lastSyncedAt
+      ? `Last synchronised ${new Date(syncState.lastSyncedAt).toLocaleString()}`
+      : "Download the full library to this device for offline use.";
   const backgroundStyle: BackgroundStyle = {
     "--heuresis-background-image": background.imageUrl && background.settings.enabled ? `url("${background.imageUrl}")` : "none",
     "--heuresis-background-opacity": String(background.settings.opacity),
@@ -158,6 +198,7 @@ function HeuresisApp({ session }: { session: Session }) {
         </nav>
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
+          <button className="desktop-action" title={syncTitle} disabled={syncState.syncing} onClick={() => void runSync(false)}><RefreshCw size={14} /> <span>{syncLabel}</span></button>
           <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search</span><kbd>⌘K</kbd></button>
           <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button>
           <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Capture</button>
@@ -165,6 +206,7 @@ function HeuresisApp({ session }: { session: Session }) {
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
+              <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Synchronise offline copy</button>
               <button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={14} /> Refresh data</button>
               <button onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
               <div className="desktop-account-divider" />
@@ -175,8 +217,8 @@ function HeuresisApp({ session }: { session: Session }) {
       </header>
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div> : null}
       <main className="desktop-content">
-        {loading ? <div className="content-state">Opening the Heuresis database…</div> : null}
-        {!loading && error ? <div className="content-state error-state"><strong>Database connection failed.</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
+        {loading ? <div className="content-state">Opening Heuresis…</div> : null}
+        {!loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
         {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
         {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
         {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}

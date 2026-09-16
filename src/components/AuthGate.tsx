@@ -6,6 +6,27 @@ import { reconcileStaleHeuresisSessions } from "../lib/sessionLifecycle";
 import HeuresisMark from "./HeuresisMark";
 
 type Props = { children: (session: Session) => ReactNode };
+const OFFLINE_SESSION_KEY = "heuresis.offline.session.v1";
+
+function readOfflineSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(OFFLINE_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Session;
+    return parsed?.user?.id ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberSession(next: Session | null) {
+  try {
+    if (next) localStorage.setItem(OFFLINE_SESSION_KEY, JSON.stringify(next));
+    else if (typeof navigator === "undefined" || navigator.onLine) localStorage.removeItem(OFFLINE_SESSION_KEY);
+  } catch {
+    // Authentication still works normally if local persistence is unavailable.
+  }
+}
 
 export default function AuthGate({ children }: Props) {
   const [session, setSession] = useState<Session | null>(null);
@@ -31,17 +52,25 @@ export default function AuthGate({ children }: Props) {
         console.warn("Could not reconcile stale Heuresis sessions", reconcileError);
       });
     };
+    const acceptSession = (next: Session | null) => {
+      const usable = next ?? ((typeof navigator !== "undefined" && !navigator.onLine) ? readOfflineSession() : null);
+      setSession(usable);
+      rememberSession(usable);
+      reconcile(usable);
+    };
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!alive) return;
-      setSession(next);
-      reconcile(next);
+      acceptSession(next);
     });
 
     void supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
-      setSession(data.session);
-      reconcile(data.session);
+      acceptSession(data.session);
+      setLoading(false);
+    }).catch(() => {
+      if (!alive) return;
+      acceptSession(readOfflineSession());
       setLoading(false);
     });
 
@@ -83,7 +112,7 @@ export default function AuthGate({ children }: Props) {
           <div className="brand-mark"><HeuresisMark /></div>
           <p className="eyebrow">HEURESIS DESKTOP</p>
           <h1>Return to your library.</h1>
-          <p>Use the same Supabase account as Personal OS. The desktop session is stored locally on this device.</p>
+          <p>Use the same Supabase account as Personal OS. Once synchronised, this device can reopen Heuresis without a connection.</p>
           <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" /></label>
           <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label>
           {error ? <div className="form-error">{error}</div> : null}
