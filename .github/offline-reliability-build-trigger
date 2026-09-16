@@ -1,0 +1,1 @@
+Verify offline reliability hotfix: cached auth after JWT expiry, media blobs, bounded network fallback, bundled fonts.
