@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { offlineFetch } from "./offlineFetch";
 
 // Heuresis is a first-party desktop client for the existing Personal OS data.
 // These are public client credentials (the same values already exposed to the
@@ -15,6 +16,7 @@ export const supabaseConfigured = Boolean(url && key);
 
 export const supabase = supabaseConfigured
   ? createClient(url, key, {
+      global: { fetch: offlineFetch },
       auth: {
         storage: localStorage,
         persistSession: true,
