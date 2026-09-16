@@ -2,7 +2,6 @@ type CacheRecord = {
   key: string;
   url: string;
   method: string;
-  range: string;
   status: number;
   statusText: string;
   headers: Record<string, string>;
@@ -32,7 +31,6 @@ const DB_NAME = "heuresis-offline-network-v1";
 const DB_VERSION = 1;
 const CACHE_STORE = "responses";
 const QUEUE_STORE = "queue";
-const META_STORE = "meta";
 const LAST_SYNC_KEY = "heuresis.offline.lastSync.v1";
 const READ_RPCS = new Set([
   "heuresis_list_related_catalogue",
@@ -40,9 +38,7 @@ const READ_RPCS = new Set([
   "heuresis_learning_counts",
 ]);
 const EVENT_RPC = "heuresis_record_events";
-const REQUIRES_CONNECTION_RPCS = new Set([
-  "heuresis_create_topic_from_related_words",
-]);
+const REQUIRES_CONNECTION_RPCS = new Set(["heuresis_create_topic_from_related_words"]);
 const TABLES_WITH_CLIENT_IDS = new Set([
   "heuresis_collections",
   "heuresis_packs",
@@ -76,7 +72,7 @@ export function getOfflineSyncState() {
 export function subscribeOfflineSync(listener: (next: OfflineSyncState) => void) {
   listeners.add(listener);
   listener({ ...state });
-  return () => listeners.delete(listener);
+  return () => { listeners.delete(listener); };
 }
 
 export function setOfflineSyncing(syncing: boolean) {
@@ -105,7 +101,6 @@ function openDb() {
       const db = request.result;
       if (!db.objectStoreNames.contains(CACHE_STORE)) db.createObjectStore(CACHE_STORE, { keyPath: "key" });
       if (!db.objectStoreNames.contains(QUEUE_STORE)) db.createObjectStore(QUEUE_STORE, { keyPath: "id" });
-      if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: "key" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open offline storage."));
@@ -113,27 +108,25 @@ function openDb() {
   return dbPromise;
 }
 
-async function storeGet<T>(storeName: string, key: IDBValidKey): Promise<T | undefined> {
+async function getRecord<T>(storeName: string, key: IDBValidKey): Promise<T | undefined> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, "readonly");
-    const request = tx.objectStore(storeName).get(key);
+    const request = db.transaction(storeName, "readonly").objectStore(storeName).get(key);
     request.onsuccess = () => resolve(request.result as T | undefined);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function storeGetAll<T>(storeName: string): Promise<T[]> {
+async function getAllRecords<T>(storeName: string): Promise<T[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, "readonly");
-    const request = tx.objectStore(storeName).getAll();
+    const request = db.transaction(storeName, "readonly").objectStore(storeName).getAll();
     request.onsuccess = () => resolve((request.result ?? []) as T[]);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function storePut<T>(storeName: string, value: T) {
+async function putRecord<T>(storeName: string, value: T) {
   const db = await openDb();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(storeName, "readwrite");
@@ -143,7 +136,7 @@ async function storePut<T>(storeName: string, value: T) {
   });
 }
 
-async function storeDelete(storeName: string, key: IDBValidKey) {
+async function deleteRecord(storeName: string, key: IDBValidKey) {
   const db = await openDb();
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(storeName, "readwrite");
@@ -162,39 +155,28 @@ function headersObject(headers: Headers, includeAuthorization = true) {
   return result;
 }
 
-function cacheKey(method: string, url: string, headers: Headers, body: string | null) {
-  const range = headers.get("range") ?? "";
-  const profile = headers.get("accept-profile") ?? headers.get("content-profile") ?? "";
-  return `${method}|${url}|range:${range}|profile:${profile}|body:${body ?? ""}`;
+function keyFor(method: string, url: string, headers: Headers, body: string | null) {
+  return [method, url, headers.get("range") ?? "", headers.get("accept-profile") ?? "", body ?? ""].join("|");
 }
 
-function rpcName(url: string) {
+function rpcName(urlString: string) {
+  try { return new URL(urlString).pathname.match(/\/rest\/v1\/rpc\/([^/]+)$/)?.[1] ?? null; }
+  catch { return null; }
+}
+
+function tableName(urlString: string) {
   try {
-    const match = new URL(url).pathname.match(/\/rest\/v1\/rpc\/([^/]+)$/);
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
+    const match = new URL(urlString).pathname.match(/\/rest\/v1\/([^/]+)$/);
+    return match && match[1] !== "rpc" ? decodeURIComponent(match[1]) : null;
+  } catch { return null; }
 }
 
-function tableName(url: string) {
-  try {
-    const match = new URL(url).pathname.match(/\/rest\/v1\/([^/]+)$/);
-    if (!match || match[1] === "rpc") return null;
-    return decodeURIComponent(match[1]);
-  } catch {
-    return null;
-  }
-}
-
-function isSupabaseRead(method: string, url: string) {
+function isRead(method: string, url: string) {
   if (method === "GET" || method === "HEAD") return /\/rest\/v1\//.test(url) || /\/storage\/v1\/object\//.test(url);
-  if (method !== "POST") return false;
-  const rpc = rpcName(url);
-  return Boolean(rpc && READ_RPCS.has(rpc));
+  return method === "POST" && Boolean(rpcName(url) && READ_RPCS.has(rpcName(url)!));
 }
 
-function isSupabaseMutation(method: string, url: string) {
+function isMutation(method: string, url: string) {
   if (!/\/rest\/v1\//.test(url)) return false;
   if (method === "PATCH" || method === "DELETE") return true;
   if (method !== "POST") return false;
@@ -210,71 +192,57 @@ async function requestParts(input: RequestInfo | URL, init?: RequestInit) {
   if (method !== "GET" && method !== "HEAD") {
     try { body = await request.clone().text(); } catch { body = null; }
   }
-  return { request, method, headers, body, url: request.url };
+  return { method, headers, body, url: request.url };
 }
 
-async function saveResponse(key: string, method: string, url: string, headers: Headers, response: Response) {
+async function saveResponse(key: string, method: string, url: string, response: Response) {
   if (!response.ok) return;
   try {
-    const body = await response.clone().arrayBuffer();
-    const savedHeaders: Record<string, string> = {};
-    response.headers.forEach((value, name) => { savedHeaders[name] = value; });
-    await storePut<CacheRecord>(CACHE_STORE, {
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, name) => { responseHeaders[name] = value; });
+    await putRecord<CacheRecord>(CACHE_STORE, {
       key,
       url,
       method,
-      range: headers.get("range") ?? "",
       status: response.status,
       statusText: response.statusText,
-      headers: savedHeaders,
-      body,
+      headers: responseHeaders,
+      body: await response.clone().arrayBuffer(),
       updatedAt: new Date().toISOString(),
     });
   } catch {
-    // A cache failure must never block the live application.
+    // Live data remains authoritative if local caching fails.
   }
 }
 
-function responseFromCache(record: CacheRecord) {
-  return new Response(record.body.slice(0), {
-    status: record.status,
-    statusText: record.statusText,
-    headers: record.headers,
-  });
+function cachedResponse(record: CacheRecord) {
+  return new Response(record.body.slice(0), { status: record.status, statusText: record.statusText, headers: record.headers });
 }
 
 function decodeJson(record: CacheRecord): unknown {
   try {
     const text = new TextDecoder().decode(record.body);
     return text ? JSON.parse(text) : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function encodeJson(value: unknown) {
-  return new TextEncoder().encode(JSON.stringify(value)).buffer;
+function encodeJson(value: unknown): ArrayBuffer {
+  return new TextEncoder().encode(JSON.stringify(value)).buffer as ArrayBuffer;
 }
 
-function postgrestValue(raw: string) {
-  try { return decodeURIComponent(raw); } catch { return raw; }
-}
-
-function rowMatches(row: Record<string, unknown>, url: URL) {
-  for (const [key, rawValue] of url.searchParams.entries()) {
-    if (key === "select" || key === "order" || key === "limit" || key === "offset" || key === "on_conflict") continue;
-    const value = postgrestValue(rawValue);
+function matches(row: Record<string, unknown>, url: URL) {
+  for (const [key, raw] of url.searchParams.entries()) {
+    if (["select", "order", "limit", "offset", "on_conflict"].includes(key)) continue;
+    const value = raw;
     const current = row[key];
-    if (value.startsWith("eq.")) {
-      if (String(current ?? "") !== value.slice(3)) return false;
-    } else if (value === "is.null") {
-      if (current !== null && current !== undefined) return false;
-    } else if (value === "not.is.null") {
-      if (current === null || current === undefined) return false;
-    } else if (value.startsWith("in.(") && value.endsWith(")")) {
-      const options = value.slice(4, -1).split(",").map((item) => item.replace(/^"|"$/g, ""));
-      if (!options.includes(String(current ?? ""))) return false;
-    } else if (value.startsWith("ilike.")) {
+    if (value.startsWith("eq.") && String(current ?? "") !== value.slice(3)) return false;
+    if (value === "is.null" && current !== null && current !== undefined) return false;
+    if (value === "not.is.null" && (current === null || current === undefined)) return false;
+    if (value.startsWith("in.(") && value.endsWith(")")) {
+      const allowed = value.slice(4, -1).split(",").map((part) => part.replace(/^"|"$/g, ""));
+      if (!allowed.includes(String(current ?? ""))) return false;
+    }
+    if (value.startsWith("ilike.")) {
       const needle = value.slice(6).replace(/^%|%$/g, "").toLocaleLowerCase();
       const haystack = key === "search_text"
         ? JSON.stringify({ data: row.data, note: row.note }).toLocaleLowerCase()
@@ -285,63 +253,58 @@ function rowMatches(row: Record<string, unknown>, url: URL) {
   return true;
 }
 
-async function allCachedRows(table: string) {
-  const records = await storeGetAll<CacheRecord>(CACHE_STORE);
+async function cachedRows(table: string) {
+  const records = await getAllRecords<CacheRecord>(CACHE_STORE);
   const rows = new Map<string, Record<string, unknown>>();
   let anonymous = 0;
   for (const record of records) {
     if (record.method !== "GET" || tableName(record.url) !== table) continue;
     const parsed = decodeJson(record);
-    const values = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
-    for (const item of values) {
+    const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
+    for (const item of list) {
       if (!item || typeof item !== "object" || Array.isArray(item)) continue;
       const row = item as Record<string, unknown>;
-      const key = typeof row.id === "string" ? row.id : `anonymous-${anonymous++}`;
-      rows.set(key, { ...(rows.get(key) ?? {}), ...row });
+      const id = typeof row.id === "string" ? row.id : `anonymous-${anonymous++}`;
+      rows.set(id, { ...(rows.get(id) ?? {}), ...row });
     }
   }
   return Array.from(rows.values());
 }
 
-async function synthesiseTableRead(method: string, urlString: string, headers: Headers) {
+async function synthesiseRead(method: string, urlString: string, headers: Headers) {
   const table = tableName(urlString);
   if (!table) return null;
   const url = new URL(urlString);
-  let rows = (await allCachedRows(table)).filter((row) => rowMatches(row, url));
-  const range = headers.get("range");
+  let rows = (await cachedRows(table)).filter((row) => matches(row, url));
   const total = rows.length;
+  const range = headers.get("range");
   if (range) {
-    const [startText, endText] = range.split("-");
-    const start = Math.max(0, Number(startText) || 0);
-    const end = Math.max(start, Number(endText) || start);
+    const [startRaw, endRaw] = range.split("-");
+    const start = Math.max(0, Number(startRaw) || 0);
+    const end = Math.max(start, Number(endRaw) || start);
     rows = rows.slice(start, end + 1);
   }
   const responseHeaders = new Headers({ "content-type": "application/json" });
   responseHeaders.set("content-range", total ? `0-${Math.max(0, rows.length - 1)}/${total}` : "*/0");
   if (method === "HEAD") return new Response(null, { status: 200, headers: responseHeaders });
   const wantsObject = (headers.get("accept") ?? "").includes("application/vnd.pgrst.object+json");
-  const body = wantsObject ? (rows[0] ?? null) : rows;
-  return new Response(JSON.stringify(body), { status: 200, headers: responseHeaders });
+  return new Response(JSON.stringify(wantsObject ? (rows[0] ?? null) : rows), { status: 200, headers: responseHeaders });
 }
 
 async function mutateCachedTable(table: string, mutate: (rows: Record<string, unknown>[], url: URL) => Record<string, unknown>[]) {
-  const records = await storeGetAll<CacheRecord>(CACHE_STORE);
+  const records = await getAllRecords<CacheRecord>(CACHE_STORE);
   for (const record of records) {
     if (record.method !== "GET" || tableName(record.url) !== table) continue;
     const parsed = decodeJson(record);
     if (!Array.isArray(parsed)) continue;
-    const next = mutate(parsed.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item))), new URL(record.url));
-    record.body = encodeJson(next);
+    const rows = parsed.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)));
+    record.body = encodeJson(mutate(rows, new URL(record.url)));
     record.updatedAt = new Date().toISOString();
-    await storePut(CACHE_STORE, record);
+    await putRecord(CACHE_STORE, record);
   }
 }
 
-async function patchCardEverywhere(cardId: string, patch: Record<string, unknown>) {
-  await mutateCachedTable("heuresis_cards", (rows) => rows.map((row) => row.id === cardId ? { ...row, ...patch, updated_at: new Date().toISOString() } : row));
-}
-
-function defaultCardRow(row: Record<string, unknown>) {
+function localCard(row: Record<string, unknown>): Record<string, unknown> {
   const now = new Date().toISOString();
   return {
     id: row.id,
@@ -359,14 +322,18 @@ function defaultCardRow(row: Record<string, unknown>) {
   };
 }
 
-async function applyLocalTableMutation(table: string, method: string, url: URL, body: unknown) {
+async function patchCard(cardId: string, patch: Record<string, unknown>) {
+  await mutateCachedTable("heuresis_cards", (rows) => rows.map((row) => row.id === cardId ? { ...row, ...patch, updated_at: new Date().toISOString() } : row));
+}
+
+async function applyTableMutation(table: string, method: string, url: URL, body: unknown) {
   if (method === "POST") {
-    const values = (Array.isArray(body) ? body : [body]).filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)));
-    for (const input of values) {
-      const row = table === "heuresis_cards" ? defaultCardRow(input) : input;
-      await mutateCachedTable(table, (rows, cachedUrl) => rowMatches(row, cachedUrl) && !rows.some((item) => item.id === row.id) ? [...rows, row] : rows);
+    const inputs = (Array.isArray(body) ? body : [body]).filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)));
+    for (const input of inputs) {
+      const row: Record<string, unknown> = table === "heuresis_cards" ? localCard(input) : input;
+      await mutateCachedTable(table, (rows, cachedUrl) => matches(row, cachedUrl) && !rows.some((item) => item.id === row.id) ? [...rows, row] : rows);
       if (table === "heuresis_packs") {
-        const overview = {
+        const overview: Record<string, unknown> = {
           id: row.id,
           collection_id: row.collection_id,
           card_type_id: row.card_type_id,
@@ -377,8 +344,9 @@ async function applyLocalTableMutation(table: string, method: string, url: URL, 
           encountered_cards: 0,
           open_count: 0,
           last_opened_at: null,
+          archived_at: null,
         };
-        await mutateCachedTable("heuresis_pack_overview", (rows, cachedUrl) => rowMatches({ ...overview, archived_at: null }, cachedUrl) && !rows.some((item) => item.id === overview.id) ? [...rows, overview] : rows);
+        await mutateCachedTable("heuresis_pack_overview", (rows, cachedUrl) => matches(overview, cachedUrl) && !rows.some((item) => item.id === overview.id) ? [...rows, overview] : rows);
       }
     }
     return;
@@ -387,98 +355,95 @@ async function applyLocalTableMutation(table: string, method: string, url: URL, 
   const idFilter = url.searchParams.get("id");
   const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
   if (!id) return;
-  if (method === "PATCH") {
-    const patch = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-    await mutateCachedTable(table, (rows, cachedUrl) => rows.flatMap((row) => {
-      if (row.id !== id) return [row];
-      const next = { ...row, ...patch };
-      return rowMatches(next, cachedUrl) ? [next] : [];
-    }));
-    if (table === "heuresis_packs") {
-      await mutateCachedTable("heuresis_pack_overview", (rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
-    }
-  } else if (method === "DELETE") {
+  if (method === "DELETE") {
     await mutateCachedTable(table, (rows) => rows.filter((row) => row.id !== id));
     if (table === "heuresis_packs") await mutateCachedTable("heuresis_pack_overview", (rows) => rows.filter((row) => row.id !== id));
+    return;
   }
+  const patch = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
+  await mutateCachedTable(table, (rows, cachedUrl) => rows.flatMap((row) => {
+    if (row.id !== id) return [row];
+    const next = { ...row, ...patch };
+    return matches(next, cachedUrl) ? [next] : [];
+  }));
+  if (table === "heuresis_packs") await mutateCachedTable("heuresis_pack_overview", (rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
 }
 
-async function applyLocalRpcMutation(name: string, body: Record<string, unknown>) {
+async function applyRpcMutation(name: string, body: Record<string, unknown>) {
   if (name === "heuresis_patch_card_data" && typeof body.p_card_id === "string") {
-    const rows = await allCachedRows("heuresis_cards");
-    const current = rows.find((row) => row.id === body.p_card_id);
+    const current = (await cachedRows("heuresis_cards")).find((row) => row.id === body.p_card_id);
     const previous = current?.data && typeof current.data === "object" && !Array.isArray(current.data) ? current.data as Record<string, unknown> : {};
     const patch = body.p_patch && typeof body.p_patch === "object" && !Array.isArray(body.p_patch) ? body.p_patch as Record<string, unknown> : {};
-    await patchCardEverywhere(body.p_card_id, { data: { ...previous, ...patch } });
-  } else if (name === "heuresis_set_card_retention" && typeof body.p_card_id === "string") {
-    await patchCardEverywhere(body.p_card_id, { retention: body.p_retention === "reference" ? "reference" : "learning" });
+    await patchCard(body.p_card_id, { data: { ...previous, ...patch } });
+  }
+  if (name === "heuresis_set_card_retention" && typeof body.p_card_id === "string") {
+    await patchCard(body.p_card_id, { retention: body.p_retention === "reference" ? "reference" : "learning" });
+  }
+  if (name === "heuresis_set_card_tags" && typeof body.p_card_id === "string") {
+    const tags = await cachedRows("heuresis_tags");
+    const ids = Array.isArray(body.p_tag_ids) ? body.p_tag_ids.filter((id): id is string => typeof id === "string") : [];
+    const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+    await patchCard(body.p_card_id, {
+      heuresis_card_tags: ids.map((id) => ({ tag_id: id, heuresis_tags: tagMap.get(id) ?? null })),
+    });
+  }
+  if (name === "heuresis_reorder_collections" && Array.isArray(body.p_ids)) {
+    const order = body.p_ids.filter((id): id is string => typeof id === "string");
+    await mutateCachedTable("heuresis_collections", (rows) => rows.map((row) => {
+      const index = order.indexOf(String(row.id ?? ""));
+      return index >= 0 ? { ...row, sort_order: index } : row;
+    }));
   }
 }
 
-function jsonBody(value: string | null) {
-  if (!value) return null;
-  try { return JSON.parse(value) as unknown; } catch { return null; }
+function parseJson(raw: string | null): unknown {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as unknown; } catch { return null; }
 }
 
-function withClientIds(table: string | null, value: unknown) {
+function addClientIds(table: string | null, value: unknown): unknown {
   if (!table || !TABLES_WITH_CLIENT_IDS.has(table)) return value;
-  const add = (row: unknown) => {
-    if (!row || typeof row !== "object" || Array.isArray(row)) return row;
-    const next = { ...(row as Record<string, unknown>) };
-    if (!next.id) next.id = crypto.randomUUID();
-    return next;
+  const add = (item: unknown): unknown => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const row: Record<string, unknown> = { ...(item as Record<string, unknown>) };
+    if (!row.id) row.id = crypto.randomUUID();
+    return row;
   };
   return Array.isArray(value) ? value.map(add) : add(value);
 }
 
-function syntheticMutationResponse(method: string, url: URL, table: string | null, rpc: string | null, body: unknown) {
-  const headers = new Headers({ "content-type": "application/json" });
+function syntheticResponse(method: string, url: URL, table: string | null, rpc: string | null, body: unknown) {
+  const jsonHeaders = new Headers({ "content-type": "application/json" });
   if (table && method === "POST") {
-    const rows = Array.isArray(body) ? body : [body];
     const now = new Date().toISOString();
-    const represented = rows.map((item) => item && typeof item === "object" && !Array.isArray(item) ? { created_at: now, updated_at: now, ...(item as Record<string, unknown>) } : item);
-    return new Response(JSON.stringify(Array.isArray(body) ? represented : represented[0]), { status: 201, headers });
+    const list = (Array.isArray(body) ? body : [body]).map((item) => item && typeof item === "object" && !Array.isArray(item) ? { created_at: now, updated_at: now, ...(item as Record<string, unknown>) } : item);
+    return new Response(JSON.stringify(Array.isArray(body) ? list : list[0]), { status: 201, headers: jsonHeaders });
   }
   if (table && method === "DELETE" && url.searchParams.get("select")) {
     const idFilter = url.searchParams.get("id");
     const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
-    return new Response(JSON.stringify(id ? [{ id }] : []), { status: 200, headers });
+    return new Response(JSON.stringify(id ? [{ id }] : []), { status: 200, headers: jsonHeaders });
   }
-  if (rpc === "heuresis_patch_card_data") {
-    const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-    return new Response(JSON.stringify(input.p_patch ?? {}), { status: 200, headers });
-  }
-  if (rpc === "heuresis_toggle_learning_action") {
-    const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-    return new Response(JSON.stringify({ selected: true, count: 1, action: input.p_action ?? "handwrite" }), { status: 200, headers });
-  }
-  if (rpc === "heuresis_import_cards" || rpc === "heuresis_import_cards_with_tags") {
-    const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-    const rows = Array.isArray(input.p_rows) ? input.p_rows : [];
-    return new Response(JSON.stringify(rows.length), { status: 200, headers });
-  }
-  if (rpc === "heuresis_update_imported_cards") {
-    const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-    const rows = Array.isArray(input.p_updates) ? input.p_updates : [];
-    return new Response(JSON.stringify(rows.length), { status: 200, headers });
-  }
-  if (rpc === "heuresis_connect_cards") return new Response(JSON.stringify(crypto.randomUUID()), { status: 200, headers });
-  if (rpc === "heuresis_add_related_word") return new Response(JSON.stringify([]), { status: 200, headers });
-  if (method === "PATCH" || method === "DELETE") return new Response("", { status: 204 });
-  return new Response("null", { status: 200, headers });
+  const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
+  if (rpc === "heuresis_patch_card_data") return new Response(JSON.stringify(input.p_patch ?? {}), { status: 200, headers: jsonHeaders });
+  if (rpc === "heuresis_toggle_learning_action") return new Response(JSON.stringify({ selected: true, count: 1, action: input.p_action ?? "handwrite" }), { status: 200, headers: jsonHeaders });
+  if (rpc === "heuresis_import_cards" || rpc === "heuresis_import_cards_with_tags") return new Response(JSON.stringify(Array.isArray(input.p_rows) ? input.p_rows.length : 0), { status: 200, headers: jsonHeaders });
+  if (rpc === "heuresis_update_imported_cards") return new Response(JSON.stringify(Array.isArray(input.p_updates) ? input.p_updates.length : 0), { status: 200, headers: jsonHeaders });
+  if (rpc === "heuresis_connect_cards") return new Response(JSON.stringify(crypto.randomUUID()), { status: 200, headers: jsonHeaders });
+  if (rpc === "heuresis_add_related_word") return new Response("[]", { status: 200, headers: jsonHeaders });
+  if (method === "PATCH" || method === "DELETE") return new Response(null, { status: 204 });
+  return new Response("null", { status: 200, headers: jsonHeaders });
 }
 
 async function queueMutation(method: string, urlString: string, headers: Headers, rawBody: string | null) {
-  const url = new URL(urlString);
   const table = tableName(urlString);
   const rpc = rpcName(urlString);
   if (rpc === EVENT_RPC) throw new TypeError("Offline: review events remain in the Heuresis event queue until synchronisation.");
   if (rpc && REQUIRES_CONNECTION_RPCS.has(rpc)) throw new TypeError("This particular action needs a connection. Everything else can remain open offline.");
 
-  const parsed = jsonBody(rawBody);
-  const bodyWithIds = withClientIds(table, parsed);
-  const queuedBody = bodyWithIds === null ? rawBody : JSON.stringify(bodyWithIds);
-  const record: QueueRecord = {
+  const parsed = addClientIds(table, parseJson(rawBody));
+  const queuedBody = parsed === null ? rawBody : JSON.stringify(parsed);
+  const item: QueueRecord = {
     id: crypto.randomUUID(),
     url: urlString,
     method,
@@ -487,44 +452,33 @@ async function queueMutation(method: string, urlString: string, headers: Headers
     createdAt: new Date().toISOString(),
     attempts: 0,
   };
-  await storePut(QUEUE_STORE, record);
-  if (table) await applyLocalTableMutation(table, method, url, bodyWithIds);
-  if (rpc && bodyWithIds && typeof bodyWithIds === "object" && !Array.isArray(bodyWithIds)) await applyLocalRpcMutation(rpc, bodyWithIds as Record<string, unknown>);
+  await putRecord(QUEUE_STORE, item);
+  if (table) await applyTableMutation(table, method, new URL(urlString), parsed);
+  if (rpc && parsed && typeof parsed === "object" && !Array.isArray(parsed)) await applyRpcMutation(rpc, parsed as Record<string, unknown>);
   await refreshOfflinePendingCount();
-  return syntheticMutationResponse(method, url, table, rpc, bodyWithIds);
+  return syntheticResponse(method, new URL(urlString), table, rpc, parsed);
 }
 
 export async function refreshOfflinePendingCount() {
-  try {
-    const rows = await storeGetAll<QueueRecord>(QUEUE_STORE);
-    emit({ pending: rows.length });
-  } catch {
-    emit({ pending: 0 });
-  }
+  try { emit({ pending: (await getAllRecords<QueueRecord>(QUEUE_STORE)).length }); }
+  catch { emit({ pending: 0 }); }
   return state.pending;
 }
 
 export async function flushOfflineRequests(accessToken: string | null | undefined) {
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    emit({ online: false });
-    return { sent: 0, pending: await refreshOfflinePendingCount() };
-  }
-  const rows = (await storeGetAll<QueueRecord>(QUEUE_STORE)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (typeof navigator !== "undefined" && !navigator.onLine) return { sent: 0, pending: await refreshOfflinePendingCount() };
+  const queued = (await getAllRecords<QueueRecord>(QUEUE_STORE)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   let sent = 0;
-  for (const row of rows) {
-    const headers = new Headers(row.headers);
+  for (const item of queued) {
+    const headers = new Headers(item.headers);
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     try {
-      const response = await networkFetch(row.url, { method: row.method, headers, body: row.body });
-      if (!response.ok) {
-        const detail = await response.text().catch(() => "");
-        throw new Error(detail || `Sync failed with HTTP ${response.status}.`);
-      }
-      await storeDelete(QUEUE_STORE, row.id);
+      const response = await networkFetch(item.url, { method: item.method, headers, body: item.body });
+      if (!response.ok) throw new Error((await response.text().catch(() => "")) || `Sync failed with HTTP ${response.status}.`);
+      await deleteRecord(QUEUE_STORE, item.id);
       sent += 1;
     } catch (error) {
-      row.attempts += 1;
-      await storePut(QUEUE_STORE, row);
+      await putRecord(QUEUE_STORE, { ...item, attempts: item.attempts + 1 });
       await refreshOfflinePendingCount();
       throw error;
     }
@@ -533,42 +487,34 @@ export async function flushOfflineRequests(accessToken: string | null | undefine
 }
 
 export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const parts = await requestParts(input, init);
-  const { method, url, headers, body } = parts;
-  const read = isSupabaseRead(method, url);
-  const mutation = isSupabaseMutation(method, url);
+  const { method, headers, body, url } = await requestParts(input, init);
+  const read = isRead(method, url);
+  const mutation = isMutation(method, url);
   if (!read && !mutation) return networkFetch(input, init);
 
   if (read) {
-    const key = cacheKey(method, url, headers, body);
+    const key = keyFor(method, url, headers, body);
     if (typeof navigator === "undefined" || navigator.onLine) {
       try {
         const response = await networkFetch(input, init);
-        if (response.ok) void saveResponse(key, method, url, headers, response);
+        if (response.ok) void saveResponse(key, method, url, response);
         return response;
       } catch {
-        // Fall through to the persisted copy.
+        // Fall back to the local copy.
       }
     }
-    try {
-      const exact = await storeGet<CacheRecord>(CACHE_STORE, key);
-      if (exact) return responseFromCache(exact);
-      if (method === "GET" || method === "HEAD") {
-        const synthesised = await synthesiseTableRead(method, url, headers);
-        if (synthesised) return synthesised;
-      }
-    } catch {
-      // Fall through to a normal network-style failure.
+    const exact = await getRecord<CacheRecord>(CACHE_STORE, key).catch(() => undefined);
+    if (exact) return cachedResponse(exact);
+    if (method === "GET" || method === "HEAD") {
+      const synthesised = await synthesiseRead(method, url, headers).catch(() => null);
+      if (synthesised) return synthesised;
     }
     throw new TypeError("Heuresis is offline and this item has not been synchronised to this device yet.");
   }
 
   if (typeof navigator === "undefined" || navigator.onLine) {
-    try {
-      return await networkFetch(input, init);
-    } catch {
-      // Queue below if this is a safe mutation.
-    }
+    try { return await networkFetch(input, init); }
+    catch { /* queue below */ }
   }
   return queueMutation(method, url, headers, body);
 }
