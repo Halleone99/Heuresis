@@ -82,6 +82,12 @@ function writeQueue(events: QueuedStudyEvent[]) {
   }
 }
 
+function networkUnavailable(error?: unknown) {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /offline|failed to fetch|networkerror|network request failed|load failed/i.test(message);
+}
+
 export function getStudyQueueState(): StudyQueueState {
   const events = readQueue();
   return {
@@ -112,6 +118,7 @@ function queueStudyEvent(input: Omit<QueuedStudyEvent, "client_event_id" | "crea
 
 export async function flushStudyEvents(): Promise<StudyQueueState> {
   if (flushing) return getStudyQueueState();
+  if (typeof navigator !== "undefined" && !navigator.onLine) return getStudyQueueState();
   flushing = true;
   try {
     while (true) {
@@ -124,6 +131,7 @@ export async function flushStudyEvents(): Promise<StudyQueueState> {
         const sentIds = new Set(batch.map((event) => event.client_event_id));
         writeQueue(readQueue().filter((event) => !sentIds.has(event.client_event_id)));
       } catch (error) {
+        if (networkUnavailable(error)) throw error;
         const failedIds = new Set(batch.map((event) => event.client_event_id));
         writeQueue(readQueue().map((event) => failedIds.has(event.client_event_id)
           ? { ...event, attempts: Math.min(PARK_AFTER, event.attempts + 1) }
@@ -187,7 +195,7 @@ export async function startStudySession(packId: string, templateId: string | nul
 }
 
 export async function finishStudySession(sessionId: string) {
-  await flushStudyEvents().catch(() => undefined);
+  if (typeof navigator === "undefined" || navigator.onLine) await flushStudyEvents().catch(() => undefined);
   const { error } = await db()
     .from("heuresis_sessions")
     .update({ ended_at: new Date().toISOString() })
@@ -197,7 +205,7 @@ export async function finishStudySession(sessionId: string) {
 
 /**
  * Records locally first, then flushes in the background. A temporary network
- * failure no longer loses a grade or blocks the review flow.
+ * failure never loses a grade or blocks the review flow.
  */
 export async function recordStudyEvent(input: {
   cardId: string;
@@ -213,5 +221,5 @@ export async function recordStudyEvent(input: {
     template_id: input.templateId,
     event_type: input.eventType,
   });
-  void flushStudyEvents().catch(() => undefined);
+  if (typeof navigator === "undefined" || navigator.onLine) void flushStudyEvents().catch(() => undefined);
 }

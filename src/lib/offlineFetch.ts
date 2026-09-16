@@ -230,20 +230,25 @@ function encodeJson(value: unknown): ArrayBuffer {
   return new TextEncoder().encode(JSON.stringify(value)).buffer as ArrayBuffer;
 }
 
+function effectiveValue(row: Record<string, unknown>, key: string) {
+  if (row[key] !== undefined) return row[key];
+  if (key === "role" && row.pack_id) return "main";
+  return row[key];
+}
+
 function matches(row: Record<string, unknown>, url: URL) {
   for (const [key, raw] of url.searchParams.entries()) {
     if (["select", "order", "limit", "offset", "on_conflict"].includes(key)) continue;
-    const value = raw;
-    const current = row[key];
-    if (value.startsWith("eq.") && String(current ?? "") !== value.slice(3)) return false;
-    if (value === "is.null" && current !== null && current !== undefined) return false;
-    if (value === "not.is.null" && (current === null || current === undefined)) return false;
-    if (value.startsWith("in.(") && value.endsWith(")")) {
-      const allowed = value.slice(4, -1).split(",").map((part) => part.replace(/^"|"$/g, ""));
+    const current = effectiveValue(row, key);
+    if (raw.startsWith("eq.") && String(current ?? "") !== raw.slice(3)) return false;
+    if (raw === "is.null" && current !== null && current !== undefined) return false;
+    if (raw === "not.is.null" && (current === null || current === undefined)) return false;
+    if (raw.startsWith("in.(") && raw.endsWith(")")) {
+      const allowed = raw.slice(4, -1).split(",").map((part) => part.replace(/^"|"$/g, ""));
       if (!allowed.includes(String(current ?? ""))) return false;
     }
-    if (value.startsWith("ilike.")) {
-      const needle = value.slice(6).replace(/^%|%$/g, "").toLocaleLowerCase();
+    if (raw.startsWith("ilike.")) {
+      const needle = raw.slice(6).replace(/^%|%$/g, "").toLocaleLowerCase();
       const haystack = key === "search_text"
         ? JSON.stringify({ data: row.data, note: row.note }).toLocaleLowerCase()
         : String(current ?? "").toLocaleLowerCase();
@@ -251,6 +256,23 @@ function matches(row: Record<string, unknown>, url: URL) {
     }
   }
   return true;
+}
+
+function compareRows(a: Record<string, unknown>, b: Record<string, unknown>, order: string) {
+  for (const part of order.split(",")) {
+    const [key, direction = "asc"] = part.split(".");
+    if (!key) continue;
+    const av = effectiveValue(a, key);
+    const bv = effectiveValue(b, key);
+    if (av === bv) continue;
+    if (av == null) return direction === "desc" ? 1 : -1;
+    if (bv == null) return direction === "desc" ? -1 : 1;
+    const cmp = typeof av === "number" && typeof bv === "number"
+      ? av - bv
+      : String(av).localeCompare(String(bv), undefined, { numeric: true });
+    if (cmp) return direction === "desc" ? -cmp : cmp;
+  }
+  return 0;
 }
 
 async function cachedRows(table: string) {
@@ -263,7 +285,8 @@ async function cachedRows(table: string) {
     const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
     for (const item of list) {
       if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-      const row = item as Record<string, unknown>;
+      const raw = item as Record<string, unknown>;
+      const row = table === "heuresis_cards" && raw.role === undefined ? { ...raw, role: "main" } : raw;
       const id = typeof row.id === "string" ? row.id : `anonymous-${anonymous++}`;
       rows.set(id, { ...(rows.get(id) ?? {}), ...row });
     }
@@ -276,7 +299,12 @@ async function synthesiseRead(method: string, urlString: string, headers: Header
   if (!table) return null;
   const url = new URL(urlString);
   let rows = (await cachedRows(table)).filter((row) => matches(row, url));
+  const order = url.searchParams.get("order");
+  if (order) rows.sort((a, b) => compareRows(a, b, order));
   const total = rows.length;
+  const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0);
+  const queryLimit = Number(url.searchParams.get("limit") ?? 0) || 0;
+  if (offset || queryLimit) rows = rows.slice(offset, queryLimit ? offset + queryLimit : undefined);
   const range = headers.get("range");
   if (range) {
     const [startRaw, endRaw] = range.split("-");
@@ -291,17 +319,40 @@ async function synthesiseRead(method: string, urlString: string, headers: Header
   return new Response(JSON.stringify(wantsObject ? (rows[0] ?? null) : rows), { status: 200, headers: responseHeaders });
 }
 
-async function mutateCachedTable(table: string, mutate: (rows: Record<string, unknown>[], url: URL) => Record<string, unknown>[]) {
+async function rewriteCachedTable(table: string, transform: (parsed: unknown, url: URL) => unknown) {
   const records = await getAllRecords<CacheRecord>(CACHE_STORE);
   for (const record of records) {
     if (record.method !== "GET" || tableName(record.url) !== table) continue;
-    const parsed = decodeJson(record);
-    if (!Array.isArray(parsed)) continue;
-    const rows = parsed.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)));
-    record.body = encodeJson(mutate(rows, new URL(record.url)));
+    record.body = encodeJson(transform(decodeJson(record), new URL(record.url)));
     record.updatedAt = new Date().toISOString();
     await putRecord(CACHE_STORE, record);
   }
+}
+
+async function upsertCachedRow(table: string, row: Record<string, unknown>) {
+  const id = typeof row.id === "string" ? row.id : null;
+  if (!id) return;
+  await rewriteCachedTable(table, (parsed, url) => {
+    if (Array.isArray(parsed)) {
+      const previous = parsed.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)));
+      const without = previous.filter((item) => item.id !== id);
+      return matches(row, url) ? [...without, row] : without;
+    }
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const current = parsed as Record<string, unknown>;
+      if (current.id !== id) return parsed;
+      return matches(row, url) ? row : null;
+    }
+    return parsed;
+  });
+}
+
+async function deleteCachedRow(table: string, id: string) {
+  await rewriteCachedTable(table, (parsed) => {
+    if (Array.isArray(parsed)) return parsed.filter((item) => !(item && typeof item === "object" && !Array.isArray(item) && (item as Record<string, unknown>).id === id));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed as Record<string, unknown>).id === id) return null;
+    return parsed;
+  });
 }
 
 function localCard(row: Record<string, unknown>): Record<string, unknown> {
@@ -309,6 +360,7 @@ function localCard(row: Record<string, unknown>): Record<string, unknown> {
   return {
     id: row.id,
     pack_id: row.pack_id,
+    role: row.role ?? "main",
     retention: row.retention ?? "learning",
     data: row.data ?? {},
     note: row.note ?? null,
@@ -317,37 +369,49 @@ function localCard(row: Record<string, unknown>): Record<string, unknown> {
     interest_rank: row.interest_rank ?? null,
     created_at: row.created_at ?? now,
     updated_at: row.updated_at ?? now,
-    heuresis_card_stats: [],
-    heuresis_card_tags: [],
+    heuresis_card_stats: row.heuresis_card_stats ?? [],
+    heuresis_card_tags: row.heuresis_card_tags ?? [],
   };
 }
 
+async function adjustPackCardCount(packId: string, delta: number) {
+  const row = (await cachedRows("heuresis_pack_overview")).find((item) => item.id === packId);
+  if (!row) return;
+  await upsertCachedRow("heuresis_pack_overview", { ...row, card_count: Math.max(0, Number(row.card_count ?? 0) + delta) });
+}
+
 async function patchCard(cardId: string, patch: Record<string, unknown>) {
-  await mutateCachedTable("heuresis_cards", (rows) => rows.map((row) => row.id === cardId ? { ...row, ...patch, updated_at: new Date().toISOString() } : row));
+  const current = (await cachedRows("heuresis_cards")).find((row) => row.id === cardId);
+  if (!current) return null;
+  const next = { ...current, ...patch, role: current.role ?? "main", updated_at: new Date().toISOString() };
+  await upsertCachedRow("heuresis_cards", next);
+  return next;
+}
+
+function packOverview(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    collection_id: row.collection_id,
+    card_type_id: row.card_type_id,
+    title: row.title,
+    description: row.description ?? null,
+    sort_order: Number(row.sort_order ?? 0),
+    card_count: Number(row.card_count ?? 0),
+    encountered_cards: Number(row.encountered_cards ?? 0),
+    open_count: Number(row.open_count ?? 0),
+    last_opened_at: row.last_opened_at ?? null,
+    archived_at: row.archived_at ?? null,
+  } satisfies Record<string, unknown>;
 }
 
 async function applyTableMutation(table: string, method: string, url: URL, body: unknown) {
   if (method === "POST") {
     const inputs = (Array.isArray(body) ? body : [body]).filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)));
     for (const input of inputs) {
-      const row: Record<string, unknown> = table === "heuresis_cards" ? localCard(input) : input;
-      await mutateCachedTable(table, (rows, cachedUrl) => matches(row, cachedUrl) && !rows.some((item) => item.id === row.id) ? [...rows, row] : rows);
-      if (table === "heuresis_packs") {
-        const overview: Record<string, unknown> = {
-          id: row.id,
-          collection_id: row.collection_id,
-          card_type_id: row.card_type_id,
-          title: row.title,
-          description: row.description ?? null,
-          sort_order: Number(row.sort_order ?? 0),
-          card_count: 0,
-          encountered_cards: 0,
-          open_count: 0,
-          last_opened_at: null,
-          archived_at: null,
-        };
-        await mutateCachedTable("heuresis_pack_overview", (rows, cachedUrl) => matches(overview, cachedUrl) && !rows.some((item) => item.id === overview.id) ? [...rows, overview] : rows);
-      }
+      const row: Record<string, unknown> = table === "heuresis_cards" ? localCard(input) : { ...input, archived_at: input.archived_at ?? null };
+      await upsertCachedRow(table, row);
+      if (table === "heuresis_packs") await upsertCachedRow("heuresis_pack_overview", packOverview(row));
+      if (table === "heuresis_cards" && typeof row.pack_id === "string") await adjustPackCardCount(row.pack_id, 1);
     }
     return;
   }
@@ -355,45 +419,57 @@ async function applyTableMutation(table: string, method: string, url: URL, body:
   const idFilter = url.searchParams.get("id");
   const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
   if (!id) return;
+  const current = (await cachedRows(table)).find((row) => row.id === id);
   if (method === "DELETE") {
-    await mutateCachedTable(table, (rows) => rows.filter((row) => row.id !== id));
-    if (table === "heuresis_packs") await mutateCachedTable("heuresis_pack_overview", (rows) => rows.filter((row) => row.id !== id));
+    await deleteCachedRow(table, id);
+    if (table === "heuresis_packs") await deleteCachedRow("heuresis_pack_overview", id);
+    if (table === "heuresis_cards" && typeof current?.pack_id === "string") await adjustPackCardCount(current.pack_id, -1);
     return;
   }
   const patch = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-  await mutateCachedTable(table, (rows, cachedUrl) => rows.flatMap((row) => {
-    if (row.id !== id) return [row];
-    const next = { ...row, ...patch };
-    return matches(next, cachedUrl) ? [next] : [];
-  }));
-  if (table === "heuresis_packs") await mutateCachedTable("heuresis_pack_overview", (rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+  if (current) {
+    const next = { ...current, ...patch };
+    await upsertCachedRow(table, next);
+    if (table === "heuresis_packs") await upsertCachedRow("heuresis_pack_overview", packOverview(next));
+  }
 }
 
-async function applyRpcMutation(name: string, body: Record<string, unknown>) {
+async function applyRpcMutation(name: string, body: Record<string, unknown>): Promise<unknown> {
   if (name === "heuresis_patch_card_data" && typeof body.p_card_id === "string") {
     const current = (await cachedRows("heuresis_cards")).find((row) => row.id === body.p_card_id);
     const previous = current?.data && typeof current.data === "object" && !Array.isArray(current.data) ? current.data as Record<string, unknown> : {};
     const patch = body.p_patch && typeof body.p_patch === "object" && !Array.isArray(body.p_patch) ? body.p_patch as Record<string, unknown> : {};
-    await patchCard(body.p_card_id, { data: { ...previous, ...patch } });
+    const data = { ...previous, ...patch };
+    await patchCard(body.p_card_id, { data });
+    return data;
   }
   if (name === "heuresis_set_card_retention" && typeof body.p_card_id === "string") {
     await patchCard(body.p_card_id, { retention: body.p_retention === "reference" ? "reference" : "learning" });
+    return null;
   }
   if (name === "heuresis_set_card_tags" && typeof body.p_card_id === "string") {
     const tags = await cachedRows("heuresis_tags");
     const ids = Array.isArray(body.p_tag_ids) ? body.p_tag_ids.filter((id): id is string => typeof id === "string") : [];
     const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
-    await patchCard(body.p_card_id, {
-      heuresis_card_tags: ids.map((id) => ({ tag_id: id, heuresis_tags: tagMap.get(id) ?? null })),
-    });
+    await patchCard(body.p_card_id, { heuresis_card_tags: ids.map((id) => ({ tag_id: id, heuresis_tags: tagMap.get(id) ?? null })) });
+    return null;
   }
   if (name === "heuresis_reorder_collections" && Array.isArray(body.p_ids)) {
     const order = body.p_ids.filter((id): id is string => typeof id === "string");
-    await mutateCachedTable("heuresis_collections", (rows) => rows.map((row) => {
-      const index = order.indexOf(String(row.id ?? ""));
-      return index >= 0 ? { ...row, sort_order: index } : row;
-    }));
+    for (const collection of await cachedRows("heuresis_collections")) {
+      const index = order.indexOf(String(collection.id ?? ""));
+      if (index >= 0) await upsertCachedRow("heuresis_collections", { ...collection, sort_order: index });
+    }
+    return null;
   }
+  if (name === "heuresis_toggle_learning_action") {
+    return { selected: true, count: 1, action: body.p_action ?? "handwrite" };
+  }
+  if (name === "heuresis_import_cards" || name === "heuresis_import_cards_with_tags") return Array.isArray(body.p_rows) ? body.p_rows.length : 0;
+  if (name === "heuresis_update_imported_cards") return Array.isArray(body.p_updates) ? body.p_updates.length : 0;
+  if (name === "heuresis_connect_cards") return crypto.randomUUID();
+  if (name === "heuresis_add_related_word") return [];
+  return null;
 }
 
 function parseJson(raw: string | null): unknown {
@@ -407,32 +483,49 @@ function addClientIds(table: string | null, value: unknown): unknown {
     if (!item || typeof item !== "object" || Array.isArray(item)) return item;
     const row: Record<string, unknown> = { ...(item as Record<string, unknown>) };
     if (!row.id) row.id = crypto.randomUUID();
+    if (table === "heuresis_cards" && row.role === undefined) row.role = "main";
     return row;
   };
   return Array.isArray(value) ? value.map(add) : add(value);
 }
 
-function syntheticResponse(method: string, url: URL, table: string | null, rpc: string | null, body: unknown) {
-  const jsonHeaders = new Headers({ "content-type": "application/json" });
+function jsonResponse(value: unknown, status = 200) {
+  return new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
+}
+
+function syntheticResponse(method: string, url: URL, table: string | null, rpc: string | null, body: unknown, rpcResult: unknown) {
   if (table && method === "POST") {
     const now = new Date().toISOString();
     const list = (Array.isArray(body) ? body : [body]).map((item) => item && typeof item === "object" && !Array.isArray(item) ? { created_at: now, updated_at: now, ...(item as Record<string, unknown>) } : item);
-    return new Response(JSON.stringify(Array.isArray(body) ? list : list[0]), { status: 201, headers: jsonHeaders });
+    return jsonResponse(Array.isArray(body) ? list : list[0], 201);
   }
   if (table && method === "DELETE" && url.searchParams.get("select")) {
     const idFilter = url.searchParams.get("id");
     const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
-    return new Response(JSON.stringify(id ? [{ id }] : []), { status: 200, headers: jsonHeaders });
+    return jsonResponse(id ? [{ id }] : []);
   }
-  const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
-  if (rpc === "heuresis_patch_card_data") return new Response(JSON.stringify(input.p_patch ?? {}), { status: 200, headers: jsonHeaders });
-  if (rpc === "heuresis_toggle_learning_action") return new Response(JSON.stringify({ selected: true, count: 1, action: input.p_action ?? "handwrite" }), { status: 200, headers: jsonHeaders });
-  if (rpc === "heuresis_import_cards" || rpc === "heuresis_import_cards_with_tags") return new Response(JSON.stringify(Array.isArray(input.p_rows) ? input.p_rows.length : 0), { status: 200, headers: jsonHeaders });
-  if (rpc === "heuresis_update_imported_cards") return new Response(JSON.stringify(Array.isArray(input.p_updates) ? input.p_updates.length : 0), { status: 200, headers: jsonHeaders });
-  if (rpc === "heuresis_connect_cards") return new Response(JSON.stringify(crypto.randomUUID()), { status: 200, headers: jsonHeaders });
-  if (rpc === "heuresis_add_related_word") return new Response("[]", { status: 200, headers: jsonHeaders });
+  if (rpc) return jsonResponse(rpcResult);
   if (method === "PATCH" || method === "DELETE") return new Response(null, { status: 204 });
-  return new Response("null", { status: 200, headers: jsonHeaders });
+  return jsonResponse(null);
+}
+
+async function applySuccessfulMutation(method: string, urlString: string, rawBody: string | null, response: Response) {
+  const table = tableName(urlString);
+  const rpc = rpcName(urlString);
+  const parsed = parseJson(rawBody);
+  if (table) {
+    let body = parsed;
+    if (method === "POST") {
+      const server = await response.clone().json().catch(() => null) as unknown;
+      const merge = (local: unknown, remote: unknown) => local && typeof local === "object" && !Array.isArray(local) && remote && typeof remote === "object" && !Array.isArray(remote)
+        ? { ...(local as Record<string, unknown>), ...(remote as Record<string, unknown>) }
+        : remote ?? local;
+      if (Array.isArray(parsed) && Array.isArray(server)) body = parsed.map((item, index) => merge(item, server[index]));
+      else body = merge(parsed, server);
+    }
+    await applyTableMutation(table, method, new URL(urlString), body);
+  }
+  if (rpc && parsed && typeof parsed === "object" && !Array.isArray(parsed)) await applyRpcMutation(rpc, parsed as Record<string, unknown>);
 }
 
 async function queueMutation(method: string, urlString: string, headers: Headers, rawBody: string | null) {
@@ -454,9 +547,11 @@ async function queueMutation(method: string, urlString: string, headers: Headers
   };
   await putRecord(QUEUE_STORE, item);
   if (table) await applyTableMutation(table, method, new URL(urlString), parsed);
-  if (rpc && parsed && typeof parsed === "object" && !Array.isArray(parsed)) await applyRpcMutation(rpc, parsed as Record<string, unknown>);
+  const rpcResult = rpc && parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? await applyRpcMutation(rpc, parsed as Record<string, unknown>)
+    : null;
   await refreshOfflinePendingCount();
-  return syntheticResponse(method, new URL(urlString), table, rpc, parsed);
+  return syntheticResponse(method, new URL(urlString), table, rpc, parsed, rpcResult);
 }
 
 export async function refreshOfflinePendingCount() {
@@ -513,8 +608,13 @@ export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit)
   }
 
   if (typeof navigator === "undefined" || navigator.onLine) {
-    try { return await networkFetch(input, init); }
-    catch { /* queue below */ }
+    try {
+      const response = await networkFetch(input, init);
+      if (response.ok) void applySuccessfulMutation(method, url, body, response).catch(() => undefined);
+      return response;
+    } catch {
+      // Queue below.
+    }
   }
   return queueMutation(method, url, headers, body);
 }
