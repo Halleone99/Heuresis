@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { offlineFetch } from "./offlineFetch";
+import { readOfflineSession, rememberOfflineSession } from "./offlineSession";
 
 // Heuresis is a first-party desktop client for the existing Personal OS data.
 // These are public client credentials (the same values already exposed to the
@@ -14,14 +15,63 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || PERSONAL_OS
 
 export const supabaseConfigured = Boolean(url && key);
 
-export const supabase = supabaseConfigured
-  ? createClient(url, key, {
-      global: { fetch: offlineFetch },
-      auth: {
-        storage: localStorage,
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-      },
-    })
-  : null;
+function createHeuresisClient() {
+  const client = createClient(url, key, {
+    global: { fetch: offlineFetch },
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const originalGetSession = client.auth.getSession.bind(client.auth);
+  client.auth.getSession = (async () => {
+    try {
+      const result = await originalGetSession();
+      if (result.data.session) {
+        rememberOfflineSession(result.data.session);
+        return result;
+      }
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = readOfflineSession();
+        if (cached) return { data: { session: cached }, error: null };
+      }
+      return result;
+    } catch (error) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = readOfflineSession();
+        if (cached) return { data: { session: cached }, error: null };
+      }
+      throw error;
+    }
+  }) as typeof client.auth.getSession;
+
+  const originalGetUser = client.auth.getUser.bind(client.auth);
+  client.auth.getUser = (async (...args: Parameters<typeof originalGetUser>) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = readOfflineSession();
+      if (cached?.user) return { data: { user: cached.user }, error: null };
+    }
+    try {
+      const result = await originalGetUser(...args);
+      if (result.data.user) return result;
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = readOfflineSession();
+        if (cached?.user) return { data: { user: cached.user }, error: null };
+      }
+      return result;
+    } catch (error) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = readOfflineSession();
+        if (cached?.user) return { data: { user: cached.user }, error: null };
+      }
+      throw error;
+    }
+  }) as typeof client.auth.getUser;
+
+  return client;
+}
+
+export const supabase = supabaseConfigured ? createHeuresisClient() : null;
