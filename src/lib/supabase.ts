@@ -44,6 +44,10 @@ function createHeuresisClient() {
 
   const originalGetSession = client.auth.getSession.bind(client.auth);
   client.auth.getSession = (async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = readOfflineSession();
+      if (cached) return { data: { session: cached }, error: null };
+    }
     try {
       const result = await originalGetSession();
       if (result.data.session) {
