@@ -153,13 +153,18 @@ export async function signHeuresisCardImages(paths: string[]) {
     if (local) result[path] = local;
   }));
 
+  // A path already held as a blob is final: upload paths carry a fresh UUID, so the
+  // bytes behind one never change. Re-signing and re-downloading them on every card
+  // change would pull the full image again and revoke the object URL still on screen.
+  const missing = unique.filter((path) => !result[path]);
+  if (!missing.length) return result;
   if (typeof navigator !== "undefined" && !navigator.onLine) return result;
 
   try {
-    const signed = await signedUrls(unique);
+    const signed = await signedUrls(missing);
     await Promise.all(signed.map(async (item, index) => {
       if (!item.signedUrl) return;
-      const path = unique[index];
+      const path = missing[index];
       const blob = await fetchBlob(item.signedUrl).catch(() => null);
       if (blob) {
         await writeCachedMedia(path, blob).catch(() => undefined);

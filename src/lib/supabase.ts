@@ -10,13 +10,48 @@ import { readOfflineSession, rememberOfflineSession } from "./offlineSession";
 const PERSONAL_OS_SUPABASE_URL = "https://qbxyiamrbqmdaubzcxpk.supabase.co";
 const PERSONAL_OS_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EyQguSeCT2BVi04m_DtlyA_9bcMp-R9";
 const NETWORK_TIMEOUT_MS = 7_000;
+const READ_RPCS = new Set([
+  "heuresis_list_related_catalogue",
+  "heuresis_related_counts",
+  "heuresis_learning_counts",
+]);
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim() || PERSONAL_OS_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || PERSONAL_OS_SUPABASE_PUBLISHABLE_KEY;
 
 export const supabaseConfigured = Boolean(url && key);
 
+function requestMethod(input: RequestInfo | URL, init?: RequestInit) {
+  if (init?.method) return init.method.toUpperCase();
+  if (input instanceof Request) return input.method.toUpperCase();
+  return "GET";
+}
+
+function requestUrl(input: RequestInfo | URL) {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
+function isTimedRead(method: string, requestUrlValue: string) {
+  if (method === "GET" || method === "HEAD") {
+    return /\/rest\/v1\//.test(requestUrlValue) || /\/storage\/v1\/object\//.test(requestUrlValue);
+  }
+  if (method !== "POST") return false;
+  try {
+    const rpc = new URL(requestUrlValue).pathname.match(/\/rest\/v1\/rpc\/([^/]+)$/)?.[1] ?? null;
+    return Boolean(rpc && READ_RPCS.has(rpc));
+  } catch {
+    return false;
+  }
+}
+
 async function timedOfflineFetch(input: RequestInfo | URL, init?: RequestInit) {
+  // Only idempotent reads get a client-side deadline. A write that is merely slow
+  // may already have been applied server-side; aborting it and handing it to the
+  // offline queue could replay the same mutation and create a duplicate row.
+  if (!isTimedRead(requestMethod(input, init), requestUrl(input))) return offlineFetch(input, init);
+
   const controller = new AbortController();
   const upstream = init?.signal;
   const abortFromUpstream = () => controller.abort(upstream?.reason);
