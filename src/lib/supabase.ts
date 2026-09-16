@@ -9,15 +9,31 @@ import { readOfflineSession, rememberOfflineSession } from "./offlineSession";
 // desktop app must never depend on a local .env file existing on the user's PC.
 const PERSONAL_OS_SUPABASE_URL = "https://qbxyiamrbqmdaubzcxpk.supabase.co";
 const PERSONAL_OS_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EyQguSeCT2BVi04m_DtlyA_9bcMp-R9";
+const NETWORK_TIMEOUT_MS = 7_000;
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim() || PERSONAL_OS_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || PERSONAL_OS_SUPABASE_PUBLISHABLE_KEY;
 
 export const supabaseConfigured = Boolean(url && key);
 
+async function timedOfflineFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController();
+  const upstream = init?.signal;
+  const abortFromUpstream = () => controller.abort(upstream?.reason);
+  if (upstream?.aborted) abortFromUpstream();
+  else upstream?.addEventListener("abort", abortFromUpstream, { once: true });
+  const timer = window.setTimeout(() => controller.abort(new DOMException("Heuresis network timeout", "TimeoutError")), NETWORK_TIMEOUT_MS);
+  try {
+    return await offlineFetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+    upstream?.removeEventListener("abort", abortFromUpstream);
+  }
+}
+
 function createHeuresisClient() {
   const client = createClient(url, key, {
-    global: { fetch: offlineFetch },
+    global: { fetch: timedOfflineFetch },
     auth: {
       storage: localStorage,
       persistSession: true,
