@@ -1,10 +1,24 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 const host = process.env.TAURI_DEV_HOST;
 
+function stripRemoteFontImport(): Plugin {
+  return {
+    name: "heuresis-strip-remote-font-import",
+    enforce: "pre",
+    transform(code, id) {
+      if (!id.replace(/\\/g, "/").endsWith("/src/styles.css")) return null;
+      return {
+        code: code.replace(/^@import url\(['\"]https:\/\/fonts\.googleapis\.com\/[^\n]+\);\s*/m, ""),
+        map: null,
+      };
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [stripRemoteFontImport(), react()],
   clearScreen: false,
   server: {
     port: 1421,

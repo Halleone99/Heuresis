@@ -1,32 +1,12 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { LogIn } from "lucide-react";
+import { readOfflineSession, rememberOfflineSession } from "../lib/offlineSession";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { reconcileStaleHeuresisSessions } from "../lib/sessionLifecycle";
 import HeuresisMark from "./HeuresisMark";
 
 type Props = { children: (session: Session) => ReactNode };
-const OFFLINE_SESSION_KEY = "heuresis.offline.session.v1";
-
-function readOfflineSession(): Session | null {
-  try {
-    const raw = localStorage.getItem(OFFLINE_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Session;
-    return parsed?.user?.id ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function rememberSession(next: Session | null) {
-  try {
-    if (next) localStorage.setItem(OFFLINE_SESSION_KEY, JSON.stringify(next));
-    else if (typeof navigator === "undefined" || navigator.onLine) localStorage.removeItem(OFFLINE_SESSION_KEY);
-  } catch {
-    // Authentication still works normally if local persistence is unavailable.
-  }
-}
 
 export default function AuthGate({ children }: Props) {
   const [session, setSession] = useState<Session | null>(null);
@@ -55,7 +35,7 @@ export default function AuthGate({ children }: Props) {
     const acceptSession = (next: Session | null) => {
       const usable = next ?? ((typeof navigator !== "undefined" && !navigator.onLine) ? readOfflineSession() : null);
       setSession(usable);
-      rememberSession(usable);
+      rememberOfflineSession(usable);
       reconcile(usable);
     };
 

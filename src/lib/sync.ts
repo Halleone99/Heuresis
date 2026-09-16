@@ -1,4 +1,5 @@
 import { listArchivedPacks, listCatalogues } from "./advanced";
+import { cacheHeuresisCardImages, heuresisCardImagePaths } from "./cardMedia";
 import { listCardTypes, listCollections, listPacks, listTags, listAllCards } from "./heuresis";
 import { getLearningCounts } from "./learning";
 import { flushOfflineRequests, markOfflineSyncComplete, refreshOfflinePendingCount, setOfflineSyncError, setOfflineSyncing } from "./offlineFetch";
@@ -46,13 +47,19 @@ export async function synchroniseHeuresis(): Promise<SynchroniseResult> {
     await Promise.all(cardTypes.map((type) => listStructureTemplates(type.id).catch(() => [])));
 
     let cardCount = 0;
+    const imagePaths = new Set<string>();
     for (const pack of [...packs, ...archived]) {
       const cards = await listAllCards(pack.id);
       cardCount += cards.length;
+      heuresisCardImagePaths(cards).forEach((path) => imagePaths.add(path));
       await loadStudySetup(pack.id, pack.card_type_id).catch(() => undefined);
       await listRelatedCards(pack.id).catch(() => []);
       if (cards.length) await getLearningCounts(cards.map((card) => card.id)).catch(() => ({}));
     }
+
+    // Card images are blobs, not signed URLs: signed links expire after an hour,
+    // so synchronisation stores the actual media in IndexedDB for long offline trips.
+    if (imagePaths.size) await cacheHeuresisCardImages(Array.from(imagePaths)).catch(() => undefined);
 
     // Keep the collections read warm even when the user synchronises from a
     // secondary screen and never visits Library during this session.
