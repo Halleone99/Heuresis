@@ -118,3 +118,417 @@ html, body, #root {
   .desktop-nav-item { padding-inline: 9px; }
   .desktop-content { padding-inline: 18px; }
 }
+
+
+/* Phone adaptation: compact Heuresis shell for portrait handsets. */
+@media (pointer: coarse) and (max-width: 640px) {
+  html, body, #root {
+    width: 100%;
+    min-width: 0;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-width: 0;
+    padding: 0;
+  }
+
+  .heuresis-desktop {
+    min-height: 100dvh;
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+
+  /* Keep the top bar useful on a phone: identity + actions only. */
+  .desktop-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 70;
+    width: 100%;
+    height: 58px;
+    min-height: 58px;
+    padding:
+      env(safe-area-inset-top)
+      max(10px, env(safe-area-inset-right))
+      0
+      max(10px, env(safe-area-inset-left));
+    gap: 6px;
+    border-bottom: 1px solid rgba(65, 55, 47, .11);
+  }
+
+  .desktop-wordmark {
+    min-width: 0;
+    gap: 7px;
+    font-size: 23px;
+  }
+
+  .desktop-wordmark-name {
+    display: inline-block;
+    font-size: 22px;
+  }
+
+  .desktop-mark-wrap svg {
+    width: 25px;
+    height: 25px;
+  }
+
+  .desktop-spacer { flex: 1; min-width: 4px; }
+
+  .desktop-header-actions {
+    gap: 3px;
+  }
+
+  .desktop-header-actions > .desktop-action:first-child {
+    display: none;
+  }
+
+  .desktop-action,
+  .desktop-account-menu > summary {
+    min-width: 42px;
+    width: auto;
+    height: 42px;
+    min-height: 42px;
+    padding: 0 10px;
+    border-radius: 10px;
+  }
+
+  .desktop-search-action {
+    width: 42px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .desktop-search-action span,
+  .desktop-search-action kbd {
+    display: none;
+  }
+
+  .desktop-topic-action {
+    display: none !important;
+  }
+
+  .desktop-action.desktop-primary {
+    height: 42px;
+    min-height: 42px;
+    padding: 0 12px;
+    font-size: 10px;
+    box-shadow: none;
+  }
+
+  .desktop-account-menu {
+    margin-left: 0;
+  }
+
+  .desktop-account-menu > summary {
+    padding: 0 3px;
+    gap: 0;
+  }
+
+  .desktop-account-menu > summary > svg {
+    display: none;
+  }
+
+  .desktop-account-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .desktop-account-popover {
+    position: fixed;
+    top: calc(58px + env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    width: min(290px, calc(100vw - 20px));
+    max-height: calc(100dvh - 86px - env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+
+  /* Re-purpose the desktop navigation as a persistent mobile bottom bar. */
+  .desktop-nav-group {
+    position: fixed;
+    z-index: 75;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    height: calc(60px + env(safe-area-inset-bottom));
+    margin: 0;
+    padding: 5px max(6px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(6px, env(safe-area-inset-left));
+    border-top: 1px solid rgba(65, 55, 47, .12);
+    border-radius: 0;
+    background: rgba(249, 247, 242, .96);
+    backdrop-filter: blur(22px) saturate(1.2);
+    box-shadow: 0 -8px 28px rgba(38, 29, 23, .045);
+  }
+
+  .desktop-nav-item {
+    width: 100%;
+    height: 54px;
+    min-height: 54px;
+    padding: 5px 2px 4px;
+    border-radius: 10px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    font-size: 9px;
+    line-height: 1;
+  }
+
+  .desktop-nav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .desktop-nav-item.active::after {
+    left: 28%;
+    right: 28%;
+    top: 2px;
+    bottom: auto;
+    height: 2px;
+  }
+
+  /* Phone content should feel native, not like a squeezed desktop page. */
+  .desktop-content {
+    width: 100%;
+    min-width: 0;
+    padding:
+      18px
+      max(14px, env(safe-area-inset-right))
+      calc(24px + env(safe-area-inset-bottom))
+      max(14px, env(safe-area-inset-left));
+  }
+
+  .desktop-notice {
+    top: calc(66px + env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .library-hero {
+    padding: 4px 0 14px;
+  }
+
+  .library-hero h1,
+  .page-heading h1,
+  .pack-page-head h1,
+  .capture-context h1 {
+    font-size: clamp(38px, 12vw, 50px);
+    line-height: .98;
+  }
+
+  .library-summary,
+  .page-heading,
+  .pack-page-head,
+  .collection-page-head {
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .library-summary-metrics,
+  .collection-metrics {
+    width: 100%;
+    gap: 6px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+
+  .library-summary-metrics::-webkit-scrollbar,
+  .collection-metrics::-webkit-scrollbar {
+    display: none;
+  }
+
+  .library-summary-metrics > span,
+  .collection-metrics > span {
+    flex: 0 0 auto;
+  }
+
+  .library-archive-link {
+    margin-left: 0;
+  }
+
+  .collection-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .collection-card {
+    min-height: 0;
+    padding: 18px;
+    border-radius: 12px;
+  }
+
+  .collection-card h2 {
+    font-size: 28px;
+    margin-top: 10px;
+  }
+
+  .collection-glyph {
+    font-size: 38px;
+  }
+
+  .pack-list {
+    margin-top: 16px;
+  }
+
+  .pack-row-wrap {
+    grid-template-columns: minmax(0, 1fr) 42px;
+  }
+
+  .pack-row,
+  .pack-capture {
+    min-height: 48px;
+  }
+
+  .pack-row {
+    padding: 11px;
+    align-items: flex-start;
+  }
+
+  .pack-row small {
+    white-space: normal;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .pack-toolbar,
+  .pack-search {
+    width: 100%;
+    max-width: none;
+  }
+
+  .filter-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .filter-strip::-webkit-scrollbar { display: none; }
+  .filter-strip button { flex: 0 0 auto; min-height: 36px; }
+
+  .card-table-head {
+    display: none;
+  }
+
+  .card-data-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    padding: 14px 4px;
+  }
+
+  .card-term strong {
+    font-size: 22px;
+  }
+
+  .card-tally {
+    justify-content: flex-start;
+  }
+
+  /* Sheets and editors become thumb-friendly bottom sheets. */
+  .modal-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .card-editor-modal {
+    width: 100vw;
+    max-width: none;
+    max-height: 92dvh;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .editor-actions {
+    position: sticky;
+    bottom: 0;
+    margin: 18px -16px -18px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(248, 246, 241, .97);
+    backdrop-filter: blur(16px);
+  }
+
+  .editor-actions .primary-button,
+  .editor-actions .danger-button,
+  .editor-actions .secondary-button {
+    min-height: 44px;
+  }
+
+  /* Capture should use the whole handset and keep its commit action reachable. */
+  .capture-window-host {
+    min-height: 100dvh;
+    height: 100dvh;
+  }
+
+  .capture-window-host .capture-composer-head {
+    min-height: 58px;
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+
+  .capture-window-host .capture-editor-scroll {
+    padding: 14px 13px 12px;
+  }
+
+  .capture-window-host .capture-card-surface {
+    padding: 13px 14px 15px;
+    border-radius: 11px;
+  }
+
+  .capture-window-host .capture-context-pickers {
+    gap: 4px;
+  }
+
+  .capture-window-host .capture-context-pickers select {
+    max-width: 118px;
+  }
+
+  .capture-window-host .capture-composer-foot {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .capture-window-host textarea,
+  .capture-window-host input,
+  .capture-window-host select {
+    font-size: 16px;
+  }
+
+  /* Prevent fixed-width popovers from escaping the handset. */
+  .study-tags-popover,
+  .desktop-account-popover,
+  .capture-composer,
+  .capture-composer.expanded {
+    max-width: calc(100vw - 20px);
+  }
+
+  .capture-composer,
+  .capture-composer.expanded {
+    width: calc(100vw - 12px);
+  }
+
+  .capture-popup-backdrop {
+    padding: 6px;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .text-button,
+  button {
+    touch-action: manipulation;
+  }
+}
+
+@media (pointer: coarse) and (max-width: 380px) {
+  .desktop-wordmark-name { display: none; }
+  .desktop-action.desktop-primary { padding-inline: 10px; }
+  .desktop-content { padding-inline: 12px; }
+  .desktop-nav-item { font-size: 8px; }
+}
