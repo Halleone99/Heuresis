@@ -1,6 +1,7 @@
 name: Build Heuresis MagicPad Android APK
 
 on:
+  pull_request:
   push:
     branches:
       - main
