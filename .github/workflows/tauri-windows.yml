@@ -21,6 +21,8 @@ jobs:
         run: |
           sed -i 's/\r$//' .github/build-patches/heuresis-usability-2026-09-29.patch
           sed -i 's/\r$//' .github/build-patches/heuresis-review-2026-09-29.patch
+          printf '\n' >> .github/build-patches/heuresis-usability-2026-09-29.patch
+          printf '\n' >> .github/build-patches/heuresis-review-2026-09-29.patch
           git apply -p3 .github/build-patches/heuresis-usability-2026-09-29.patch
           git apply -p2 .github/build-patches/heuresis-review-2026-09-29.patch
 
