@@ -16,6 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Apply latest Heuresis usability and review patches
+        shell: bash
+        run: |
+          git apply -p3 .github/build-patches/heuresis-usability-2026-09-29.patch
+          git apply -p2 .github/build-patches/heuresis-review-2026-09-29.patch
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
