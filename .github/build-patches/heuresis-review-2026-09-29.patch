@@ -1,0 +1,596 @@
+diff -ruN heuresis_prev/Heuresis-main/REVIEW_MODEL.md heuresis_work/Heuresis-main/REVIEW_MODEL.md
+--- heuresis_prev/Heuresis-main/REVIEW_MODEL.md	1970-01-01 00:00:00.000000000 +0000
++++ heuresis_work/Heuresis-main/REVIEW_MODEL.md	2026-09-29 19:03:34.750624607 +0000
+@@ -0,0 +1,32 @@
++# Heuresis review model
++
++Heuresis review is evidence-led, not schedule-led.
++
++## What a review records
++
++Each reveal can be assessed with four outcomes. The existing stored event names are preserved for compatibility, but the interface uses clearer language:
++
++- `again` → **Missed** — the answer was not recalled.
++- `hard` → **Partial** — some of it was recalled, but not reliably or completely.
++- `good` → **Recalled** — the target was recalled adequately.
++- `easy` → **Secure** — recall was immediate and confident.
++
++Review methods are independent evidence. Hand-writing, typing, making a sentence, rephrasing, giving an example, saying, and hearing are recorded separately from the outcome.
++
++## Recall states
++
++The app derives a simple state from accumulated review evidence:
++
++- **Not reviewed** — no graded review yet.
++- **Needs work** — misses dominate or the weighted recall evidence is weak.
++- **Developing** — there is some successful recall, but too little or too inconsistent to call reliable; weak production also keeps a card here when direction data is available.
++- **Holding** — recall is broadly reliable across several attempts.
++- **Strong** — repeated, highly reliable recall.
++
++The current weighted evidence score treats Missed = 0, Partial = 0.35, Recalled = 0.75, Secure = 1.00. It is deliberately simple and transparent rather than an SRS algorithm.
++
++## What time does — and does not — do
++
++Dates remain in review history as record metadata. **Elapsed days do not weaken a card, create a due date, or increase its review priority.** A Strong card remains Strong until new review evidence changes that judgement.
++
++This leaves room for a future optional spacing layer without making spacing part of Heuresis' core knowledge judgement.
+diff -ruN heuresis_prev/Heuresis-main/src/components/CatalogueReadMode.tsx heuresis_work/Heuresis-main/src/components/CatalogueReadMode.tsx
+--- heuresis_prev/Heuresis-main/src/components/CatalogueReadMode.tsx	2026-09-29 18:52:41.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/CatalogueReadMode.tsx	2026-09-29 19:01:30.981273047 +0000
+@@ -13,6 +13,7 @@
+   type FieldDef,
+   type PackWithType,
+ } from "../lib/heuresis";
++import { recallState } from "../lib/learningSignals";
+ import { listRelatedCatalogue, relationLabel, type RelatedCatalogueRow } from "../lib/related";
+ import type { CatalogueSessionItem } from "./CatalogueSession";
+ import "../catalogue-read-mode.css";
+@@ -101,14 +102,6 @@
+   return parseBlocks(card).filter((block) => block.type === "image" && block.path).map((block) => block.path);
+ }
+ 
+-function monthsAgo(iso: string | null) {
+-  if (!iso) return "not yet";
+-  const days = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86400000));
+-  if (days <= 1) return "yesterday";
+-  if (days < 14) return `${days} days ago`;
+-  if (days < 60) return `about ${Math.round(days / 7)} weeks ago`;
+-  return `about ${Math.round(days / 30)} months ago`;
+-}
+ 
+ function extraFields(pack: PackWithType) {
+   const term = fieldByRole(pack.cardType, "term")?.key;
+@@ -423,7 +416,7 @@
+           const meaning = fieldText(card.data, meaningField?.key);
+           const retention = retentionFor(card);
+           return <article className="crm-entry" id={`read-entry-${card.id}`} key={card.id}>
+-            <header><strong className={`crm-specimen ${scriptClass(term)}`}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<div className="crm-apparatus">{retention === "reference" ? <><b>Reference.</b> Kept in the catalogue and never added to the review queue.</> : card.stats.study_count ? <><b>Held in review.</b> Met {card.stats.encounter_count.toLocaleString()} time{card.stats.encounter_count === 1 ? "" : "s"}; last {monthsAgo(card.stats.last_encountered_at)}.{card.stats.again_count ? ` ${card.stats.again_count} Again.` : ""}</> : <><b>In review.</b> This is learning material, but it has not been reviewed yet.</>}</div>{itemMap.has(card.id) ? <button className="crm-retention-toggle" disabled={retentionBusy === card.id} onClick={() => void toggleRetention(card)}>{retention === "learning" ? "Keep as reference" : "Add to review"}</button> : null}</header>
++            <header><strong className={`crm-specimen ${scriptClass(term)}`}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<div className="crm-apparatus">{retention === "reference" ? <><b>Reference.</b> Kept in the catalogue and never added to the review queue.</> : card.stats.study_count ? <><b>Held in review.</b> {recallState(card).label}; {card.stats.study_count.toLocaleString()} review{card.stats.study_count === 1 ? "" : "s"}.{card.stats.again_count ? ` ${card.stats.again_count} missed.` : ""}</> : <><b>In review.</b> This is learning material, but it has not been reviewed yet.</>}</div>{itemMap.has(card.id) ? <button className="crm-retention-toggle" disabled={retentionBusy === card.id} onClick={() => void toggleRetention(card)}>{retention === "learning" ? "Keep as reference" : "Add to review"}</button> : null}</header>
+             {renderSections(card, pack)}
+             {rowsFor(card.id).length || relationsError ? <section className="crm-section"><p className="crm-section-label">Connections</p>{renderConnectionGroups(card.id)}</section> : null}
+             <button className="crm-source-link" onClick={() => onOpenEntry(card.id)}>Open entry</button>
+diff -ruN heuresis_prev/Heuresis-main/src/components/CatalogueSession.tsx heuresis_work/Heuresis-main/src/components/CatalogueSession.tsx
+--- heuresis_prev/Heuresis-main/src/components/CatalogueSession.tsx	2026-09-22 11:36:40.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/CatalogueSession.tsx	2026-09-29 19:01:30.980920654 +0000
+@@ -139,7 +139,7 @@
+         <span>Browsing does not change encounter statistics</span>
+         <button className="primary-button" onClick={() => void move(index + 1)}>{index >= sessionItems.length - 1 ? "Finish" : <>Next <ArrowRight size={15} /></>}</button>
+       </> : revealed ? <>
+-        <button onClick={() => void answer("again")}>Again · 1</button><button onClick={() => void answer("hard")}>Hard · 2</button><button className="primary-button" onClick={() => void answer("good")}>Good · 3</button><button onClick={() => void answer("easy")}>Easy · 4</button>
++        <button onClick={() => void answer("again")}>Missed · 1</button><button onClick={() => void answer("hard")}>Partial · 2</button><button className="primary-button" onClick={() => void answer("good")}>Recalled · 3</button><button onClick={() => void answer("easy")}>Secure · 4</button>
+       </> : <span>Reveal before grading.</span>}
+     </footer>
+   </div>;
+diff -ruN heuresis_prev/Heuresis-main/src/components/CatalogueView.tsx heuresis_work/Heuresis-main/src/components/CatalogueView.tsx
+--- heuresis_prev/Heuresis-main/src/components/CatalogueView.tsx	2026-09-29 18:52:41.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/CatalogueView.tsx	2026-09-29 19:04:33.066847898 +0000
+@@ -2,14 +2,14 @@
+ import { useEffect, useMemo, useState } from "react";
+ import { fieldByRole, fieldText, listAllCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+ import { createCatalogue, deleteCatalogue, listCatalogues, updateCatalogue, type CatalogueCriteria, type CatalogueStatus, type SavedCatalogue } from "../lib/advanced";
+-import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
++import { attentionScore, directionTemplates, isKeepMissing, isWeakProduction, productionPerformance, recallState, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
+ import { loadStudySetup } from "../lib/study";
+ import CatalogueSession, { type CatalogueSessionItem } from "./CatalogueSession";
+ import CatalogueReadMode from "./CatalogueReadMode";
+ 
+ type Item = CatalogueSessionItem;
+ type Props = { collections: Collection[]; packs: PackWithType[]; onBack: () => void; onOpenPack: (pack: PackWithType) => void; onOpenEntry: (cardId: string) => void };
+-type SmartPreset = "none" | "missing" | "production" | "stale";
++type SmartPreset = "none" | "unreviewed" | "missing" | "production" | "developing";
+ type SortKey = "attention" | "recent" | "production" | "alphabetical";
+ 
+ const DEFAULT_CRITERIA: CatalogueCriteria = { collectionId: "all", packId: "all", tagIds: [], status: "all", query: "" };
+@@ -19,7 +19,7 @@
+ }
+ 
+ function statusLabel(status: CatalogueStatus) {
+-  return status === "new" ? "Never met" : status === "favourites" ? "Favourites" : status === "interesting" ? "High interest" : status === "again" ? "Often Again" : "";
++  return status === "new" ? "Never met" : status === "favourites" ? "Favourites" : status === "interesting" ? "High interest" : status === "again" ? "Repeated misses" : "";
+ }
+ 
+ export default function CatalogueView({ collections, packs, onBack, onOpenPack, onOpenEntry }: Props) {
+@@ -83,15 +83,15 @@
+   }, [selectedPacks]);
+ 
+   const questionCounts = useMemo(() => {
+-    let never = 0; let missing = 0; let production = 0; let stale = 0;
++    let unreviewed = 0; let missing = 0; let production = 0; let developing = 0;
+     items.forEach(({ card, pack }) => {
+       const directions = directionsByPack[pack.id] ?? { recognition: null, production: null };
+-      if (card.stats.encounter_count === 0) never += 1;
++      if (card.stats.study_count === 0) unreviewed += 1;
+       if (isKeepMissing(card)) missing += 1;
+       if (isWeakProduction(card, directions)) production += 1;
+-      if (isNotSeenRecently(card)) stale += 1;
++      if (recallState(card, directions).key === "developing") developing += 1;
+     });
+-    return { never, missing, production, stale };
++    return { unreviewed, missing, production, developing };
+   }, [directionsByPack, items]);
+ 
+   const shown = useMemo(() => {
+@@ -102,8 +102,9 @@
+       if (criteria.status === "interesting" && (card.interest_rank ?? 0) < 4 && !card.interesting) return false;
+       if (criteria.status === "again" && card.stats.again_count < 2) return false;
+       if (criteria.tagIds.length && !criteria.tagIds.every((tagId) => card.tags.some((tag) => tag.id === tagId))) return false;
++      if (smartPreset === "unreviewed" && card.stats.study_count !== 0) return false;
+       if (smartPreset === "missing" && !isKeepMissing(card)) return false;
+-      if (smartPreset === "stale" && !isNotSeenRecently(card)) return false;
++      if (smartPreset === "developing" && recallState(card, directionsByPack[pack.id] ?? { recognition: null, production: null }).key !== "developing") return false;
+       if (smartPreset === "production" && !isWeakProduction(card, directionsByPack[pack.id] ?? { recognition: null, production: null })) return false;
+       if (!q) return true;
+       const text = [pack.title, card.note ?? "", ...card.tags.map((tag) => tag.name), ...Object.values(card.data).flatMap((value) => Array.isArray(value) ? value : [value]).filter((value): value is string => typeof value === "string")].join(" ").toLocaleLowerCase();
+@@ -126,7 +127,7 @@
+   }, [criteria, directionsByPack, items, smartPreset, sortKey]);
+ 
+   const orderedTags = useMemo(() => [...tags].sort((a, b) => Number(b.is_badge) - Number(a.is_badge) || a.sort_order - b.sort_order || a.name.localeCompare(b.name, undefined, { numeric: true })), [tags]);
+-  const statuses: Array<[CatalogueStatus, string]> = [["all", "Any status"], ["new", "Never met"], ["favourites", "Favourites"], ["interesting", "Interest 4–5"], ["again", "Often Again"]];
++  const statuses: Array<[CatalogueStatus, string]> = [["all", "Any status"], ["new", "Never met"], ["favourites", "Favourites"], ["interesting", "Interest 4–5"], ["again", "Repeated misses"]];
+   const activeSaved = saved.find((catalogue) => catalogue.id === activeSavedId) ?? null;
+   const spansMultiplePacks = new Set(shown.map((item) => item.pack.id)).size > 1;
+   const readModeTitle = smartPreset === "production" ? "Weak production" : activeSaved?.title ?? (criteria.packId !== "all" ? packs.find((pack) => pack.id === criteria.packId)?.title : null) ?? "Current catalogue";
+@@ -146,24 +147,19 @@
+     setSaved(await listCatalogues());
+   }
+ 
+-  function chooseQuestion(key: "never" | SmartPreset) {
++  function chooseQuestion(key: Exclude<SmartPreset, "none">) {
+     setActiveSavedId(null);
+-    if (key === "never") {
+-      setSmartPreset("none");
+-      setCriteria((current) => ({ ...current, status: "new" }));
+-    } else {
+-      setCriteria((current) => ({ ...current, status: "all" }));
+-      setSmartPreset(key);
+-      if (key === "production") setSortKey("production");
+-      else setSortKey("attention");
+-    }
++    setCriteria((current) => ({ ...current, status: "all" }));
++    setSmartPreset(key);
++    if (key === "production") setSortKey("production");
++    else setSortKey("attention");
+   }
+ 
+   const activeTokens = [
+     criteria.collectionId !== "all" ? { key: "collection", label: collections.find((item) => item.id === criteria.collectionId)?.title ?? "Collection", clear: () => setCriteria((current) => ({ ...current, collectionId: "all", packId: "all" })) } : null,
+     criteria.packId !== "all" ? { key: "pack", label: packs.find((item) => item.id === criteria.packId)?.title ?? "Topic", clear: () => setCriteria((current) => ({ ...current, packId: "all" })) } : null,
+     criteria.status !== "all" ? { key: "status", label: statusLabel(criteria.status), clear: () => setCriteria((current) => ({ ...current, status: "all" })) } : null,
+-    smartPreset !== "none" ? { key: "smart", label: smartPreset === "missing" ? "Keeps missing" : smartPreset === "production" ? "Weak production" : "Not seen in 30d", clear: () => setSmartPreset("none") } : null,
++    smartPreset !== "none" ? { key: "smart", label: smartPreset === "unreviewed" ? "Not reviewed" : smartPreset === "missing" ? "Needs work" : smartPreset === "production" ? "Weak production" : "Developing", clear: () => setSmartPreset("none") } : null,
+   ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
+ 
+   return (
+@@ -173,10 +169,10 @@
+ 
+       <div className="intelligent-row-label">QUESTIONS WORTH ASKING</div>
+       <div className="intelligent-question-band">
+-        <button data-tone="indigo" onClick={() => chooseQuestion("never")}><strong>{questionCounts.never.toLocaleString()}</strong><b>Never met</b><span>Cards with no encounter yet.</span></button>
+-        <button data-tone="cinnabar" onClick={() => chooseQuestion("missing")}><strong>{questionCounts.missing.toLocaleString()}</strong><b>You keep missing</b><span>Repeated Again grades outweigh successful recalls.</span></button>
++        <button data-tone="indigo" onClick={() => chooseQuestion("unreviewed")}><strong>{questionCounts.unreviewed.toLocaleString()}</strong><b>Not reviewed</b><span>No graded recall attempt yet.</span></button>
++        <button data-tone="cinnabar" onClick={() => chooseQuestion("missing")}><strong>{questionCounts.missing.toLocaleString()}</strong><b>You keep missing</b><span>Missed outcomes outweigh successful recalls.</span></button>
+         <button data-tone="amber" onClick={() => chooseQuestion("production")}><strong>{questionCounts.production.toLocaleString()}</strong><b>Weak in production</b><span>Production trails recognition in your real direction history.</span></button>
+-        <button data-tone="sage" onClick={() => chooseQuestion("stale")}><strong>{questionCounts.stale.toLocaleString()}</strong><b>Not seen in a month</b><span>Encountered before, but quiet for at least 30 days.</span></button>
++        <button data-tone="sage" onClick={() => chooseQuestion("developing")}><strong>{questionCounts.developing.toLocaleString()}</strong><b>Developing</b><span>Reviewed, but not yet consistently reliable.</span></button>
+       </div>
+ 
+       {saved.length ? <><div className="intelligent-row-label">YOUR SAVED CATALOGUES</div><div className="saved-catalogues intelligent-saved">{saved.map((catalogue) => <button key={catalogue.id} aria-pressed={activeSavedId === catalogue.id} onClick={() => { setCriteria(catalogue.criteria); setSmartPreset("none"); setActiveSavedId(catalogue.id); }}>{catalogue.title}</button>)}</div></> : null}
+@@ -214,16 +210,16 @@
+         const productionPct = percentage(production?.score);
+         const missing = isKeepMissing(card);
+         const weakProduction = isWeakProduction(card, directions);
+-        const stale = isNotSeenRecently(card);
++        const recall = recallState(card, directions);
+         return <article className="intelligent-result-card" key={card.id}>
+           <div className="result-term"><strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(card.data, reading.key)}</em> : null}{spansMultiplePacks ? <button onClick={() => onOpenPack(pack)}>{pack.title}</button> : null}</div>
+           <div className="result-meaning">{fieldText(card.data, meaning?.key)}</div>
+           <div className="direction-signal">
+             {recognitionPct !== null ? <div><span>RECOG</span><i><em style={{ width: `${recognitionPct}%` }} /></i><b>{recognitionPct}%</b></div> : null}
+             {productionPct !== null ? <div><span>PRODUCE</span><i><em style={{ width: `${productionPct}%` }} /></i><b>{productionPct}%</b></div> : null}
+-            {!recognition && !production ? <small>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "NOT MET YET"}</small> : <small>{formatSeen(card.stats.last_encountered_at)}{card.stats.again_count ? ` · ${card.stats.again_count} Again` : ""}</small>}
++            {!recognition && !production ? <small>{recall.label.toUpperCase()}</small> : <small>{recall.label}{card.stats.again_count ? ` · ${card.stats.again_count} missed` : ""}</small>}
+           </div>
+-          <div className="result-flags">{missing ? <span className="danger">KEEPS MISSING</span> : null}{weakProduction ? <span className="warn">PRODUCTION</span> : null}{stale && !missing ? <span>QUIET 30D+</span> : null}<button className="result-open-entry" onClick={() => onOpenEntry(card.id)}>Open entry</button></div>
++          <div className="result-flags">{missing ? <span className="danger">NEEDS WORK</span> : null}{weakProduction ? <span className="warn">PRODUCTION</span> : null}{recall.key === "developing" && !missing && !weakProduction ? <span>DEVELOPING</span> : null}<button className="result-open-entry" onClick={() => onOpenEntry(card.id)}>Open entry</button></div>
+         </article>;
+       })}{!shown.length && !loading ? <div className="catalogue-empty">No cards match these filters.</div> : null}</div>}
+ 
+diff -ruN heuresis_prev/Heuresis-main/src/components/ConnectionsPanel.tsx heuresis_work/Heuresis-main/src/components/ConnectionsPanel.tsx
+--- heuresis_prev/Heuresis-main/src/components/ConnectionsPanel.tsx	2026-09-29 18:52:05.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/ConnectionsPanel.tsx	2026-09-29 19:04:56.805827959 +0000
+@@ -1,7 +1,7 @@
+ import { Link2, X } from "lucide-react";
+ import { useEffect, useMemo, useState } from "react";
+ import { fieldByRole, fieldText, listCardsByIds, listCollections, listPacks, type CardWithStats, type Collection, type PackWithType } from "../lib/heuresis";
+-import { aggregatePerformance, formatSeen } from "../lib/learningSignals";
++import { recallScore, recallState } from "../lib/learningSignals";
+ import { listRelatedCatalogue, relationLabel, RELATION_TYPES, type RelatedCatalogueRow, type RelationType } from "../lib/related";
+ 
+ type Props = { pack: PackWithType; card: CardWithStats; onClose: () => void; onOpenEntry?: (cardId: string) => void };
+@@ -10,7 +10,7 @@
+ 
+ function scorePercent(card: CardWithStats | undefined) {
+   if (!card || card.stats.study_count <= 0) return null;
+-  const value = aggregatePerformance(card);
++  const value = recallScore(card);
+   return value === null ? null : Math.round(value * 100);
+ }
+ 
+@@ -157,7 +157,7 @@
+         </button>)}</div>
+       </section> : null}
+ 
+-      <footer className="connections-foot"><span><i className="sample-dash" /> dashed node = connected reference entry</span><span>review bar appears only when an entry has actually been studied</span><span>{rootCard.stats.study_count ? formatSeen(rootCard.stats.last_encountered_at) : "catalogued · not reviewed"}</span></footer>
++      <footer className="connections-foot"><span><i className="sample-dash" /> dashed node = connected reference entry</span><span>review bar appears only when an entry has actually been studied</span><span>{rootCard.stats.study_count ? `review state · ${recallState(rootCard).label.toLocaleLowerCase()}` : "catalogued · not reviewed"}</span></footer>
+     </section>
+   </div>;
+ }
+diff -ruN heuresis_prev/Heuresis-main/src/components/CosmosWindow.tsx heuresis_work/Heuresis-main/src/components/CosmosWindow.tsx
+--- heuresis_prev/Heuresis-main/src/components/CosmosWindow.tsx	2026-09-29 18:53:11.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/CosmosWindow.tsx	2026-09-29 19:03:48.319256001 +0000
+@@ -38,6 +38,7 @@
+ } from "../lib/study";
+ import { signHeuresisCardImages } from "../lib/cardMedia";
+ import { supabase } from "../lib/supabase";
++import { recallState } from "../lib/learningSignals";
+ import RetentionPractice from "./RetentionPractice";
+ import "./cosmos.css";
+ 
+@@ -50,7 +51,7 @@
+ type WorkspaceTextBlock = { id: string; type: "text"; text: string; dim: DimensionId };
+ type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: string; dim: DimensionId };
+ type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
+-type Source = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
++type Source = "all" | "new" | "needs-work" | "developing" | "favourites" | "interesting" | "again" | "unsorted";
+ type Order = "pack" | "random";
+ 
+ type Config = {
+@@ -105,7 +106,7 @@
+     packId,
+     templateId: params.get("template") ?? "",
+     templateIds,
+-    source: source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
++    source: source === "new" || source === "needs-work" || source === "developing" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
+     order: params.get("order") === "random" ? "random" : "pack",
+     count: rawCount === "all" || !Number.isFinite(numeric) || numeric <= 0 ? "all" : Math.floor(numeric),
+     tagIds: params.getAll("tag").filter(Boolean),
+@@ -123,7 +124,9 @@
+ }
+ 
+ function sourceCards(cards: CardWithStats[], source: Source) {
+-  if (source === "new") return cards.filter((card) => card.stats.encounter_count === 0);
++  if (source === "new") return cards.filter((card) => card.stats.study_count === 0);
++  if (source === "needs-work") return cards.filter((card) => recallState(card).key === "needs-work");
++  if (source === "developing") return cards.filter((card) => recallState(card).key === "developing");
+   if (source === "favourites") return cards.filter((card) => card.favourite);
+   if (source === "interesting") return cards.filter((card) => (card.interest_rank ?? 0) >= 4 || card.interesting);
+   if (source === "again") return cards.filter((card) => card.stats.again_count >= 2);
+@@ -674,7 +677,7 @@
+   };
+ 
+   return <main className="cosmos-shell">
+-    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes">{relatedReview ? <span>Related review</span> : <><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></>}</div><span className="cosmos-mode-note">{relatedReview ? "related vocabulary · reveal · grade" : mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
++    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes">{relatedReview ? <span>Related review</span> : <><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></>}</div><span className="cosmos-mode-note">{relatedReview ? "related vocabulary · reveal · assess" : mode === "review" ? "memory · reveal · assess" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
+     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / order.length) * 100)}%` }} /></div>
+     <section className="cosmos-stage"><div className="cosmos-work" data-l={openLeaf.l ? "open" : "closed"} data-r={openLeaf.r ? "open" : "closed"}>
+       {renderLeaf("l")}
+@@ -683,7 +686,7 @@
+         <nav className="cosmos-tabs right">{dimensions.filter((item) => item.side === "r").map((dimension) => <button key={dimension.id} disabled={mode === "review" && !revealed} aria-expanded={openLeaf.r === dimension.id} data-empty={countFor(dimension.id) ? "0" : "1"} onClick={() => toggleLeaf(dimension.id, "r")}><span>{countFor(dimension.id) || "+"}</span><b>{dimension.label}</b></button>)}</nav>
+         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
+         {mode === "review" ? <RetentionPractice card={card} pack={pack} template={template} revealed={revealed} busy={busy} counts={counts} selectedActions={activeLearning} onMark={markLearning} onNotice={setNotice} /> : null}
+-        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <><button disabled={busy} onClick={() => void answer("again")}>Again <small>1</small></button><button disabled={busy} onClick={() => void answer("hard")}>Hard <small>2</small></button><button className="primary" disabled={busy} onClick={() => void answer("good")}>Good <small>3</small></button><button disabled={busy} onClick={() => void answer("easy")}>Easy <small>4</small></button></> : <span>Use a retention action if useful, then reveal the card.</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((item) => item.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
++        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <><button disabled={busy} onClick={() => void answer("again")}>Missed <small>1</small></button><button disabled={busy} onClick={() => void answer("hard")}>Partial <small>2</small></button><button className="primary" disabled={busy} onClick={() => void answer("good")}>Recalled <small>3</small></button><button disabled={busy} onClick={() => void answer("easy")}>Secure <small>4</small></button></> : <span>Use a retention action if useful, then reveal the card.</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((item) => item.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+       </article>
+       {renderLeaf("r")}
+     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
+diff -ruN heuresis_prev/Heuresis-main/src/components/KnowledgeEntryModal.tsx heuresis_work/Heuresis-main/src/components/KnowledgeEntryModal.tsx
+--- heuresis_prev/Heuresis-main/src/components/KnowledgeEntryModal.tsx	2026-09-29 18:51:42.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/KnowledgeEntryModal.tsx	2026-09-29 19:01:30.980657357 +0000
+@@ -11,6 +11,7 @@
+   type PackWithType,
+ } from "../lib/heuresis";
+ import { getLearningCounts, LEARNING_ACTION_LABELS, listReviewHistory, type LearningCounts, type ReviewHistoryItem } from "../lib/learning";
++import { recallState, REVIEW_GRADE_LABELS } from "../lib/learningSignals";
+ import { listRelatedCatalogue, relationLabel, type RelatedCatalogueRow } from "../lib/related";
+ import ConnectionsPanel from "./ConnectionsPanel";
+ import "./knowledge-entry.css";
+@@ -82,6 +83,11 @@
+   return new Date(time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+ }
+ 
++function historyDate(value: string) {
++  const time = Date.parse(value);
++  return Number.isFinite(time) ? new Date(time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : value;
++}
++
+ function relationSemantic(row: RelatedCatalogueRow, currentId: string) {
+   const outgoing = row.source_card_id === currentId;
+   if (row.relation_type === "part_of") return outgoing ? "part of" : "contains";
+@@ -120,6 +126,7 @@
+   const reading = card ? fieldText(card.data, readingField?.key) : "";
+   const meaning = card ? fieldText(card.data, meaningField?.key) : "";
+   const blocks = useMemo(() => parseBlocks(card), [card]);
++  const recall = card ? recallState(card) : null;
+ 
+   useEffect(() => {
+     setCurrentId(cardId);
+@@ -266,15 +273,16 @@
+             <section className="knowledge-entry-review">
+               <div className="knowledge-entry-section-head"><h2>Review</h2><span>{card.stats.study_count}</span></div>
+               {card.retention === "reference" ? <p className="knowledge-entry-muted">Reference only. It creates no review debt.</p> : <>
++                <p className={`knowledge-entry-recall-state state-${recall?.key ?? "not-reviewed"}`}><small>RECALL STATE</small><strong>{recall?.label ?? "Not reviewed"}</strong>{recall?.score != null ? <span>{Math.round(recall.score * 100)}% evidence score</span> : null}</p>
+                 <div className="knowledge-entry-review-stats">
+-                  <article><strong>{card.stats.study_count}</strong><small>reviews</small></article>
+-                  <article><strong>{card.stats.good_count + card.stats.easy_count}</strong><small>good / easy</small></article>
+-                  <article><strong>{card.stats.again_count}</strong><small>again</small></article>
++                  <article><strong>{card.stats.again_count}</strong><small>missed</small></article>
++                  <article><strong>{card.stats.hard_count}</strong><small>partial</small></article>
++                  <article><strong>{card.stats.good_count}</strong><small>recalled</small></article>
++                  <article><strong>{card.stats.easy_count}</strong><small>secure</small></article>
+                 </div>
+-                <p className="knowledge-entry-last">Last reviewed {relativeDate(card.stats.last_encountered_at)}</p>
+               </>}
+               {learningMethods.length ? <div className="knowledge-entry-methods"><small>HOW YOU REVIEWED</small>{learningMethods.map((action) => <span key={action}>{LEARNING_ACTION_LABELS[action]} <b>{counts[action]}</b></span>)}</div> : null}
+-              {history.length ? <div className="knowledge-entry-history"><small>RECENT REVIEW SESSIONS</small>{history.map((item) => <article key={item.sessionId}><div><strong>{relativeDate(item.reviewedAt)}</strong>{item.grade ? <span className={`grade ${item.grade}`}>{item.grade}</span> : null}</div><p>{item.methods.length ? item.methods.map((action) => LEARNING_ACTION_LABELS[action]).join(" · ") : "Flashcard review"}</p></article>)}</div> : null}
++              {history.length ? <div className="knowledge-entry-history"><small>RECENT REVIEW SESSIONS</small>{history.map((item) => <article key={item.sessionId}><div><strong>{historyDate(item.reviewedAt)}</strong>{item.grade ? <span className={`grade ${item.grade}`}>{REVIEW_GRADE_LABELS[item.grade]}</span> : null}</div><p>{item.methods.length ? item.methods.map((action) => LEARNING_ACTION_LABELS[action]).join(" · ") : "Flashcard review"}</p></article>)}</div> : null}
+             </section>
+ 
+             {card.tags.length ? <section className="knowledge-entry-side-section"><h2>Tags</h2><div className="knowledge-entry-tags">{card.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div></section> : null}
+diff -ruN heuresis_prev/Heuresis-main/src/components/PackView.tsx heuresis_work/Heuresis-main/src/components/PackView.tsx
+--- heuresis_prev/Heuresis-main/src/components/PackView.tsx	2026-09-29 18:52:41.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/PackView.tsx	2026-09-29 19:04:56.806201103 +0000
+@@ -13,7 +13,7 @@
+   type PackWithType,
+ } from "../lib/heuresis";
+ import { getLearningCounts, type LearningAction, type LearningCounts } from "../lib/learning";
+-import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
++import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isWeakProduction, productionPerformance, recallScore, recallState, recallStateRank, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
+ import { cardHasCompletedSort } from "../lib/sort";
+ import { loadStudySetup, type StudyTemplate } from "../lib/study";
+ import BrowseModal from "./BrowseModal";
+@@ -39,8 +39,8 @@
+ type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
+ type StatusFilter = "unsorted" | "sorted" | "reviewed" | "favourite";
+ type InterestFilter = "all" | "none" | "1" | "2" | "3" | "4" | "5";
+-type DetailFilter = "again" | "production" | "stale";
+-type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
++type DetailFilter = "again" | "production" | "developing";
++type SortField = "status" | "term" | "interest" | "reviews" | "recall";
+ type SortDirection = "asc" | "desc";
+ 
+ const LEARNING_SHORT: Array<[LearningAction, string]> = [
+@@ -186,7 +186,7 @@
+   const neverCards = useMemo(() => cards.filter((card) => card.stats.encounter_count === 0), [cards]);
+   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
+   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
+-  const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
++  const developingCards = useMemo(() => cards.filter((card) => recallState(card, directions).key === "developing").sort((a, b) => (recallScore(a) ?? 0) - (recallScore(b) ?? 0)), [cards, directions]);
+   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
+   const sortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "sorted"), [cards]);
+   const reviewedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "reviewed"), [cards]);
+@@ -218,7 +218,7 @@
+         const matchesSignal = detailFilters.some((detail) => {
+           if (detail === "again") return isKeepMissing(card);
+           if (detail === "production") return isWeakProduction(card, directions);
+-          return isNotSeenRecently(card);
++          return recallState(card, directions).key === "developing";
+         });
+         if (!matchesSignal) return false;
+       }
+@@ -235,7 +235,7 @@
+       if (sortField === "term") delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
+       if (sortField === "interest") delta = (a.interest_rank ?? 0) - (b.interest_rank ?? 0);
+       if (sortField === "reviews") delta = a.stats.study_count - b.stats.study_count;
+-      if (sortField === "lastSeen") delta = Date.parse(a.stats.last_encountered_at ?? "1970-01-01") - Date.parse(b.stats.last_encountered_at ?? "1970-01-01");
++      if (sortField === "recall") delta = recallStateRank(a, directions) - recallStateRank(b, directions) || (recallScore(a) ?? -1) - (recallScore(b) ?? -1);
+       if (delta === 0) delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
+       return delta * direction;
+     });
+@@ -330,9 +330,9 @@
+       </section>
+ 
+       {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
+-        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Repeated Again grades.</span><em>REVIEW</em></button>
++        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Needs work", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Needs work</b><span>Misses outweigh successful recall.</span><em>REVIEW</em></button>
+         <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
+-        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously met, now stale.</span><em>REFRESH</em></button>
++        <button data-tone="sage" disabled={!developingCards.length} onClick={() => openTargeted("Developing", developingCards)}><strong>{developingCards.length.toLocaleString()}</strong><b>Developing</b><span>Some recall, not yet reliable.</span><em>REVIEW</em></button>
+       </div> : null}
+ 
+       <div className="topic-command-bar">
+@@ -390,7 +390,7 @@
+             <div className="filter-menu-popover signal-menu-popover"><p>Learning signals</p><div className="filter-chip-grid">
+               <button className={detailFilters.includes("again") ? "selected" : ""} onClick={() => toggleDetail("again")}>Missing</button>
+               <button className={detailFilters.includes("production") ? "selected" : ""} onClick={() => toggleDetail("production")}>Production</button>
+-              <button className={detailFilters.includes("stale") ? "selected" : ""} onClick={() => toggleDetail("stale")}>30d+</button>
++              <button className={detailFilters.includes("developing") ? "selected" : ""} onClick={() => toggleDetail("developing")}>Developing</button>
+             </div></div>
+           </details> : null}
+ 
+@@ -408,7 +408,7 @@
+           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATUS <ArrowUpDown size={11} /></button>
+           <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>INTEREST <ArrowUpDown size={11} /></button>
+           <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>LEARNING <ArrowUpDown size={11} /></button>
+-          <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>RECALL <ArrowUpDown size={11} /></button>
++          <button className={sortField === "recall" ? "active" : ""} onClick={() => changeSort("recall")}>RECALL <ArrowUpDown size={11} /></button>
+           <span>TAGS & LINKS</span>
+         </div>
+         {shown.map((card) => {
+@@ -417,7 +417,7 @@
+           const rp = pct(recognition?.score); const pp = pct(production?.score);
+           const missing = richDiagnostics && isKeepMissing(card);
+           const weakProduction = richDiagnostics && isWeakProduction(card, directions);
+-          const stale = richDiagnostics && isNotSeenRecently(card);
++          const recall = recallState(card, directions);
+           const learning = compactLearning(learningCounts[card.id]);
+           const rank = card.interest_rank;
+           const visibleTags = card.tags.slice(0, 3);
+@@ -452,9 +452,9 @@
+             </div>
+ 
+             <div className="modern-recall-cell">
+-              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "Not met yet"}</strong>}
+-              <small>{card.stats.again_count ? `${card.stats.again_count} Again` : ""}{card.stats.again_count && card.stats.good_count ? " · " : ""}{card.stats.good_count ? `${card.stats.good_count} Good` : ""}{card.stats.easy_count ? `${card.stats.good_count || card.stats.again_count ? " · " : ""}${card.stats.easy_count} Easy` : ""}</small>
+-              {missing ? <i className="signal-note danger">Keeps missing</i> : null}{weakProduction ? <i className="signal-note warn">Production</i> : null}{stale && !missing ? <i className="signal-note">Quiet</i> : null}
++              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{recall.label}</strong>}
++              <small><b>{recall.label}</b>{card.stats.again_count ? ` · ${card.stats.again_count} Missed` : ""}{card.stats.hard_count ? ` · ${card.stats.hard_count} Partial` : ""}{card.stats.good_count ? ` · ${card.stats.good_count} Recalled` : ""}{card.stats.easy_count ? ` · ${card.stats.easy_count} Secure` : ""}</small>
++              {missing ? <i className="signal-note danger">Needs work</i> : null}{weakProduction ? <i className="signal-note warn">Production</i> : null}{recall.key === "developing" && !missing && !weakProduction ? <i className="signal-note">Developing</i> : null}
+             </div>
+ 
+             <div className="modern-meta-cell compact-meta-cell">
+diff -ruN heuresis_prev/Heuresis-main/src/components/StudyModal.tsx heuresis_work/Heuresis-main/src/components/StudyModal.tsx
+--- heuresis_prev/Heuresis-main/src/components/StudyModal.tsx	2026-09-22 11:36:40.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/StudyModal.tsx	2026-09-29 19:02:22.394140750 +0000
+@@ -2,6 +2,7 @@
+ import { useEffect, useMemo, useState } from "react";
+ import { type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+ import { openCosmosWindow, type CosmosSource } from "../lib/cosmosWindow";
++import { recallState } from "../lib/learningSignals";
+ import { cardHasCompletedSort } from "../lib/sort";
+ import { loadStudySetup, type StudyTemplate } from "../lib/study";
+ import "./study.css";
+@@ -19,7 +20,9 @@
+ type DirectionPair = { key: string; ids: [string, string]; label: string };
+ 
+ function sourceCards(cards: CardWithStats[], source: ReviewSource) {
+-  if (source === "new") return cards.filter((card) => card.stats.encounter_count === 0);
++  if (source === "new") return cards.filter((card) => card.stats.study_count === 0);
++  if (source === "needs-work") return cards.filter((card) => recallState(card).key === "needs-work");
++  if (source === "developing") return cards.filter((card) => recallState(card).key === "developing");
+   if (source === "favourites") return cards.filter((card) => card.favourite);
+   if (source === "interesting") return cards.filter((card) => (card.interest_rank ?? 0) >= 4 || card.interesting);
+   if (source === "again") return cards.filter((card) => card.stats.again_count >= 2);
+@@ -183,11 +186,11 @@
+   }
+ 
+   const reviewSources: Array<[ReviewSource, string, number]> = [
+-    ["all", "All ready", readyCards.length],
+-    ["new", "First review", firstReviewCards.length],
++    ["all", "All review cards", readyCards.length],
++    ["new", "Not reviewed", firstReviewCards.length],
++    ["needs-work", "Needs work", readyCards.filter((card) => recallState(card).key === "needs-work").length],
++    ["developing", "Developing", readyCards.filter((card) => recallState(card).key === "developing").length],
+     ["favourites", "Favourites", readyCards.filter((card) => card.favourite).length],
+-    ["interesting", "Interest 4–5", readyCards.filter((card) => (card.interest_rank ?? 0) >= 4 || card.interesting).length],
+-    ["again", "Often Again", readyCards.filter((card) => card.stats.again_count >= 2).length],
+   ];
+ 
+   return <div className="study-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+diff -ruN heuresis_prev/Heuresis-main/src/components/knowledge-entry.css heuresis_work/Heuresis-main/src/components/knowledge-entry.css
+--- heuresis_prev/Heuresis-main/src/components/knowledge-entry.css	2026-09-29 18:56:00.000000000 +0000
++++ heuresis_work/Heuresis-main/src/components/knowledge-entry.css	2026-09-29 19:01:30.980784719 +0000
+@@ -9,5 +9,5 @@
+ .knowledge-entry-inline-error{margin:13px 0 0;color:#9d4d40;font-size:11px}.knowledge-entry-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(250px,.72fr);gap:34px;margin-top:28px}.knowledge-entry-section{padding:0 0 28px;margin:0 0 28px;border-bottom:1px solid #e8e1d8}.knowledge-entry-section h2,.knowledge-entry-review h2,.knowledge-entry-side-section h2{margin:0;color:#766d64;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.knowledge-entry-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.knowledge-entry-section-head>span{color:#aaa097;font:10px 'DM Mono',monospace}
+ .knowledge-entry-fields,.knowledge-entry-blocks{display:grid;gap:10px;margin-top:12px}.knowledge-entry-fields article,.knowledge-entry-blocks article{padding:13px 14px;border:1px solid #e7e0d6;border-radius:10px;background:#fff}.knowledge-entry-fields small,.knowledge-entry-blocks small{display:block;margin-bottom:6px;color:#a1988e;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.knowledge-entry-fields p,.knowledge-entry-blocks p,.knowledge-entry-note{margin:0;color:#46403a;font:400 14px/1.55 Georgia,serif;white-space:pre-wrap}.knowledge-entry-blocks em{display:block;margin-top:5px;color:#8b8177;font:11px/1.4 'DM Mono',monospace}.knowledge-entry-blocks .translation{margin-top:5px;color:#726960;font-size:12px}.knowledge-entry-note{margin-top:10px;padding:14px;border-left:2px solid #c6b6a9;background:#f7f3ed}
+ .knowledge-entry-links{display:grid;gap:8px}.knowledge-entry-links button{display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;padding:11px 12px;border:1px solid #e5ded5;border-radius:10px;background:#fff;text-align:left;cursor:pointer}.knowledge-entry-links button:hover{border-color:#bdab9b;background:#fdfbf8}.knowledge-entry-links small{display:block;margin-bottom:3px;color:#9d948b;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.knowledge-entry-links strong{display:block;color:#3d3732;font:500 14px/1.3 Inter,sans-serif}.knowledge-entry-links p{margin:3px 0 0;color:#776e65;font-size:11px}.knowledge-entry-links em{flex:0 0 auto;color:#aaa096;font-size:9px;font-style:normal}.knowledge-entry-muted{margin:8px 0 0;color:#9a9188;font-size:11px;line-height:1.5}
+-.knowledge-entry-review,.knowledge-entry-side-section{padding:16px;border:1px solid #e6ded4;border-radius:12px;background:#fff}.knowledge-entry-side-section{margin-top:12px}.knowledge-entry-review-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}.knowledge-entry-review-stats article{padding:9px 7px;border-radius:8px;background:#f6f2ec;text-align:center}.knowledge-entry-review-stats strong{display:block;font:500 18px 'DM Mono',monospace}.knowledge-entry-review-stats small{display:block;margin-top:3px;color:#978e85;font-size:8px;text-transform:uppercase}.knowledge-entry-last{margin:9px 0 0;color:#8d847a;font-size:10px}.knowledge-entry-methods,.knowledge-entry-history{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:13px;border-top:1px solid #eee8df}.knowledge-entry-methods>small,.knowledge-entry-history>small{width:100%;margin-bottom:2px;color:#aaa096;font-size:8px;font-weight:750;letter-spacing:.1em}.knowledge-entry-methods>span{padding:4px 7px;border-radius:99px;background:#f2eee8;color:#6f665e;font-size:9px}.knowledge-entry-methods b{font-family:'DM Mono',monospace}.knowledge-entry-history{display:grid}.knowledge-entry-history article{padding:8px 0;border-bottom:1px solid #f0ebe4}.knowledge-entry-history article:last-child{border-bottom:0}.knowledge-entry-history article>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.knowledge-entry-history strong{color:#5e554e;font-size:10px}.knowledge-entry-history p{margin:4px 0 0;color:#8b8279;font-size:9px}.knowledge-entry-history .grade{padding:2px 5px;border-radius:99px;background:#efebe5;color:#756b62;font-size:8px;text-transform:uppercase}.knowledge-entry-history .grade.good,.knowledge-entry-history .grade.easy{background:#e6eee6;color:#526551}.knowledge-entry-history .grade.again{background:#f3e4e1;color:#8a4a41}.knowledge-entry-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}.knowledge-entry-tags span{padding:4px 7px;border-radius:99px;background:#f2eee8;color:#6f665e;font-size:9px}.knowledge-entry-side-section p{margin:8px 0 0;color:#8b8279;font-size:10px}
++.knowledge-entry-review,.knowledge-entry-side-section{padding:16px;border:1px solid #e6ded4;border-radius:12px;background:#fff}.knowledge-entry-side-section{margin-top:12px}.knowledge-entry-recall-state{display:grid;gap:2px;margin:12px 0 0;padding:10px 11px;border-radius:9px;background:#f6f2ec}.knowledge-entry-recall-state small{color:#9a9188;font-size:8px;font-weight:750;letter-spacing:.1em}.knowledge-entry-recall-state strong{color:#4f4842;font-size:15px}.knowledge-entry-recall-state span{color:#938a81;font-size:9px}.knowledge-entry-recall-state.state-needs-work{background:#f5e8e5}.knowledge-entry-recall-state.state-strong{background:#e8efe7}.knowledge-entry-review-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}.knowledge-entry-review-stats article{padding:9px 7px;border-radius:8px;background:#f6f2ec;text-align:center}.knowledge-entry-review-stats strong{display:block;font:500 18px 'DM Mono',monospace}.knowledge-entry-review-stats small{display:block;margin-top:3px;color:#978e85;font-size:8px;text-transform:uppercase}.knowledge-entry-last{margin:9px 0 0;color:#8d847a;font-size:10px}.knowledge-entry-methods,.knowledge-entry-history{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:13px;border-top:1px solid #eee8df}.knowledge-entry-methods>small,.knowledge-entry-history>small{width:100%;margin-bottom:2px;color:#aaa096;font-size:8px;font-weight:750;letter-spacing:.1em}.knowledge-entry-methods>span{padding:4px 7px;border-radius:99px;background:#f2eee8;color:#6f665e;font-size:9px}.knowledge-entry-methods b{font-family:'DM Mono',monospace}.knowledge-entry-history{display:grid}.knowledge-entry-history article{padding:8px 0;border-bottom:1px solid #f0ebe4}.knowledge-entry-history article:last-child{border-bottom:0}.knowledge-entry-history article>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.knowledge-entry-history strong{color:#5e554e;font-size:10px}.knowledge-entry-history p{margin:4px 0 0;color:#8b8279;font-size:9px}.knowledge-entry-history .grade{padding:2px 5px;border-radius:99px;background:#efebe5;color:#756b62;font-size:8px;text-transform:uppercase}.knowledge-entry-history .grade.good,.knowledge-entry-history .grade.easy{background:#e6eee6;color:#526551}.knowledge-entry-history .grade.again{background:#f3e4e1;color:#8a4a41}.knowledge-entry-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}.knowledge-entry-tags span{padding:4px 7px;border-radius:99px;background:#f2eee8;color:#6f665e;font-size:9px}.knowledge-entry-side-section p{margin:8px 0 0;color:#8b8279;font-size:10px}
+ @media(max-width:800px){.knowledge-entry-backdrop{padding:0}.knowledge-entry-modal{width:100vw;height:100vh;border:0;border-radius:0}.knowledge-entry-scroll{padding:22px 18px 34px}.knowledge-entry-hero{display:block}.knowledge-entry-actions{justify-content:flex-start;margin-top:16px}.knowledge-entry-grid{grid-template-columns:1fr}.knowledge-entry-grid aside{order:-1}}
+diff -ruN heuresis_prev/Heuresis-main/src/lib/cosmosWindow.ts heuresis_work/Heuresis-main/src/lib/cosmosWindow.ts
+--- heuresis_prev/Heuresis-main/src/lib/cosmosWindow.ts	2026-09-22 11:36:40.000000000 +0000
++++ heuresis_work/Heuresis-main/src/lib/cosmosWindow.ts	2026-09-29 19:02:22.393643429 +0000
+@@ -1,7 +1,7 @@
+ import { isAndroidRuntime, openInCurrentApp } from "./platform";
+ 
+ export type CosmosMode = "review" | "sort";
+-export type CosmosSource = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
++export type CosmosSource = "all" | "new" | "needs-work" | "developing" | "favourites" | "interesting" | "again" | "unsorted";
+ export type CosmosOrder = "pack" | "random";
+ 
+ export type CosmosLaunch = {
+diff -ruN heuresis_prev/Heuresis-main/src/lib/learningSignals.ts heuresis_work/Heuresis-main/src/lib/learningSignals.ts
+--- heuresis_prev/Heuresis-main/src/lib/learningSignals.ts	2026-09-22 11:36:40.000000000 +0000
++++ heuresis_work/Heuresis-main/src/lib/learningSignals.ts	2026-09-29 19:04:56.806319933 +0000
+@@ -62,6 +62,39 @@
+   return { recognition, production };
+ }
+ 
++
++export type RecallStateKey = "not-reviewed" | "needs-work" | "developing" | "holding" | "strong";
++export type RecallState = { key: RecallStateKey; label: string; score: number | null; attempts: number };
++
++export const REVIEW_GRADE_LABELS = {
++  again: "Missed",
++  hard: "Partial",
++  good: "Recalled",
++  easy: "Secure",
++} as const;
++
++export function recallScore(card: CardWithStats) {
++  const { again_count, hard_count, good_count, easy_count } = card.stats;
++  const attempts = again_count + hard_count + good_count + easy_count;
++  if (!attempts) return null;
++  return (hard_count * 0.35 + good_count * 0.75 + easy_count) / attempts;
++}
++
++export function recallState(card: CardWithStats, directions?: DirectionTemplates): RecallState {
++  const attempts = card.stats.again_count + card.stats.hard_count + card.stats.good_count + card.stats.easy_count;
++  if (!attempts) return { key: "not-reviewed", label: "Not reviewed", score: null, attempts: 0 };
++  const score = recallScore(card) ?? 0;
++  if (isKeepMissing(card) || score < 0.45) return { key: "needs-work", label: "Needs work", score, attempts };
++  if (attempts < 3 || score < 0.68 || (directions ? isWeakProduction(card, directions) : false)) return { key: "developing", label: "Developing", score, attempts };
++  if (attempts >= 5 && score >= 0.88) return { key: "strong", label: "Strong", score, attempts };
++  return { key: "holding", label: "Holding", score, attempts };
++}
++
++export function recallStateRank(card: CardWithStats, directions?: DirectionTemplates) {
++  const state = recallState(card, directions);
++  return { "not-reviewed": 0, "needs-work": 1, developing: 2, holding: 3, strong: 4 }[state.key];
++}
++
+ export function daysSince(timestamp: string | null | undefined, now = Date.now()) {
+   if (!timestamp) return null;
+   const parsed = Date.parse(timestamp);
+@@ -74,11 +107,6 @@
+   return card.stats.again_count >= 3 && card.stats.again_count > hits;
+ }
+ 
+-export function isNotSeenRecently(card: CardWithStats, days = 30) {
+-  const age = daysSince(card.stats.last_encountered_at);
+-  return card.stats.encounter_count > 0 && age !== null && age >= days;
+-}
+-
+ export function productionPerformance(card: CardWithStats, directions: DirectionTemplates) {
+   return templatePerformance(card, directions.production?.id);
+ }
+@@ -95,14 +123,15 @@
+ }
+ 
+ export function attentionScore(card: CardWithStats, directions: DirectionTemplates) {
+-  if (card.stats.encounter_count === 0) return 10_000;
++  if (card.stats.study_count === 0) return 10_000;
+   let score = 0;
+   if (isKeepMissing(card)) score += 900;
+   if (isWeakProduction(card, directions)) score += 650;
+-  const age = daysSince(card.stats.last_encountered_at);
+-  if (age !== null) score += Math.min(365, age);
+-  const aggregate = aggregatePerformance(card);
+-  if (aggregate !== null) score += (1 - aggregate) * 200;
++  const state = recallState(card, directions);
++  if (state.key === "needs-work") score += 500;
++  if (state.key === "developing") score += 250;
++  if (state.key === "holding") score += 80;
++  if (state.score !== null) score += (1 - state.score) * 200;
+   return score;
+ }
+ 
