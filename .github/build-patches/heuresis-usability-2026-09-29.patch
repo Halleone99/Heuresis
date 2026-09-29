@@ -1,0 +1,834 @@
+diff --git a/heuresis_work/Heuresis-main/docs/USABILITY_PASS_2026-09-29.md b/heuresis_work/Heuresis-main/docs/USABILITY_PASS_2026-09-29.md
+new file mode 100644
+index 0000000..082bd23
+--- /dev/null
++++ b/heuresis_work/Heuresis-main/docs/USABILITY_PASS_2026-09-29.md
+@@ -0,0 +1,21 @@
++# Heuresis usability pass — 29 Sep 2026
++
++This pass tightens the core flow without adding a new knowledge model.
++
++## Implemented
++
++- Capture now defaults each new item to `reference`, with an explicit `Add to review` choice.
++- Parked Capture items retain their own reference/review state; older stored drafts safely load as reference.
++- Global Search opens the exact knowledge entry instead of only opening the topic, and identifies the field/note/knowledge block that matched where possible.
++- Added a canonical Knowledge Entry surface showing core fields, workspace knowledge, notes, tags, review state, review-method counts, recent review sessions, and readable connections.
++- Catalogue results and Catalogue Read Mode can open the canonical Knowledge Entry.
++- Connections now include a readable `Connected knowledge` strip and distinguish `links to` from `linked from`; connected entries can open the canonical entry surface.
++- Review scratchpad writing before reveal automatically records the `Hand-write` retention method for that card/session.
++- Review history groups grade + retention methods by study session so a card can show not only how often it was reviewed, but how it was reviewed.
++- Replaced user-facing `Raw connected entry` wording in the connection map footer with `connected reference entry`.
++
++## Verification
++
++- `node scripts/check-architecture.mjs` passes.
++- Modified TypeScript/TSX files pass TypeScript transpile/syntax diagnostics.
++- A full Vite build could not be run in the isolated environment because project npm dependencies were not present and package installation timed out. No dependency or package-version changes were made.
+diff --git a/heuresis_orig/Heuresis-main/src/App.tsx b/heuresis_work/Heuresis-main/src/App.tsx
+index 0dda923..68a6307 100644
+--- a/heuresis_orig/Heuresis-main/src/App.tsx
++++ b/heuresis_work/Heuresis-main/src/App.tsx
+@@ -8,6 +8,7 @@ import CatalogueView from "./components/CatalogueView";
+ import CollectionsModal from "./components/CollectionsModal";
+ import HeuresisMark from "./components/HeuresisMark";
+ import LibraryView from "./components/LibraryView";
++import KnowledgeEntryModal from "./components/KnowledgeEntryModal";
+ import PackView from "./components/PackView";
+ import RelatedCatalogueView from "./components/RelatedCatalogueView";
+ import SearchOverlay from "./components/SearchOverlay";
+@@ -49,6 +50,7 @@ function HeuresisApp({ session }: { session: Session }) {
+   const [error, setError] = useState("");
+   const [notice, setNotice] = useState("");
+   const [searchOpen, setSearchOpen] = useState(false);
++  const [entryCardId, setEntryCardId] = useState<string | null>(null);
+   const [settingsOpen, setSettingsOpen] = useState(false);
+   const [collectionsOpen, setCollectionsOpen] = useState(false);
+   const [collectionsStartNew, setCollectionsStartNew] = useState(false);
+@@ -220,12 +222,13 @@ function HeuresisApp({ session }: { session: Session }) {
+         {loading ? <div className="content-state">Opening Heuresis…</div> : null}
+         {!loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
+         {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+-        {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
++        {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} onOpenEntry={setEntryCardId} /> : null}
+         {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
+         {!loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
+-        {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
++        {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} onOpenEntry={setEntryCardId} /> : null}
+       </main>
+-      {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
++      {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpenEntry={setEntryCardId} /> : null}
++      {entryCardId ? <KnowledgeEntryModal cardId={entryCardId} packs={packs} collections={collections} onClose={() => setEntryCardId(null)} onOpenPack={openPack} /> : null}
+       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
+       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
+       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
+diff --git a/heuresis_orig/Heuresis-main/src/components/CaptureView.tsx b/heuresis_work/Heuresis-main/src/components/CaptureView.tsx
+index e0923f1..8488c27 100644
+--- a/heuresis_orig/Heuresis-main/src/components/CaptureView.tsx
++++ b/heuresis_work/Heuresis-main/src/components/CaptureView.tsx
+@@ -4,6 +4,7 @@ import {
+   createCard,
+   listTags,
+   patchCardData,
++  type CardRetention,
+   type Collection,
+   type FieldDef,
+   type HeuresisTag,
+@@ -36,6 +37,7 @@ type CaptureDraft = {
+   values: Record<string, string>;
+   tagIds: string[];
+   blocks: CaptureBlock[];
++  retention: CardRetention;
+   createdAt: string;
+ };
+ 
+@@ -69,7 +71,7 @@ function uid() {
+ }
+ 
+ function emptyDraft(packId: string): CaptureDraft {
+-  return { id: uid(), packId, values: {}, tagIds: [], blocks: [], createdAt: new Date().toISOString() };
++  return { id: uid(), packId, values: {}, tagIds: [], blocks: [], retention: "reference", createdAt: new Date().toISOString() };
+ }
+ 
+ function blockDef(kind: BlockKind) {
+@@ -118,9 +120,21 @@ function loadStored(packId: string): { draft: CaptureDraft; queue: CaptureDraft[
+   try {
+     const raw = localStorage.getItem(storageKey(packId));
+     if (!raw) return { draft: emptyDraft(packId), queue: [] };
+-    const parsed = JSON.parse(raw) as { draft?: CaptureDraft; queue?: CaptureDraft[] };
+-    const draft = parsed.draft?.packId === packId ? parsed.draft : emptyDraft(packId);
+-    const queue = Array.isArray(parsed.queue) ? parsed.queue.filter((item) => item?.packId === packId) : [];
++    const parsed = JSON.parse(raw) as { draft?: Partial<CaptureDraft>; queue?: Array<Partial<CaptureDraft>> };
++    const normalise = (item: Partial<CaptureDraft> | undefined): CaptureDraft | null => {
++      if (!item || item.packId !== packId || typeof item.id !== "string") return null;
++      return {
++        id: item.id,
++        packId,
++        values: item.values ?? {},
++        tagIds: Array.isArray(item.tagIds) ? item.tagIds : [],
++        blocks: Array.isArray(item.blocks) ? item.blocks as CaptureBlock[] : [],
++        retention: item.retention === "learning" ? "learning" : "reference",
++        createdAt: typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString(),
++      };
++    };
++    const draft = normalise(parsed.draft) ?? emptyDraft(packId);
++    const queue = Array.isArray(parsed.queue) ? parsed.queue.map(normalise).filter((item): item is CaptureDraft => Boolean(item)) : [];
+     return { draft, queue };
+   } catch {
+     return { draft: emptyDraft(packId), queue: [] };
+@@ -371,7 +385,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
+ 
+     for (const item of targets) {
+       try {
+-        const created = await createCard(pack, item.values, undefined, item.tagIds);
++        const created = await createCard(pack, item.values, undefined, item.tagIds, item.retention);
+         createdIds.add(item.id);
+         try {
+           await enrichCreatedCard(created.id, item);
+@@ -516,7 +530,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
+             const summary = draftSummary(pack, item);
+             const itemValid = draftIsValid(pack, item);
+             return <button type="button" className={`capture-queue-item ${editingId === item.id ? "active" : ""}`} key={item.id} onClick={() => loadQueued(item)}>
+-              <span><strong>{summary.front}</strong><em>{summary.back}</em>{item.blocks.length ? <small>{item.blocks.map((block) => blockDef(block.kind).label).join(" · ")}</small> : null}{!itemValid ? <small className="capture-invalid">needs attention</small> : null}</span>
++              <span><strong>{summary.front}</strong><em>{summary.back}</em><small className="capture-retention-note">{item.retention === "learning" ? "In review" : "Reference"}</small>{item.blocks.length ? <small>{item.blocks.map((block) => blockDef(block.kind).label).join(" · ")}</small> : null}{!itemValid ? <small className="capture-invalid">needs attention</small> : null}</span>
+               <i onClick={(event) => { event.stopPropagation(); removeQueued(item.id); }}><Trash2 size={12} /></i>
+             </button>;
+           })}
+@@ -527,7 +541,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
+         <button type="button" onClick={() => setQueueOpen((value) => !value)}><Layers size={13} /> {queue.length} waiting <ChevronDown size={13} className={queueOpen ? "open" : ""} /></button>
+         {queueOpen ? <div>{queue.map((item) => {
+           const summary = draftSummary(pack, item);
+-          return <button type="button" key={item.id} onClick={() => loadQueued(item)}><strong>{summary.front}</strong><span>{summary.back}</span><i onClick={(event) => { event.stopPropagation(); removeQueued(item.id); }}><Trash2 size={11} /></i></button>;
++          return <button type="button" key={item.id} onClick={() => loadQueued(item)}><strong>{summary.front}</strong><span>{summary.back}</span><small>{item.retention === "learning" ? "review" : "reference"}</small><i onClick={(event) => { event.stopPropagation(); removeQueued(item.id); }}><Trash2 size={11} /></i></button>;
+         })}</div> : null}
+       </div> : null}
+ 
+@@ -537,6 +551,10 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
+           {sessionLocked ? <small>Destination stays fixed while cards are waiting.</small> : null}
+         </div>
+         <div className="capture-foot-actions">
++          <div className="capture-retention-choice" role="group" aria-label="Capture destination">
++            <button type="button" aria-pressed={draft.retention === "reference"} disabled={saving} onClick={() => setDraft((current) => ({ ...current, retention: "reference" }))}>Reference</button>
++            <button type="button" aria-pressed={draft.retention === "learning"} disabled={saving} onClick={() => setDraft((current) => ({ ...current, retention: "learning" }))}>Add to review</button>
++          </div>
+           <button type="button" className="capture-secondary" disabled={!valid || saving} onClick={parkDraft}><Plus size={14} /> Add another</button>
+           <button type="button" className="capture-commit" disabled={!commitCount || saving} onClick={() => void commit()}><Check size={15} /> {saving ? "Adding…" : commitCount > 1 ? `Add ${commitCount} to Heuresis` : "Add to Heuresis"}</button>
+         </div>
+diff --git a/heuresis_orig/Heuresis-main/src/components/CatalogueReadMode.tsx b/heuresis_work/Heuresis-main/src/components/CatalogueReadMode.tsx
+index 60f33ad..256787c 100644
+--- a/heuresis_orig/Heuresis-main/src/components/CatalogueReadMode.tsx
++++ b/heuresis_work/Heuresis-main/src/components/CatalogueReadMode.tsx
+@@ -23,6 +23,7 @@ type Props = {
+   packs: PackWithType[];
+   onClose: () => void;
+   onOpenPack: (pack: PackWithType) => void;
++  onOpenEntry: (cardId: string) => void;
+ };
+ 
+ type ReadBlock = {
+@@ -151,7 +152,7 @@ function formatCompiledDate() {
+   return new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+ }
+ 
+-export default function CatalogueReadMode({ title, items, packs, onClose, onOpenPack }: Props) {
++export default function CatalogueReadMode({ title, items, packs, onClose, onOpenPack, onOpenEntry }: Props) {
+   const [reading, setReading] = useState(false);
+   const [hideStudyNotes, setHideStudyNotes] = useState(false);
+   const [relations, setRelations] = useState<RelatedCatalogueRow[]>([]);
+@@ -425,7 +426,7 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
+             <header><strong className={`crm-specimen ${scriptClass(term)}`}>{term}</strong>{readingText ? <em>{readingText}</em> : null}{meaning ? <p>{meaning}</p> : null}<div className="crm-apparatus">{retention === "reference" ? <><b>Reference.</b> Kept in the catalogue and never added to the review queue.</> : card.stats.study_count ? <><b>Held in review.</b> Met {card.stats.encounter_count.toLocaleString()} time{card.stats.encounter_count === 1 ? "" : "s"}; last {monthsAgo(card.stats.last_encountered_at)}.{card.stats.again_count ? ` ${card.stats.again_count} Again.` : ""}</> : <><b>In review.</b> This is learning material, but it has not been reviewed yet.</>}</div>{itemMap.has(card.id) ? <button className="crm-retention-toggle" disabled={retentionBusy === card.id} onClick={() => void toggleRetention(card)}>{retention === "learning" ? "Keep as reference" : "Add to review"}</button> : null}</header>
+             {renderSections(card, pack)}
+             {rowsFor(card.id).length || relationsError ? <section className="crm-section"><p className="crm-section-label">Connections</p>{renderConnectionGroups(card.id)}</section> : null}
+-            <button className="crm-source-link" onClick={() => openRaw(card.id)}>Your card</button>
++            <button className="crm-source-link" onClick={() => onOpenEntry(card.id)}>Open entry</button>
+           </article>;
+         })}
+         <p className="crm-colophon">Generated from the live Heuresis catalogue on {compiledAt}. Reference entries create no review debt; connections remain live across the catalogue.</p>
+diff --git a/heuresis_orig/Heuresis-main/src/components/CatalogueView.tsx b/heuresis_work/Heuresis-main/src/components/CatalogueView.tsx
+index 7e538ab..a5b6a45 100644
+--- a/heuresis_orig/Heuresis-main/src/components/CatalogueView.tsx
++++ b/heuresis_work/Heuresis-main/src/components/CatalogueView.tsx
+@@ -8,7 +8,7 @@ import CatalogueSession, { type CatalogueSessionItem } from "./CatalogueSession"
+ import CatalogueReadMode from "./CatalogueReadMode";
+ 
+ type Item = CatalogueSessionItem;
+-type Props = { collections: Collection[]; packs: PackWithType[]; onBack: () => void; onOpenPack: (pack: PackWithType) => void };
++type Props = { collections: Collection[]; packs: PackWithType[]; onBack: () => void; onOpenPack: (pack: PackWithType) => void; onOpenEntry: (cardId: string) => void };
+ type SmartPreset = "none" | "missing" | "production" | "stale";
+ type SortKey = "attention" | "recent" | "production" | "alphabetical";
+ 
+@@ -22,7 +22,7 @@ function statusLabel(status: CatalogueStatus) {
+   return status === "new" ? "Never met" : status === "favourites" ? "Favourites" : status === "interesting" ? "High interest" : status === "again" ? "Often Again" : "";
+ }
+ 
+-export default function CatalogueView({ collections, packs, onBack, onOpenPack }: Props) {
++export default function CatalogueView({ collections, packs, onBack, onOpenPack, onOpenEntry }: Props) {
+   const [criteria, setCriteria] = useState<CatalogueCriteria>(DEFAULT_CRITERIA);
+   const [smartPreset, setSmartPreset] = useState<SmartPreset>("none");
+   const [sortKey, setSortKey] = useState<SortKey>("attention");
+@@ -223,12 +223,12 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
+             {productionPct !== null ? <div><span>PRODUCE</span><i><em style={{ width: `${productionPct}%` }} /></i><b>{productionPct}%</b></div> : null}
+             {!recognition && !production ? <small>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "NOT MET YET"}</small> : <small>{formatSeen(card.stats.last_encountered_at)}{card.stats.again_count ? ` · ${card.stats.again_count} Again` : ""}</small>}
+           </div>
+-          <div className="result-flags">{missing ? <span className="danger">KEEPS MISSING</span> : null}{weakProduction ? <span className="warn">PRODUCTION</span> : null}{stale && !missing ? <span>QUIET 30D+</span> : null}</div>
++          <div className="result-flags">{missing ? <span className="danger">KEEPS MISSING</span> : null}{weakProduction ? <span className="warn">PRODUCTION</span> : null}{stale && !missing ? <span>QUIET 30D+</span> : null}<button className="result-open-entry" onClick={() => onOpenEntry(card.id)}>Open entry</button></div>
+         </article>;
+       })}{!shown.length && !loading ? <div className="catalogue-empty">No cards match these filters.</div> : null}</div>}
+ 
+       {saveOpen ? <div className="modal-backdrop inner-modal" onMouseDown={(event) => { if (event.currentTarget === event.target) setSaveOpen(false); }}><section className="small-modal"><p className="eyebrow">SAVE CATALOGUE</p><h2>Keep this view.</h2><label className="field-row"><span>Name</span><input autoFocus value={saveTitle} onChange={(event) => setSaveTitle(event.target.value)} placeholder="Chinese spoken sentences" /></label><div className="modal-actions"><button className="secondary-button" onClick={() => setSaveOpen(false)}>Cancel</button><button className="primary-button" disabled={!saveTitle.trim()} onClick={() => void saveCatalogue()}>Save</button></div></section></div> : null}
+-      {readModeOpen ? <CatalogueReadMode title={readModeTitle} items={shown} packs={packs} onClose={() => setReadModeOpen(false)} onOpenPack={(pack) => { setReadModeOpen(false); onOpenPack(pack); }} /> : null}
++      {readModeOpen ? <CatalogueReadMode title={readModeTitle} items={shown} packs={packs} onClose={() => setReadModeOpen(false)} onOpenPack={(pack) => { setReadModeOpen(false); onOpenPack(pack); }} onOpenEntry={onOpenEntry} /> : null}
+       {sessionMode ? <CatalogueSession title={smartPreset === "production" ? "Weak production" : activeSaved?.title ?? "Current catalogue"} items={shown} mode={sessionMode} templateByPackId={smartPreset === "production" ? productionTemplates : undefined} onClose={() => setSessionMode(null)} /> : null}
+     </section>
+   );
+diff --git a/heuresis_orig/Heuresis-main/src/components/ConnectionsPanel.tsx b/heuresis_work/Heuresis-main/src/components/ConnectionsPanel.tsx
+index 9a985bc..078d02f 100644
+--- a/heuresis_orig/Heuresis-main/src/components/ConnectionsPanel.tsx
++++ b/heuresis_work/Heuresis-main/src/components/ConnectionsPanel.tsx
+@@ -4,7 +4,7 @@ import { fieldByRole, fieldText, listCardsByIds, listCollections, listPacks, typ
+ import { aggregatePerformance, formatSeen } from "../lib/learningSignals";
+ import { listRelatedCatalogue, relationLabel, RELATION_TYPES, type RelatedCatalogueRow, type RelationType } from "../lib/related";
+ 
+-type Props = { pack: PackWithType; card: CardWithStats; onClose: () => void };
++type Props = { pack: PackWithType; card: CardWithStats; onClose: () => void; onOpenEntry?: (cardId: string) => void };
+ type Relation = { id: string; source: string; target: string; type: RelationType };
+ type Point = { id: string; x: number; y: number; ring: 0 | 1 | 2; relation?: Relation; parent?: string };
+ 
+@@ -14,7 +14,7 @@ function scorePercent(card: CardWithStats | undefined) {
+   return value === null ? null : Math.round(value * 100);
+ }
+ 
+-export default function ConnectionsPanel({ pack, card, onClose }: Props) {
++export default function ConnectionsPanel({ pack, card, onClose, onOpenEntry }: Props) {
+   const [rows, setRows] = useState<RelatedCatalogueRow[]>([]);
+   const [cards, setCards] = useState<Record<string, CardWithStats>>({ [card.id]: card });
+   const [packs, setPacks] = useState<PackWithType[]>([pack]);
+@@ -113,6 +113,12 @@ export default function ConnectionsPanel({ pack, card, onClose }: Props) {
+   }
+ 
+   const rootCopy = nodeCopy(rootId);
++  const directRows = links(rootId).slice(0, 24).map((relation) => {
++    const otherId = relation.source === rootId ? relation.target : relation.source;
++    const copy = nodeCopy(otherId);
++    const direction = relation.source === rootId ? "links to" : "linked from";
++    return { relation, otherId, copy, direction };
++  });
+ 
+   return <div className="connections-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+     <section className="connections-panel" role="dialog" aria-modal="true" aria-label="Knowledge connections">
+@@ -137,14 +143,21 @@ export default function ConnectionsPanel({ pack, card, onClose }: Props) {
+             const node = cards[point.id];
+             const copy = nodeCopy(point.id);
+             const score = scorePercent(node);
+-            return <button key={`${point.id}-${point.ring}`} className={`connection-node ring-${point.ring} ${relatedOnlyIds.has(point.id) ? "related-only" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%` }} onMouseEnter={() => point.ring === 1 ? setHovered(point.id) : undefined} onFocus={() => point.ring === 1 ? setHovered(point.id) : undefined} onClick={() => recenter(point.id)} title={copy.origin}>
++            return <button key={`${point.id}-${point.ring}`} className={`connection-node ring-${point.ring} ${relatedOnlyIds.has(point.id) ? "related-only" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%` }} onMouseEnter={() => point.ring === 1 ? setHovered(point.id) : undefined} onFocus={() => point.ring === 1 ? setHovered(point.id) : undefined} onClick={() => recenter(point.id)} onDoubleClick={() => onOpenEntry?.(point.id)} title={copy.origin}>
+               <strong>{copy.term}</strong>{copy.reading ? <em>{copy.reading}</em> : null}{point.ring !== 2 && copy.meaning ? <span>{copy.meaning}</span> : null}{point.ring !== 2 && copy.origin ? <small style={{ marginTop: 4, maxWidth: 126, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#aaa197", fontSize: 7.5 }}>{copy.origin}</small> : null}{score !== null ? <i className="connection-meter"><b style={{ width: `${score}%` }} /></i> : null}
+             </button>;
+           })}
+         </> : null}
+       </div>
+ 
+-      <footer className="connections-foot"><span><i className="sample-dash" /> dashed node = Raw connected entry</span><span>review bar appears only when an entry has actually been studied</span><span>{rootCard.stats.study_count ? formatSeen(rootCard.stats.last_encountered_at) : "catalogued · not reviewed"}</span></footer>
++      {directRows.length ? <section className="connections-readable" aria-label="Readable connections">
++        <div className="connections-readable-head"><strong>Connected knowledge</strong><span>{directRows.length}</span></div>
++        <div className="connections-readable-list">{directRows.map(({ relation, otherId, copy, direction }) => <button key={relation.id} onClick={() => onOpenEntry ? onOpenEntry(otherId) : recenter(otherId)}>
++          <span><small>{direction} · {relationLabel(relation.type)}</small><strong>{copy.term}</strong>{copy.meaning ? <em>{copy.meaning}</em> : null}</span><i>{copy.origin || "Heuresis"} →</i>
++        </button>)}</div>
++      </section> : null}
++
++      <footer className="connections-foot"><span><i className="sample-dash" /> dashed node = connected reference entry</span><span>review bar appears only when an entry has actually been studied</span><span>{rootCard.stats.study_count ? formatSeen(rootCard.stats.last_encountered_at) : "catalogued · not reviewed"}</span></footer>
+     </section>
+   </div>;
+ }
+diff --git a/heuresis_orig/Heuresis-main/src/components/CosmosWindow.tsx b/heuresis_work/Heuresis-main/src/components/CosmosWindow.tsx
+index c32a4f3..cb7b646 100644
+--- a/heuresis_orig/Heuresis-main/src/components/CosmosWindow.tsx
++++ b/heuresis_work/Heuresis-main/src/components/CosmosWindow.tsx
+@@ -513,6 +513,13 @@ export default function CosmosWindow() {
+     } finally { setBusy(false); }
+   }
+ 
++  useEffect(() => {
++    if (mode !== "review" || !card || revealed) return;
++    const onScratchpadUsed = () => { void markLearning(["handwrite"]); };
++    window.addEventListener("heuresis:scratchpad-used", onScratchpadUsed);
++    return () => window.removeEventListener("heuresis:scratchpad-used", onScratchpadUsed);
++  }, [card?.id, mode, revealed, busy, selectedActions]);
++
+   async function setInterest(rank: number | null) {
+     if (!card || busy) return;
+     const previous = card.interest_rank;
+diff --git a/heuresis_work/Heuresis-main/src/components/KnowledgeEntryModal.tsx b/heuresis_work/Heuresis-main/src/components/KnowledgeEntryModal.tsx
+new file mode 100644
+index 0000000..fa0c6a0
+--- /dev/null
++++ b/heuresis_work/Heuresis-main/src/components/KnowledgeEntryModal.tsx
+@@ -0,0 +1,289 @@
++import { ArrowLeft, BookOpen, GitFork, X } from "lucide-react";
++import { useEffect, useMemo, useState } from "react";
++import {
++  fieldByRole,
++  fieldText,
++  getCard,
++  listCardsByIds,
++  setCardRetention,
++  type CardWithStats,
++  type Collection,
++  type PackWithType,
++} from "../lib/heuresis";
++import { getLearningCounts, LEARNING_ACTION_LABELS, listReviewHistory, type LearningCounts, type ReviewHistoryItem } from "../lib/learning";
++import { listRelatedCatalogue, relationLabel, type RelatedCatalogueRow } from "../lib/related";
++import ConnectionsPanel from "./ConnectionsPanel";
++import "./knowledge-entry.css";
++
++type Props = {
++  cardId: string;
++  packs: PackWithType[];
++  collections: Collection[];
++  onClose: () => void;
++  onOpenPack?: (pack: PackWithType) => void;
++};
++
++type WorkspaceBlock = {
++  id: string;
++  dim: string;
++  type: string;
++  text: string;
++  reading: string;
++  translation: string;
++  caption: string;
++};
++
++const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
++const DIM_LABEL: Record<string, string> = {
++  components: "Parts",
++  neighbours: "Related",
++  examples: "Examples",
++  structure: "Structure",
++  origin: "Origin",
++  facts: "Facts",
++  notes: "Notes",
++};
++
++function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
++  const raw = card?.data[WORKSPACE_BLOCKS_KEY];
++  if (!Array.isArray(raw)) return [];
++  return raw.flatMap((entry, index) => {
++    try {
++      const value = JSON.parse(entry) as Record<string, unknown>;
++      const text = typeof value.text === "string" ? value.text : "";
++      const source = typeof value.source === "string" ? value.source : "";
++      const reading = typeof value.reading === "string" ? value.reading : "";
++      const translation = typeof value.translation === "string" ? value.translation : "";
++      const caption = typeof value.caption === "string" ? value.caption : "";
++      return [{
++        id: typeof value.id === "string" ? value.id : `${card?.id ?? "card"}-${index}`,
++        dim: typeof value.dim === "string" ? value.dim : "notes",
++        type: typeof value.type === "string" ? value.type : "text",
++        text: text || source,
++        reading,
++        translation,
++        caption,
++      }];
++    } catch {
++      return [{ id: `${card?.id ?? "card"}-${index}`, dim: "notes", type: "text", text: entry, reading: "", translation: "", caption: "" }];
++    }
++  });
++}
++
++function relativeDate(value: string | null) {
++  if (!value) return "not reviewed yet";
++  const time = Date.parse(value);
++  if (!Number.isFinite(time)) return value;
++  const days = Math.max(0, Math.floor((Date.now() - time) / 86400000));
++  if (days === 0) return "today";
++  if (days === 1) return "yesterday";
++  if (days < 14) return `${days} days ago`;
++  if (days < 60) return `${Math.round(days / 7)} weeks ago`;
++  return new Date(time).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
++}
++
++function relationSemantic(row: RelatedCatalogueRow, currentId: string) {
++  const outgoing = row.source_card_id === currentId;
++  if (row.relation_type === "part_of") return outgoing ? "part of" : "contains";
++  if (row.relation_type === "depends_on") return outgoing ? "depends on" : "supports";
++  if (row.relation_type === "example_of") return outgoing ? "example of" : "has example";
++  if (row.relation_type === "contrasts_with" || row.relation_type === "antonym") return "contrasts with";
++  if (row.relation_type === "synonym") return "similar to";
++  return relationLabel(row.relation_type).toLocaleLowerCase();
++}
++
++function emptyCounts(): LearningCounts {
++  return { handwrite: 0, type: 0, sentence: 0, rephrase: 0, example: 0, say: 0, hear: 0 };
++}
++
++export default function KnowledgeEntryModal({ cardId, packs, collections, onClose, onOpenPack }: Props) {
++  const [currentId, setCurrentId] = useState(cardId);
++  const [trail, setTrail] = useState<string[]>([cardId]);
++  const [card, setCard] = useState<CardWithStats | null>(null);
++  const [relationRows, setRelationRows] = useState<RelatedCatalogueRow[]>([]);
++  const [relatedCards, setRelatedCards] = useState<Record<string, CardWithStats>>({});
++  const [counts, setCounts] = useState<LearningCounts>(emptyCounts());
++  const [history, setHistory] = useState<ReviewHistoryItem[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState("");
++  const [retentionBusy, setRetentionBusy] = useState(false);
++  const [connectionsOpen, setConnectionsOpen] = useState(false);
++
++  const packMap = useMemo(() => new Map(packs.map((item) => [item.id, item])), [packs]);
++  const collectionMap = useMemo(() => new Map(collections.map((item) => [item.id, item])), [collections]);
++  const pack = card ? packMap.get(card.pack_id) ?? null : null;
++  const collection = pack ? collectionMap.get(pack.collection_id) ?? null : null;
++  const termField = fieldByRole(pack?.cardType, "term") ?? pack?.cardType?.field_schema[0] ?? null;
++  const readingField = fieldByRole(pack?.cardType, "reading");
++  const meaningField = fieldByRole(pack?.cardType, "meaning") ?? pack?.cardType?.field_schema[1] ?? null;
++  const term = card ? fieldText(card.data, termField?.key) || "Untitled" : "";
++  const reading = card ? fieldText(card.data, readingField?.key) : "";
++  const meaning = card ? fieldText(card.data, meaningField?.key) : "";
++  const blocks = useMemo(() => parseBlocks(card), [card]);
++
++  useEffect(() => {
++    setCurrentId(cardId);
++    setTrail([cardId]);
++  }, [cardId]);
++
++  useEffect(() => {
++    let alive = true;
++    setLoading(true);
++    setError("");
++    void (async () => {
++      try {
++        const [nextCard, rows, countMap, reviewHistory] = await Promise.all([
++          getCard(currentId),
++          listRelatedCatalogue(),
++          getLearningCounts([currentId]).catch(() => ({} as Record<string, LearningCounts>)),
++          listReviewHistory(currentId, 8).catch(() => []),
++        ]);
++        if (!nextCard) throw new Error("This knowledge entry no longer exists.");
++        const connectedRows = rows.filter((row) => row.source_card_id === currentId || row.target_card_id === currentId);
++        const otherIds = Array.from(new Set(connectedRows.map((row) => row.source_card_id === currentId ? row.target_card_id : row.source_card_id)));
++        const others = otherIds.length ? await listCardsByIds(otherIds) : [];
++        if (!alive) return;
++        setCard(nextCard);
++        setRelationRows(connectedRows);
++        setRelatedCards(Object.fromEntries(others.map((item) => [item.id, item])));
++        setCounts(countMap[currentId] ?? emptyCounts());
++        setHistory(reviewHistory);
++      } catch (loadError) {
++        if (alive) setError(loadError instanceof Error ? loadError.message : "Could not open this entry.");
++      } finally {
++        if (alive) setLoading(false);
++      }
++    })();
++    return () => { alive = false; };
++  }, [currentId]);
++
++  function openEntry(id: string) {
++    if (id === currentId) return;
++    const existing = trail.indexOf(id);
++    setTrail(existing >= 0 ? trail.slice(0, existing + 1) : [...trail, id]);
++    setCurrentId(id);
++    setConnectionsOpen(false);
++  }
++
++  function otherCopy(row: RelatedCatalogueRow) {
++    const otherId = row.source_card_id === currentId ? row.target_card_id : row.source_card_id;
++    const other = relatedCards[otherId];
++    const otherPack = other ? packMap.get(other.pack_id) ?? null : null;
++    if (!other || !otherPack) {
++      return row.source_card_id === currentId
++        ? { id: otherId, term: row.term || "Untitled", meaning: row.meaning, pack: null as PackWithType | null }
++        : { id: otherId, term: row.source_term || "Untitled", meaning: row.source_meaning, pack: null as PackWithType | null };
++    }
++    const otherTerm = fieldByRole(otherPack.cardType, "term") ?? otherPack.cardType?.field_schema[0] ?? null;
++    const otherMeaning = fieldByRole(otherPack.cardType, "meaning") ?? otherPack.cardType?.field_schema[1] ?? null;
++    return { id: otherId, term: fieldText(other.data, otherTerm?.key) || "Untitled", meaning: fieldText(other.data, otherMeaning?.key), pack: otherPack };
++  }
++
++  async function toggleRetention() {
++    if (!card || card.role !== "main" || retentionBusy) return;
++    const previous = card.retention;
++    const next = previous === "learning" ? "reference" : "learning";
++    setCard({ ...card, retention: next });
++    setRetentionBusy(true);
++    try {
++      await setCardRetention(card.id, next);
++    } catch (saveError) {
++      setCard({ ...card, retention: previous });
++      setError(saveError instanceof Error ? saveError.message : "Could not change review state.");
++    } finally {
++      setRetentionBusy(false);
++    }
++  }
++
++  const extraFields = (pack?.cardType?.field_schema ?? []).filter((field) => ![termField?.key, readingField?.key, meaningField?.key].includes(field.key));
++  const learningMethods = (Object.keys(counts) as Array<keyof LearningCounts>).filter((key) => counts[key] > 0);
++
++  return <div className="knowledge-entry-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
++    <section className="knowledge-entry-modal" role="dialog" aria-modal="true" aria-label="Knowledge entry">
++      <header className="knowledge-entry-topbar">
++        <div className="knowledge-entry-trail">
++          {trail.length > 1 ? <button onClick={() => { const next = trail.slice(0, -1); setTrail(next); setCurrentId(next[next.length - 1]); }}><ArrowLeft size={14} /> Back</button> : null}
++          <span>{collection?.title ?? "Heuresis"}{pack ? ` · ${pack.title}` : ""}</span>
++        </div>
++        <button className="knowledge-entry-close" onClick={onClose} aria-label="Close entry"><X size={18} /></button>
++      </header>
++
++      {loading ? <div className="knowledge-entry-state">Opening entry…</div> : null}
++      {!loading && error && !card ? <div className="knowledge-entry-state error">{error}</div> : null}
++      {!loading && card && pack ? <div className="knowledge-entry-scroll">
++        <section className="knowledge-entry-hero">
++          <div>
++            <span className={`knowledge-entry-retention ${card.retention}`}>{card.role === "related" ? "Connected reference" : card.retention === "learning" ? "In review" : "Reference"}</span>
++            <h1>{term}</h1>
++            {reading ? <em>{reading}</em> : null}
++            {meaning ? <p>{meaning}</p> : null}
++          </div>
++          <div className="knowledge-entry-actions">
++            {card.role === "main" ? <button disabled={retentionBusy} onClick={() => void toggleRetention()}>{card.retention === "learning" ? "Keep as reference" : "Add to review"}</button> : null}
++            <button onClick={() => setConnectionsOpen(true)}><GitFork size={14} /> Map</button>
++            {onOpenPack ? <button onClick={() => { onClose(); onOpenPack(pack); }}><BookOpen size={14} /> Topic</button> : null}
++          </div>
++        </section>
++
++        {error ? <p className="knowledge-entry-inline-error">{error}</p> : null}
++
++        <div className="knowledge-entry-grid">
++          <main>
++            {extraFields.some((field) => fieldText(card.data, field.key)) ? <section className="knowledge-entry-section">
++              <h2>Card fields</h2>
++              <div className="knowledge-entry-fields">{extraFields.map((field) => {
++                const value = fieldText(card.data, field.key);
++                return value ? <article key={field.key}><small>{field.label}</small><p>{value}</p></article> : null;
++              })}</div>
++            </section> : null}
++
++            {blocks.length ? <section className="knowledge-entry-section">
++              <h2>Knowledge</h2>
++              <div className="knowledge-entry-blocks">{blocks.map((block) => <article key={block.id}>
++                <small>{DIM_LABEL[block.dim] ?? block.dim}{block.type === "example" ? " · example" : ""}</small>
++                {block.text ? <p>{block.text}</p> : null}
++                {block.reading ? <em>{block.reading}</em> : null}
++                {block.translation ? <p className="translation">{block.translation}</p> : null}
++                {block.type === "image" ? <p className="translation">{block.caption || "Image reference"}</p> : null}
++              </article>)}</div>
++            </section> : null}
++
++            {card.note ? <section className="knowledge-entry-section"><h2>My note</h2><p className="knowledge-entry-note">{card.note}</p></section> : null}
++
++            <section className="knowledge-entry-section">
++              <div className="knowledge-entry-section-head"><h2>Connections</h2><span>{relationRows.length}</span></div>
++              {relationRows.length ? <div className="knowledge-entry-links">{relationRows.map((row) => {
++                const other = otherCopy(row);
++                return <button key={row.relation_id} onClick={() => openEntry(other.id)}>
++                  <span><small>{relationSemantic(row, currentId)}</small><strong>{other.term}</strong>{other.meaning ? <p>{other.meaning}</p> : null}</span>
++                  <em>{other.pack?.title ?? "Connected entry"} →</em>
++                </button>;
++              })}</div> : <p className="knowledge-entry-muted">No connections yet.</p>}
++            </section>
++          </main>
++
++          <aside>
++            <section className="knowledge-entry-review">
++              <div className="knowledge-entry-section-head"><h2>Review</h2><span>{card.stats.study_count}</span></div>
++              {card.retention === "reference" ? <p className="knowledge-entry-muted">Reference only. It creates no review debt.</p> : <>
++                <div className="knowledge-entry-review-stats">
++                  <article><strong>{card.stats.study_count}</strong><small>reviews</small></article>
++                  <article><strong>{card.stats.good_count + card.stats.easy_count}</strong><small>good / easy</small></article>
++                  <article><strong>{card.stats.again_count}</strong><small>again</small></article>
++                </div>
++                <p className="knowledge-entry-last">Last reviewed {relativeDate(card.stats.last_encountered_at)}</p>
++              </>}
++              {learningMethods.length ? <div className="knowledge-entry-methods"><small>HOW YOU REVIEWED</small>{learningMethods.map((action) => <span key={action}>{LEARNING_ACTION_LABELS[action]} <b>{counts[action]}</b></span>)}</div> : null}
++              {history.length ? <div className="knowledge-entry-history"><small>RECENT REVIEW SESSIONS</small>{history.map((item) => <article key={item.sessionId}><div><strong>{relativeDate(item.reviewedAt)}</strong>{item.grade ? <span className={`grade ${item.grade}`}>{item.grade}</span> : null}</div><p>{item.methods.length ? item.methods.map((action) => LEARNING_ACTION_LABELS[action]).join(" · ") : "Flashcard review"}</p></article>)}</div> : null}
++            </section>
++
++            {card.tags.length ? <section className="knowledge-entry-side-section"><h2>Tags</h2><div className="knowledge-entry-tags">{card.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div></section> : null}
++            <section className="knowledge-entry-side-section"><h2>Record</h2><p>Added {new Date(card.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p><p>Updated {relativeDate(card.updated_at)}</p></section>
++          </aside>
++        </div>
++      </div> : null}
++
++      {connectionsOpen && card && pack ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} onOpenEntry={(id) => { setConnectionsOpen(false); openEntry(id); }} /> : null}
++    </section>
++  </div>;
++}
+diff --git a/heuresis_orig/Heuresis-main/src/components/PackView.tsx b/heuresis_work/Heuresis-main/src/components/PackView.tsx
+index a589553..7bc6ee2 100644
+--- a/heuresis_orig/Heuresis-main/src/components/PackView.tsx
++++ b/heuresis_work/Heuresis-main/src/components/PackView.tsx
+@@ -33,6 +33,7 @@ type Props = {
+   onCapture: () => void;
+   onSettings: () => void;
+   onChanged: () => void;
++  onOpenEntry?: (cardId: string) => void;
+ };
+ 
+ type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
+@@ -130,7 +131,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged,
+   );
+ }
+ 
+-export default function PackView({ pack, collection, onBack, onCapture, onSettings, onChanged }: Props) {
++export default function PackView({ pack, collection, onBack, onCapture, onSettings, onChanged, onOpenEntry }: Props) {
+   const [cards, setCards] = useState<CardWithStats[]>([]);
+   const [tags, setTags] = useState<HeuresisTag[]>([]);
+   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
+@@ -469,7 +470,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
+       </div> : null}
+ 
+       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} /> : null}
+-      {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} /> : null}
++      {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} onOpenEntry={onOpenEntry} /> : null}
+       {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => void refreshAll()} /> : null}
+       {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} /> : null}
+       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
+diff --git a/heuresis_orig/Heuresis-main/src/components/ReviewScratchpad.tsx b/heuresis_work/Heuresis-main/src/components/ReviewScratchpad.tsx
+index b6d0248..d26a755 100644
+--- a/heuresis_orig/Heuresis-main/src/components/ReviewScratchpad.tsx
++++ b/heuresis_work/Heuresis-main/src/components/ReviewScratchpad.tsx
+@@ -174,6 +174,7 @@ export default function ReviewScratchpad() {
+     strokesRef.current.push(stroke);
+     currentStrokeRef.current = stroke;
+     drawingPointerRef.current = event.pointerId;
++    window.dispatchEvent(new CustomEvent("heuresis:scratchpad-used"));
+     redraw();
+   }
+ 
+diff --git a/heuresis_orig/Heuresis-main/src/components/SearchOverlay.tsx b/heuresis_work/Heuresis-main/src/components/SearchOverlay.tsx
+index e24e83c..6fc66ce 100644
+--- a/heuresis_orig/Heuresis-main/src/components/SearchOverlay.tsx
++++ b/heuresis_work/Heuresis-main/src/components/SearchOverlay.tsx
+@@ -3,9 +3,33 @@ import { useEffect, useMemo, useState } from "react";
+ import { fieldByRole, fieldText, type PackWithType } from "../lib/heuresis";
+ import { searchCards, type SearchCardResult } from "../lib/search";
+ 
+-type Props = { packs: PackWithType[]; onClose: () => void; onOpen: (pack: PackWithType) => void };
++type Props = { packs: PackWithType[]; onClose: () => void; onOpenEntry: (cardId: string) => void };
+ 
+-export default function SearchOverlay({ packs, onClose, onOpen }: Props) {
++function matchContext(item: SearchCardResult, pack: PackWithType, query: string) {
++  const needle = query.trim().toLocaleLowerCase();
++  if (!needle) return null;
++  if (item.note?.toLocaleLowerCase().includes(needle)) return { label: "Note", text: item.note };
++  for (const field of pack.cardType?.field_schema ?? []) {
++    const value = fieldText(item.data, field.key);
++    if (value.toLocaleLowerCase().includes(needle)) return { label: field.label, text: value };
++  }
++  const workspace = item.data._workspace_blocks;
++  if (Array.isArray(workspace)) {
++    const raw = workspace.find((value) => value.toLocaleLowerCase().includes(needle));
++    if (raw) {
++      try {
++        const parsed = JSON.parse(raw) as Record<string, unknown>;
++        const text = [parsed.source, parsed.text, parsed.translation, parsed.caption].find((value) => typeof value === "string" && value.toLocaleLowerCase().includes(needle));
++        return { label: "Knowledge", text: typeof text === "string" ? text : raw };
++      } catch {
++        return { label: "Knowledge", text: raw };
++      }
++    }
++  }
++  return null;
++}
++
++export default function SearchOverlay({ packs, onClose, onOpenEntry }: Props) {
+   const [query, setQuery] = useState("");
+   const [items, setItems] = useState<SearchCardResult[]>([]);
+   const [loading, setLoading] = useState(false);
+@@ -37,7 +61,8 @@ export default function SearchOverlay({ packs, onClose, onOpen }: Props) {
+             const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
+             const reading = fieldByRole(pack.cardType, "reading");
+             const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
+-            return <button key={item.id} className="search-result" onClick={() => { onOpen(pack); onClose(); }}><span><small>{pack.title}{item.role === "related" ? " · Related" : ""}</small><strong>{fieldText(item.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(item.data, reading.key)}</em> : null}</span><p>{fieldText(item.data, meaning?.key)}{item.note ? <i> · {item.note}</i> : null}</p></button>;
++            const match = matchContext(item, pack, query);
++            return <button key={item.id} className="search-result" onClick={() => { onOpenEntry(item.id); onClose(); }}><span><small>{pack.title}{item.role === "related" ? " · Connected reference" : ""}</small><strong>{fieldText(item.data, term?.key) || "Untitled"}</strong>{reading ? <em>{fieldText(item.data, reading.key)}</em> : null}</span><p>{fieldText(item.data, meaning?.key)}{match ? <i> · matched in {match.label}: {match.text.slice(0, 120)}</i> : null}</p></button>;
+           })}
+           {!loading && !error && query.trim().length >= 2 && !items.length ? <div className="search-empty">No matching cards.</div> : null}
+         </div>
+diff --git a/heuresis_work/Heuresis-main/src/components/knowledge-entry.css b/heuresis_work/Heuresis-main/src/components/knowledge-entry.css
+new file mode 100644
+index 0000000..b47cb92
+--- /dev/null
++++ b/heuresis_work/Heuresis-main/src/components/knowledge-entry.css
+@@ -0,0 +1,13 @@
++.knowledge-entry-backdrop{position:fixed;inset:0;z-index:1700;display:grid;place-items:center;padding:28px;background:rgba(34,30,26,.24);backdrop-filter:blur(7px)}
++.knowledge-entry-modal{width:min(1080px,96vw);height:min(860px,94vh);display:flex;flex-direction:column;overflow:hidden;border:1px solid #ddd5ca;border-radius:16px;background:#fbfaf7;box-shadow:0 34px 90px rgba(35,30,25,.2);color:#302b27}
++.knowledge-entry-topbar{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:0 16px;border-bottom:1px solid #ebe5dc;background:rgba(255,255,255,.72)}
++.knowledge-entry-trail{display:flex;align-items:center;gap:10px;min-width:0}.knowledge-entry-trail>button,.knowledge-entry-close{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#746b63;cursor:pointer}.knowledge-entry-trail>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9a9188;font-size:10px;letter-spacing:.05em;text-transform:uppercase}
++.knowledge-entry-close{padding:7px;border-radius:8px}.knowledge-entry-close:hover,.knowledge-entry-trail>button:hover{background:#f0ece6;color:#3e3731}
++.knowledge-entry-state{display:grid;place-items:center;flex:1;color:#877e75}.knowledge-entry-state.error{color:#9c4b3f}.knowledge-entry-scroll{overflow:auto;padding:30px 34px 42px}
++.knowledge-entry-hero{display:flex;justify-content:space-between;gap:28px;padding-bottom:26px;border-bottom:1px solid #e8e1d8}.knowledge-entry-hero h1{margin:9px 0 3px;font:400 clamp(34px,5vw,58px)/1.02 'Libre Caslon Display',Georgia,serif}.knowledge-entry-hero em{display:block;margin-top:6px;color:#8b8177;font:400 15px/1.4 'DM Mono',monospace}.knowledge-entry-hero p{max-width:700px;margin:9px 0 0;color:#544c45;font:400 17px/1.55 Georgia,serif}.knowledge-entry-retention{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eee9e2;color:#776d64;font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}.knowledge-entry-retention.learning{background:#e5ece5;color:#50624f}
++.knowledge-entry-actions{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap;justify-content:flex-end}.knowledge-entry-actions button{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:7px 10px;border:1px solid #d9d0c5;border-radius:8px;background:#fff;color:#5f574f;font-size:10px;font-weight:650;cursor:pointer}.knowledge-entry-actions button:hover{border-color:#ae9582;color:#754f3d}.knowledge-entry-actions button:disabled{opacity:.5;cursor:default}
++.knowledge-entry-inline-error{margin:13px 0 0;color:#9d4d40;font-size:11px}.knowledge-entry-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(250px,.72fr);gap:34px;margin-top:28px}.knowledge-entry-section{padding:0 0 28px;margin:0 0 28px;border-bottom:1px solid #e8e1d8}.knowledge-entry-section h2,.knowledge-entry-review h2,.knowledge-entry-side-section h2{margin:0;color:#766d64;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.knowledge-entry-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.knowledge-entry-section-head>span{color:#aaa097;font:10px 'DM Mono',monospace}
++.knowledge-entry-fields,.knowledge-entry-blocks{display:grid;gap:10px;margin-top:12px}.knowledge-entry-fields article,.knowledge-entry-blocks article{padding:13px 14px;border:1px solid #e7e0d6;border-radius:10px;background:#fff}.knowledge-entry-fields small,.knowledge-entry-blocks small{display:block;margin-bottom:6px;color:#a1988e;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.knowledge-entry-fields p,.knowledge-entry-blocks p,.knowledge-entry-note{margin:0;color:#46403a;font:400 14px/1.55 Georgia,serif;white-space:pre-wrap}.knowledge-entry-blocks em{display:block;margin-top:5px;color:#8b8177;font:11px/1.4 'DM Mono',monospace}.knowledge-entry-blocks .translation{margin-top:5px;color:#726960;font-size:12px}.knowledge-entry-note{margin-top:10px;padding:14px;border-left:2px solid #c6b6a9;background:#f7f3ed}
++.knowledge-entry-links{display:grid;gap:8px}.knowledge-entry-links button{display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;padding:11px 12px;border:1px solid #e5ded5;border-radius:10px;background:#fff;text-align:left;cursor:pointer}.knowledge-entry-links button:hover{border-color:#bdab9b;background:#fdfbf8}.knowledge-entry-links small{display:block;margin-bottom:3px;color:#9d948b;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.knowledge-entry-links strong{display:block;color:#3d3732;font:500 14px/1.3 Inter,sans-serif}.knowledge-entry-links p{margin:3px 0 0;color:#776e65;font-size:11px}.knowledge-entry-links em{flex:0 0 auto;color:#aaa096;font-size:9px;font-style:normal}.knowledge-entry-muted{margin:8px 0 0;color:#9a9188;font-size:11px;line-height:1.5}
++.knowledge-entry-review,.knowledge-entry-side-section{padding:16px;border:1px solid #e6ded4;border-radius:12px;background:#fff}.knowledge-entry-side-section{margin-top:12px}.knowledge-entry-review-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}.knowledge-entry-review-stats article{padding:9px 7px;border-radius:8px;background:#f6f2ec;text-align:center}.knowledge-entry-review-stats strong{display:block;font:500 18px 'DM Mono',monospace}.knowledge-entry-review-stats small{display:block;margin-top:3px;color:#978e85;font-size:8px;text-transform:uppercase}.knowledge-entry-last{margin:9px 0 0;color:#8d847a;font-size:10px}.knowledge-entry-methods,.knowledge-entry-history{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:13px;border-top:1px solid #eee8df}.knowledge-entry-methods>small,.knowledge-entry-history>small{width:100%;margin-bottom:2px;color:#aaa096;font-size:8px;font-weight:750;letter-spacing:.1em}.knowledge-entry-methods>span{padding:4px 7px;border-radius:99px;background:#f2eee8;color:#6f665e;font-size:9px}.knowledge-entry-methods b{font-family:'DM Mono',monospace}.knowledge-entry-history{display:grid}.knowledge-entry-history article{padding:8px 0;border-bottom:1px solid #f0ebe4}.knowledge-entry-history article:last-child{border-bottom:0}.knowledge-entry-history article>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.knowledge-entry-history strong{color:#5e554e;font-size:10px}.knowledge-entry-history p{margin:4px 0 0;color:#8b8279;font-size:9px}.knowledge-entry-history .grade{padding:2px 5px;border-radius:99px;background:#efebe5;color:#756b62;font-size:8px;text-transform:uppercase}.knowledge-entry-history .grade.good,.knowledge-entry-history .grade.easy{background:#e6eee6;color:#526551}.knowledge-entry-history .grade.again{background:#f3e4e1;color:#8a4a41}.knowledge-entry-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}.knowledge-entry-tags span{padding:4px 7px;border-radius:99px;background:#f2eee8;color:#6f665e;font-size:9px}.knowledge-entry-side-section p{margin:8px 0 0;color:#8b8279;font-size:10px}
++@media(max-width:800px){.knowledge-entry-backdrop{padding:0}.knowledge-entry-modal{width:100vw;height:100vh;border:0;border-radius:0}.knowledge-entry-scroll{padding:22px 18px 34px}.knowledge-entry-hero{display:block}.knowledge-entry-actions{justify-content:flex-start;margin-top:16px}.knowledge-entry-grid{grid-template-columns:1fr}.knowledge-entry-grid aside{order:-1}}
+diff --git a/heuresis_orig/Heuresis-main/src/intelligent-ui.css b/heuresis_work/Heuresis-main/src/intelligent-ui.css
+index 35ecdb1..e270325 100644
+--- a/heuresis_orig/Heuresis-main/src/intelligent-ui.css
++++ b/heuresis_work/Heuresis-main/src/intelligent-ui.css
+@@ -80,3 +80,5 @@
+ 
+ @media(max-width:980px){.library-desk{grid-template-columns:1fr}.intelligent-question-band{grid-template-columns:1fr 1fr}.intelligent-result-grid{grid-template-columns:1fr}.intelligent-topic-thead,.intelligent-topic-row{grid-template-columns:1.1fr 1fr 190px}.intelligent-topic-thead span:last-child,.topic-row-flags{display:none}.connections-panel{height:94vh}.connection-node span{display:none}}
+ @media(max-width:700px){.intelligent-library{padding:24px 14px 50px}.intelligent-library-head{flex-direction:column}.library-resume-head{padding:20px;gap:14px}.library-resume-glyph{flex-basis:84px;width:84px;height:84px;font-size:48px}.library-resume-topics>button{grid-template-columns:1fr auto;padding:16px 20px}.library-resume-topics>button>i{display:none}.intelligent-question-band{grid-template-columns:1fr}.intelligent-topic-thead{display:none}.intelligent-topic-row{grid-template-columns:1fr;padding:14px 4px}.topic-row-flags{display:flex;justify-content:flex-start}.direction-signal.compact{max-width:240px}.connections-backdrop{padding:0}.connections-panel{width:100vw;height:100vh;border-radius:0}.connections-head{padding:14px}.connections-filters{display:none}.connections-foot{display:none}}
++.connections-readable{flex:0 0 auto;padding:12px 18px;border-top:1px solid var(--soft,#ece7dd);background:#fcfbf8}.connections-readable-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:#82786f;font-size:9px;letter-spacing:.08em;text-transform:uppercase}.connections-readable-head span{font-family:var(--mono,'DM Mono',monospace)}.connections-readable-list{display:flex;gap:7px;overflow-x:auto;padding-bottom:3px}.connections-readable-list>button{display:flex;justify-content:space-between;gap:16px;min-width:230px;max-width:300px;padding:9px 10px;border:1px solid var(--line,#e2dccf);border-radius:9px;background:#fff;text-align:left;cursor:pointer}.connections-readable-list>button:hover{border-color:#bba796;background:#fdfbf8}.connections-readable-list>button span{min-width:0}.connections-readable-list small{display:block;margin-bottom:2px;color:#aaa096;font-size:7.5px;text-transform:uppercase}.connections-readable-list strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#433c36;font-size:11px}.connections-readable-list em{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;color:#82786f;font-size:9px;font-style:normal}.connections-readable-list>button>i{align-self:center;max-width:92px;color:#aaa096;font-size:8px;font-style:normal;text-align:right}@media(max-width:700px){.connections-readable{display:none}}
++.result-open-entry{margin-left:auto;border:0;background:transparent;color:#857b72;font-size:9px;font-weight:650;cursor:pointer}.result-open-entry:hover{color:#704a37;text-decoration:underline;text-underline-offset:3px}
+diff --git a/heuresis_orig/Heuresis-main/src/lib/heuresis.ts b/heuresis_work/Heuresis-main/src/lib/heuresis.ts
+index 0a135aa..83c8563 100644
+--- a/heuresis_orig/Heuresis-main/src/lib/heuresis.ts
++++ b/heuresis_work/Heuresis-main/src/lib/heuresis.ts
+@@ -68,6 +68,7 @@ export type CardStats = {
+ export type CardWithStats = {
+   id: string;
+   pack_id: string;
++  role: "main" | "related";
+   retention: CardRetention;
+   data: Record<string, string | string[] | null>;
+   note: string | null;
+@@ -153,6 +154,7 @@ function mapCardRow(row: any): CardWithStats {
+   return {
+     id: row.id,
+     pack_id: row.pack_id,
++    role: row.role === "related" ? "related" : "main",
+     retention: row.retention === "reference" ? "reference" : "learning",
+     data: cardData(row.data),
+     note: row.note ?? null,
+@@ -249,7 +251,7 @@ export async function listTags(): Promise<HeuresisTag[]> {
+   return (data ?? []) as HeuresisTag[];
+ }
+ 
+-const CARD_SELECT = "id,pack_id,retention,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count,first_encountered_at,last_encountered_at,by_template),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
++const CARD_SELECT = "id,pack_id,role,retention,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count,first_encountered_at,last_encountered_at,by_template),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
+ 
+ export async function listCardsPage(packId: string, options: { offset?: number; limit?: number } = {}): Promise<CardPage> {
+   const offset = Math.max(0, Math.floor(options.offset ?? 0));
+@@ -325,9 +327,9 @@ function cleanCardValues(pack: PackWithType, values: Record<string, string>) {
+   return data;
+ }
+ 
+-export async function createCard(pack: PackWithType, values: Record<string, string>, note?: string, tagIds: string[] = []) {
++export async function createCard(pack: PackWithType, values: Record<string, string>, note?: string, tagIds: string[] = [], retention: CardRetention = "learning") {
+   const data = cleanCardValues(pack, values);
+-  const { data: created, error } = await db().from("heuresis_cards").insert({ pack_id: pack.id, data, note: note?.trim() || null }).select("id,created_at").single();
++  const { data: created, error } = await db().from("heuresis_cards").insert({ pack_id: pack.id, data, note: note?.trim() || null, retention }).select("id,created_at").single();
+   if (error) throw error;
+   if (tagIds.length) {
+     const { error: tagError } = await db().rpc("heuresis_set_card_tags", { p_card_id: created.id, p_tag_ids: tagIds });
+diff --git a/heuresis_orig/Heuresis-main/src/lib/learning.ts b/heuresis_work/Heuresis-main/src/lib/learning.ts
+index a88027b..6526600 100644
+--- a/heuresis_orig/Heuresis-main/src/lib/learning.ts
++++ b/heuresis_work/Heuresis-main/src/lib/learning.ts
+@@ -58,6 +58,56 @@ export async function getLearningCounts(cardIds: string[]): Promise<Record<strin
+   return result;
+ }
+ 
++
++export type ReviewHistoryItem = {
++  sessionId: string;
++  reviewedAt: string;
++  grade: "again" | "hard" | "good" | "easy" | null;
++  methods: LearningAction[];
++};
++
++const REVIEW_EVENT_ACTION: Record<string, LearningAction | undefined> = {
++  exercise_handwrite: "handwrite",
++  exercise_type: "type",
++  exercise_sentence: "sentence",
++  exercise_rephrase: "rephrase",
++  exercise_example: "example",
++  exercise_say: "say",
++  exercise_hear: "hear",
++};
++
++export async function listReviewHistory(cardId: string, limit = 8): Promise<ReviewHistoryItem[]> {
++  if (!cardId) return [];
++  const { data, error } = await db()
++    .from("heuresis_card_events")
++    .select("session_id,event_type,created_at")
++    .eq("card_id", cardId)
++    .in("event_type", [
++      "again", "hard", "good", "easy",
++      "exercise_handwrite", "exercise_type", "exercise_sentence",
++      "exercise_rephrase", "exercise_example", "exercise_say", "exercise_hear",
++    ])
++    .order("created_at", { ascending: false })
++    .limit(Math.max(24, Math.min(160, limit * 12)));
++  if (error) throw error;
++
++  const grouped = new Map<string, ReviewHistoryItem>();
++  for (const row of (data ?? []) as Array<{ session_id?: unknown; event_type?: unknown; created_at?: unknown }>) {
++    if (typeof row.session_id !== "string" || typeof row.event_type !== "string" || typeof row.created_at !== "string") continue;
++    const current = grouped.get(row.session_id) ?? { sessionId: row.session_id, reviewedAt: row.created_at, grade: null, methods: [] };
++    if (row.created_at > current.reviewedAt) current.reviewedAt = row.created_at;
++    if (row.event_type === "again" || row.event_type === "hard" || row.event_type === "good" || row.event_type === "easy") current.grade = row.event_type;
++    const action = REVIEW_EVENT_ACTION[row.event_type];
++    if (action && !current.methods.includes(action)) current.methods.push(action);
++    grouped.set(row.session_id, current);
++  }
++
++  return Array.from(grouped.values())
++    .filter((item) => item.grade || item.methods.length)
++    .sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))
++    .slice(0, Math.max(1, limit));
++}
++
+ export async function toggleLearningAction(input: {
+   cardId: string;
+   packId: string;
+diff --git a/heuresis_orig/Heuresis-main/src/popup-system.css b/heuresis_work/Heuresis-main/src/popup-system.css
+index a61d8e2..9917636 100644
+--- a/heuresis_orig/Heuresis-main/src/popup-system.css
++++ b/heuresis_work/Heuresis-main/src/popup-system.css
+@@ -340,3 +340,11 @@
+   .capture-foot-actions { width: 100%; }
+   .capture-foot-actions button { flex: 1; }
+ }
++
++/* Capture stores knowledge without review debt unless the author opts in. */
++.capture-retention-choice{display:flex;align-items:center;padding:2px;border:1px solid #d2c8bb;border-radius:9px;background:#f7f3ec}
++.capture-retention-choice button{min-height:30px!important;padding:5px 9px!important;border:0!important;border-radius:7px!important;background:transparent!important;color:#756b62!important;font-size:10px!important;font-weight:650!important;letter-spacing:.02em}
++.capture-retention-choice button[aria-pressed="true"]{background:#fff!important;color:#342e29!important;box-shadow:0 1px 4px rgba(45,40,36,.09)}
++.capture-retention-choice button:hover:not(:disabled){color:#7c5139!important}
++.capture-retention-note{display:inline-flex!important;width:max-content;padding:2px 6px;border-radius:99px;background:#f0ece5;color:#756c63!important;font-size:8px!important;font-style:normal!important;text-transform:uppercase;letter-spacing:.08em}
++@media(max-width:700px){.capture-retention-choice{width:100%}.capture-retention-choice button{flex:1}}
