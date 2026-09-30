@@ -55,7 +55,7 @@ export default function RetentionPractice({
     setTypedAttempt("");
     setSubmittedAttempt("");
     setConnectionsOpen(false);
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (!dictation && typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }, [card.id, dictation]);
 
   const speechText = useMemo(() => {
