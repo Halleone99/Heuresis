@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 
 export type StudyGrade = "again" | "hard" | "good" | "easy";
 export type StudyEventType = "encountered" | "revealed" | StudyGrade;
+export type StudyPromptMode = "text" | "audio";
 export type HeuresisSessionMode = "flashcards" | "sort" | "browse" | "related";
 
 export type StudyTemplate = {
@@ -11,6 +12,7 @@ export type StudyTemplate = {
   front: string[];
   back: string[];
   details: string[];
+  prompt_mode: StudyPromptMode;
   sort_order: number;
 };
 
@@ -41,6 +43,10 @@ function db() {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+export function promptMode(value: unknown): StudyPromptMode {
+  return value === "audio" ? "audio" : "text";
 }
 
 function isStudyEventType(value: unknown): value is StudyEventType {
@@ -155,7 +161,7 @@ export async function loadStudySetup(packId: string, cardTypeId: string) {
     db().from("heuresis_packs").select("default_template_id").eq("id", packId).maybeSingle(),
     db()
       .from("heuresis_study_templates")
-      .select("id,card_type_id,name,front,back,details,sort_order")
+      .select("id,card_type_id,name,front,back,details,prompt_mode,sort_order")
       .eq("card_type_id", cardTypeId)
       .order("sort_order")
       .order("name"),
@@ -171,6 +177,7 @@ export async function loadStudySetup(packId: string, cardTypeId: string) {
     front: stringArray(row.front),
     back: stringArray(row.back),
     details: stringArray(row.details),
+    prompt_mode: promptMode(row.prompt_mode),
     sort_order: Number(row.sort_order ?? 0),
   }));
 
