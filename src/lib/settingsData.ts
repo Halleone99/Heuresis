@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { promptMode, type StudyPromptMode } from "./study";
 
 export type StructureRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
 export type StructureScript = "han" | "cyrl" | "latn";
@@ -18,6 +19,7 @@ export type StructureTemplate = {
   front: string[];
   back: string[];
   details: string[];
+  prompt_mode: StudyPromptMode;
   sort_order: number;
 };
 
@@ -104,7 +106,7 @@ export async function customisePackStructure(packId: string, nextFields: Structu
 }
 
 export async function listStructureTemplates(cardTypeId: string): Promise<StructureTemplate[]> {
-  const { data, error } = await db().from("heuresis_study_templates").select("id,user_id,card_type_id,name,front,back,details,sort_order").eq("card_type_id", cardTypeId).order("sort_order").order("name");
+  const { data, error } = await db().from("heuresis_study_templates").select("id,user_id,card_type_id,name,front,back,details,prompt_mode,sort_order").eq("card_type_id", cardTypeId).order("sort_order").order("name");
   if (error) throw error;
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -114,6 +116,7 @@ export async function listStructureTemplates(cardTypeId: string): Promise<Struct
     front: stringArray(row.front),
     back: stringArray(row.back),
     details: stringArray(row.details),
+    prompt_mode: promptMode(row.prompt_mode),
     sort_order: Number(row.sort_order ?? 0),
   }));
 }
@@ -127,16 +130,20 @@ async function currentUserId() {
   return data.user.id;
 }
 
-export async function createStudyTemplate(input: { cardTypeId: string; name: string; front: string[]; back: string[]; details: string[]; sortOrder: number }) {
+export async function createStudyTemplate(input: { cardTypeId: string; name: string; front: string[]; back: string[]; details: string[]; promptMode?: StudyPromptMode; sortOrder: number }) {
   if (!input.front.length || !input.back.length) throw new Error("Choose at least one field for each side.");
+  const mode = promptMode(input.promptMode);
+  if (mode === "audio" && input.front.length !== 1) throw new Error("An audio direction needs exactly one field on side 1 — the field it reads aloud.");
   const userId = await currentUserId();
-  const { error } = await db().from("heuresis_study_templates").insert({ user_id: userId, card_type_id: input.cardTypeId, name: input.name.trim() || "Study direction", front: input.front, back: input.back, details: input.details, sort_order: input.sortOrder });
+  const { error } = await db().from("heuresis_study_templates").insert({ user_id: userId, card_type_id: input.cardTypeId, name: input.name.trim() || "Study direction", front: input.front, back: input.back, details: input.details, prompt_mode: mode, sort_order: input.sortOrder });
   if (error) throw error;
 }
 
-export async function updateStudyTemplate(templateId: string, patch: { name: string; front: string[]; back: string[]; details: string[]; sortOrder: number }) {
+export async function updateStudyTemplate(templateId: string, patch: { name: string; front: string[]; back: string[]; details: string[]; promptMode?: StudyPromptMode; sortOrder: number }) {
   if (!patch.front.length || !patch.back.length) throw new Error("Choose at least one field for each side.");
-  const { error } = await db().from("heuresis_study_templates").update({ name: patch.name.trim() || "Study direction", front: patch.front, back: patch.back, details: patch.details, sort_order: patch.sortOrder }).eq("id", templateId);
+  const mode = promptMode(patch.promptMode);
+  if (mode === "audio" && patch.front.length !== 1) throw new Error("An audio direction needs exactly one field on side 1 — the field it reads aloud.");
+  const { error } = await db().from("heuresis_study_templates").update({ name: patch.name.trim() || "Study direction", front: patch.front, back: patch.back, details: patch.details, prompt_mode: mode, sort_order: patch.sortOrder }).eq("id", templateId);
   if (error) throw error;
 }
 
