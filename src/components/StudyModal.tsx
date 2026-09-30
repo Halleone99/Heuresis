@@ -51,9 +51,10 @@ function directionPairs(templates: StudyTemplate[]): DirectionPair[] {
   const used = new Set<string>();
   const pairs: DirectionPair[] = [];
   for (const template of templates) {
-    if (used.has(template.id)) continue;
+    if (used.has(template.id) || template.prompt_mode === "audio") continue;
     const reverse = templates.find((candidate) => candidate.id !== template.id
       && !used.has(candidate.id)
+      && candidate.prompt_mode !== "audio"
       && sameFields(template.front, candidate.back)
       && sameFields(template.back, candidate.front));
     if (!reverse) continue;
@@ -216,7 +217,7 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
             </div>
             {directionMode === "both" ? <div className="direction-detail">
               {pairs.length > 1 ? <select value={activePair?.key ?? ""} onChange={(event) => setDirectionPairKey(event.target.value)}>{pairs.map((pair) => <option key={pair.key} value={pair.key}>{pair.label}</option>)}</select> : <strong>{activePair?.label ?? "No reversible pair"}</strong>}
-            </div> : <div className="direction-detail"><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
+            </div> : <div className="direction-detail"><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}{item.prompt_mode === "audio" ? " · listening" : ""}</option>)}</select></div>}
           </section>
           <label className="compact-field"><span>Cards</span><select value={source} onChange={(event) => setSource(event.target.value as ReviewSource)}>{reviewSources.map(([value, label, count]) => <option key={value} value={value} disabled={!count && value !== "all"}>{label} · {count}</option>)}</select></label>
           <section className="compact-count-panel"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
