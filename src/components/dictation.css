@@ -1,0 +1,72 @@
+.cosmos-audio-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 26px 0;
+  text-align: center;
+}
+
+.cosmos-audio-prompt .cosmos-audio-glyph {
+  color: var(--muted);
+}
+
+.cosmos-audio-prompt .cosmos-audio-hint {
+  margin: 0;
+  color: var(--muted);
+  font: 13px/1.5 var(--serif);
+}
+
+.cosmos-audio-prompt .cosmos-audio-replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  font: 12px/1 var(--sans);
+  cursor: pointer;
+}
+
+.cosmos-audio-prompt .cosmos-audio-replay small {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.cosmos-audio-prompt .cosmos-audio-replay:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.retention-typed-compare[data-verdict="exact"] {
+  border-left: 2px solid var(--live);
+}
+
+.retention-typed-compare[data-verdict="close"] {
+  border-left: 2px solid var(--ink-2);
+}
+
+.retention-typed-compare[data-verdict="different"] {
+  border-left: 2px solid var(--muted);
+}
+
+.retention-diff {
+  margin: 6px 0 0;
+  font: 14px/1.6 var(--serif);
+}
+
+.retention-diff-same {
+  color: var(--ink);
+}
+
+.retention-diff-missing {
+  color: var(--ink-2);
+  text-decoration: underline;
+}
+
+.retention-diff-extra {
+  color: var(--faint);
+  text-decoration: line-through;
+}
