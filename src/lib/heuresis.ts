@@ -7,10 +7,13 @@ export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | 
 export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
 export type CardRetention = "reference" | "learning";
 
+export type FieldScript = "han" | "cyrl" | "latn";
+
 export type FieldDef = {
   key: string;
   label: string;
   role?: FieldRole;
+  script?: FieldScript;
   required?: boolean;
 };
 
@@ -114,6 +117,7 @@ function fieldSchema(value: unknown): FieldDef[] {
     const next: FieldDef = { key: row.key, label: row.label };
     if (typeof row.required === "boolean") next.required = row.required;
     if (typeof row.role === "string") next.role = row.role as FieldRole;
+    if (row.script === "han" || row.script === "cyrl" || row.script === "latn") next.script = row.script;
     return [next];
   });
 }
