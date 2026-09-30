@@ -1,4 +1,4 @@
-import { Pin, Plus, SkipForward, X } from "lucide-react";
+import { Pin, Plus, RotateCcw, SkipForward, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fieldByRole,
@@ -28,6 +28,7 @@ import {
   type RelationType,
 } from "../lib/related";
 import { cardHasCompletedSort, markCardSorted, setSortInterest, setSortTags } from "../lib/sort";
+import { cancelDictationPrompt, dictationPromptText, playDictationPrompt } from "../lib/dictation";
 import {
   finishStudySession,
   loadStudySetup,
@@ -40,6 +41,7 @@ import { signHeuresisCardImages } from "../lib/cardMedia";
 import { supabase } from "../lib/supabase";
 import RetentionPractice from "./RetentionPractice";
 import "./cosmos.css";
+import "./dictation.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -221,6 +223,7 @@ export default function CosmosWindow() {
   const [selectedActions, setSelectedActions] = useState<Record<string, LearningAction[]>>({});
   const [signedImages, setSignedImages] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [promptBusy, setPromptBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
 
   const mode = config.mode;
@@ -237,6 +240,8 @@ export default function CosmosWindow() {
   const dimensions = pack && isConceptualPack(pack) ? CONCEPT_DIMS : LANGUAGE_DIMS;
   const structuredWords = Boolean(pack && !isConceptualPack(pack));
   const blocks = parseBlocks(card);
+  const audioPrompt = mode === "review" && (template?.prompt_mode ?? "text") === "audio";
+  const promptText = audioPrompt ? dictationPromptText(card, pack?.cardType ?? null, template) : "";
 
   const patchLocalCard = useCallback((cardId: string, updater: (card: CardWithStats) => CardWithStats) => {
     setCards((current) => current.map((item) => item.id === cardId ? updater(item) : item));
@@ -386,6 +391,18 @@ export default function CosmosWindow() {
   }, [card?.id, card?.updated_at]);
 
   useEffect(() => {
+    if (!audioPrompt || !promptText || revealed || !pack) return;
+    let alive = true;
+    void playDictationPrompt(promptText, pack).catch((playError) => {
+      if (alive) setNotice(playError instanceof Error ? playError.message : "Could not play the audio prompt.");
+    });
+    return () => {
+      alive = false;
+      cancelDictationPrompt();
+    };
+  }, [audioPrompt, promptText, revealed, pack?.id, card?.id]);
+
+  useEffect(() => {
     if (!pinned.l) setOpenLeaf((current) => ({ ...current, l: null }));
     if (!pinned.r) setOpenLeaf((current) => ({ ...current, r: null }));
     setAddingDim(null);
@@ -458,6 +475,19 @@ export default function CosmosWindow() {
     } catch (removeError) {
       setNotice(removeError instanceof Error ? removeError.message : "Could not remove this relation.");
     } finally { setBusy(false); }
+  }
+
+  async function replayPrompt() {
+    if (!pack || !promptText || promptBusy) return;
+    setPromptBusy(true);
+    setNotice("");
+    try {
+      await playDictationPrompt(promptText, pack);
+    } catch (playError) {
+      setNotice(playError instanceof Error ? playError.message : "Could not play the audio prompt.");
+    } finally {
+      setPromptBusy(false);
+    }
   }
 
   async function reveal() {
@@ -585,6 +615,7 @@ export default function CosmosWindow() {
       }
       if (typing || !card || busy || done) return;
       if (mode === "review") {
+        if (audioPrompt && !revealed && event.key.toLowerCase() === "r") { event.preventDefault(); void replayPrompt(); return; }
         if (!revealed && (event.key === " " || event.key === "Enter")) { event.preventDefault(); void reveal(); return; }
         const grades: Record<string, StudyGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" };
         const grade = grades[event.key];
@@ -654,7 +685,17 @@ export default function CosmosWindow() {
     </aside>;
   };
 
+  const renderAudioPrompt = () => <div className="cosmos-card-copy cosmos-audio-prompt">
+    <div className="cosmos-audio-glyph" aria-hidden="true"><Volume2 size={32} /></div>
+    <p className="cosmos-audio-hint">Listen, then write what you heard.</p>
+    <button type="button" className="cosmos-audio-replay" disabled={promptBusy} onClick={() => void replayPrompt()}>
+      <RotateCcw size={13} /> Replay <small>R</small>
+    </button>
+    <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal</button>
+  </div>;
+
   const renderReviewCore = () => {
+    if (audioPrompt && !revealed) return renderAudioPrompt();
     const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : frontKeys;
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
     const used = keys.length ? keys : fallbackKeys;
@@ -675,8 +716,8 @@ export default function CosmosWindow() {
         <nav className="cosmos-tabs left">{dimensions.filter((item) => item.side === "l").map((dimension) => <button key={dimension.id} disabled={mode === "review" && !revealed} aria-expanded={openLeaf.l === dimension.id} data-empty={countFor(dimension.id) ? "0" : "1"} onClick={() => toggleLeaf(dimension.id, "l")}><span>{countFor(dimension.id) || "+"}</span><b>{dimension.label}</b></button>)}</nav>
         <nav className="cosmos-tabs right">{dimensions.filter((item) => item.side === "r").map((dimension) => <button key={dimension.id} disabled={mode === "review" && !revealed} aria-expanded={openLeaf.r === dimension.id} data-empty={countFor(dimension.id) ? "0" : "1"} onClick={() => toggleLeaf(dimension.id, "r")}><span>{countFor(dimension.id) || "+"}</span><b>{dimension.label}</b></button>)}</nav>
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
-        {mode === "review" ? <RetentionPractice card={card} pack={pack} template={template} revealed={revealed} busy={busy} counts={counts} selectedActions={activeLearning} onMark={markLearning} onNotice={setNotice} /> : null}
-        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <><button disabled={busy} onClick={() => void answer("again")}>Again <small>1</small></button><button disabled={busy} onClick={() => void answer("hard")}>Hard <small>2</small></button><button className="primary" disabled={busy} onClick={() => void answer("good")}>Good <small>3</small></button><button disabled={busy} onClick={() => void answer("easy")}>Easy <small>4</small></button></> : <span>Use a retention action if useful, then reveal the card.</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((item) => item.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+        {mode === "review" ? <RetentionPractice card={card} pack={pack} template={template} revealed={revealed} busy={busy} counts={counts} selectedActions={activeLearning} onMark={markLearning} onNotice={setNotice} dictation={audioPrompt} sessionId={sessionRef.current} onRevealRequest={reveal} /> : null}
+        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <><button disabled={busy} onClick={() => void answer("again")}>Again <small>1</small></button><button disabled={busy} onClick={() => void answer("hard")}>Hard <small>2</small></button><button className="primary" disabled={busy} onClick={() => void answer("good")}>Good <small>3</small></button><button disabled={busy} onClick={() => void answer("easy")}>Easy <small>4</small></button></> : <span>{audioPrompt ? "Type what you hear, then reveal." : "Use a retention action if useful, then reveal the card."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((item) => item.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {renderLeaf("r")}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
