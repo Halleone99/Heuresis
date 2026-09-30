@@ -2,6 +2,7 @@ import { Link2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "../lib/heuresis";
 import { type LearningAction, type LearningCounts } from "../lib/learning";
+import { compareAttempt, dictationExpected, recordDictationAttempt, speechLanguage, type DiffSegment } from "../lib/dictation";
 import { type StudyTemplate } from "../lib/study";
 import ConnectionsPanel from "./ConnectionsPanel";
 import "./retention-practice.css";
@@ -16,6 +17,9 @@ type Props = {
   selectedActions: Set<LearningAction>;
   onMark: (actions: LearningAction[]) => Promise<void>;
   onNotice: (message: string) => void;
+  dictation: boolean;
+  sessionId: string | null;
+  onRevealRequest: () => Promise<void>;
 };
 
 type PracticePanel = "handwrite" | "type" | null;
@@ -27,17 +31,6 @@ const HANDWRITE_OPTIONS: Array<{ action: HandwriteAction; label: string }> = [
   { action: "example", label: "Own example" },
 ];
 
-function speechLanguage(text: string, pack: PackWithType) {
-  if (/\p{Script=Han}/u.test(text)) return "zh-CN";
-  if (/\p{Script=Cyrillic}/u.test(text)) return "ru-RU";
-  const name = `${pack.title} ${pack.cardType?.name ?? ""}`.toLocaleLowerCase();
-  if (/german|deutsch/.test(name)) return "de-DE";
-  if (/french|français|francais/.test(name)) return "fr-FR";
-  if (/italian|italiano/.test(name)) return "it-IT";
-  if (/spanish|español|espanol/.test(name)) return "es-ES";
-  return "en-GB";
-}
-
 export default function RetentionPractice({
   card,
   pack,
@@ -48,19 +41,22 @@ export default function RetentionPractice({
   selectedActions,
   onMark,
   onNotice,
+  dictation,
+  sessionId,
+  onRevealRequest,
 }: Props) {
-  const [panel, setPanel] = useState<PracticePanel>(null);
+  const [panel, setPanel] = useState<PracticePanel>(dictation ? "type" : null);
   const [typedAttempt, setTypedAttempt] = useState("");
   const [submittedAttempt, setSubmittedAttempt] = useState("");
   const [connectionsOpen, setConnectionsOpen] = useState(false);
 
   useEffect(() => {
-    setPanel(null);
+    setPanel(dictation ? "type" : null);
     setTypedAttempt("");
     setSubmittedAttempt("");
     setConnectionsOpen(false);
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-  }, [card.id]);
+  }, [card.id, dictation]);
 
   const speechText = useMemo(() => {
     const type = pack.cardType;
@@ -78,6 +74,20 @@ export default function RetentionPractice({
     return "";
   }, [card, pack, template]);
 
+  const expected = useMemo(
+    () => dictation ? dictationExpected(card, pack.cardType, template) : null,
+    [card, pack.cardType, template, dictation],
+  );
+
+  const comparison = useMemo(
+    () => expected && submittedAttempt ? compareAttempt(expected.text, submittedAttempt, expected.script) : null,
+    [expected, submittedAttempt],
+  );
+
+  const verdictCopy = (segments: DiffSegment[]) => segments.map((segment, position) => (
+    <span key={`${segment.kind}-${position}`} className={`retention-diff-${segment.kind}`}>{segment.text}</span>
+  ));
+
   const count = (action: LearningAction) => counts[action] ? <small>×{counts[action]}</small> : null;
 
   async function chooseHandwrite(action: HandwriteAction) {
@@ -90,6 +100,22 @@ export default function RetentionPractice({
     const value = typedAttempt.trim();
     if (!value || busy) return;
     setSubmittedAttempt(value);
+    if (dictation) {
+      if (expected) {
+        void recordDictationAttempt({
+          cardId: card.id,
+          packId: pack.id,
+          sessionId,
+          templateId: template?.id ?? null,
+          expected: expected.text,
+          attempt: value,
+          verdict: compareAttempt(expected.text, value, expected.script).verdict,
+        }).catch(() => undefined);
+      }
+      setPanel(null);
+      await onRevealRequest();
+      return;
+    }
     await onMark(["type"]);
     setPanel(null);
   }
@@ -119,14 +145,20 @@ export default function RetentionPractice({
 
   if (revealed) {
     return <>
-      {submittedAttempt ? <div className="retention-typed-compare"><small>YOUR TYPED ANSWER</small><p>{submittedAttempt}</p></div> : null}
+      {submittedAttempt ? <div className="retention-typed-compare" data-verdict={comparison?.verdict}>
+        <small>{comparison ? `YOUR ANSWER · ${comparison.verdict === "exact" ? "matches" : comparison.verdict === "close" ? "close" : "differs"}${expected ? ` · checked against ${expected.label}` : ""}` : "YOUR TYPED ANSWER"}</small>
+        <p>{submittedAttempt}</p>
+        {comparison && comparison.verdict !== "exact" && comparison.segments.length
+          ? <p className="retention-diff">{verdictCopy(comparison.segments)}</p>
+          : null}
+      </div> : null}
       <div className="retention-revealed-tools"><button type="button" onClick={() => setConnectionsOpen(true)}><Link2 size={13} /> Connections</button></div>
       {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
     </>;
   }
 
   return <section className="retention-practice" aria-label="Retention practice">
-    <div className="retention-actions">
+    {dictation ? null : <div className="retention-actions">
       <span>RETENTION</span>
       <button
         type="button"
@@ -144,7 +176,7 @@ export default function RetentionPractice({
       >Type{count("type")}</button>
       <button type="button" aria-pressed={selectedActions.has("say")} disabled={busy} onClick={() => void markSay()}>Say aloud{count("say")}</button>
       <button type="button" aria-pressed={selectedActions.has("hear")} disabled={busy} onClick={() => void hear()}>Hear{count("hear")}</button>
-    </div>
+    </div>}
 
     {panel === "handwrite" ? <div className="retention-panel retention-handwrite-panel">
       <span>HAND-WRITE AS</span>
@@ -163,7 +195,10 @@ export default function RetentionPractice({
         rows={2}
         value={typedAttempt}
         onChange={(event) => setTypedAttempt(event.target.value)}
-        placeholder="Type your answer before revealing the card…"
+        onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); void submitType(); }
+        }}
+        placeholder={dictation ? "Write what you heard…" : "Type your answer before revealing the card…"}
       />
       <div>
         <button type="button" disabled={busy} onClick={() => setPanel(null)}>Cancel</button>
