@@ -13,7 +13,7 @@ import {
   type PackWithType,
 } from "../lib/heuresis";
 import { getLearningCounts, type LearningAction, type LearningCounts } from "../lib/learning";
-import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
+import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, reviewGradeCount, type DirectionTemplates } from "../lib/learningSignals";
 import { cardHasCompletedSort } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import BrowseModal from "./BrowseModal";
@@ -64,7 +64,7 @@ function compactLearning(counts: LearningCounts | undefined) {
 }
 
 function workflowStatus(card: CardWithStats) {
-  if (card.stats.study_count > 0) return "reviewed" as const;
+  if (reviewGradeCount(card) > 0) return "reviewed" as const;
   if (cardHasCompletedSort(card)) return "sorted" as const;
   return "unsorted" as const;
 }
@@ -182,7 +182,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
   const directions = useMemo<DirectionTemplates>(() => directionTemplates(pack, templates), [pack, templates]);
-  const neverCards = useMemo(() => cards.filter((card) => card.stats.encounter_count === 0), [cards]);
+  const neverCards = useMemo(() => cards.filter((card) => reviewGradeCount(card) === 0), [cards]);
   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
@@ -196,7 +196,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
 
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
   const richDiagnostics = explored >= 20;
-  const totalReviews = useMemo(() => cards.reduce((sum, card) => sum + card.stats.study_count, 0), [cards]);
+  const totalReviews = useMemo(() => cards.reduce((sum, card) => sum + reviewGradeCount(card), 0), [cards]);
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -233,7 +233,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       if (sortField === "status") delta = workflowStatusRank(a) - workflowStatusRank(b);
       if (sortField === "term") delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
       if (sortField === "interest") delta = (a.interest_rank ?? 0) - (b.interest_rank ?? 0);
-      if (sortField === "reviews") delta = a.stats.study_count - b.stats.study_count;
+      if (sortField === "reviews") delta = reviewGradeCount(a) - reviewGradeCount(b);
       if (sortField === "lastSeen") delta = Date.parse(a.stats.last_encountered_at ?? "1970-01-01") - Date.parse(b.stats.last_encountered_at ?? "1970-01-01");
       if (delta === 0) delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
       return delta * direction;
@@ -312,7 +312,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
             onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "sorted" ? [] : ["sorted"])}
           >
             <span className="workflow-stage-dot" />
-            <span className="workflow-stage-copy"><b>Ready to review</b><small>Sorted, not reviewed</small></span>
+            <span className="workflow-stage-copy"><b>Ready</b><small>Ready for review</small></span>
             <strong>{sortedCards.length.toLocaleString()}</strong>
           </button>
           <span className="workflow-stage-arrow" aria-hidden="true">→</span>
@@ -322,7 +322,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
             onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "reviewed" ? [] : ["reviewed"])}
           >
             <span className="workflow-stage-dot" />
-            <span className="workflow-stage-copy"><b>Reviewed</b><small>Seen in flashcards</small></span>
+            <span className="workflow-stage-copy"><b>Reviewed</b><small>At least one graded review</small></span>
             <strong>{reviewedCards.length.toLocaleString()}</strong>
           </button>
         </div>
@@ -331,13 +331,13 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
         <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Repeated Again grades.</span><em>REVIEW</em></button>
         <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
-        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously met, now stale.</span><em>REFRESH</em></button>
+        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now stale.</span><em>REFRESH</em></button>
       </div> : null}
 
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
-          <button className="primary-button" disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Flashcards</button>
-          <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
+          <button className={unsortedCards.length ? "primary-button sort-command" : "sort-command"} disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
+          <button className={unsortedCards.length ? "secondary-button" : "primary-button"} disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
         </div>
@@ -356,7 +356,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
               <p>Workflow</p>
               <div className="filter-chip-grid">
                 <button className={statusFilters.includes("unsorted") ? "selected" : ""} onClick={() => toggleStatus("unsorted")}><i />Unsorted <b>{unsortedCards.length}</b></button>
-                <button className={statusFilters.includes("sorted") ? "selected" : ""} onClick={() => toggleStatus("sorted")}><i />Sorted <b>{sortedCards.length}</b></button>
+                <button className={statusFilters.includes("sorted") ? "selected" : ""} onClick={() => toggleStatus("sorted")}><i />Ready <b>{sortedCards.length}</b></button>
                 <button className={statusFilters.includes("reviewed") ? "selected" : ""} onClick={() => toggleStatus("reviewed")}><i />Reviewed <b>{reviewedCards.length}</b></button>
                 <button className={statusFilters.includes("favourite") ? "selected" : ""} onClick={() => toggleStatus("favourite")}><Star size={12} />Favourite <b>{favouriteCards.length}</b></button>
               </div>
@@ -406,7 +406,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATUS <ArrowUpDown size={11} /></button>
           <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>INTEREST <ArrowUpDown size={11} /></button>
-          <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>LEARNING <ArrowUpDown size={11} /></button>
+          <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>REVIEWS <ArrowUpDown size={11} /></button>
           <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>RECALL <ArrowUpDown size={11} /></button>
           <span>TAGS & LINKS</span>
         </div>
@@ -418,6 +418,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
           const weakProduction = richDiagnostics && isWeakProduction(card, directions);
           const stale = richDiagnostics && isNotSeenRecently(card);
           const learning = compactLearning(learningCounts[card.id]);
+          const reviewCount = reviewGradeCount(card);
           const rank = card.interest_rank;
           const visibleTags = card.tags.slice(0, 3);
           const status = workflowStatus(card);
@@ -441,17 +442,17 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
               <p>{fieldText(card.data, meaning?.key)}</p>
             </div>
 
-            <div className="topic-status-cell"><span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "sorted" ? "Sorted" : "Reviewed"}</span></div>
+            <div className="topic-status-cell"><span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "sorted" ? "Ready" : "Reviewed"}</span></div>
 
             <div className="topic-interest-cell">{rank ? <i className={`interest-badge interest-${rank}`}>{rank}</i> : <span>—</span>}</div>
 
             <div className="modern-learning-cell">
-              <strong>{card.stats.study_count.toLocaleString()} <small>{card.stats.study_count === 1 ? "review" : "reviews"}</small></strong>
+              <strong>{reviewCount ? reviewCount.toLocaleString() : "No"} <small>{reviewCount === 1 ? "review" : "reviews"}</small></strong>
               {learning.length ? <div className="learning-mini-chips">{learning.slice(0, 4).map((item) => <span key={item.key}>{item.label} {item.count}</span>)}{learning.length > 4 ? <span>+{learning.length - 4}</span> : null}</div> : <small className="learning-none">—</small>}
             </div>
 
             <div className="modern-recall-cell">
-              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "Not met yet"}</strong>}
+              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{reviewCount && card.stats.last_encountered_at ? formatSeen(card.stats.last_encountered_at) : "Not reviewed yet"}</strong>}
               <small>{card.stats.again_count ? `${card.stats.again_count} Again` : ""}{card.stats.again_count && card.stats.good_count ? " · " : ""}{card.stats.good_count ? `${card.stats.good_count} Good` : ""}{card.stats.easy_count ? `${card.stats.good_count || card.stats.again_count ? " · " : ""}${card.stats.easy_count} Easy` : ""}</small>
               {missing ? <i className="signal-note danger">Keeps missing</i> : null}{weakProduction ? <i className="signal-note warn">Production</i> : null}{stale && !missing ? <i className="signal-note">Quiet</i> : null}
             </div>
