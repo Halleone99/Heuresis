@@ -50,6 +50,15 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function reviewGradeCount(card: CardWithStats) {
+  const { again_count, hard_count, good_count, easy_count } = card.stats;
+  return Math.max(0, again_count + hard_count + good_count + easy_count);
+}
+
+export function hasReviewGrade(card: CardWithStats) {
+  return reviewGradeCount(card) > 0;
+}
+
 export function templatePerformance(card: CardWithStats, templateId: string | null | undefined): TemplatePerformance | null {
   if (!templateId) return null;
   const row = card.stats.by_template?.[templateId];
@@ -63,16 +72,14 @@ export function templatePerformance(card: CardWithStats, templateId: string | nu
 }
 
 export function aggregatePerformance(card: CardWithStats) {
-  const { again_count, hard_count, good_count, easy_count } = card.stats;
-  const attempts = again_count + hard_count + good_count + easy_count;
-  return attempts ? (good_count + easy_count) / attempts : null;
+  const attempts = reviewGradeCount(card);
+  return attempts ? (card.stats.good_count + card.stats.easy_count) / attempts : null;
 }
 
 export function reliabilityEvidence(card: CardWithStats, recentGrades: StudyGrade[] = []): ReliabilityEvidence {
-  const { again_count, hard_count, good_count, easy_count } = card.stats;
   return {
-    attempts: again_count + hard_count + good_count + easy_count,
-    goodEasy: good_count + easy_count,
+    attempts: reviewGradeCount(card),
+    goodEasy: card.stats.good_count + card.stats.easy_count,
     recentGrades,
   };
 }
