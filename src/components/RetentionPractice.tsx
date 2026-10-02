@@ -63,19 +63,19 @@ export default function RetentionPractice({
   }, [card.id]);
 
   const speechText = useMemo(() => {
-    const type = pack.cardType;
-    const term = fieldByRole(type, "term") ?? type?.field_schema[0] ?? null;
-    const direct = fieldText(card.data, term?.key);
-    if (direct) return direct;
-    for (const key of template?.back ?? []) {
-      const value = fieldText(card.data, key);
-      if (value) return value;
-    }
+    // Before reveal, audio must never leak a hidden answer. Read only from the
+    // active template's visible front. This keeps Hear useful for recognition and
+    // listening prompts while production cards speak the prompt rather than the target.
     for (const key of template?.front ?? []) {
       const value = fieldText(card.data, key);
       if (value) return value;
     }
-    return "";
+
+    // Legacy/fallback templates may not define a front explicitly. In that case,
+    // fall back to the normal visible nucleus rather than looking at template.back.
+    const type = pack.cardType;
+    const term = fieldByRole(type, "term") ?? type?.field_schema[0] ?? null;
+    return fieldText(card.data, term?.key);
   }, [card, pack, template]);
 
   const count = (action: LearningAction) => counts[action] ? <small>×{counts[action]}</small> : null;
@@ -103,7 +103,7 @@ export default function RetentionPractice({
   async function hear() {
     if (busy) return;
     if (!speechText) {
-      onNotice("There is no text on this card that Heuresis can read aloud.");
+      onNotice("There is no visible prompt text that Heuresis can read aloud.");
       return;
     }
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -143,7 +143,7 @@ export default function RetentionPractice({
         onClick={() => setPanel((current) => current === "type" ? null : "type")}
       >Type{count("type")}</button>
       <button type="button" aria-pressed={selectedActions.has("say")} disabled={busy} onClick={() => void markSay()}>Say aloud{count("say")}</button>
-      <button type="button" aria-pressed={selectedActions.has("hear")} disabled={busy} onClick={() => void hear()}>Hear{count("hear")}</button>
+      <button type="button" aria-pressed={selectedActions.has("hear")} disabled={busy} onClick={() => void hear()}>Hear prompt{count("hear")}</button>
     </div>
 
     {panel === "handwrite" ? <div className="retention-panel retention-handwrite-panel">
