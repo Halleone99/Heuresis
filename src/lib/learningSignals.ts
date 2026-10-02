@@ -1,5 +1,5 @@
 import { fieldByRole, type CardWithStats, type PackWithType } from "./heuresis";
-import type { StudyTemplate } from "./study";
+import type { StudyGrade, StudyTemplate } from "./study";
 
 export type DirectionKind = "recognition" | "production" | "other";
 export type TemplatePerformance = {
@@ -15,6 +15,34 @@ export type TemplatePerformance = {
 export type DirectionTemplates = {
   recognition: StudyTemplate | null;
   production: StudyTemplate | null;
+};
+
+export type ReliabilityReason = "reliable" | "insufficient-attempts" | "low-good-easy-rate" | "insufficient-recent-history" | "recent-lapses";
+export type ReliabilityPolicy = Readonly<{
+  minAttempts: number;
+  minGoodEasyRate: number;
+  recentWindow: number;
+  maxRecentAgain: number;
+}>;
+export type ReliabilityEvidence = {
+  attempts: number;
+  goodEasy: number;
+  recentGrades: StudyGrade[];
+};
+export type ReliabilityAssessment = {
+  reliable: boolean;
+  reason: ReliabilityReason;
+  attempts: number;
+  goodEasyRate: number | null;
+  recentGrades: StudyGrade[];
+  recentAgain: number;
+};
+
+export const DEFAULT_RELIABILITY_POLICY: ReliabilityPolicy = {
+  minAttempts: 3,
+  minGoodEasyRate: 0.75,
+  recentWindow: 3,
+  maxRecentAgain: 1,
 };
 
 function numberValue(value: unknown) {
@@ -38,6 +66,49 @@ export function aggregatePerformance(card: CardWithStats) {
   const { again_count, hard_count, good_count, easy_count } = card.stats;
   const attempts = again_count + hard_count + good_count + easy_count;
   return attempts ? (good_count + easy_count) / attempts : null;
+}
+
+export function reliabilityEvidence(card: CardWithStats, recentGrades: StudyGrade[] = []): ReliabilityEvidence {
+  const { again_count, hard_count, good_count, easy_count } = card.stats;
+  return {
+    attempts: again_count + hard_count + good_count + easy_count,
+    goodEasy: good_count + easy_count,
+    recentGrades,
+  };
+}
+
+export function assessReliability(
+  evidence: ReliabilityEvidence,
+  policy: ReliabilityPolicy = DEFAULT_RELIABILITY_POLICY,
+): ReliabilityAssessment {
+  const attempts = Math.max(0, Math.floor(evidence.attempts));
+  const goodEasy = Math.max(0, Math.min(attempts, Math.floor(evidence.goodEasy)));
+  const goodEasyRate = attempts ? goodEasy / attempts : null;
+  const recentWindow = Math.max(1, Math.floor(policy.recentWindow));
+  const recentGrades = evidence.recentGrades.slice(-recentWindow);
+  const recentAgain = recentGrades.filter((grade) => grade === "again").length;
+
+  if (attempts < Math.max(1, Math.floor(policy.minAttempts))) {
+    return { reliable: false, reason: "insufficient-attempts", attempts, goodEasyRate, recentGrades, recentAgain };
+  }
+  if (goodEasyRate === null || goodEasyRate < policy.minGoodEasyRate) {
+    return { reliable: false, reason: "low-good-easy-rate", attempts, goodEasyRate, recentGrades, recentAgain };
+  }
+  if (recentGrades.length < Math.min(recentWindow, attempts)) {
+    return { reliable: false, reason: "insufficient-recent-history", attempts, goodEasyRate, recentGrades, recentAgain };
+  }
+  if (recentAgain > Math.max(0, Math.floor(policy.maxRecentAgain))) {
+    return { reliable: false, reason: "recent-lapses", attempts, goodEasyRate, recentGrades, recentAgain };
+  }
+  return { reliable: true, reason: "reliable", attempts, goodEasyRate, recentGrades, recentAgain };
+}
+
+export function cardReliability(
+  card: CardWithStats,
+  recentGrades: StudyGrade[] = [],
+  policy: ReliabilityPolicy = DEFAULT_RELIABILITY_POLICY,
+) {
+  return assessReliability(reliabilityEvidence(card, recentGrades), policy);
 }
 
 export function templateDirection(pack: PackWithType, template: StudyTemplate): DirectionKind {
