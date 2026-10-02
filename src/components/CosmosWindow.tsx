@@ -19,6 +19,7 @@ import {
   type LearningAction,
   type LearningCounts,
 } from "../lib/learning";
+import { reviewGradeCount } from "../lib/learningSignals";
 import {
   addRelatedWord,
   listRelatedCards,
@@ -52,6 +53,7 @@ type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: s
 type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
 type Source = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
 type Order = "pack" | "random";
+type GradeCounts = Record<StudyGrade, number>;
 
 type Config = {
   valid: boolean;
@@ -66,6 +68,8 @@ type Config = {
   tagIds: string[];
   query: string;
 };
+
+const EMPTY_GRADE_COUNTS: GradeCounts = { again: 0, hard: 0, good: 0, easy: 0 };
 
 const LANGUAGE_DIMS: DimensionDef[] = [
   { id: "components", side: "l", label: "Parts", sub: "characters and pieces" },
@@ -123,7 +127,7 @@ function shuffle<T>(items: T[]) {
 }
 
 function sourceCards(cards: CardWithStats[], source: Source) {
-  if (source === "new") return cards.filter((card) => card.stats.encounter_count === 0);
+  if (source === "new") return cards.filter((card) => reviewGradeCount(card) === 0);
   if (source === "favourites") return cards.filter((card) => card.favourite);
   if (source === "interesting") return cards.filter((card) => (card.interest_rank ?? 0) >= 4 || card.interesting);
   if (source === "again") return cards.filter((card) => card.stats.again_count >= 2);
@@ -220,6 +224,8 @@ export default function CosmosWindow() {
   const [learningCounts, setLearningCounts] = useState<Record<string, LearningCounts>>({});
   const [selectedActions, setSelectedActions] = useState<Record<string, LearningAction[]>>({});
   const [signedImages, setSignedImages] = useState<Record<string, string>>({});
+  const [gradeCounts, setGradeCounts] = useState<GradeCounts>({ ...EMPTY_GRADE_COUNTS });
+  const [againIds, setAgainIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
 
@@ -342,6 +348,8 @@ export default function CosmosWindow() {
         setRevealed(config.mode === "sort");
         setLearningCounts(counts);
         setRelatedContext(contextRows);
+        setGradeCounts({ ...EMPTY_GRADE_COUNTS });
+        setAgainIds([]);
         document.title = `${relatedReview ? "Related" : config.mode === "sort" ? "Sort" : "Flashcards"} · ${nextPack.title} · Heuresis`;
       } catch (openError) {
         setError(openError instanceof Error ? openError.message : "Could not open Heuresis.");
@@ -476,6 +484,8 @@ export default function CosmosWindow() {
     setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
+      setGradeCounts((current) => ({ ...current, [grade]: current[grade] + 1 }));
+      if (grade === "again") setAgainIds((current) => current.includes(card.id) ? current : [...current, card.id]);
       const nextIndex = index + 1;
       const nextId = order[nextIndex];
       if (nextId) {
@@ -486,6 +496,34 @@ export default function CosmosWindow() {
       setRevealed(false);
     } catch (answerError) {
       setNotice(answerError instanceof Error ? answerError.message : "Could not save the review grade.");
+    } finally { setBusy(false); }
+  }
+
+  async function reviewAgainCards() {
+    if (!pack || !againIds.length || busy || mode !== "review") return;
+    setBusy(true); setNotice("");
+    try {
+      const retryOrder = [...againIds];
+      await closeSession();
+      const sessionTemplateId = reviewTemplateIds.length === 1 ? reviewTemplateIds[0] : null;
+      const sessionId = await startHeuresisSession(pack.id, relatedReview ? "related" : "flashcards", sessionTemplateId);
+      sessionRef.current = sessionId;
+      const firstTemplate = reviewTemplateIds.length ? templates.find((item) => item.id === reviewTemplateIds[0]) ?? templates[0] ?? null : templates[0] ?? null;
+      await recordStudyEvent({
+        cardId: retryOrder[0],
+        packId: pack.id,
+        sessionId,
+        templateId: firstTemplate?.id ?? null,
+        eventType: "encountered",
+      });
+      setOrder(retryOrder);
+      setIndex(0);
+      setRevealed(false);
+      setAgainIds([]);
+      setGradeCounts({ ...EMPTY_GRADE_COUNTS });
+      setSelectedActions({});
+    } catch (retryError) {
+      setNotice(retryError instanceof Error ? retryError.message : "Could not start the Again pass.");
     } finally { setBusy(false); }
   }
 
@@ -601,7 +639,18 @@ export default function CosmosWindow() {
 
   if (loading) return <div className="cosmos-state">Opening Heuresis…</div>;
   if (error || !pack) return <div className="cosmos-state error"><strong>Heuresis could not open.</strong><p>{error || "Missing topic data."}</p><button onClick={() => void closeDesktopWindow()}>Close</button></div>;
-  if (done || !card) return <div className="cosmos-state done"><strong>{relatedReview ? "Related review complete." : mode === "sort" ? "Sort pass complete." : "Review complete."}</strong><p>{order.length} cards in this session.</p><button onClick={() => void closeSession().then(() => closeDesktopWindow())}>Return to Heuresis</button></div>;
+  if (done || !card) {
+    if (mode === "review") {
+      const reviewed = gradeCounts.again + gradeCounts.hard + gradeCounts.good + gradeCounts.easy;
+      return <div className="cosmos-state done">
+        <strong>{relatedReview ? "Related review complete." : "Review complete."}</strong>
+        <p>{reviewed} reviewed · {gradeCounts.again} Again · {gradeCounts.hard} Hard · {gradeCounts.good} Good · {gradeCounts.easy} Easy</p>
+        {againIds.length ? <button className="primary" disabled={busy} onClick={() => void reviewAgainCards()}>{busy ? "Opening…" : `Review ${againIds.length} Again ${againIds.length === 1 ? "card" : "cards"}`}</button> : null}
+        <button onClick={() => void closeSession().then(() => closeDesktopWindow())}>Return to Heuresis</button>
+      </div>;
+    }
+    return <div className="cosmos-state done"><strong>Sort pass complete.</strong><p>{order.length} cards in this session.</p><button onClick={() => void closeSession().then(() => closeDesktopWindow())}>Return to Heuresis</button></div>;
+  }
 
   const type = pack.cardType;
   const term = fieldByRole(type, "term") ?? type?.field_schema[0] ?? null;
