@@ -191,18 +191,12 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const otherCollections = selectedCollection ? collections.filter((collection) => collection.id !== selectedCollection.id) : collections;
   const waitingTotal = Object.values(relatedCounts).reduce((sum, count) => sum + count, 0);
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
-  const continuePack = [...selectedPacks].sort((a, b) => {
-    const aNeedsSort = (unsortedCounts[a.id] ?? 0) > 0;
-    const bNeedsSort = (unsortedCounts[b.id] ?? 0) > 0;
-    if (aNeedsSort !== bNeedsSort) return Number(bNeedsSort) - Number(aNeedsSort);
-    return Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01");
-  })[0] ?? null;
 
   return (
     <section className="library-page intelligent-library">
       <header className="intelligent-library-head">
         <div><h1>Heuresis<span>.</span></h1><p>{totalCards.toLocaleString()} cards across {plural(collections.length, "collection")}.{waitingTotal ? ` ${waitingTotal.toLocaleString()} uncatalogued ${waitingTotal === 1 ? "discovery" : "discoveries"}.` : ""}</p></div>
-        <div className="library-summary-actions">{continuePack ? <button className="primary-button" onClick={() => onOpen(continuePack)}>Continue Heuresis <ArrowRight size={14} /></button> : null}{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}</div>
+        <div className="library-summary-actions">{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}</div>
       </header>
 
       {selectedCollection ? <div className="library-desk">
