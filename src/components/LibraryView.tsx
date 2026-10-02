@@ -142,7 +142,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           <div className="collection-metrics" aria-label="Collection totals">
             <span><strong>{collectionPacks.length.toLocaleString()}</strong><em>{collectionPacks.length === 1 ? "topic" : "topics"}</em></span>
             <span><strong>{collectionCards.toLocaleString()}</strong><em>{collectionCards === 1 ? "card" : "cards"}</em></span>
-            {newWordsCount ? <span><strong>{newWordsCount.toLocaleString()}</strong><em>raw</em></span> : null}
+            {newWordsCount ? <span><strong>{newWordsCount.toLocaleString()}</strong><em>uncatalogued</em></span> : null}
           </div>
         </header>
 
@@ -154,11 +154,11 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
               <span className="topic-ghost">+</span>
               <p className="eyebrow">INBOX</p>
               <h3>Inbox</h3>
-              <p>Raw captures and drafts waiting in this collection.</p>
-              <div className="topic-meta"><span>{plural(newWordsCount, "raw entry", "raw entries")}</span><span>·</span><span>{plural(captureCount, "draft")}</span></div>
+              <p>Uncatalogued discoveries and drafts waiting in this collection.</p>
+              <div className="topic-meta"><span>{plural(newWordsCount, "discovery", "discoveries")}</span><span>·</span><span>{plural(captureCount, "draft")}</span></div>
             </div>
             <div className="topic-card-tools topic-card-footer-actions">
-              <button onClick={() => onOpenNewWords(activeCollection)}><Link2 size={14} /> Raw <span className="footer-count">{newWordsCount}</span></button>
+              <button onClick={() => onOpenNewWords(activeCollection)}><Link2 size={14} /> Discoveries <span className="footer-count">{newWordsCount}</span></button>
               <button onClick={() => onOpenCaptureInbox(activeCollection)}><Plus size={14} /> Drafts <span className="footer-count">{captureCount}</span></button>
             </div>
           </article>
@@ -191,12 +191,18 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const otherCollections = selectedCollection ? collections.filter((collection) => collection.id !== selectedCollection.id) : collections;
   const waitingTotal = Object.values(relatedCounts).reduce((sum, count) => sum + count, 0);
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
+  const continuePack = [...selectedPacks].sort((a, b) => {
+    const aNeedsSort = (unsortedCounts[a.id] ?? 0) > 0;
+    const bNeedsSort = (unsortedCounts[b.id] ?? 0) > 0;
+    if (aNeedsSort !== bNeedsSort) return Number(bNeedsSort) - Number(aNeedsSort);
+    return Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01");
+  })[0] ?? null;
 
   return (
     <section className="library-page intelligent-library">
       <header className="intelligent-library-head">
-        <div><h1>Heuresis<span>.</span></h1><p>{totalCards.toLocaleString()} cards across {plural(collections.length, "collection")}.{waitingTotal ? ` ${waitingTotal.toLocaleString()} raw ${waitingTotal === 1 ? "entry" : "entries"}.` : ""}</p></div>
-        <div className="library-summary-actions">{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}</div>
+        <div><h1>Heuresis<span>.</span></h1><p>{totalCards.toLocaleString()} cards across {plural(collections.length, "collection")}.{waitingTotal ? ` ${waitingTotal.toLocaleString()} uncatalogued ${waitingTotal === 1 ? "discovery" : "discoveries"}.` : ""}</p></div>
+        <div className="library-summary-actions">{continuePack ? <button className="primary-button" onClick={() => onOpen(continuePack)}>Continue Heuresis <ArrowRight size={14} /></button> : null}{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}</div>
       </header>
 
       {selectedCollection ? <div className="library-desk">
@@ -208,9 +214,9 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           {selectedPacks.length ? <div className="library-resume-topics">{selectedPacks.map((pack) => {
             const progress = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
             const unsorted = unsortedCounts[pack.id] ?? 0;
-            return <button key={pack.id} onClick={() => onOpen(pack)}><span><strong>{pack.title}</strong><small>{pack.card_count.toLocaleString()} CARDS{unsorted ? ` · ${unsorted.toLocaleString()} RAW` : ""}</small></span><i><em style={{ width: `${progress}%` }} /></i><b>Continue →</b></button>;
+            return <button key={pack.id} onClick={() => onOpen(pack)}><span><strong>{pack.title}</strong><small>{pack.card_count.toLocaleString()} CARDS{unsorted ? ` · ${unsorted.toLocaleString()} UNSORTED` : ""}</small></span><i><em style={{ width: `${progress}%` }} /></i><b>{unsorted ? "Sort next →" : "Review →"}</b></button>;
           })}</div> : <button className="library-resume-empty" onClick={() => openCollection(selectedCollection.id)}>Add the first topic <ArrowRight size={14} /></button>}
-          {selectedNewWords ? <button className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}><strong>{selectedNewWords.toLocaleString()}</strong><span>raw discoveries not yet catalogued.</span><b>Open Raw →</b></button> : null}
+          {selectedNewWords ? <button className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}><strong>{selectedNewWords.toLocaleString()}</strong><span>uncatalogued discoveries.</span><b>Catalogue →</b></button> : null}
         </section>
 
         <aside className="library-stack">
