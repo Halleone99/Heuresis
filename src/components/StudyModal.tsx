@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Search, Shuffle, SlidersHorizontal, Sparkles, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+import { reviewGradeCount } from "../lib/learningSignals";
 import { openCosmosWindow, type CosmosSource } from "../lib/cosmosWindow";
 import { cardHasCompletedSort } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
@@ -19,7 +20,7 @@ type DirectionMode = "both" | "one";
 type DirectionPair = { key: string; ids: [string, string]; label: string };
 
 function sourceCards(cards: CardWithStats[], source: ReviewSource) {
-  if (source === "new") return cards.filter((card) => card.stats.encounter_count === 0);
+  if (source === "new") return cards.filter((card) => reviewGradeCount(card) === 0);
   if (source === "favourites") return cards.filter((card) => card.favourite);
   if (source === "interesting") return cards.filter((card) => (card.interest_rank ?? 0) >= 4 || card.interesting);
   if (source === "again") return cards.filter((card) => card.stats.again_count >= 2);
@@ -115,8 +116,8 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
   const activePair = useMemo(() => pairs.find((pair) => pair.key === directionPairKey) ?? pairs[0] ?? null, [directionPairKey, pairs]);
   const selectedTemplateIds = useMemo(() => directionMode === "both" && activePair ? activePair.ids : template ? [template.id] : [], [activePair, directionMode, template]);
   const unsortedCards = useMemo(() => cards.filter((card) => !cardHasCompletedSort(card)), [cards]);
-  const firstReviewCards = useMemo(() => readyCards.filter((card) => card.stats.study_count === 0), [readyCards]);
-  const reviewedCards = useMemo(() => readyCards.filter((card) => card.stats.study_count > 0), [readyCards]);
+  const firstReviewCards = useMemo(() => readyCards.filter((card) => reviewGradeCount(card) === 0), [readyCards]);
+  const reviewedCards = useMemo(() => readyCards.filter((card) => reviewGradeCount(card) > 0), [readyCards]);
 
   const filterTags = useMemo(() => {
     const byId = new Map<string, HeuresisTag>();
