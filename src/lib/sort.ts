@@ -12,9 +12,10 @@ export function cardHasCompletedSort(card: CardWithStats) {
   const marker = card.data[SORTED_AT_KEY];
   // Review is downstream of sorting in the Heuresis workflow. Historical cards that
   // already reached flashcard review should therefore never fall back into the sort queue.
+  // Interest is deliberately NOT a completion signal: a user may set priority and then
+  // Skip, in which case the card must remain available in Sort next time.
   return card.stats.study_count > 0
-    || (typeof marker === "string" && Boolean(marker.trim()))
-    || card.interest_rank != null;
+    || (typeof marker === "string" && Boolean(marker.trim()));
 }
 
 export async function setSortTags(cardId: string, tagIds: string[]) {
