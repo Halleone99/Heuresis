@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { canRoundTripWorkspaceEntry } from "./workspaceBlocks";
 
 export const CARD_PAGE_SIZE = 200;
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
@@ -336,17 +337,6 @@ export async function createCard(pack: PackWithType, values: Record<string, stri
   return created;
 }
 
-function canDesktopRoundTripWorkspaceEntry(entry: string) {
-  try {
-    const value = JSON.parse(entry) as Record<string, unknown>;
-    if (value?.type === "text") return typeof value.id === "string" && typeof value.text === "string";
-    if (value?.type === "image") return typeof value.id === "string" && typeof value.path === "string";
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 function preserveUnsupportedWorkspaceEntries(current: Record<string, string | string[] | null>, patch: Record<string, string | string[] | null>) {
   const existing = current[WORKSPACE_BLOCKS_KEY];
   const incoming = patch[WORKSPACE_BLOCKS_KEY];
@@ -354,7 +344,7 @@ function preserveUnsupportedWorkspaceEntries(current: Record<string, string | st
   const next = [...incoming];
   const seen = new Set(next);
   for (const entry of existing) {
-    if (!canDesktopRoundTripWorkspaceEntry(entry) && !seen.has(entry)) {
+    if (!canRoundTripWorkspaceEntry(entry) && !seen.has(entry)) {
       next.push(entry);
       seen.add(entry);
     }
@@ -389,8 +379,12 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
   const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
   if (readError) throw readError;
   const previous = cardData(existing?.data);
-  const internalData = Object.fromEntries(Object.entries(previous).filter(([key]) => key.startsWith("_")));
-  const data = { ...visibleData, ...internalData };
+  // Retain hidden/retired schema keys as well as internal workspace metadata.
+  // Only fields actually shown in this editor may be removed when emptied.
+  const data = { ...previous, ...visibleData };
+  for (const field of pack.cardType?.field_schema ?? []) {
+    if (!values[field.key]?.trim()) delete data[field.key];
+  }
   const rank = extras.interest_rank == null ? null : Math.min(5, Math.max(1, Math.round(extras.interest_rank)));
   const { error } = await db().from("heuresis_cards").update({
     data,
