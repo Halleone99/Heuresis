@@ -15,6 +15,7 @@ import {
 } from "../lib/heuresis";
 import { listRelatedCatalogue, relationLabel, type RelatedCatalogueRow } from "../lib/related";
 import type { CatalogueSessionItem } from "./CatalogueSession";
+import { WORKSPACE_BLOCKS_KEY, parseWorkspaceBlocks } from "../lib/workspaceBlocks";
 import "../catalogue-read-mode.css";
 
 type Props = {
@@ -31,6 +32,7 @@ type ReadBlock = {
   dim: string;
   text: string;
   translation: string;
+  reading: string;
   provenance: string;
   path: string;
   caption: string;
@@ -41,7 +43,6 @@ type TrailStep = { id: string; fromId: string | null };
 type DrawerView = "preview" | "raw";
 type ReadScope = "all" | CardRetention;
 
-const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 const CJK = /[\u3400-\u9FFF\uF900-\uFAFF]/;
 const DIMENSIONS = [
   ["components", "Parts"],
@@ -57,42 +58,27 @@ function scriptClass(value: string) {
   return CJK.test(value) ? "cjk" : "latin";
 }
 
-function normaliseDim(value: unknown) {
-  if (value === "contrast") return "neighbours";
-  return typeof value === "string" && value.trim() ? value : "notes";
-}
-
 function parseBlocks(card: CardWithStats | null | undefined): ReadBlock[] {
   const raw = card?.data[WORKSPACE_BLOCKS_KEY];
   if (!Array.isArray(raw)) return [];
   return raw.map((entry, index) => {
-    try {
-      const value = JSON.parse(entry) as Record<string, unknown>;
-      const type = value.type === "image" ? "image" : value.type === "example" ? "example" : value.type === "text" ? "text" : "unknown";
-      return {
-        id: typeof value.id === "string" ? value.id : `${card?.id ?? "card"}-${index}`,
-        type,
-        dim: normaliseDim(value.dim),
-        text: typeof value.text === "string" ? value.text : "",
-        translation: typeof value.translation === "string" ? value.translation : "",
-        provenance: typeof value.provenance === "string" ? value.provenance : "",
-        path: typeof value.path === "string" ? value.path : "",
-        caption: typeof value.caption === "string" ? value.caption : "",
-        raw: entry,
-      } satisfies ReadBlock;
-    } catch {
-      return {
-        id: `${card?.id ?? "card"}-${index}`,
-        type: "unknown",
-        dim: "notes",
-        text: entry,
-        translation: "",
-        provenance: "",
-        path: "",
-        caption: "",
-        raw: entry,
-      } satisfies ReadBlock;
+    const block = parseWorkspaceBlocks([entry])[0];
+    if (!block) {
+      return { id: `${card?.id ?? "card"}-${index}`, type: "unknown", dim: "notes", text: entry,
+        translation: "", reading: "", provenance: "", path: "", caption: "", raw: entry };
     }
+    return {
+      id: block.id,
+      type: block.type,
+      dim: block.dim,
+      text: block.type === "example" ? block.source : block.type === "text" ? block.text : "",
+      translation: block.type === "example" ? block.translation : "",
+      reading: block.type === "example" ? block.reading : "",
+      provenance: block.type === "example" ? block.provenance : "",
+      path: block.type === "image" ? block.path : "",
+      caption: block.type === "image" ? block.caption : "",
+      raw: entry,
+    } satisfies ReadBlock;
   });
 }
 
@@ -331,7 +317,7 @@ export default function CatalogueReadMode({ title, items, packs, onClose, onOpen
       return <figure className="crm-image" key={block.id}>{src ? <img src={src} alt={block.caption || "Card image"} /> : <div className="crm-image-placeholder">Image</div>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>;
     }
     if (block.type === "example") {
-      return <div className="crm-example" key={block.id}><p className={scriptClass(block.text)}>{block.text}</p>{block.translation ? <em>{block.translation}</em> : null}{!hideStudyNotes && block.provenance ? <small>{block.provenance}</small> : null}</div>;
+      return <div className="crm-example" key={block.id}><p className={scriptClass(block.text)}>{block.text}</p>{block.reading ? <small className="crm-example-reading">{block.reading}</small> : null}{block.translation ? <em>{block.translation}</em> : null}{!hideStudyNotes && block.provenance ? <small>{block.provenance}</small> : null}</div>;
     }
     if (!block.text) return null;
     return <p className={compact ? "crm-compact-copy" : undefined} key={block.id}>{block.text}</p>;
