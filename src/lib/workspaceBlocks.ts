@@ -85,7 +85,11 @@ function parseEntry(entry: string): WorkspaceBlock | null {
 
 export function parseWorkspaceBlocks(value: unknown): WorkspaceBlock[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => typeof entry === "string" ? (parseEntry(entry) ? [parseEntry(entry)!] : []) : []);
+  return value.flatMap((entry) => {
+    if (typeof entry !== "string") return [];
+    const parsed = parseEntry(entry);
+    return parsed ? [parsed] : [];
+  });
 }
 
 export function canRoundTripWorkspaceEntry(entry: string): boolean {
