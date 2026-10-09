@@ -56,7 +56,7 @@ export default function CardImagesEditor({ card, onChanged }: { card: CardWithSt
     }
   }
 
-  async function remove(image: ImageBlock) {
+  async function remove(image: WorkspaceImageBlock) {
     if (busy) return;
     setBusy(true); setMessage("");
     try {
@@ -69,7 +69,7 @@ export default function CardImagesEditor({ card, onChanged }: { card: CardWithSt
     finally { setBusy(false); }
   }
 
-  async function saveCaption(image: ImageBlock, caption: string) {
+  async function saveCaption(image: WorkspaceImageBlock, caption: string) {
     const next = raw.map((entry) => {
       try {
         const value = JSON.parse(entry) as Record<string, unknown>;
