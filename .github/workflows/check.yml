@@ -16,4 +16,5 @@ jobs:
           node-version: 22
       - run: npm install --ignore-scripts
       - run: node scripts/check-architecture.mjs
+      - run: node --test scripts/test-workspace-blocks.mjs
       - run: npm run build

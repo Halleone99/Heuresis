@@ -6,6 +6,7 @@ const browse = readFileSync(new URL("../src/components/BrowseModal.tsx", import.
 const relatedCatalogue = readFileSync(new URL("../src/components/RelatedCatalogueView.tsx", import.meta.url), "utf8");
 const relatedView = readFileSync(new URL("../src/components/RelatedView.tsx", import.meta.url), "utf8");
 const cosmos = readFileSync(new URL("../src/components/CosmosWindow.tsx", import.meta.url), "utf8");
+const workspaceBlocks = readFileSync(new URL("../src/lib/workspaceBlocks.ts", import.meta.url), "utf8");
 const study = readFileSync(new URL("../src/lib/study.ts", import.meta.url), "utf8");
 const search = readFileSync(new URL("../src/lib/search.ts", import.meta.url), "utf8");
 
@@ -50,8 +51,12 @@ if (!cosmos.includes("listRelatedCards") || !cosmos.includes('relatedReview ? "r
   throw new Error("Cosmos must load related identities and record them as a Related session.");
 }
 
-if (!cosmos.includes("signHeuresisCardImages") || !cosmos.includes('type: "image"') || !cosmos.includes("signedImages[block.path]")) {
+if (!cosmos.includes("signHeuresisCardImages") || !cosmos.includes("parseWorkspaceBlocks") ||
+    !workspaceBlocks.includes('type: "image"') || !cosmos.includes("signedImages[block.path]")) {
   throw new Error("Cosmos must round-trip and render shared workspace image blocks.");
+}
+if (!cosmos.includes('block.type === "example"') || !workspaceBlocks.includes('type === "example"')) {
+  throw new Error("Capture examples must appear in Cosmos using the shared workspace parser.");
 }
 
 if (!study.includes("heuresis_record_events") || !study.includes("localStorage") || !study.includes("PARK_AFTER")) {

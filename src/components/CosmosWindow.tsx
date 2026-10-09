@@ -41,16 +41,12 @@ import { signHeuresisCardImages } from "../lib/cardMedia";
 import { supabase } from "../lib/supabase";
 import RetentionPractice from "./RetentionPractice";
 import "./cosmos.css";
-
-const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
+import { WORKSPACE_BLOCKS_KEY, parseWorkspaceBlocks, serialiseWorkspaceBlocks, type WorkspaceBlock, type WorkspaceDimension, type WorkspaceImageBlock } from "../lib/workspaceBlocks";
 
 type StudyMode = "review" | "sort";
 type Side = "l" | "r";
-type DimensionId = "neighbours" | "components" | "examples" | "structure" | "origin" | "facts" | "notes";
+type DimensionId = WorkspaceDimension;
 type DimensionDef = { id: DimensionId; side: Side; label: string; sub: string };
-type WorkspaceTextBlock = { id: string; type: "text"; text: string; dim: DimensionId };
-type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: string; dim: DimensionId };
-type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
 type Source = "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
 type Order = "pack" | "random";
 type GradeCounts = Record<StudyGrade, number>;
@@ -134,38 +130,8 @@ function sourceCards(cards: CardWithStats[], source: Source) {
   return cards;
 }
 
-function normaliseDimension(value: unknown): DimensionId {
-  if (value === "contrast") return "neighbours";
-  return typeof value === "string" && DIMENSION_IDS.has(value as DimensionId) ? value as DimensionId : "notes";
-}
-
 function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
-  const raw = card?.data[WORKSPACE_BLOCKS_KEY];
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap<WorkspaceBlock>((entry) => {
-    try {
-      const value = JSON.parse(entry) as Record<string, unknown>;
-      if (value.type === "text" && typeof value.id === "string" && typeof value.text === "string") {
-        return [{ id: value.id, type: "text", text: value.text, dim: normaliseDimension(value.dim) } satisfies WorkspaceTextBlock];
-      }
-      if (value.type === "image" && typeof value.id === "string" && typeof value.path === "string") {
-        return [{
-          id: value.id,
-          type: "image",
-          path: value.path,
-          caption: typeof value.caption === "string" ? value.caption : "",
-          dim: normaliseDimension(value.dim),
-        } satisfies WorkspaceImageBlock];
-      }
-    } catch {
-      // Unsupported or malformed legacy entries are preserved by patchCardData.
-    }
-    return [];
-  });
-}
-
-function serialiseBlocks(blocks: WorkspaceBlock[]) {
-  return blocks.map((block) => JSON.stringify(block));
+  return parseWorkspaceBlocks(card?.data[WORKSPACE_BLOCKS_KEY]);
 }
 
 function fieldDimension(field: FieldDef): DimensionId | null {
@@ -420,7 +386,7 @@ export default function CosmosWindow() {
     setBusy(true); setNotice("");
     try {
       const next: WorkspaceBlock[] = [...blocks, { id: crypto.randomUUID(), type: "text", text: addingText.trim(), dim: dimension }];
-      const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseBlocks(next) });
+      const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseWorkspaceBlocks(next) });
       patchLocalCard(card.id, (item) => ({ ...item, data, updated_at: new Date().toISOString() }));
       setAddingText(""); setAddingDim(null); setNotice("Saved to this card.");
     } catch (saveError) {
@@ -433,7 +399,7 @@ export default function CosmosWindow() {
     setBusy(true); setNotice("");
     try {
       const next = blocks.filter((block) => block.id !== blockId);
-      const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseBlocks(next) });
+      const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseWorkspaceBlocks(next) });
       patchLocalCard(card.id, (item) => ({ ...item, data, updated_at: new Date().toISOString() }));
     } catch (removeError) {
       setNotice(removeError instanceof Error ? removeError.message : "Could not remove this note.");
@@ -688,6 +654,13 @@ export default function CosmosWindow() {
           {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}<button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button></article>) : null}
           {dimensionBlocks.map((block) => block.type === "text"
             ? <article className="cosmos-text-block" key={block.id}><p>{block.text}</p><button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button></article>
+            : block.type === "example"
+            ? <article className="cosmos-text-block cosmos-example-block" key={block.id}>
+                <p>{block.source}</p>
+                {block.reading ? <p className="cosmos-example-reading">{block.reading}</p> : null}
+                {block.translation ? <p className="cosmos-example-translation">{block.translation}</p> : null}
+                <button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button>
+              </article>
             : <figure className="cosmos-image-block" key={block.id} style={{ margin: "12px 0", paddingTop: 12, borderTop: "1px solid var(--line)" }}>
                 {signedImages[block.path]
                   ? <img src={signedImages[block.path]} alt={block.caption || "Card reference"} style={{ display: "block", width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 4, background: "var(--paper)" }} />

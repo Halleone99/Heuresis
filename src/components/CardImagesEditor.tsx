@@ -2,24 +2,16 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { patchCardData, type CardWithStats } from "../lib/heuresis";
 import { removeHeuresisCardImage, signHeuresisCardImages, uploadHeuresisCardImage } from "../lib/cardMedia";
+import { WORKSPACE_BLOCKS_KEY, parseWorkspaceBlocks, type WorkspaceImageBlock } from "../lib/workspaceBlocks";
 
-const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
-type ImageBlock = { id: string; type: "image"; path: string; caption: string; dim?: string };
 
 function rawBlocks(card: CardWithStats) {
   const raw = card.data[WORKSPACE_BLOCKS_KEY];
   return Array.isArray(raw) ? [...raw] : [];
 }
 
-function imageBlocks(raw: string[]): ImageBlock[] {
-  return raw.flatMap((entry) => {
-    try {
-      const value = JSON.parse(entry) as Partial<ImageBlock>;
-      return value.type === "image" && typeof value.id === "string" && typeof value.path === "string"
-        ? [{ id: value.id, type: "image" as const, path: value.path, caption: typeof value.caption === "string" ? value.caption : "", dim: typeof value.dim === "string" ? value.dim : "notes" }]
-        : [];
-    } catch { return []; }
-  });
+function imageBlocks(raw: string[]): WorkspaceImageBlock[] {
+  return parseWorkspaceBlocks(raw).filter((block): block is WorkspaceImageBlock => block.type === "image");
 }
 
 export default function CardImagesEditor({ card, onChanged }: { card: CardWithStats; onChanged: () => void }) {
@@ -64,7 +56,7 @@ export default function CardImagesEditor({ card, onChanged }: { card: CardWithSt
     }
   }
 
-  async function remove(image: ImageBlock) {
+  async function remove(image: WorkspaceImageBlock) {
     if (busy) return;
     setBusy(true); setMessage("");
     try {
@@ -77,7 +69,7 @@ export default function CardImagesEditor({ card, onChanged }: { card: CardWithSt
     finally { setBusy(false); }
   }
 
-  async function saveCaption(image: ImageBlock, caption: string) {
+  async function saveCaption(image: WorkspaceImageBlock, caption: string) {
     const next = raw.map((entry) => {
       try {
         const value = JSON.parse(entry) as Record<string, unknown>;
