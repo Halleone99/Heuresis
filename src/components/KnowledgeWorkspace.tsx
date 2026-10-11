@@ -327,7 +327,7 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
           </div>}
           {mode === "notebook" && focusedNote && <button className="kw-back-to-list" onClick={closeNote}>← Back to all notes in {selectedTopic?.name}</button>}
           {!selectedTopic && <div className="kw-state"><BookOpenText size={24}/><p>Create a subject and topic to get started.</p>
-            <button className="kw-primary" onClick={() => setAddingSubject(true)}><Plus size={14}/> New subject</button></div>}
+            <button className="kw-primary" onClick={() => { setAddingSubject(true); setShowRail(true); }}><Plus size={14}/> New subject</button></div>}
           {selectedTopic && !shown.length && !focusedNote && <div className="kw-state"><Lightbulb size={24}/>
             <p>No {mode === "notebook" ? "notes" : "mistakes"} in this topic yet.</p>
             <button className="kw-primary" onClick={() => onStartCapture(mode === "mistakes" ? "mistake" : "note")}>
