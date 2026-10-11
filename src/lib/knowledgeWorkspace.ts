@@ -366,10 +366,29 @@ export async function recordPractice(userId: string, entry: KnowledgeEntry, outc
     id: crypto.randomUUID(), user_id: userId, record_id: entry.id, outcome,
     answer: limit(answer.trim(), LIMITS.answer, "The answer"), created_at: new Date().toISOString(),
   };
-  const { error } = await db().from("knowledge_practice_events").insert(event);
+  // One database transaction inserts the event and updates its schedule.
+  // An offline call can be queued with the same event ID; the UI uses the
+  // deterministic local calculation until its server response arrives.
+  const { data, error } = await db().rpc("heuresis_record_knowledge_recall", {
+    p_record_id: entry.id,
+    p_event_id: event.id,
+    p_outcome: outcome,
+    p_answer: event.answer,
+    p_tz_offset_minutes: new Date().getTimezoneOffset(),
+  });
   if (error) throw error;
-  const next = await updateEntry(userId, entry, nextRecallState(entry, outcome));
-  return { event, entry: next };
+  const saved = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown> : null;
+  const fallback = nextRecallState(entry, outcome, new Date(event.created_at));
+  const next: KnowledgeEntry = {
+    ...entry,
+    recall_streak: typeof saved?.recall_streak === "number" ? saved.recall_streak : fallback.recall_streak,
+    last_recalled_at: typeof saved?.last_recalled_at === "string" ? saved.last_recalled_at : fallback.last_recalled_at,
+    recall_due_at: typeof saved?.recall_due_at === "string" ? saved.recall_due_at : fallback.recall_due_at,
+  };
+  return { event: {
+    ...event, created_at: typeof saved?.created_at === "string" ? saved.created_at : event.created_at,
+  }, entry: next };
 }
 
 // ---------------------------------------------------------------------------
