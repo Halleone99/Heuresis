@@ -43,6 +43,7 @@ import "./vocabulary-actions-polish.css";
 import "./connections-general.css";
 import "./catalogue-read-filters.css";
 import "./tablet.css";
+import "./components/knowledge-workspace.css";
 
 const params = new URLSearchParams(window.location.search);
 const content = params.get("capture") === "1"
