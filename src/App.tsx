@@ -143,12 +143,17 @@ function HeuresisApp({ session }: { session: Session }) {
         return;
       }
       if (event.key === "/" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
-        event.preventDefault(); setSearchOpen(true);
+        event.preventDefault();
+        if (workspaceSection === "study") setSearchOpen(true);
+        else {
+          setWorkspaceSection("notebook");
+          window.requestAnimationFrame(() => document.querySelector<HTMLInputElement>(".kw-search input")?.focus());
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [workspaceSection]);
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
