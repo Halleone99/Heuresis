@@ -18,6 +18,8 @@ const samples = [
   "",
   "> [!rule]\n> Use **auf** for the future:\n> - sich freuen auf\n> - warten auf\n\nAfter",
   "> [!example]\n> 我是昨天来的。\n> Wǒ shì zuótiān lái de.\n>\n> 他一边吃饭一边看手机。\n> He looks at his phone while eating.",
+  "好了！ — Hǎo le! — I\'m ready!\n我不明白。 — Wǒ bù míngbai. — I don\'t understand.\n请再说一遍。 — Qǐng zài shuō yí biàn.",
+  "Wo\u030C bu\u0300 mi\u0301ngbai",
 ];
 const result = await page.evaluate(async (samples) => {
   const mod = await import("/src/lib/noteFormat.ts");
@@ -28,11 +30,19 @@ const result = await page.evaluate(async (samples) => {
     const div2 = document.createElement("div");
     div2.innerHTML = mod.markdownToEditorHtml(back);
     const again = mod.editorToMarkdown(div2);
-    return { md, html: div.innerHTML, back, stable: back === again, exact: back === md.replace(/\n+$/, "") };
+    return { md, html: div.innerHTML, back, stable: back === again, exact: back === md.replace(/\n+$/, ""), pinyinSpans: div.querySelectorAll("span.nb-pinyin[lang='zh-Latn']").length };
   });
 }, samples);
 for (const r of result) {
   console.log(`--- exact=${r.exact} stable=${r.stable}`);
   if (!r.exact) { console.log("IN :", JSON.stringify(r.md)); console.log("OUT:", JSON.stringify(r.back)); console.log("HTML:", r.html); }
 }
+const pinyinSamples = result.slice(-2);
+if (!pinyinSamples.every((entry) => entry.stable && entry.pinyinSpans > 0))
+  throw new Error("Pinyin tone marks must survive editor HTML/Markdown round trips.");
+if (pinyinSamples[0].back !== pinyinSamples[0].md)
+  throw new Error("Precomposed pinyin must round-trip without losing its accents.");
+if (!pinyinSamples[1].back.includes("Wǒ bù míngbai"))
+  throw new Error("Decomposed tone marks must normalize to attached vowels.");
+console.log("Pinyin formatting and round trip checks passed.");
 await browser.close();

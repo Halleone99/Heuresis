@@ -598,6 +598,15 @@
 
 /* Reading typography — shared by the reader and the editor so both look alike. */
 .nb-prose { color: var(--ws-text); font: 400 17.5px/1.75 var(--ws-serif); overflow-wrap: anywhere; white-space: pre-wrap; tab-size: 2; }
+/* Latin Extended tone vowels (ǎ, ǒ, ǐ, ǔ, ǚ) can mis-render with
+   decorative serif fonts on Windows WebView2. Restrict a Unicode-complete
+   system font to romanized Mandarin only; Hanzi and English retain the
+   existing editorial serif styling. Applied in both reader and editor. */
+.nb-prose .nb-pinyin {
+  font-family: "Segoe UI", "Microsoft YaHei UI", "Noto Sans", "Arial Unicode MS", Arial, sans-serif;
+  font-kerning: normal;
+  letter-spacing: normal;
+}
 .nb-prose:lang(zh), .nb-prose :lang(zh) { line-height: 1.85; }
 .nb-prose > * { margin: 0; }
 .nb-prose p { margin: 0; min-height: 1.75em; }
