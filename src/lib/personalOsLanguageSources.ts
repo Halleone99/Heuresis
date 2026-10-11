@@ -46,7 +46,6 @@ export type CapturedLanguageEntry = {
   status: string;
   created_at: string;
 };
-export type LegacyAnkiReviewDay = { date: string; reviews: number; notes: string | null };
 
 function db() {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -123,11 +122,3 @@ export async function loadCapturedLanguageEntries(userId: string): Promise<Captu
   return (data ?? []) as CapturedLanguageEntry[];
 }
 
-/** Manually logged external Anki counts; not Heuresis study-event counts. */
-export async function loadLegacyAnkiReviews(): Promise<LegacyAnkiReviewDay[]> {
-  const { data, error } = await db().from("anki_review_days")
-    .select("date,reviews,notes")
-    .order("date", { ascending: false }).limit(365);
-  if (error) throw error;
-  return (data ?? []) as LegacyAnkiReviewDay[];
-}
