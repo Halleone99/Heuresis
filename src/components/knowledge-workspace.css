@@ -53,6 +53,12 @@
 .kw-entry-controls button:hover { background:#eef3ec; color:#2a6847; }
 .kw-entry h2,.kw-panel h2 { font:400 24px/1.25 'Libre Caslon Display',Georgia,serif; color:#1d3c2b; margin:5px 0 12px; }
 .kw-note-content { white-space:pre-wrap; overflow-wrap:anywhere; font:15px/1.78 Georgia,'Noto Serif',serif; color:#354e3d; margin:10px 0; }
+.kw-note-content p { margin:0; }
+.kw-note-content h3,.kw-note-content h4 { font:600 20px/1.45 Georgia,serif; color:#244b35; margin:10px 0 6px; }
+.kw-note-content h4 { font-size:17px; }
+.kw-note-content .kw-note-gap { height:13px; }
+.kw-note-bullet { display:grid; grid-template-columns:14px 1fr; gap:8px; margin:3px 0; }
+.kw-note-bullet > span:first-child { color:#719f7c; }
 .kw-comparison { border:1px solid #dfe5dc; border-radius:9px; overflow:hidden; margin:12px 0; }
 .kw-comparison > div { display:grid; grid-template-columns:106px 1fr; gap:12px; padding:13px 14px; align-items:start; }
 .kw-comparison > div:first-child { background:rgba(174,91,67,.042); border-bottom:1px solid #e4e7df; }
