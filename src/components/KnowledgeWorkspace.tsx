@@ -15,6 +15,8 @@ const SHORT_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "sh
 const SESSION_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const rememberedTopicKey = "heuresis.knowledge.currentTopic.v1";
 const lessonPrefix = "Lesson · ";
+const lessonTemplate = "## What we covered\n\n## New words and expressions\n\n## Questions and corrections\n\n## To practise\n";
+const todayLessonTitle = () => lessonPrefix + new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date());
 const openNoteKey = (userId: string) => `heuresis.knowledge.openNote.v1:${userId}`;
 const isLesson = (entry: KnowledgeEntry) => entry.kind === "note" && entry.title.startsWith(lessonPrefix);
 
@@ -396,17 +398,21 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
 }
 
 type ComposerProps = { userId: string; initialKind: KnowledgeKind; initialTopicId: string;
-  onClose: () => void; onSaved: () => void; existing?: KnowledgeEntry };
-export function EntryComposer({ userId, initialKind, initialTopicId, onClose, onSaved, existing }: ComposerProps) {
+  initialTemplate?: "note" | "lesson"; onClose: () => void; onSaved: () => void; existing?: KnowledgeEntry };
+export function EntryComposer({ userId, initialKind, initialTopicId, initialTemplate = "note", onClose, onSaved, existing }: ComposerProps) {
   const [snapshot, setSnapshot] = useState<KnowledgeSnapshot>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [topicId, setTopicId] = useState(existing?.topic_id ?? initialTopicId);
   const [newSubject, setNewSubject] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [newTopic, setNewTopic] = useState("");
+  const [captureMode, setCaptureMode] = useState<"note" | "lesson" | "mistake">(() =>
+    existing?.kind === "mistake" ? "mistake" : existing && isLesson(existing) ? "lesson" : existing ? "note"
+      : initialKind === "mistake" ? "mistake" : initialTemplate);
   const [draft, setDraft] = useState<KnowledgeDraft>({
     kind: existing?.kind ?? initialKind, topicId: existing?.topic_id ?? initialTopicId,
-    title: existing?.title ?? "", body: existing?.body ?? "",
+    title: existing?.title ?? (initialTemplate === "lesson" ? todayLessonTitle() : ""),
+    body: existing?.body ?? (initialTemplate === "lesson" ? lessonTemplate : ""),
     attempt: existing?.attempt ?? "", correction: existing?.correction ?? "",
     explanation: existing?.explanation ?? "",
   });
@@ -430,6 +436,16 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
   function patch(field: keyof KnowledgeDraft, value: string) {
     setDraft((valueBefore) => ({ ...valueBefore, [field]: value }));
   }
+  function switchMode(mode: "note" | "lesson" | "mistake") {
+    if (existing) return;
+    setCaptureMode(mode);
+    setDraft((current) => ({
+      ...current,
+      kind: mode === "mistake" ? "mistake" : "note",
+      title: mode === "lesson" && !current.title.trim() ? todayLessonTitle() : current.title,
+      body: mode === "lesson" && !current.body.trim() ? lessonTemplate : current.body,
+    }));
+  }
   async function save(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -446,8 +462,14 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
         targetId = created.id;
       }
       if (existing && existing.kind !== draft.kind) throw new Error("An entry type cannot be changed on edit.");
-      await saveKnowledgeEntry(userId, { ...draft, topicId: targetId }, existing?.id);
-      try { localStorage.setItem(rememberedTopicKey, targetId); } catch { /* optional */ }
+      if (captureMode === "lesson" && draft.body.trim() === lessonTemplate.trim()) {
+        throw new Error("Add at least one lesson note before saving.");
+      }
+      const savedId = await saveKnowledgeEntry(userId, { ...draft, topicId: targetId }, existing?.id);
+      try {
+        localStorage.setItem(rememberedTopicKey, targetId);
+        if (draft.kind === "note") localStorage.setItem(openNoteKey(userId), savedId);
+      } catch { /* optional */ }
       onSaved();
     } catch (err) { setError(message(err)); }
     finally { setSaving(false); }
@@ -464,10 +486,12 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
       }} aria-label={existing ? "Edit knowledge entry" : "Quick knowledge capture"}>
       <div className="kw-composer-head">
         <div className="kw-kind-switch">
-          <button type="button" disabled={Boolean(existing)} className={draft.kind === "note" ? "active" : ""}
-            onClick={() => patch("kind", "note")}>Note</button>
-          <button type="button" disabled={Boolean(existing)} className={draft.kind === "mistake" ? "active" : ""}
-            onClick={() => patch("kind", "mistake")}>Mistake</button>
+          <button type="button" disabled={Boolean(existing)} className={captureMode === "note" ? "active" : ""}
+            onClick={() => switchMode("note")}>Note</button>
+          <button type="button" disabled={Boolean(existing)} className={captureMode === "lesson" ? "active" : ""}
+            onClick={() => switchMode("lesson")}>Lesson</button>
+          <button type="button" disabled={Boolean(existing)} className={captureMode === "mistake" ? "active" : ""}
+            onClick={() => switchMode("mistake")}>Mistake</button>
         </div><button type="button" aria-label="Close" onClick={onClose}><X size={18}/></button>
       </div>
       {loading ? <p className="kw-muted">Loading topics…</p> : <div className="kw-composer-content">
@@ -501,8 +525,8 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
         </div>
         <label>Title <small>optional</small><input maxLength={200} value={draft.title}
           onChange={(e) => patch("title", e.target.value)} placeholder={draft.kind === "note" ? "What did you learn?" : "The error or rule"}/></label>
-        {draft.kind === "note" ? <label>Capture <small>**bold** · # heading · - bullet</small><textarea autoFocus required rows={6} maxLength={50000} value={draft.body}
-          onChange={(e) => patch("body", e.target.value)} placeholder="A new expression, a question, a grammar rule… Organise it later." /></label>
+        {draft.kind === "note" ? <label>{captureMode === "lesson" ? "Lesson notes" : "Capture"} <small>**bold** · # heading · - bullet</small><textarea autoFocus required rows={6} maxLength={50000} value={draft.body}
+          onChange={(e) => patch("body", e.target.value)} placeholder={captureMode === "lesson" ? "Summarise what you learnt in this lesson…" : "A new expression, a question, a grammar rule… Organise it later."} /></label>
           : <>
             <label>What I wrote or thought<textarea autoFocus required maxLength={5000} rows={3} value={draft.attempt}
               onChange={(e) => patch("attempt", e.target.value)} placeholder="Your original attempt"/></label>
@@ -514,7 +538,7 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
         {error && <p className="kw-error" role="alert">{error}</p>}
       </div>}
       <div className="kw-composer-footer">
-        <small>Ctrl/⌘ + Enter to save · clarify later</small>
+        <small>Ctrl/⌘ + Enter to save · reopen anytime</small>
         <button type="button" className="kw-cancel" onClick={onClose}>Cancel</button>
         <button type="submit" className="kw-primary" disabled={loading || saving}>
           <Check size={15}/>{saving ? "Saving…" : existing ? "Save changes" : "Save capture"}
