@@ -606,7 +606,6 @@
   font-family: "Segoe UI", "Microsoft YaHei UI", "Noto Sans", "Arial Unicode MS", Arial, sans-serif;
   font-kerning: normal;
   letter-spacing: normal;
-  font-style: normal;
 }
 .nb-prose:lang(zh), .nb-prose :lang(zh) { line-height: 1.85; }
 .nb-prose > * { margin: 0; }
