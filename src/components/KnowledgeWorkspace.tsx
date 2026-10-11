@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { BookOpenText, Check, ChevronDown, CircleHelp, ClipboardList, FolderPlus, GraduationCap, Lightbulb, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { BookOpenText, Check, CircleHelp, FolderPlus, GraduationCap, Lightbulb, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
   createKnowledgeSubject, createKnowledgeTopic, deleteKnowledgeEntry,
   knowledgeSearchText, loadKnowledge, saveKnowledgeEntry, setKnowledgeMistakeStatus,
   type KnowledgeDraft, type KnowledgeEntry, type KnowledgeKind, type KnowledgeSnapshot,
-  type KnowledgeTopic,
 } from "../lib/knowledgeWorkspace";
 import { loadLanguageObjectives, type LanguageObjectivesSnapshot } from "../lib/personalOsLanguageSources";
 import { supabase } from "../lib/supabase";
@@ -55,6 +54,12 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
     try { return localStorage.getItem(rememberedTopicKey) ?? ""; } catch { return ""; }
   });
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(rememberedTopicKey);
+      if (saved) setTopicId(saved);
+    } catch { /* topic stays selected */ }
+  }, [revision]);
   const [localError, setLocalError] = useState("");
   const [showRail, setShowRail] = useState(false);
   const [edit, setEdit] = useState<KnowledgeEntry | null>(null);
@@ -347,7 +352,12 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
   const topics = snapshot.topics.filter((t) => !subjectId || t.subject_id === subjectId)
     .sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
   return <div className="kw-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <form className="kw-composer" onSubmit={(event) => void save(event)} aria-label={existing ? "Edit knowledge entry" : "Quick knowledge capture"}>
+    <form className="kw-composer" onSubmit={(event) => void save(event)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault(); event.currentTarget.requestSubmit();
+        }
+      }} aria-label={existing ? "Edit knowledge entry" : "Quick knowledge capture"}>
       <div className="kw-composer-head">
         <div className="kw-kind-switch">
           <button type="button" disabled={Boolean(existing)} className={draft.kind === "note" ? "active" : ""}
@@ -400,7 +410,7 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
         {error && <p className="kw-error" role="alert">{error}</p>}
       </div>}
       <div className="kw-composer-footer">
-        <small>Save now; clarify and practise later.</small>
+        <small>Ctrl/⌘ + Enter to save · clarify later</small>
         <button type="button" className="kw-cancel" onClick={onClose}>Cancel</button>
         <button type="submit" className="kw-primary" disabled={loading || saving}>
           <Check size={15}/>{saving ? "Saving…" : existing ? "Save changes" : "Save capture"}
