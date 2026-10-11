@@ -1,22 +1,31 @@
 import { useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
-import { CALLOUTS, parseBlocks, parseInline, type Block, type ListItem } from "../../lib/noteFormat";
+import { CALLOUTS, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
 
 export type LinkResolver = (target: string) => { exists: boolean; open: () => void };
 
+/** Render romanized Mandarin with a known Unicode-complete typeface, while
+ * keeping the notebook's serif typography for Hanzi and English prose. */
+function PinyinAware({ text }: { text: string }) {
+  return <>{pinyinSegments(text).map(({ text: segment, pinyin }, index) =>
+    pinyin ? <span key={index} className="nb-pinyin" lang="zh-Latn">{segment}</span>
+      : <span key={index}>{segment}</span>
+  )}</>;
+}
+
 function InlineText({ text, resolve }: { text: string; resolve?: LinkResolver }) {
   return <>{parseInline(text).map((part, index) => {
-    if (part.type === "strong") return <strong key={index}>{part.text}</strong>;
-    if (part.type === "em") return <em key={index}>{part.text}</em>;
-    if (part.type === "mark") return <mark key={index}>{part.text}</mark>;
-    if (part.type === "strike") return <s key={index}>{part.text}</s>;
+    if (part.type === "strong") return <strong key={index}><PinyinAware text={part.text} /></strong>;
+    if (part.type === "em") return <em key={index}><PinyinAware text={part.text} /></em>;
+    if (part.type === "mark") return <mark key={index}><PinyinAware text={part.text} /></mark>;
+    if (part.type === "strike") return <s key={index}><PinyinAware text={part.text} /></s>;
     if (part.type === "link") {
       const link = resolve?.(part.target);
       return <button type="button" key={index} className={`nb-wikilink ${link?.exists ? "" : "is-missing"}`}
         title={link?.exists ? `Open “${part.target}”` : `Create a note called “${part.target}”`}
         onClick={(event) => { event.stopPropagation(); link?.open(); }}>{part.label}</button>;
     }
-    return <span key={index}>{part.text}</span>;
+    return <span key={index}><PinyinAware text={part.text} /></span>;
   })}</>;
 }
 
