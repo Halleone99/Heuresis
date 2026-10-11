@@ -14,6 +14,9 @@ const EMPTY: KnowledgeSnapshot = { subjects: [], topics: [], entries: [] };
 const SHORT_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 const SESSION_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const rememberedTopicKey = "heuresis.knowledge.currentTopic.v1";
+const lessonPrefix = "Lesson · ";
+const openNoteKey = (userId: string) => `heuresis.knowledge.openNote.v1:${userId}`;
+const isLesson = (entry: KnowledgeEntry) => entry.kind === "note" && entry.title.startsWith(lessonPrefix);
 
 function dateLabel(value: string) {
   const d = new Date(value);
@@ -62,7 +65,7 @@ type WorkspaceProps = {
   userId: string;
   mode: Exclude<WorkspaceSection, "study">;
   revision: number;
-  onStartCapture: (kind: KnowledgeKind) => void;
+  onStartCapture: (kind: KnowledgeKind, template?: "note" | "lesson") => void;
   onMode: (mode: WorkspaceSection) => void;
   onTopic: (id: string) => void;
 };
@@ -72,6 +75,14 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
     try { return localStorage.getItem(rememberedTopicKey) ?? ""; } catch { return ""; }
   });
   const [query, setQuery] = useState("");
+  const [noteFilter, setNoteFilter] = useState<"all" | "lessons" | "notes">("all");
+  const [focusedEntryId, setFocusedEntryId] = useState<string>(() => {
+    try { return localStorage.getItem(openNoteKey(userId)) ?? ""; } catch { return ""; }
+  });
+  const [addingSubject, setAddingSubject] = useState(false);
+  const [newSubject, setNewSubject] = useState("");
+  const [addingTopicFor, setAddingTopicFor] = useState("");
+  const [newTopic, setNewTopic] = useState("");
   useEffect(() => {
     try {
       const saved = localStorage.getItem(rememberedTopicKey);
@@ -115,7 +126,24 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
     }).slice(0, 100);
   }, [entries, query, topics, subjects]);
   const shown = entries.filter((e) => e.topic_id === selectedTopic?.id && e.kind === (mode === "mistakes" ? "mistake" : "note"))
+    .filter((e) => mode !== "notebook" || noteFilter === "all" || (noteFilter === "lessons" ? isLesson(e) : !isLesson(e)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const focusedNote = mode === "notebook" ? entries.find((e) => e.id === focusedEntryId && e.kind === "note" && e.topic_id === selectedTopic?.id) : null;
+  function openNote(entry: KnowledgeEntry) {
+    setTopicId(entry.topic_id);
+    setFocusedEntryId(entry.id);
+    try { localStorage.setItem(openNoteKey(userId), entry.id); } catch { /* optional */ }
+  }
+  function closeNote() {
+    setFocusedEntryId("");
+    try { localStorage.removeItem(openNoteKey(userId)); } catch { /* optional */ }
+  }
+  function chooseTopic(id: string) {
+    setTopicId(id);
+    closeNote();
+    setShowRail(false);
+    setQuery("");
+  }
   const sortedSubjects = [...subjects].sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
   useEffect(() => {
     if (!selectedTopic) { onTopic(""); return; }
@@ -143,26 +171,28 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
     }
     return () => { cancelled = true; };
   }, [mode, userId, revision]);
-  async function addSubject() {
-    const value = window.prompt("New subject (for example, Chinese)");
-    if (!value?.trim()) return;
+  async function addSubject(value: string) {
+    if (!value.trim()) return;
     try {
       setLocalError("");
       const created = await createKnowledgeSubject(userId, value);
       setSnapshot((current) => ({ ...current, subjects: [...current.subjects, created] }));
       const firstTopic = await createKnowledgeTopic(userId, created.id, "Inbox");
       setSnapshot((current) => ({ ...current, topics: [...current.topics, firstTopic] }));
-      setTopicId(firstTopic.id);
+      chooseTopic(firstTopic.id);
+      setAddingSubject(false);
+      setNewSubject("");
     } catch (err) { setLocalError(message(err)); void reload(); }
   }
-  async function addTopic(subjectId: string) {
-    const value = window.prompt("New topic name");
-    if (!value?.trim()) return;
+  async function addTopic(subjectId: string, value: string) {
+    if (!value.trim()) return;
     try {
       setLocalError("");
       const created = await createKnowledgeTopic(userId, subjectId, value);
       setSnapshot((current) => ({ ...current, topics: [...current.topics, created] }));
-      setTopicId(created.id);
+      chooseTopic(created.id);
+      setAddingTopicFor("");
+      setNewTopic("");
     } catch (err) { setLocalError(message(err)); }
   }
   async function changeStatus(entry: KnowledgeEntry) {
@@ -178,6 +208,7 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
     try {
       await deleteKnowledgeEntry(userId, entry.id);
       setSnapshot((current) => ({ ...current, entries: current.entries.filter((e) => e.id !== entry.id) }));
+      if (focusedEntryId === entry.id) closeNote();
     } catch (err) { setLocalError(message(err)); }
   }
   function startPractice(entry: KnowledgeEntry) {
@@ -195,12 +226,20 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
 
   return <div className="kw-root">
     {(mode === "notebook" || mode === "mistakes") && <aside className={"kw-rail " + (showRail ? "kw-rail-open" : "")}>
-      <div className="kw-rail-top"><span>SUBJECTS</span><button title="New subject" onClick={() => void addSubject()}><Plus size={16}/></button></div>
+      <div className="kw-rail-top"><span>SUBJECTS</span><button title="New subject" aria-label="New subject" onClick={() => setAddingSubject((v) => !v)}><Plus size={16}/></button></div>
+      {addingSubject && <form className="kw-inline-create" onSubmit={(event) => { event.preventDefault(); void addSubject(newSubject); }}>
+        <input autoFocus required maxLength={120} value={newSubject} onChange={(event) => setNewSubject(event.target.value)} placeholder="Chinese, German…" aria-label="Subject name"/>
+        <button type="submit">Create subject</button><button type="button" onClick={() => setAddingSubject(false)}>Cancel</button>
+      </form>}
       {sortedSubjects.map((subject) => <div key={subject.id} className="kw-subject">
-        <div className="kw-subject-line"><strong>{subject.name}</strong><button title={"New topic in " + subject.name} onClick={() => void addTopic(subject.id)}><Plus size={14}/></button></div>
+        <div className="kw-subject-line"><strong>{subject.name}</strong><button title={"New topic in " + subject.name} onClick={() => { setAddingTopicFor((v) => v === subject.id ? "" : subject.id); setNewTopic(""); }}><Plus size={14}/></button></div>
+        {addingTopicFor === subject.id && <form className="kw-inline-create" onSubmit={(event) => { event.preventDefault(); void addTopic(subject.id, newTopic); }}>
+          <input autoFocus required maxLength={120} value={newTopic} onChange={(event) => setNewTopic(event.target.value)} placeholder="Grammar topic, Lesson 4…" aria-label="Topic name"/>
+          <button type="submit">Create topic</button><button type="button" onClick={() => setAddingTopicFor("")}>Cancel</button>
+        </form>}
         {topics.filter((t) => t.subject_id === subject.id).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}))
           .map((topic) => <button key={topic.id} className={"kw-topic " + (topic.id === selectedTopic?.id ? "selected" : "")}
-            onClick={() => { setTopicId(topic.id); setShowRail(false); setQuery(""); }}>
+            onClick={() => chooseTopic(topic.id)}>
             <span>{topic.name}</span>
             <small>{topicCount.get(topic.id)?.pending ? "● " + topicCount.get(topic.id)?.pending : (topicCount.get(topic.id)?.notes ?? 0) + (topicCount.get(topic.id)?.mistakes ?? 0) || ""}</small>
           </button>)}
@@ -215,6 +254,7 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
           {mode === "overview" && <p>One place to capture what you encounter, understand it, and return to it.</p>}
         </div>
         <div className="kw-actions">
+          {(mode === "notebook" || mode === "overview") && <button className="kw-lesson-button" onClick={() => onStartCapture("note", "lesson")}>+ New lesson</button>}
           {(mode === "notebook" || mode === "mistakes") && <button className="kw-small-rail-button" onClick={() => setShowRail((v) => !v)}>Subjects</button>}
           <button className="kw-primary" onClick={() => onStartCapture(mode === "mistakes" ? "mistake" : "note")}><Plus size={15}/> Capture</button>
         </div>
@@ -267,7 +307,7 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
           {!allSearchEntries.length && <p className="kw-muted">No matching entries.</p>}
         </div> : <>
           {!selectedTopic && <div className="kw-state"><BookOpenText size={24}/><p>Create a subject and topic to get started.</p>
-            <button className="kw-primary" onClick={() => void addSubject()}><Plus size={14}/> New subject</button></div>}
+            <button className="kw-primary" onClick={() => setAddingSubject(true)}><Plus size={14}/> New subject</button></div>}
           {selectedTopic && !shown.length && <div className="kw-state"><Lightbulb size={24}/>
             <p>No {mode === "notebook" ? "notes" : "mistakes"} in this topic yet.</p>
             <button className="kw-primary" onClick={() => onStartCapture(mode === "mistakes" ? "mistake" : "note")}>
