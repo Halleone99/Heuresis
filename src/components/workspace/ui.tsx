@@ -99,11 +99,30 @@ export function Portal({ children }: { children: ReactNode }) {
 type ConfirmOptions = { title: string; body?: ReactNode; confirmLabel?: string; danger?: boolean };
 export function useConfirm() {
   const [state, setState] = useState<(ConfirmOptions & { resolve: (value: boolean) => void }) | null>(null);
-  const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => setState({ ...options, resolve })), []);
-  const close = (value: boolean) => { state?.resolve(value); setState(null); };
+  const priorFocus = useRef<HTMLElement | null>(null);
+  const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
+    priorFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setState({ ...options, resolve });
+  }), []);
+  const close = (value: boolean) => {
+    state?.resolve(value);
+    setState(null);
+    const target = priorFocus.current;
+    priorFocus.current = null;
+    if (target && document.contains(target)) requestAnimationFrame(() => target.focus({ preventScroll: true }));
+  };
   const element = state ? <Portal><div className="ws-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(false); }}>
     <div className="ws-dialog" role="alertdialog" aria-modal="true" aria-labelledby="ws-confirm-title"
-      onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); close(false); } }}>
+      onKeyDown={(event) => {
+        if (event.key === "Escape") { event.preventDefault(); close(false); }
+        if (event.key === "Tab") {
+          const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+          if (!buttons.length) return;
+          const first = buttons[0], last = buttons[buttons.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+      }}>
       <h2 id="ws-confirm-title">{state.title}</h2>
       {state.body ? <div className="ws-dialog-body">{state.body}</div> : null}
       <div className="ws-dialog-actions">
