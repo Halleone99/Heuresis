@@ -143,16 +143,18 @@ export function QuickCapture() {
         if (draft.text.length > LIMITS.body) { setError("That note is too long for a quick capture."); return; }
         const label = draft.text.trim().split(/\n/)[0].slice(0, 40);
         const sent = { ...draft };
-        reset();
         const created = await workspace.submitCapture({ kind: "note", topicId, body: sent.text, category, lessonId }, label);
-        if (created) confirmSaved(created.id, created.topic_id, lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
+        if (!created) { setError("The note is safely retained for retry. Keep this draft until its save is confirmed."); return; }
+        reset();
+        confirmSaved(created.id, created.topic_id, lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
       } else if (mode === "mistake") {
         if (!draft.attempt.trim() && !draft.correction.trim()) { setError("Write what you said, or the correct form."); return; }
         const label = (draft.attempt || draft.correction).trim().slice(0, 40);
         const sent = { ...draft };
-        reset();
         const created = await workspace.submitCapture({ kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, lessonId }, label);
-        if (created) confirmSaved(created.id, created.topic_id, "the Mistake Log");
+        if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
+        reset();
+        confirmSaved(created.id, created.topic_id, "the Mistake Log");
       } else {
         const title = draft.lessonTitle.trim() || `Lesson — ${formatDay(lessonDate)}`;
         const created = await workspace.addEntry({ kind: "lesson", topicId, title, body: "", lessonDate });
