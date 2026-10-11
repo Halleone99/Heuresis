@@ -19,7 +19,7 @@ const samples = [
   "> [!rule]\n> Use **auf** for the future:\n> - sich freuen auf\n> - warten auf\n\nAfter",
   "> [!example]\n> 我是昨天来的。\n> Wǒ shì zuótiān lái de.\n>\n> 他一边吃饭一边看手机。\n> He looks at his phone while eating.",
   "好了！ — Hǎo le! — I\'m ready!\n我不明白。 — Wǒ bù míngbai. — I don\'t understand.\n请再说一遍。 — Qǐng zài shuō yí biàn.",
-  "Wo\\u030C bu\\u0300 mi\\u0301ngbai",
+  "Wo\u030C bu\u0300 mi\u0301ngbai",
 ];
 const result = await page.evaluate(async (samples) => {
   const mod = await import("/src/lib/noteFormat.ts");
