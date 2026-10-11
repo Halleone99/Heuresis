@@ -315,6 +315,14 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
     if (current[key] !== value) (changed as Record<string, unknown>)[key] = value;
   }
   if (!Object.keys(changed).length) return current;
+  // Previous recall successes were for the old answer, not the new one.
+  if (current.kind === "mistake" && typeof changed.correction === "string"
+      && changed.correction.trim() !== current.correction.trim()) {
+    changed.recall_streak = 0;
+    changed.last_recalled_at = null;
+    changed.recall_due_at = null;
+    changed.status = "needs_practice";
+  }
   const next: KnowledgeEntry = { ...current, ...changed };
   validateEntry(next);
   const contentChanged = CONTENT_FIELDS.some((key) => key in changed);
