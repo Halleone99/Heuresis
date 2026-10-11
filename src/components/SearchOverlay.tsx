@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, type PackWithType } from "../lib/heuresis";
 import { searchCards, type SearchCardResult } from "../lib/search";
 
-type Props = { packs: PackWithType[]; onClose: () => void; onOpen: (pack: PackWithType) => void };
+type Props = { packs: PackWithType[]; onClose: () => void; onOpen: (pack: PackWithType) => void; initialQuery?: string };
 
-export default function SearchOverlay({ packs, onClose, onOpen }: Props) {
-  const [query, setQuery] = useState("");
+export default function SearchOverlay({ packs, onClose, onOpen, initialQuery = "" }: Props) {
+  const [query, setQuery] = useState(initialQuery);
   const [items, setItems] = useState<SearchCardResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,8 +27,8 @@ export default function SearchOverlay({ packs, onClose, onOpen }: Props) {
 
   return (
     <div className="modal-backdrop search-layer" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section className="search-modal" role="dialog" aria-modal="true" aria-label="Search Heuresis">
-        <header className="search-head"><Search size={18} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search every Heuresis card…" /><button className="icon-button" onClick={onClose} aria-label="Close search"><X size={17} /></button></header>
+      <section className="search-modal" role="dialog" aria-modal="true" aria-label="Search Heuresis" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}>
+        <header className="search-head"><Search size={18} /><input autoFocus value={query} aria-label="Search cards" onChange={(event) => setQuery(event.target.value)} placeholder="Search every Heuresis card…" /><button className="icon-button" onClick={onClose} aria-label="Close search"><X size={17} /></button></header>
         <div className="search-meta">{query.trim().length < 2 ? "Type at least two characters." : loading ? "Searching…" : error ? error : `${items.length} result${items.length === 1 ? "" : "s"}`}</div>
         <div className="search-results">
           {items.map((item) => {

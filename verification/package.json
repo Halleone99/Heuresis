@@ -1,0 +1,9 @@
+{
+  "name": "heuresis-verification",
+  "private": true,
+  "type": "module",
+  "description": "Local end-to-end verification harness for Heuresis (not part of the app build).",
+  "devDependencies": {
+    "playwright": "1.64.0"
+  }
+}

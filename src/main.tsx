@@ -7,6 +7,7 @@ import "@fontsource/dm-mono/400.css";
 import "@fontsource/dm-mono/500.css";
 import "@fontsource/libre-caslon-display/400.css";
 import App from "./App";
+import { applyTheme } from "./lib/theme";
 import CaptureWindow from "./components/CaptureWindow";
 import CosmosWindow from "./components/CosmosWindow";
 import ReviewScratchpad from "./components/ReviewScratchpad";
@@ -43,9 +44,12 @@ import "./vocabulary-actions-polish.css";
 import "./connections-general.css";
 import "./catalogue-read-filters.css";
 import "./tablet.css";
-import "./components/knowledge-workspace.css";
+// Loaded last: the learning workspace and the shared shell around Study.
+import "./components/workspace/workspace.css";
 
 const params = new URLSearchParams(window.location.search);
+// The Capture and review windows keep their original paper styling.
+if (params.get("capture") !== "1" && params.get("cosmos") !== "1") applyTheme();
 const content = params.get("capture") === "1"
   ? <CaptureWindow />
   : params.get("cosmos") === "1"

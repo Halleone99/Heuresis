@@ -8,6 +8,11 @@ const relatedView = readFileSync(new URL("../src/components/RelatedView.tsx", im
 const cosmos = readFileSync(new URL("../src/components/CosmosWindow.tsx", import.meta.url), "utf8");
 const study = readFileSync(new URL("../src/lib/study.ts", import.meta.url), "utf8");
 const search = readFileSync(new URL("../src/lib/search.ts", import.meta.url), "utf8");
+const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+const knowledge = readFileSync(new URL("../src/lib/knowledgeWorkspace.ts", import.meta.url), "utf8");
+const personalOs = readFileSync(new URL("../src/lib/personalOsLanguageSources.ts", import.meta.url), "utf8");
+const activity = readFileSync(new URL("../src/lib/activity.ts", import.meta.url), "utf8");
+const offline = readFileSync(new URL("../src/lib/offlineFetch.ts", import.meta.url), "utf8");
 
 const required = ["heuresis_collections", "heuresis_card_types", "heuresis_cards"];
 for (const table of required) {
@@ -60,6 +65,36 @@ if (!study.includes("heuresis_record_events") || !study.includes("localStorage")
 
 if (search.includes('.eq("role", "main")') || !search.includes('role: "main" | "related"')) {
   throw new Error("Global search must deliberately include both main and related card identities.");
+}
+
+// --- Learning workspace (Notebook, lessons, Mistake Log, Progress) ---
+const sectionIds = [...app.matchAll(/\{ id: "(overview|study|notebook|mistakes|progress)", label:/g)].map((match) => match[1]);
+if (sectionIds.join(",") !== "overview,study,notebook,mistakes,progress") {
+  throw new Error("Heuresis must keep exactly five top-level sections: Overview, Study, Notebook, Mistake Log, Progress.");
+}
+
+if (knowledge.includes('.from("knowledge_entries")') || /\.from\("knowledge_entries"\)\s*\.(insert|update|upsert|delete)/.test(personalOs)) {
+  throw new Error("Personal OS knowledge_entries is a legacy capture queue: Heuresis may read it, never write it.");
+}
+
+if (/language_notebooks"\)\s*\.(insert|update|upsert|delete)/.test(personalOs)) {
+  throw new Error("Personal OS language_notebooks objectives are read-only in Heuresis.");
+}
+
+for (const [name, source] of [["App.tsx", app], ["activity.ts", activity], ["knowledgeWorkspace.ts", knowledge]]) {
+  if (/\.from\("[^"]*anki/i.test(source) || /\.rpc\("[^"]*anki/i.test(source)) throw new Error(`${name} must not read or recreate Anki Tracker; it belongs to Personal OS Capital.`);
+}
+
+if (!knowledge.includes("crypto.randomUUID()") || !knowledge.includes("Key \\(id\\)=")) {
+  throw new Error("Knowledge writes must use client ids and treat an already-stored id as success (offline replay safety).");
+}
+
+if (!offline.includes("activeFlush") || !offline.includes("isAlreadyAppliedInsert")) {
+  throw new Error("Offline replay must be single-flight and must not block on inserts that already reached the server.");
+}
+
+if (!app.includes('["KeyN", "KeyM", "KeyL"].includes(event.code)')) {
+  throw new Error("Quick capture shortcuts must use physical key codes so they work with any keyboard layout.");
 }
 
 console.log("Heuresis architecture check passed.");
