@@ -281,6 +281,14 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
             <strong>{item.front}</strong>{item.back && <p>{item.back}</p>}{item.third_side && <small>{item.third_side}</small>}
           </div>)}
         </div>}
+        {entries.some((e) => e.kind === "note") && <div className="kw-panel">
+          <h2>Reopen your notes and lessons</h2>
+          {entries.filter((e) => e.kind === "note").sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,5)
+            .map((entry) => <button key={entry.id} className="kw-return-row" onClick={() => { openNote(entry); onMode("notebook"); }}>
+              <BookOpenText size={15}/><span>{entry.title || entry.body.slice(0,80)}</span>
+              <small>{isLesson(entry) ? "Lesson" : "Open"} →</small>
+            </button>)}
+        </div>}
         <div className="kw-panel">
           <h2>Language objectives</h2>
           {activeGoals.length ? activeGoals.slice(0,6).map((goal) => {
@@ -301,30 +309,45 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
         {query.trim() ? <div className="kw-results">
           <span className="kw-eyebrow">SEARCH RESULTS · {allSearchEntries.length}{allSearchEntries.length === 100 ? "+" : ""}</span>
           {allSearchEntries.map((e) => { const topic = topics.find((t) => t.id === e.topic_id); return <button key={e.id} onClick={() => {
-            setTopicId(e.topic_id); onMode(e.kind === "note" ? "notebook" : "mistakes"); setQuery("");
+            if (e.kind === "note") { openNote(e); setNoteFilter("all"); }
+            else { closeNote(); setTopicId(e.topic_id); }
+            onMode(e.kind === "note" ? "notebook" : "mistakes"); setQuery("");
           }}><span>{e.kind === "mistake" ? "Correction" : "Note"} · {topic?.name}</span>
             <strong>{e.title || (e.kind === "note" ? e.body : e.attempt).slice(0,110)}</strong></button>; })}
           {!allSearchEntries.length && <p className="kw-muted">No matching entries.</p>}
         </div> : <>
+          {mode === "notebook" && !focusedNote && <div className="kw-note-filters" role="group" aria-label="Filter knowledge notes">
+            {(["all", "lessons", "notes"] as const).map((filter) => <button key={filter}
+              className={noteFilter === filter ? "active" : ""}
+              onClick={() => { setNoteFilter(filter); closeNote(); }}>
+              {filter === "all" ? "All entries" : filter === "lessons" ? "Lessons" : "Notes"}
+            </button>)}
+          </div>}
+          {mode === "notebook" && focusedNote && <button className="kw-back-to-list" onClick={closeNote}>← Back to all notes in {selectedTopic?.name}</button>}
           {!selectedTopic && <div className="kw-state"><BookOpenText size={24}/><p>Create a subject and topic to get started.</p>
             <button className="kw-primary" onClick={() => setAddingSubject(true)}><Plus size={14}/> New subject</button></div>}
-          {selectedTopic && !shown.length && <div className="kw-state"><Lightbulb size={24}/>
+          {selectedTopic && !shown.length && !focusedNote && <div className="kw-state"><Lightbulb size={24}/>
             <p>No {mode === "notebook" ? "notes" : "mistakes"} in this topic yet.</p>
             <button className="kw-primary" onClick={() => onStartCapture(mode === "mistakes" ? "mistake" : "note")}>
               <Plus size={14}/> Add {mode === "notebook" ? "a note" : "a mistake"}</button></div>}
-          {mode === "notebook" && legacyHere.length > 0 && <details className="kw-legacy"><summary>Earlier captures from Personal OS ({legacyHere.length})</summary>
+          {mode === "notebook" && !focusedNote && legacyHere.length > 0 && <details className="kw-legacy"><summary>Earlier captures from Personal OS ({legacyHere.length})</summary>
             <p className="kw-muted">These remain in their original Personal OS records until a deliberate migration is implemented.</p>
             {legacyHere.map((item) => <div key={item.id} className="kw-legacy-row">
               <span>{dateLabel(item.created_at)} · {item.entry_type}</span><strong>{item.front}</strong>
               {item.back && <p>{item.back}</p>}{item.third_side && <small>{item.third_side}</small>}
             </div>)}
           </details>}
-          {shown.map((e) => <article key={e.id} className="kw-entry">
-            <div className="kw-entry-top"><span className="kw-eyebrow">{e.kind === "note" ? "NOTE" : "MISTAKE"}</span>
+          {(mode === "notebook" && focusedNote ? [focusedNote] : shown).map((e) => <article key={e.id} className="kw-entry">
+            <div className="kw-entry-top"><span className="kw-eyebrow">{e.kind === "note" ? (isLesson(e) ? "LESSON" : "NOTE") : "MISTAKE"}</span>
               <div className="kw-entry-controls"><small>{dateLabel(e.created_at)}</small><button title="Edit entry" onClick={() => setEdit(e)}><Pencil size={14}/></button>
                 <button title="Delete entry" onClick={() => void removeEntry(e)}><Trash2 size={14}/></button></div></div>
             {e.title && <h2>{e.title}</h2>}
-            {e.kind === "note" ? <RichNote text={e.body}/> : <>
+            {e.kind === "note" ? (focusedNote?.id === e.id
+              ? <RichNote text={e.body}/>
+              : <div className="kw-note-summary">
+                <p>{e.body.replace(/[#*]/g, "").slice(0,240)}{e.body.length > 240 ? "…" : ""}</p>
+                <button onClick={() => openNote(e)} aria-label={"Reopen " + (e.title || "note")}>Open {isLesson(e) ? "lesson" : "note"} →</button>
+              </div>) : <>
               <div className="kw-comparison"><div><span>YOUR ATTEMPT</span><p>{e.attempt}</p></div>
                 <div><span>CORRECTION</span><p>{e.correction}</p></div></div>
               {e.explanation && <p className="kw-why"><span>WHY</span>{e.explanation}</p>}
