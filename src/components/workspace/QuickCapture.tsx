@@ -26,6 +26,7 @@ export function QuickCapture() {
   const [openLesson, setOpenLesson] = useState(true);
   const [lessonDate, setLessonDate] = useState(localDateKey(new Date()));
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState("");
   const [creatingSubject, setCreatingSubject] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -124,7 +125,7 @@ export function QuickCapture() {
   }, [draft, mode, userId, workspace]);
 
   const patch = (value: Partial<CaptureDraft>) => setDraft((current) => ({ ...current, ...value }));
-  const setMode = (next: CaptureMode) => { patch({ mode: next }); setError(""); };
+  const setMode = (next: CaptureMode) => { patch({ mode: next, pendingId: undefined }); setError(""); };
   const category: NoteCategory = draft.categoryTouched ? (draft.category ?? "note") : looksLikeQuestion(draft.text) ? "question" : (draft.category ?? "note");
 
   const destinationLabel = topicId ? workspace.pathLabel(topicId) : "";
@@ -133,7 +134,10 @@ export function QuickCapture() {
     .filter((name) => !subjects.some((subject) => subject.name.toLowerCase() === name.toLowerCase())).slice(0, 4), [objectives, subjects]);
 
   async function submit() {
+    if (saving) return;
+    setSaving(true);
     setError("");
+    try {
     if (!workspace.writable) { setError("Apply the Notebook database update before capturing (see the notice in Notebook)."); return; }
     if (!topicId) { setError("Choose where this belongs first."); setPicking(true); return; }
     const lessonId = attachToLesson ? currentLesson?.id ?? null : null;
@@ -143,7 +147,10 @@ export function QuickCapture() {
         if (draft.text.length > LIMITS.body) { setError("That note is too long for a quick capture."); return; }
         const label = draft.text.trim().split(/\n/)[0].slice(0, 40);
         const sent = { ...draft };
-        const created = await workspace.submitCapture({ kind: "note", topicId, body: sent.text, category, lessonId }, label);
+        const id = sent.pendingId ?? crypto.randomUUID();
+        writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
+        setDraft((current) => ({ ...current, pendingId: id }));
+        const created = await workspace.submitCapture({ id, kind: "note", topicId, body: sent.text, category, lessonId }, label);
         if (!created) { setError("The note is safely retained for retry. Keep this draft until its save is confirmed."); return; }
         reset();
         confirmSaved(created.id, created.topic_id, lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
@@ -151,7 +158,10 @@ export function QuickCapture() {
         if (!draft.attempt.trim() && !draft.correction.trim()) { setError("Write what you said, or the correct form."); return; }
         const label = (draft.attempt || draft.correction).trim().slice(0, 40);
         const sent = { ...draft };
-        const created = await workspace.submitCapture({ kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, lessonId }, label);
+        const id = sent.pendingId ?? crypto.randomUUID();
+        writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
+        setDraft((current) => ({ ...current, pendingId: id }));
+        const created = await workspace.submitCapture({ id, kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, lessonId }, label);
         if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
         reset();
         confirmSaved(created.id, created.topic_id, "the Mistake Log");
@@ -169,6 +179,7 @@ export function QuickCapture() {
     } catch (submitError) {
       setError(friendlyError(submitError));
     }
+    } finally { setSaving(false); }
   }
 
   function reset() {
@@ -176,8 +187,8 @@ export function QuickCapture() {
     // Clear only what was just saved; text typed in another mode stays as a draft.
     setDraft((current) => {
       const next = current.mode === "note"
-        ? { ...current, text: "", category: "note" as const, categoryTouched: false }
-        : { ...current, attempt: "", correction: "", explanation: "" };
+        ? { ...current, text: "", category: "note" as const, categoryTouched: false, pendingId: undefined }
+        : { ...current, attempt: "", correction: "", explanation: "", pendingId: undefined };
       writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null);
       return next;
     });
@@ -299,7 +310,7 @@ export function QuickCapture() {
     <div className="qc-foot">
       <span className="qc-hint"><Kbd>{MOD_KEY} ↵</Kbd> save · <Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
       {hasContent ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
-      <button type="button" className="ws-button is-primary" onClick={() => void submit()}>
+      <button type="button" className="ws-button is-primary" disabled={saving} onClick={() => void submit()}>
         {mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
       </button>
     </div>
