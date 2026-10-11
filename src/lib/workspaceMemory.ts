@@ -15,6 +15,8 @@ export type CaptureDraft = {
   text: string; category: NoteCategory | null; categoryTouched: boolean;
   attempt: string; correction: string; explanation: string;
   lessonTitle: string; updatedAt: string;
+  /** Stable identity of a capture awaiting confirmation; prevents duplicate retries. */
+  pendingId?: string;
 };
 export type DocumentDraft = { title: string; body: string; savedAt: string; baseUpdatedAt: string };
 
