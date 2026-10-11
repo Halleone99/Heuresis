@@ -38,6 +38,7 @@ export type PracticeEvent = {
 };
 export type KnowledgeSnapshot = {
   subjects: KnowledgeSubject[]; topics: KnowledgeTopic[]; entries: KnowledgeEntry[]; practice: PracticeEvent[];
+  practiceError?: string | null;
 };
 
 export type EntryInput = {
@@ -188,11 +189,15 @@ export async function loadKnowledge(userId: string): Promise<{ snapshot: Knowled
   if (!userId) throw new Error("A signed-in account is required.");
   const schema = await detectKnowledgeSchema().catch(() => schemaLevel);
   if (schema === "missing") return { snapshot: EMPTY_SNAPSHOT, schema };
+  let practiceError: string | null = null;
   const [subjects, topics, entries, practice] = await Promise.all([
     allRows("knowledge_subjects", userId),
     allRows("knowledge_topics", userId),
     allRows("knowledge_records", userId),
-    schema === "v2" ? allRows("knowledge_practice_events", userId, "created_at", 10).catch(() => []) : Promise.resolve([]),
+    schema === "v2" ? allRows("knowledge_practice_events", userId, "created_at", 10).catch((error: unknown) => {
+      practiceError = friendlyError(error);
+      return [];
+    }) : Promise.resolve([]),
   ]);
   return {
     schema,
@@ -201,6 +206,7 @@ export async function loadKnowledge(userId: string): Promise<{ snapshot: Knowled
       topics: topics.map(normaliseTopic).filter((row) => row.id),
       entries: entries.map(normaliseEntry).filter((row) => row.id),
       practice: practice.map(normaliseEvent).filter((row) => row.id),
+      practiceError,
     },
   };
 }
