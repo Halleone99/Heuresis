@@ -220,14 +220,14 @@ async function requestParts(input: RequestInfo | URL, init?: RequestInit) {
   return { method, headers, body, url: request.url };
 }
 
-async function saveResponse(key: string, method: string, url: string, response: Response) {
+async function saveResponse(key: string, method: string, url: string, response: Response, ownerId: string) {
   if (!response.ok) return;
   try {
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, name) => { responseHeaders[name] = value; });
     await putRecord<CacheRecord>(CACHE_STORE, {
       key,
-      ownerId: cacheOwner() ?? undefined,
+      ownerId,
       url,
       method,
       status: response.status,
@@ -666,7 +666,7 @@ export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit)
     if (typeof navigator === "undefined" || navigator.onLine) {
       try {
         const response = await networkFetch(input, init);
-        if (response.ok) void saveResponse(key, method, url, response);
+        if (response.ok && cacheOwner() === owner) void saveResponse(key, method, url, response, owner);
         return response;
       } catch {
         // Fall back to the local copy.
@@ -684,12 +684,13 @@ export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit)
   if (typeof navigator === "undefined" || navigator.onLine) {
     try {
       const response = await networkFetch(input, init);
-      if (response.ok) void applySuccessfulMutation(method, url, body, response).catch(() => undefined);
+      if (response.ok && cacheOwner() === owner) void applySuccessfulMutation(method, url, body, response).catch(() => undefined);
       return response;
     } catch {
       // Queue below.
     }
   }
+  if (cacheOwner() !== owner) throw new TypeError("The signed-in account changed before this change was stored. Please try again.");
   return queueMutation(method, url, headers, body);
 }
 
