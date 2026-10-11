@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { BookOpen, ChevronDown, FolderTree, Home, Link2, LogOut, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, ChevronDown, FolderTree, Home, LayoutDashboard, Link2, LogOut, NotebookPen, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
 import CaptureInboxView from "./components/CaptureInboxView";
@@ -8,6 +8,8 @@ import CatalogueView from "./components/CatalogueView";
 import CollectionsModal from "./components/CollectionsModal";
 import HeuresisMark from "./components/HeuresisMark";
 import LibraryView from "./components/LibraryView";
+import { EntryComposer, KnowledgeWorkspace, type WorkspaceSection } from "./components/KnowledgeWorkspace";
+import type { KnowledgeKind } from "./lib/knowledgeWorkspace";
 import PackView from "./components/PackView";
 import RelatedCatalogueView from "./components/RelatedCatalogueView";
 import SearchOverlay from "./components/SearchOverlay";
@@ -38,6 +40,16 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 function HeuresisApp({ session }: { session: Session }) {
+  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection>(() => {
+    try {
+      const stored = localStorage.getItem("heuresis.workspace.section.v1");
+      return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "progress" ? stored : "overview";
+    } catch { return "overview"; }
+  });
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
+  const [quickCaptureKind, setQuickCaptureKind] = useState<KnowledgeKind>("note");
+  const [knowledgeTopicId, setKnowledgeTopicId] = useState("");
+  const [knowledgeRevision, setKnowledgeRevision] = useState(0);
   const [view, setView] = useState<View>("library");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
@@ -88,6 +100,13 @@ function HeuresisApp({ session }: { session: Session }) {
   useEffect(() => { void reload().catch(() => undefined); }, []);
 
   useEffect(() => subscribeOfflineSync(setSyncState), []);
+  useEffect(() => {
+    try { localStorage.setItem("heuresis.workspace.section.v1", workspaceSection); } catch { /* optional */ }
+  }, [workspaceSection]);
+  const openKnowledgeCapture = (kind: KnowledgeKind = "note") => {
+    setQuickCaptureKind(kind);
+    setQuickCaptureOpen(true);
+  };
 
   useEffect(() => {
     const onOnline = () => { void runSync(true); };
@@ -111,13 +130,30 @@ function HeuresisApp({ session }: { session: Session }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setQuickCaptureKind("note");
+        setQuickCaptureOpen(true);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        setQuickCaptureKind("mistake");
+        setQuickCaptureOpen(true);
+        return;
+      }
       if (event.key === "/" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
-        event.preventDefault(); setSearchOpen(true);
+        event.preventDefault();
+        if (workspaceSection === "study") setSearchOpen(true);
+        else {
+          setWorkspaceSection("notebook");
+          window.requestAnimationFrame(() => document.querySelector<HTMLInputElement>(".kw-search input")?.focus());
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [workspaceSection]);
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
@@ -189,19 +225,20 @@ function HeuresisApp({ session }: { session: Session }) {
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={openLibrary} aria-label="Open library"><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
-        <nav className="desktop-nav-group" aria-label="Primary navigation">
+        <button className="desktop-wordmark" onClick={() => { setWorkspaceSection("study"); openLibrary(); }} aria-label="Open Study library"><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
+        {workspaceSection === "study" ? <nav className="desktop-nav-group" aria-label="Study navigation">
           <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
           <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
           <button className={`desktop-nav-item ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Connections</button>
           <button className="desktop-nav-item" onClick={() => openCollections(false)}><FolderTree size={14} /> Collections</button>
-        </nav>
+        </nav> : null}
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
           <button className="desktop-action" title={syncTitle} disabled={syncState.syncing} onClick={() => void runSync(false)}><RefreshCw size={14} /> <span>{syncLabel}</span></button>
-          <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search</span><kbd>⌘K</kbd></button>
-          <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button>
-          <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Capture</button>
+          {workspaceSection === "study" ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>⌘K</kbd></button> : null}
+          {workspaceSection === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
+          {workspaceSection === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
+          <button className="desktop-action hw-capture-button" onClick={() => openKnowledgeCapture()}><Plus size={14} /> Quick note</button>
           <details className="desktop-account-menu">
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -216,15 +253,32 @@ function HeuresisApp({ session }: { session: Session }) {
         </div>
       </header>
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div> : null}
+      <div className="heuresis-workspace-layout">
+        <aside className="heuresis-section-sidebar" aria-label="Learning workspace navigation">
+          <span className="hw-caption">WORKSPACE</span>
+          <button className={workspaceSection === "overview" ? "active" : ""} onClick={() => setWorkspaceSection("overview")}><LayoutDashboard size={16}/><span>Overview</span></button>
+          <button className={workspaceSection === "study" ? "active" : ""} onClick={() => setWorkspaceSection("study")}><BookOpen size={16}/><span>Study</span></button>
+          <div className="hw-divider"/>
+          <button className={workspaceSection === "notebook" ? "active" : ""} onClick={() => setWorkspaceSection("notebook")}><NotebookPen size={16}/><span>Notebook</span></button>
+          <button className={workspaceSection === "mistakes" ? "active" : ""} onClick={() => setWorkspaceSection("mistakes")}><AlertTriangle size={16}/><span>Mistake Log</span></button>
+          <button className={workspaceSection === "progress" ? "active" : ""} onClick={() => setWorkspaceSection("progress")}><BarChart3 size={16}/><span>Progress</span></button>
+          <span className="hw-help">Capture → Clarify → Practice</span>
+        </aside>
       <main className="desktop-content">
-        {loading ? <div className="content-state">Opening Heuresis…</div> : null}
-        {!loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-        {!loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
-        {!loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
-        {!loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
-        {!loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
-        {!loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
+        {workspaceSection !== "study" ? <KnowledgeWorkspace userId={session.user.id} mode={workspaceSection}
+          revision={knowledgeRevision} onStartCapture={openKnowledgeCapture}
+          onMode={setWorkspaceSection} onTopic={setKnowledgeTopicId} /> : null}
+        {workspaceSection === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
+        {workspaceSection === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
+        {workspaceSection === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+        {workspaceSection === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
+        {workspaceSection === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
+        {workspaceSection === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
+        {workspaceSection === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
+      </div>
+      {quickCaptureOpen ? <EntryComposer userId={session.user.id} initialKind={quickCaptureKind} initialTopicId={knowledgeTopicId}
+        onClose={() => setQuickCaptureOpen(false)} onSaved={() => { setQuickCaptureOpen(false); setKnowledgeRevision((count) => count + 1); }} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
