@@ -75,7 +75,7 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the reading view in sync with saves made elsewhere (e.g. "Move into lesson").
+  // Keep the reading view in sync with saves made elsewhere (e.g. "Copy into lesson").
   useEffect(() => {
     if (editing || !liveEntry) return;
     const next = draftFromEntry(liveEntry, null);
@@ -257,9 +257,14 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
     const addition = [capture.title.trim() ? `**${capture.title.trim()}**` : "", capture.body.trim()].filter(Boolean).join("\n");
     const nextBody = `${liveEntry.body.replace(/\s+$/, "")}${liveEntry.body.trim() ? "\n\n" : ""}${addition}`;
     try {
+      if (liveEntry.body.includes(addition)) {
+        workspace.toast("Already included in the lesson; original capture preserved.");
+        return;
+      }
       await workspace.patchEntry(lessonId, { body: nextBody });
-      await workspace.removeEntry(capture.id, { undo: false });
-      workspace.toast("Moved into the lesson text.");
+      // Never delete the original in a second network operation. The copy is
+      // reversible and retains the capture's own context and mistake history.
+      workspace.toast("Copied into the lesson. Original capture preserved.");
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
@@ -365,12 +370,12 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
       {capturedQuestions.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><CircleHelp size={15} /> To revisit</h2>
         {capturedQuestions.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })}
-          actions={workspace.writable ? [{ label: "Answered", run: () => void markAnswered(capture) }, { label: "Move into lesson", run: () => void mergeCapture(capture) }] : []} />)}
+          actions={workspace.writable ? [{ label: "Answered", run: () => void markAnswered(capture) }, { label: "Copy into lesson", run: () => void mergeCapture(capture) }] : []} />)}
       </div> : null}
       {capturedNotes.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><Layers size={15} /> Captured during the lesson</h2>
         {capturedNotes.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })}
-          actions={workspace.writable ? [{ label: "Move into lesson", run: () => void mergeCapture(capture) }] : []} />)}
+          actions={workspace.writable ? [{ label: "Copy into lesson", run: () => void mergeCapture(capture) }] : []} />)}
       </div> : null}
       {capturedMistakes.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><GraduationCap size={15} /> Mistakes from this lesson</h2>
