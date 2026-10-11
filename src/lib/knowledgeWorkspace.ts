@@ -334,8 +334,19 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
   const next: KnowledgeEntry = { ...current, ...changed };
   validateEntry(next);
   const contentChanged = CONTENT_FIELDS.some((key) => key in changed);
-  const { error } = await db().from("knowledge_records").update(changed).eq("id", current.id).eq("user_id", userId);
+  // Compare-and-swap: do not silently replace a newer edit from another
+  // device. The server returns its exact updated_at for the next save.
+  const { data, error } = await db().from("knowledge_records").update(changed)
+    .eq("id", current.id).eq("user_id", userId)
+    .eq("updated_at", current.updated_at).is("deleted_at", null)
+    .select("*").maybeSingle();
   if (error) throw error;
+  if (data) return normaliseEntry(data as Record<string, unknown>);
+  if (typeof navigator === "undefined" || navigator.onLine) {
+    throw new Error("This note changed on another device, or was deleted. Your edit was not overwritten. Reopen it to reconcile the changes.");
+  }
+  // The offline request has been durably queued; replay retains its original
+  // revision filter rather than overwriting changes made elsewhere.
   return contentChanged ? { ...next, updated_at: new Date().toISOString() } : next;
 }
 
