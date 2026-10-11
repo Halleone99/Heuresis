@@ -1,3 +1,3 @@
-Build Heuresis Windows ARM64 latest offline-ready version.
-Source: offline-ready-claude-fixes
-Source: Heuresis workspace v2 · ff2c9eeee8782a6d8ff33b0e204f52c020e44074
+Build Heuresis Windows ARM64 from reliability repair merge.
+Source: main at 311d2dc6d0caf9e2a0ff16318dd084ca1bc896b3
+Changes: offline account isolation, atomic recall, reversible Undo, capture/draft recovery.
