@@ -26,6 +26,24 @@ function normalise(text: string) {
 function answerKey(text: string) {
   return normalise(text).replace(/[.,!?。！？；;:：]/g, "");
 }
+function RichInline({ text }: { text: string }) {
+  return <>{text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+    part.startsWith("**") && part.endsWith("**")
+      ? <strong key={index}>{part.slice(2, -2)}</strong>
+      : <span key={index}>{part}</span>
+  )}</>;
+}
+function RichNote({ text }: { text: string }) {
+  return <div className="kw-note-content">{text.split(/\r?\n/).map((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) return <div className="kw-note-gap" key={index}/>;
+    if (trimmed.startsWith("# ")) return <h3 key={index}><RichInline text={trimmed.slice(2)}/></h3>;
+    if (trimmed.startsWith("## ")) return <h4 key={index}><RichInline text={trimmed.slice(3)}/></h4>;
+    if (/^[-•] /.test(trimmed)) return <div className="kw-note-bullet" key={index}>
+      <span aria-hidden="true">•</span><span><RichInline text={trimmed.slice(2)}/></span></div>;
+    return <p key={index}><RichInline text={line}/></p>;
+  })}</div>;
+}
 function useKnowledge(userId: string, revision: number) {
   const [snapshot, setSnapshot] = useState<KnowledgeSnapshot>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -243,7 +261,7 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
               <div className="kw-entry-controls"><small>{dateLabel(e.created_at)}</small><button title="Edit entry" onClick={() => setEdit(e)}><Pencil size={14}/></button>
                 <button title="Delete entry" onClick={() => void removeEntry(e)}><Trash2 size={14}/></button></div></div>
             {e.title && <h2>{e.title}</h2>}
-            {e.kind === "note" ? <div className="kw-note-content">{e.body}</div> : <>
+            {e.kind === "note" ? <RichNote text={e.body}/> : <>
               <div className="kw-comparison"><div><span>YOUR ATTEMPT</span><p>{e.attempt}</p></div>
                 <div><span>CORRECTION</span><p>{e.correction}</p></div></div>
               {e.explanation && <p className="kw-why"><span>WHY</span>{e.explanation}</p>}
@@ -397,7 +415,7 @@ export function EntryComposer({ userId, initialKind, initialTopicId, onClose, on
         </div>
         <label>Title <small>optional</small><input maxLength={200} value={draft.title}
           onChange={(e) => patch("title", e.target.value)} placeholder={draft.kind === "note" ? "What did you learn?" : "The error or rule"}/></label>
-        {draft.kind === "note" ? <label>Capture<textarea autoFocus required rows={6} maxLength={50000} value={draft.body}
+        {draft.kind === "note" ? <label>Capture <small>**bold** · # heading · - bullet</small><textarea autoFocus required rows={6} maxLength={50000} value={draft.body}
           onChange={(e) => patch("body", e.target.value)} placeholder="A new expression, a question, a grammar rule… Organise it later." /></label>
           : <>
             <label>What I wrote or thought<textarea autoFocus required maxLength={5000} rows={3} value={draft.attempt}
