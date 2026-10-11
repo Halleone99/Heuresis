@@ -135,8 +135,9 @@ async function allRows(table: string, userId: string, order = "created_at", cap 
   const rows: Record<string, unknown>[] = [];
   for (let page = 0; page < cap; page += 1) {
     const offset = page * PAGE_SIZE;
-    const { data, error } = await db().from(table).select("*")
-      .eq("user_id", userId).order(order, { ascending: false }).order("id", { ascending: true })
+    let query = db().from(table).select("*").eq("user_id", userId);
+    if (table === "knowledge_records") query = query.is("deleted_at", null);
+    const { data, error } = await query.order(order, { ascending: false }).order("id", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
@@ -301,10 +302,11 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
   return entry;
 }
 
-/** Restore a just-deleted entry (Undo). Re-inserts the same id and content. */
+/** Undo a soft deletion without touching its lesson relationships or practice events. */
 export async function restoreEntry(entry: KnowledgeEntry) {
   requireWritable();
-  const { error } = await db().from("knowledge_records").insert(entry);
+  const { error } = await db().from("knowledge_records")
+    .update({ deleted_at: null }).eq("id", entry.id).eq("user_id", entry.user_id);
   if (error) throw error;
 }
 
@@ -333,9 +335,11 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
 
 export async function deleteEntry(userId: string, id: string) {
   requireWritable();
-  const { error } = await db().from("knowledge_records").delete().eq("id", id).eq("user_id", userId);
+  // Archiving instead of DELETE preserves cascading practice history and
+  // lesson capture links, so Undo restores the complete document.
+  const { error } = await db().from("knowledge_records")
+    .update({ deleted_at: new Date().toISOString() }).eq("id", id).eq("user_id", userId);
   if (error) throw error;
-}
 
 // ---------------------------------------------------------------------------
 // Mistake recall: a deliberately small schedule, not a second SRS.
