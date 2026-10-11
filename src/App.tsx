@@ -130,6 +130,18 @@ function HeuresisApp({ session }: { session: Session }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setQuickCaptureKind("note");
+        setQuickCaptureOpen(true);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        setQuickCaptureKind("mistake");
+        setQuickCaptureOpen(true);
+        return;
+      }
       if (event.key === "/" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
         event.preventDefault(); setSearchOpen(true);
       }
