@@ -357,6 +357,7 @@ export async function deleteEntry(userId: string, id: string) {
   const { error } = await db().from("knowledge_records")
     .update({ deleted_at: new Date().toISOString() }).eq("id", id).eq("user_id", userId);
   if (error) throw error;
+}
 
 // ---------------------------------------------------------------------------
 // Mistake recall: a deliberately small schedule, not a second SRS.
