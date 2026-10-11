@@ -227,14 +227,18 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const captureInboxCollection = useMemo(() => collections.find((collection) => collection.id === captureInboxCollectionId) ?? null, [collections, captureInboxCollectionId]);
   const accountLabel = session.user.email || "Supabase account";
   const accountInitial = accountLabel.slice(0, 1).toUpperCase();
-  const syncLabel = syncState.syncing
+  const syncLabel = syncState.legacyPending
+    ? `Older unsynced · ${syncState.legacyPending}`
+    : syncState.syncing
     ? "Syncing…"
     : !syncState.online
       ? syncState.pending ? `Offline · ${syncState.pending}` : "Offline"
       : syncState.pending
         ? `Sync · ${syncState.pending}`
         : syncState.lastSyncedAt ? "Synced" : "Sync";
-  const syncTitle = !syncState.online
+  const syncTitle = syncState.legacyPending
+    ? `${syncState.legacyPending} unowned offline changes from an older Heuresis version were kept safely but cannot be replayed automatically across accounts. Do not clear this app's local storage.`
+    : !syncState.online
     ? "Heuresis is using the local copy on this device. Changes will upload when internet returns."
     : syncState.lastSyncedAt
       ? `Last synchronised ${new Date(syncState.lastSyncedAt).toLocaleString()}`
