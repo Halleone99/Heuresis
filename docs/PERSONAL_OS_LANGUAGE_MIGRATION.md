@@ -1,6 +1,6 @@
 # Personal OS → Heuresis language workspace
 
-Status: **first integration, read-only**. Branch: `feature/language-workspace-sources`. No existing records have been copied, deleted or rewritten.
+Status (11 Oct 2026): **steps 1–5 implemented; step 6 (ownership cutover) not started.** Personal OS tables are still only read. No existing records have been copied, deleted or rewritten. The workspace is described in `docs/KNOWLEDGE_WORKSPACE.md`; this document is kept as the original plan and boundary.
 
 ## Target navigation
 
@@ -67,4 +67,9 @@ Use a narrow sidebar, not a blocking mode-selection screen. Keep capture availab
 - Cloud freshness and identity mismatch are handled explicitly.
 - New UI remains usable at desktop and tablet widths.
 
-**Current implementation status:** the data adapter is committed; UI, live-data checks, database changes, and migrations are not implemented or verified.
+**Current implementation status:**
+
+- Steps 1–4 are implemented. Notebook, lessons and Mistake Log use Heuresis's own `knowledge_*` tables (migrations `20261011190000` and `20261012090000`), which allow any number of lessons per day. Personal OS `language_notebooks` (objectives) and `knowledge_entries` (earlier captures) are shown read-only on Overview; `scripts/check-architecture.mjs` fails the build check if code writes to them.
+- Step 5: Progress is implemented from Heuresis's own data. The lightweight Quick Log was reviewed and **not** added, because it would duplicate Personal OS Quick Log / Capital tracking (see `docs/KNOWLEDGE_WORKSPACE.md`).
+- Step 6 is open: no data has been migrated from Personal OS, and language-ID reconciliation (issue 4) is still a prerequisite for it.
+- Verified against a local PostgreSQL + PostgREST copy of the schema, not against the live project or a live account: see `docs/WORKSPACE_V2_REPORT.md`.

@@ -15,6 +15,20 @@ For Tauri development:
 npm run tauri dev
 ```
 
+## Learning workspace
+
+The app has five sections in a compact sidebar: **Overview, Study, Notebook, Mistake Log, Progress**. Study is the original Heuresis flashcard system, unchanged internally. Notes, lessons and mistakes are captured from anywhere:
+
+| Keys | Action |
+| --- | --- |
+| `Ctrl/⌘ ⇧ N` / `M` / `L` | Quick note / mistake / start a lesson |
+| `Ctrl/⌘ K` or `/` | Search (notes in the workspace, cards in Study) |
+| `Alt 1–5` | Switch section · `?` lists every shortcut |
+
+**Database requirement:** apply `supabase/migrations/20261012090000_knowledge_workspace_v2.sql` (additive; it does not change existing rows). Until it is applied the Notebook and Mistake Log are read-only and say so; Study works either way.
+
+Details: `docs/KNOWLEDGE_WORKSPACE.md`. What changed in this version, how it was verified and what is still open: `docs/WORKSPACE_V2_REPORT.md`. Local end-to-end harness (PostgreSQL + PostgREST + Playwright, no real Supabase project needed): `verification/README.md`.
+
 ## Shared database contract
 
 The desktop client and Personal OS currently write the same Heuresis database. Compatibility is therefore a data-integrity requirement, not just a UI-parity goal.

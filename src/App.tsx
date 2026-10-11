@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { AlertTriangle, BarChart3, BookOpen, ChevronDown, FolderTree, Home, LayoutDashboard, Link2, LogOut, NotebookPen, Plus, RefreshCw, Search, Settings2 } from "lucide-react";
+import {
+  BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut, Monitor, Moon,
+  NotebookPen, Plus, Radio, RefreshCw, Search, Settings2, Sun, TriangleAlert, X,
+} from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
 import CaptureInboxView from "./components/CaptureInboxView";
@@ -8,20 +11,29 @@ import CatalogueView from "./components/CatalogueView";
 import CollectionsModal from "./components/CollectionsModal";
 import HeuresisMark from "./components/HeuresisMark";
 import LibraryView from "./components/LibraryView";
-import { EntryComposer, KnowledgeWorkspace, type WorkspaceSection } from "./components/KnowledgeWorkspace";
-import type { KnowledgeKind } from "./lib/knowledgeWorkspace";
 import PackView from "./components/PackView";
 import RelatedCatalogueView from "./components/RelatedCatalogueView";
 import SearchOverlay from "./components/SearchOverlay";
 import SettingsModal from "./components/SettingsModal";
 import TopicModal from "./components/TopicModal";
+import { MistakeLog } from "./components/workspace/MistakeLog";
+import { NotebookView } from "./components/workspace/NotebookView";
+import { OverviewView } from "./components/workspace/OverviewView";
+import { ProgressView } from "./components/workspace/ProgressView";
+import { QuickCapture } from "./components/workspace/QuickCapture";
+import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
+import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
+import { WorkspaceSearch } from "./components/workspace/WorkspaceSearch";
 import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
+import { entryTitle, isRecallDue } from "./lib/knowledgeWorkspace";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { supabase } from "./lib/supabase";
 import { synchroniseHeuresis } from "./lib/sync";
+import { applyTheme, useThemePreference } from "./lib/theme";
+import { readSection, writeSection, type ThemePreference, type WorkspaceSection } from "./lib/workspaceMemory";
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 
@@ -34,23 +46,57 @@ type BackgroundStyle = CSSProperties & {
   "--heuresis-background-fit"?: string;
 };
 
+const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; key: string }> = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard, key: "1" },
+  { id: "study", label: "Study", icon: BookOpen, key: "2" },
+  { id: "notebook", label: "Notebook", icon: NotebookPen, key: "3" },
+  { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
+  { id: "progress", label: "Progress", icon: BarChart3, key: "5" },
+];
+
 function isTypingTarget(target: EventTarget | null) {
   const element = target instanceof HTMLElement ? target : null;
   return Boolean(element && (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.tagName === "SELECT" || element.isContentEditable));
 }
 
+/**
+ * Each section keeps its own scroll position while the app is open. A section opened for the
+ * first time, or showing a different page than when it was left (e.g. a note opened from
+ * search), starts at the top.
+ */
+function useSectionScroll(section: WorkspaceSection, page: string) {
+  const positions = useRef(new Map<WorkspaceSection, { page: string; y: number }>());
+  const shown = useRef({ section, page });
+  useEffect(() => {
+    const record = () => { positions.current.set(shown.current.section, { page: shown.current.page, y: window.scrollY }); };
+    window.addEventListener("scroll", record, { passive: true });
+    return () => window.removeEventListener("scroll", record);
+  }, []);
+  useLayoutEffect(() => {
+    const sectionChanged = shown.current.section !== section;
+    shown.current = { section, page };
+    if (!sectionChanged) return;
+    const saved = positions.current.get(section);
+    window.scrollTo(0, saved && saved.page === page ? saved.y : 0);
+  }, [page, section]);
+}
+
 function HeuresisApp({ session }: { session: Session }) {
-  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection>(() => {
-    try {
-      const stored = localStorage.getItem("heuresis.workspace.section.v1");
-      return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "progress" ? stored : "overview";
-    } catch { return "overview"; }
-  });
-  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
-  const [quickCaptureKind, setQuickCaptureKind] = useState<KnowledgeKind>("note");
-  const [quickCaptureTemplate, setQuickCaptureTemplate] = useState<"note" | "lesson">("note");
-  const [knowledgeTopicId, setKnowledgeTopicId] = useState("");
-  const [knowledgeRevision, setKnowledgeRevision] = useState(0);
+  const [section, setSection] = useState<WorkspaceSection>(readSection);
+  useEffect(() => { writeSection(section); }, [section]);
+  return <WorkspaceProvider userId={session.user.id} section={section} onSection={setSection}>
+    <HeuresisShell session={session} section={section} setSection={setSection} />
+  </WorkspaceProvider>;
+}
+
+function HeuresisShell({ session, section, setSection }: { session: Session; section: WorkspaceSection; setSection: (section: WorkspaceSection) => void }) {
+  const workspace = useWorkspace();
+  const notebookPage = workspace.memory.notebook;
+  useSectionScroll(section, section === "notebook" ? `${notebookPage.docId ?? ""}|${notebookPage.topicId ?? ""}|${notebookPage.subjectId ?? ""}` : "");
+  const [theme, setTheme] = useThemePreference();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [cardQuery, setCardQuery] = useState("");
   const [view, setView] = useState<View>("library");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
@@ -70,6 +116,8 @@ function HeuresisApp({ session }: { session: Session }) {
   const [topicModalPack, setTopicModalPack] = useState<PackWithType | null>(null);
   const [topicPreferredCollectionId, setTopicPreferredCollectionId] = useState<string | null>(null);
   const [syncState, setSyncState] = useState(getOfflineSyncState());
+  const accountMenuRef = useRef<HTMLDetailsElement>(null);
+  const restoredStudy = useRef(false);
   const background = useHeuresisBackground();
 
   async function reload(silent = false) {
@@ -99,19 +147,10 @@ function HeuresisApp({ session }: { session: Session }) {
   }
 
   useEffect(() => { void reload().catch(() => undefined); }, []);
-
   useEffect(() => subscribeOfflineSync(setSyncState), []);
-  useEffect(() => {
-    try { localStorage.setItem("heuresis.workspace.section.v1", workspaceSection); } catch { /* optional */ }
-  }, [workspaceSection]);
-  const openKnowledgeCapture = (kind: KnowledgeKind = "note", template: "note" | "lesson" = "note") => {
-    setQuickCaptureKind(kind);
-    setQuickCaptureTemplate(template);
-    setQuickCaptureOpen(true);
-  };
 
   useEffect(() => {
-    const onOnline = () => { void runSync(true); };
+    const onOnline = () => { if (!getOfflineSyncState().syncing) void runSync(true); };
     window.addEventListener("online", onOnline);
     const interval = window.setInterval(() => {
       if (navigator.onLine && !getOfflineSyncState().syncing) void runSync(true);
@@ -125,40 +164,62 @@ function HeuresisApp({ session }: { session: Session }) {
 
   useEffect(() => {
     const refreshOnFocus = () => { void reload(true).catch(() => undefined); };
+    const studyChanged = () => { void reload(true).catch(() => undefined); };
     window.addEventListener("focus", refreshOnFocus);
-    return () => window.removeEventListener("focus", refreshOnFocus);
+    window.addEventListener("heuresis:study-changed", studyChanged);
+    return () => { window.removeEventListener("focus", refreshOnFocus); window.removeEventListener("heuresis:study-changed", studyChanged); };
   }, []);
 
+  // Reopen the Study topic that was open when Heuresis was last closed.
+  useEffect(() => {
+    if (restoredStudy.current || loading || error) return;
+    restoredStudy.current = true;
+    const saved = workspace.memory.study;
+    if (saved.view === "pack" && saved.packId && packs.some((pack) => pack.id === saved.packId)) { setActivePackId(saved.packId); setView("pack"); }
+    else if (saved.view === "catalogue" || saved.view === "related") setView(saved.view);
+  }, [error, loading, packs, workspace.memory.study]);
+  useEffect(() => {
+    if (!restoredStudy.current) return;
+    const studyView = view === "capture-inbox" ? "library" : view;
+    workspace.updateMemory((current) => current.study.view === studyView && current.study.packId === activePackId ? current : { ...current, study: { view: studyView, packId: activePackId } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePackId, view]);
+
+  const openPalette = useCallback(() => { setPaletteOpen(true); }, []);
+
+  // Global shortcuts. Modifier combinations work even while typing (they never
+  // produce text), and use physical key codes so they also work with Russian,
+  // German or Chinese keyboard layouts active.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) return;
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "n") {
+      if (event.isComposing) return;
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM", "KeyL"].includes(event.code)) {
         event.preventDefault();
-        openKnowledgeCapture("note");
+        workspace.openCapture({ mode: event.code === "KeyN" ? "note" : event.code === "KeyM" ? "mistake" : "lesson" });
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+      if (mod && !event.shiftKey && !event.altKey && event.code === "KeyK") {
         event.preventDefault();
-        openKnowledgeCapture("mistake");
+        if (section === "study") setSearchOpen(true); else openPalette();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "l") {
+      if (isTypingTarget(event.target) || document.querySelector(".modal-backdrop, .ws-dialog-backdrop")) return;
+      if (event.key === "/" && !mod && !event.altKey) {
         event.preventDefault();
-        openKnowledgeCapture("note", "lesson");
+        if (section === "study") setSearchOpen(true); else openPalette();
         return;
       }
-      if (event.key === "/" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
+      if (event.altKey && !mod && /^Digit[1-5]$/.test(event.code)) {
         event.preventDefault();
-        if (workspaceSection === "study") setSearchOpen(true);
-        else {
-          setWorkspaceSection("notebook");
-          window.requestAnimationFrame(() => document.querySelector<HTMLInputElement>(".kw-search input")?.focus());
-        }
+        setSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
+        return;
       }
+      if (event.key === "?" && !mod) { event.preventDefault(); setShortcutsOpen(true); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [workspaceSection]);
+  }, [openPalette, section, setSection, workspace]);
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
@@ -186,6 +247,12 @@ function HeuresisApp({ session }: { session: Session }) {
     "--heuresis-background-position": background.settings.position,
     "--heuresis-background-fit": background.settings.fit,
   };
+  const studySummary = useMemo(() => ({
+    cards: packs.reduce((sum, pack) => sum + (pack.card_count ?? 0), 0),
+    collections: collections.length,
+    topics: packs.length,
+  }), [collections.length, packs]);
+  const dueCount = workspace.snapshot.entries.filter((entry) => isRecallDue(entry)).length;
 
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
   function openPack(pack: PackWithType) { setActivePackId(pack.id); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
@@ -224,14 +291,27 @@ function HeuresisApp({ session }: { session: Session }) {
     setNotice("Topic created from Raw.");
   }
 
+  function chooseTheme(next: ThemePreference) {
+    setTheme(next);
+    if (accountMenuRef.current) accountMenuRef.current.open = false;
+  }
+
+  const workspaceNotice = workspace.schema !== "v2" && section !== "study" ? <div className="ws-schema-notice" role="status">
+    <TriangleAlert size={16} />
+    <span>{workspace.schema === "missing"
+      ? <>The Notebook tables do not exist in this database yet. Apply the two Knowledge migrations in <code>supabase/migrations/</code> to start writing notes. Study is unaffected.</>
+      : <>The Notebook is read-only until the database update <code>20261012090000_knowledge_workspace_v2.sql</code> is applied. Your existing notes are shown; Study is unaffected.</>}</span>
+    <button type="button" className="ws-button is-small" onClick={() => void workspace.reload()}>Check again</button>
+  </div> : null;
+
   return (
-    <div className="heuresis-desktop" style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
+    <div className="heuresis-desktop" data-section={section} style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
       <div className="heuresis-wallpaper" aria-hidden="true" />
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={() => { setWorkspaceSection("study"); openLibrary(); }} aria-label="Open Study library"><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
-        {workspaceSection === "study" ? <nav className="desktop-nav-group" aria-label="Study navigation">
+        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
+        {section === "study" ? <nav className="desktop-nav-group" aria-label="Study navigation">
           <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
           <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
           <button className={`desktop-nav-item ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Connections</button>
@@ -240,16 +320,24 @@ function HeuresisApp({ session }: { session: Session }) {
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
           <button className="desktop-action" title={syncTitle} disabled={syncState.syncing} onClick={() => void runSync(false)}><RefreshCw size={14} /> <span>{syncLabel}</span></button>
-          {workspaceSection === "study" ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>⌘K</kbd></button> : null}
-          {workspaceSection === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
-          {workspaceSection === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
-          <button className="desktop-action hw-capture-button" onClick={() => openKnowledgeCapture()}><Plus size={14} /> Quick note</button>
-          <details className="desktop-account-menu">
+          {section === "study"
+            ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>{MOD_KEY} K</kbd></button>
+            : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
+          {section === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
+          {section === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
+          <button className="desktop-action hw-capture-button" onClick={() => workspace.openCapture({ mode: "note" })} title={`Quick capture (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
+          <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
+              <div className="hw-theme-row" role="group" aria-label="Appearance">
+                <button type="button" className={theme === "system" ? "is-active" : ""} aria-pressed={theme === "system"} onClick={() => chooseTheme("system")}><Monitor size={13} /> Auto</button>
+                <button type="button" className={theme === "light" ? "is-active" : ""} aria-pressed={theme === "light"} onClick={() => chooseTheme("light")}><Sun size={13} /> Light</button>
+                <button type="button" className={theme === "dark" ? "is-active" : ""} aria-pressed={theme === "dark"} onClick={() => chooseTheme("dark")}><Moon size={13} /> Dark</button>
+              </div>
               <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Synchronise offline copy</button>
-              <button onClick={() => void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined)}><RefreshCw size={14} /> Refresh data</button>
+              <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
+              <button onClick={() => { setShortcutsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Keyboard size={14} /> Keyboard shortcuts</button>
               <button onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
               <div className="desktop-account-divider" />
               <button onClick={() => void supabase?.auth.signOut()}><LogOut size={14} /> Sign out</button>
@@ -257,34 +345,50 @@ function HeuresisApp({ session }: { session: Session }) {
           </details>
         </div>
       </header>
-      {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div> : null}
+      {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}
       <div className="heuresis-workspace-layout">
-        <aside className="heuresis-section-sidebar" aria-label="Learning workspace navigation">
-          <span className="hw-caption">WORKSPACE</span>
-          <button className={workspaceSection === "overview" ? "active" : ""} onClick={() => setWorkspaceSection("overview")}><LayoutDashboard size={16}/><span>Overview</span></button>
-          <button className={workspaceSection === "study" ? "active" : ""} onClick={() => setWorkspaceSection("study")}><BookOpen size={16}/><span>Study</span></button>
-          <div className="hw-divider"/>
-          <button className={workspaceSection === "notebook" ? "active" : ""} onClick={() => setWorkspaceSection("notebook")}><NotebookPen size={16}/><span>Notebook</span></button>
-          <button className={workspaceSection === "mistakes" ? "active" : ""} onClick={() => setWorkspaceSection("mistakes")}><AlertTriangle size={16}/><span>Mistake Log</span></button>
-          <button className={workspaceSection === "progress" ? "active" : ""} onClick={() => setWorkspaceSection("progress")}><BarChart3 size={16}/><span>Progress</span></button>
-          <span className="hw-help">Capture → Clarify → Practice</span>
+        <aside className="heuresis-section-sidebar" aria-label="Sections">
+          <nav className="hw-sections">
+            {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
+              onClick={() => setSection(id)} title={`${label} (Alt+${key})`}>
+              <Icon size={16} /><span>{label}</span>
+              {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
+            </button>)}
+          </nav>
+          {workspace.currentLesson ? <div className="hw-lesson">
+            <span className="hw-lesson-label"><Radio size={12} /> In lesson</span>
+            <button type="button" className="hw-lesson-title" onClick={() => workspace.openDocument(workspace.currentLesson!.id)} title="Open the lesson page">{entryTitle(workspace.currentLesson)}</button>
+            <button type="button" className="hw-lesson-end" onClick={() => workspace.endLesson()} aria-label="End lesson" title="End lesson — captures stop attaching to it"><X size={13} /></button>
+          </div> : null}
+          <button type="button" className="hw-capture-hint" onClick={() => workspace.openCapture({ mode: "note" })}>
+            <span>Quick capture</span><Kbd>{MOD_KEY} ⇧ N</Kbd>
+          </button>
         </aside>
-      <main className="desktop-content">
-        {workspaceSection !== "study" ? <KnowledgeWorkspace userId={session.user.id} mode={workspaceSection}
-          revision={knowledgeRevision} onStartCapture={openKnowledgeCapture}
-          onMode={setWorkspaceSection} onTopic={setKnowledgeTopicId} /> : null}
-        {workspaceSection === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
-        {workspaceSection === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-        {workspaceSection === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
-        {workspaceSection === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
-        {workspaceSection === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
-        {workspaceSection === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
-        {workspaceSection === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
-      </main>
+        <main className={`desktop-content ${section === "study" ? "is-study" : "is-workspace"}`}>
+          {workspaceNotice}
+          {section !== "study" && workspace.error ? <div className="ws-error-panel" role="alert">
+            <strong>{getOfflineSyncState().online ? "The Notebook could not be loaded." : "This device has no offline copy of the Notebook yet."}</strong>
+            <span>{workspace.error}</span>
+            <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
+          </div> : null}
+          {section === "overview" ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} /> : null}
+          {section === "notebook" ? <NotebookView onSearch={openPalette} /> : null}
+          {section === "mistakes" ? <MistakeLog /> : null}
+          {section === "progress" ? <ProgressView /> : null}
+          {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
+          {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
+          {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+          {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
+          {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
+          {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
+          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
+        </main>
       </div>
-      {quickCaptureOpen ? <EntryComposer userId={session.user.id} initialKind={quickCaptureKind} initialTemplate={quickCaptureTemplate} initialTopicId={knowledgeTopicId}
-        onClose={() => setQuickCaptureOpen(false)} onSaved={() => { setQuickCaptureOpen(false); setKnowledgeRevision((count) => count + 1); }} /> : null}
-      {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
+      <QuickCapture />
+      <Toaster />
+      {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
+      {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+      {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack) => { setSection("study"); openPack(pack); }} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
@@ -293,4 +397,32 @@ function HeuresisApp({ session }: { session: Session }) {
   );
 }
 
-export default function App() { return <AuthGate>{(session) => <HeuresisApp session={session} />}</AuthGate>; }
+function ShortcutsDialog({ onClose }: { onClose: () => void }) {
+  const rows: Array<[string, string]> = [
+    [`${MOD_KEY} ⇧ N`, "Quick note (from anywhere, even while typing)"],
+    [`${MOD_KEY} ⇧ M`, "Record a mistake"],
+    [`${MOD_KEY} ⇧ L`, "Start a lesson"],
+    [`${MOD_KEY} ↵`, "Save the capture · finish editing"],
+    [`${MOD_KEY} K  or  /`, "Search notes (in Study: search cards)"],
+    ["Alt 1 – 5", "Overview · Study · Notebook · Mistake Log · Progress"],
+    ["E", "Edit the open note"],
+    ["Alt ←", "Back in the Notebook"],
+    [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],
+    [`${MOD_KEY} Alt 1 · 2`, "Heading · subheading while editing"],
+    ["# · - · 1. · >", "Type at the start of a line for a heading, list, numbered list or quotation"],
+    ["Esc", "Close a panel — Quick capture keeps your draft"],
+  ];
+  return <div className="ws-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="ws-dialog is-wide" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}>
+      <div className="ws-dialog-head"><h2 id="shortcuts-title"><Keyboard size={17} /> Keyboard shortcuts</h2>
+        <button type="button" className="ws-icon-button" autoFocus aria-label="Close" onClick={onClose}><X size={16} /></button></div>
+      <dl className="ws-shortcuts">{rows.map(([keys, label]) => <div key={keys}><dt><Kbd>{keys}</Kbd></dt><dd>{label}</dd></div>)}</dl>
+      <p className="ws-muted">Shortcuts use physical key positions, so they keep working with a Russian, German or Chinese input method active.</p>
+    </div>
+  </div>;
+}
+
+export default function App() {
+  useEffect(() => { applyTheme(); }, []);
+  return <AuthGate>{(session) => <HeuresisApp session={session} />}</AuthGate>;
+}

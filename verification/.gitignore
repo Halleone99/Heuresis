@@ -1,0 +1,10 @@
+pgdata/
+postgrest
+postgrest.pid
+postgrest.log
+pg.log
+gateway.log
+.postgrest.local.conf
+node_modules/
+screenshots/
+tests/state.json

@@ -182,7 +182,6 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
   const directions = useMemo<DirectionTemplates>(() => directionTemplates(pack, templates), [pack, templates]);
-  const neverCards = useMemo(() => cards.filter((card) => reviewGradeCount(card) === 0), [cards]);
   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
@@ -196,7 +195,6 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
 
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
   const richDiagnostics = explored >= 20;
-  const totalReviews = useMemo(() => cards.reduce((sum, card) => sum + reviewGradeCount(card), 0), [cards]);
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();

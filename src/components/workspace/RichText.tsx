@@ -1,0 +1,100 @@
+import { useState, type ReactNode } from "react";
+import { Check, Copy } from "lucide-react";
+import { CALLOUTS, parseBlocks, parseInline, type Block, type ListItem } from "../../lib/noteFormat";
+
+export type LinkResolver = (target: string) => { exists: boolean; open: () => void };
+
+function InlineText({ text, resolve }: { text: string; resolve?: LinkResolver }) {
+  return <>{parseInline(text).map((part, index) => {
+    if (part.type === "strong") return <strong key={index}>{part.text}</strong>;
+    if (part.type === "em") return <em key={index}>{part.text}</em>;
+    if (part.type === "mark") return <mark key={index}>{part.text}</mark>;
+    if (part.type === "strike") return <s key={index}>{part.text}</s>;
+    if (part.type === "link") {
+      const link = resolve?.(part.target);
+      return <button type="button" key={index} className={`nb-wikilink ${link?.exists ? "" : "is-missing"}`}
+        title={link?.exists ? `Open “${part.target}”` : `Create a note called “${part.target}”`}
+        onClick={(event) => { event.stopPropagation(); link?.open(); }}>{part.label}</button>;
+    }
+    return <span key={index}>{part.text}</span>;
+  })}</>;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return <button type="button" className="nb-copy" aria-label="Copy example" title="Copy"
+    onClick={() => {
+      void navigator.clipboard?.writeText(text).then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1400);
+      }).catch(() => undefined);
+    }}>{copied ? <Check size={13} /> : <Copy size={13} />}</button>;
+}
+
+function renderList(items: ListItem[], resolve?: LinkResolver) {
+  type Node = { item: ListItem; children: Node[] };
+  const root: Node[] = [];
+  const stack: Array<{ depth: number; children: Node[] }> = [{ depth: -1, children: root }];
+  for (const item of items) {
+    while (stack.length > 1 && stack[stack.length - 1].depth >= item.depth) stack.pop();
+    const node: Node = { item, children: [] };
+    stack[stack.length - 1].children.push(node);
+    stack.push({ depth: item.depth, children: node.children });
+  }
+  const render = (nodes: Node[], key: string): ReactNode => {
+    const ordered = nodes[0]?.item.ordered;
+    const Tag = ordered ? "ol" : "ul";
+    return <Tag key={key}>{nodes.map((node, index) => <li key={index}>
+      <InlineText text={node.item.text} resolve={resolve} />
+      {node.children.length ? render(node.children, `${key}-${index}`) : null}
+    </li>)}</Tag>;
+  };
+  return render(root, "list");
+}
+
+/** Examples are written as groups of lines: sentence, then reading, then meaning. */
+function exampleGroups(lines: string[]) {
+  const groups: string[][] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    if (!line.trim()) { if (current.length) groups.push(current); current = []; continue; }
+    current.push(line);
+  }
+  if (current.length) groups.push(current);
+  return groups;
+}
+
+function BlockView({ block, resolve }: { block: Block; resolve?: LinkResolver }) {
+  switch (block.type) {
+    case "h2": return <h2><InlineText text={block.text} resolve={resolve} /></h2>;
+    case "h3": return <h3><InlineText text={block.text} resolve={resolve} /></h3>;
+    case "hr": return <hr />;
+    case "ul": case "ol": return <>{renderList(block.items, resolve)}</>;
+    case "quote": return <blockquote>{parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} />)}</blockquote>;
+    case "callout": {
+      if (block.variant === "example") {
+        return <aside className="nb-callout" data-callout="example">
+          <span className="nb-callout-label">{CALLOUTS.example}</span>
+          {exampleGroups(block.lines).map((group, index) => <div className="nb-example" key={index}>
+            <p className="nb-example-main"><InlineText text={group[0]} resolve={resolve} /></p>
+            {group.slice(1).map((line, lineIndex) => <p key={lineIndex} className={lineIndex === 0 && group.length > 2 ? "nb-example-reading" : "nb-example-meaning"}><InlineText text={line} resolve={resolve} /></p>)}
+            <CopyButton text={group.join("\n")} />
+          </div>)}
+        </aside>;
+      }
+      return <aside className="nb-callout" data-callout={block.variant}>
+        <span className="nb-callout-label">{CALLOUTS[block.variant]}</span>
+        {parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} />)}
+      </aside>;
+    }
+    default: return block.text.trim() ? <p><InlineText text={block.text} resolve={resolve} /></p> : <div className="nb-gap" aria-hidden="true" />;
+  }
+}
+
+export function RichText({ text, resolve, className = "" }: { text: string; resolve?: LinkResolver; className?: string }) {
+  const blocks = parseBlocks(text);
+  return <div className={`nb-prose ${className}`}>
+    {blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} />)}
+  </div>;
+}
+

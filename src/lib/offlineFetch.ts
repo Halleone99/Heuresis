@@ -560,7 +560,29 @@ export async function refreshOfflinePendingCount() {
   return state.pending;
 }
 
-export async function flushOfflineRequests(accessToken: string | null | undefined) {
+/**
+ * A queued insert whose primary key already exists was applied by an earlier
+ * attempt whose response never arrived (e.g. the connection dropped mid-request).
+ * Replaying it can never succeed, and keeping it would block every later write.
+ */
+function isAlreadyAppliedInsert(method: string, status: number, responseText: string) {
+  if (method !== "POST" || status !== 409) return false;
+  try {
+    const parsed = JSON.parse(responseText) as { code?: string; details?: string };
+    return parsed.code === "23505" && /^Key \(id\)=/.test(parsed.details ?? "");
+  } catch { return false; }
+}
+
+let activeFlush: Promise<{ sent: number; pending: number }> | null = null;
+
+/** Replays queued writes in order. Concurrent callers share one run so nothing is sent twice. */
+export function flushOfflineRequests(accessToken: string | null | undefined) {
+  if (activeFlush) return activeFlush;
+  activeFlush = flushQueue(accessToken).finally(() => { activeFlush = null; });
+  return activeFlush;
+}
+
+async function flushQueue(accessToken: string | null | undefined) {
   if (typeof navigator !== "undefined" && !navigator.onLine) return { sent: 0, pending: await refreshOfflinePendingCount() };
   const queued = (await getAllRecords<QueueRecord>(QUEUE_STORE)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   let sent = 0;
@@ -569,7 +591,10 @@ export async function flushOfflineRequests(accessToken: string | null | undefine
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     try {
       const response = await networkFetch(item.url, { method: item.method, headers, body: item.body });
-      if (!response.ok) throw new Error((await response.text().catch(() => "")) || `Sync failed with HTTP ${response.status}.`);
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        if (!isAlreadyAppliedInsert(item.method, response.status, text)) throw new Error(text || `Sync failed with HTTP ${response.status}.`);
+      }
       await deleteRecord(QUEUE_STORE, item.id);
       sent += 1;
     } catch (error) {
@@ -579,6 +604,11 @@ export async function flushOfflineRequests(accessToken: string | null | undefine
     }
   }
   return { sent, pending: await refreshOfflinePendingCount() };
+}
+
+/** Number of writes made offline that have not reached the server yet. */
+export function pendingOfflineWrites() {
+  return state.pending;
 }
 
 export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {

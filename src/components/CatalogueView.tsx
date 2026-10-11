@@ -1,6 +1,6 @@
 import { ArrowLeft, BookmarkPlus, BookOpen, Brain, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { fieldByRole, fieldText, listAllCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+import { fieldByRole, fieldText, listAllCards, listTags, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { createCatalogue, deleteCatalogue, listCatalogues, updateCatalogue, type CatalogueCriteria, type CatalogueStatus, type SavedCatalogue } from "../lib/advanced";
 import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, type DirectionTemplates } from "../lib/learningSignals";
 import { loadStudySetup } from "../lib/study";
@@ -203,7 +203,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
         {activeSavedId ? <button className="text-button" onClick={() => void deleteCatalogue(activeSavedId).then(async () => { setSaved(await listCatalogues()); setActiveSavedId(null); })}><Trash2 size={14} /> Delete saved</button> : null}
       </div>
 
-      {loading && !items.length ? <div className="content-state compact">Loading the catalogue…</div> : error ? <div className="content-state error-state compact">{error}</div> : <div className="intelligent-result-grid">{shown.map(({ card, pack }) => {
+      {loading && !items.length ? <div className="content-state compact" role="status">Loading the catalogue…{progress ? <small> {progress}</small> : null}</div> : error ? <div className="content-state error-state compact">{error}</div> : <div className="intelligent-result-grid">{shown.map(({ card, pack }) => {
         const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
         const reading = fieldByRole(pack.cardType, "reading");
         const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;

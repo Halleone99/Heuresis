@@ -1,0 +1,47 @@
+// Capture from inside the editor, focus return, and an abandoned new note.
+import { check, launch, section, signIn, sql } from "./lib.mjs";
+const { browser, page, errors } = await launch();
+await signIn(page);
+const mod = "Control";
+await section(page, "Notebook");
+await page.keyboard.press(`${mod}+KeyK`); await page.keyboard.type("以前 / 以后"); await page.waitForTimeout(150); await page.keyboard.press("Enter");
+await page.waitForSelector(".nb-doc-title");
+await page.keyboard.press("e");
+await page.waitForSelector(".nb-editor");
+await page.click(".nb-editor");
+await page.keyboard.press(`${mod}+End`);
+await page.keyboard.type(" Editing");
+await page.keyboard.press(`${mod}+Shift+KeyN`);
+await page.keyboard.type("captured mid-edit");
+await page.keyboard.press(`${mod}+Enter`);
+await page.waitForSelector(".ws-toast:has-text('Saved to')");
+const focused = await page.evaluate(() => document.activeElement?.classList.contains("nb-editor"));
+check(focused, "after saving a capture, focus is back in the editor");
+await page.keyboard.type(" and back");
+await page.waitForTimeout(1500);
+const body = await sql("select body from knowledge_records where title='以前 / 以后'");
+check(body.includes("Editing and back") && !body.includes("captured mid-edit"), "editor text continued; capture text did not leak into the note");
+check(await sql("select count(*) from knowledge_records where body='captured mid-edit'") === "1", "capture stored separately");
+await page.keyboard.press(`${mod}+Enter`);
+
+console.log("Abandoned new note leaves nothing behind");
+const before = await sql("select count(*) from knowledge_records");
+await page.click(".nb-tree-row:has-text('Inbox') .nb-tree-label >> nth=0"); await page.waitForSelector('.nb-scope-head');
+await page.click(".nb-scope-actions button:has-text('New note')");
+await page.waitForSelector(".nb-editor");
+await page.click(".nb-doc-actions button:has-text('Done')");
+await page.waitForTimeout(500);
+check(await sql("select count(*) from knowledge_records") === before, "no empty note stored");
+check(await page.locator(".nb-scope-head").count() === 1, "returned to the topic page");
+
+console.log("New note: first save creates it, editing continues seamlessly");
+await page.click(".nb-scope-actions button:has-text('New note')");
+await page.waitForSelector(".nb-editor");
+await page.keyboard.type("Новая заметка");
+await page.waitForTimeout(1500);
+await page.keyboard.type(" — продолжение");
+await page.waitForTimeout(1500);
+check(await sql("select count(*) from knowledge_records where body='Новая заметка — продолжение'") === "1", "Cyrillic note created on first save and updated, no duplicates");
+check(await page.locator(".nb-editor").count() === 1, "still editing after the first save");
+check(errors.length === 0, `no page errors (${errors.length})`);
+await browser.close();
