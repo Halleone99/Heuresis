@@ -88,10 +88,10 @@ await page.waitForSelector(".ws-dialog[role='alertdialog']");
 await shot(page, "delete-confirmation");
 await page.click(".ws-dialog button:has-text('Delete')");
 await page.waitForSelector(".ws-toast:has-text('Deleted')");
-check(await sql("select count(*) from knowledge_records where body like '下课以后%'") === "0", "entry deleted after confirmation");
+check(await sql("select count(*) from knowledge_records where body like '下课以后%' and deleted_at is not null") === "1", "entry archived reversibly after confirmation");
 await page.click(".ws-toast:has-text('Deleted') button:has-text('Undo')");
 await page.waitForSelector(".ws-toast:has-text('Restored')");
-check(await sql("select count(*) from knowledge_records where body like '下课以后%' and lesson_id is not null") === "1", "Undo restores it, including its lesson link");
+check(await sql("select count(*) from knowledge_records where body like '下课以后%' and lesson_id is not null and deleted_at is null") === "1", "Undo restores it, including its lesson link");
 
 console.log("15. Study still functions");
 await section(page, "Study");

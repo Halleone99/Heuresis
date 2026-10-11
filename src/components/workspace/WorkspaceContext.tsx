@@ -303,8 +303,10 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     await deleteEntry(userId, id);
     setSnapshot((current) => ({
       ...current,
-      entries: current.entries.filter((row) => row.id !== id).map((row) => row.lesson_id === id ? { ...row, lesson_id: null } : row),
-      practice: current.practice.filter((row) => row.record_id !== id),
+      // The database uses a reversible archive; do not discard attached
+      // captures or recall history from memory while Undo is still possible.
+      entries: current.entries.filter((row) => row.id !== id),
+      practice: current.practice,
     }));
     if (existing && options.undo !== false) {
       toast(`Deleted “${entryTitle(existing).slice(0, 48)}”.`, {

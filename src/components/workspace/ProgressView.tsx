@@ -156,6 +156,10 @@ export function ProgressView() {
       </div>
     </header>
 
+    {snapshot.practiceError ? <div role="alert" className="ws-inline-warning">
+      Mistake recall history is temporarily unavailable: {snapshot.practiceError}
+      <button type="button" className="ws-button is-small" onClick={() => void workspace.reload()}>Retry</button>
+    </div> : null}
     <div className="pg-grid">
       <WeeklyBars title="Card reviews in Study" unit="reviews" table={table} weeks={bucket(weeks, reviews.map((event) => event.created_at))}
         note={studyError ? "Study activity could not be loaded." : offline && !activity ? "Needs a connection." : goodShare !== null ? `${goodShare}% answered good or easy` : "Graded answers in flashcard review"} />
@@ -164,7 +168,7 @@ export function ProgressView() {
       <WeeklyBars title="Lessons recorded" unit="lessons" table={table} weeks={bucket(weeks, lessons.map((entry) => entry.lesson_date ?? entry.created_at))}
         note="By lesson date" />
       <WeeklyBars title="Mistake recalls" unit="recalls" table={table} weeks={bucket(weeks, practice.map((event) => event.created_at))}
-        note={recallShare !== null ? `${recallShare}% produced correctly from memory` : "Produce the correction before seeing it"} />
+        note={snapshot.practiceError ? "Recall history unavailable — not a zero count." : recallShare !== null ? `${recallShare}% produced correctly from memory` : "Produce the correction before seeing it"} />
       <WeeklyBars title="Notes captured" unit="notes" table={table} weeks={bucket(weeks, notes.map((entry) => entry.created_at))}
         note="Quick notes and written notes" />
     </div>

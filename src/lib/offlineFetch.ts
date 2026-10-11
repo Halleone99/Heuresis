@@ -1,4 +1,5 @@
 type CacheRecord = {
+  ownerId?: string;
   key: string;
   url: string;
   method: string;
@@ -10,6 +11,7 @@ type CacheRecord = {
 };
 
 type QueueRecord = {
+  ownerId?: string;
   id: string;
   url: string;
   method: string;
@@ -23,6 +25,8 @@ export type OfflineSyncState = {
   online: boolean;
   syncing: boolean;
   pending: number;
+  /** Old queued writes without an owner remain quarantined, not discarded. */
+  legacyPending: number;
   lastSyncedAt: string | null;
   error: string;
 };
@@ -50,11 +54,35 @@ const TABLES_WITH_CLIENT_IDS = new Set([
 ]);
 
 const networkFetch = globalThis.fetch.bind(globalThis);
+// Offline data is device-local but belongs to exactly one authenticated user.
+// Older unowned records are deliberately never exposed or replayed.
+let activeOfflineOwner: string | null = null;
+export function setOfflineAccount(userId: string | null) {
+  const next = userId || null;
+  if (next === activeOfflineOwner) return;
+  activeOfflineOwner = next;
+  emit({ lastSyncedAt: null, pending: 0, legacyPending: 0, error: "" });
+  void refreshOfflinePendingCount();
+}
+function cacheOwner() {
+  return activeOfflineOwner;
+}
+function requestOwner(headers: Headers) {
+  const auth = headers.get("authorization") ?? "";
+  const jwt = auth.match(/^Bearer\s+([^.]+)\.([^.]+)\./i);
+  if (!jwt) return null;
+  try {
+    const payload = jwt[2].replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown };
+    return typeof claims.sub === "string" && claims.sub ? claims.sub : null;
+  } catch { return null; }
+}
 let dbPromise: Promise<IDBDatabase> | null = null;
 let state: OfflineSyncState = {
   online: typeof navigator === "undefined" ? true : navigator.onLine,
   syncing: false,
   pending: 0,
+  legacyPending: 0,
   lastSyncedAt: typeof localStorage === "undefined" ? null : localStorage.getItem(LAST_SYNC_KEY),
   error: "",
 };
@@ -156,7 +184,7 @@ function headersObject(headers: Headers, includeAuthorization = true) {
 }
 
 function keyFor(method: string, url: string, headers: Headers, body: string | null) {
-  return [method, url, headers.get("range") ?? "", headers.get("accept-profile") ?? "", body ?? ""].join("|");
+  return [cacheOwner() ?? "NO_USER", method, url, headers.get("range") ?? "", headers.get("accept-profile") ?? "", body ?? ""].join("|");
 }
 
 function rpcName(urlString: string) {
@@ -195,13 +223,14 @@ async function requestParts(input: RequestInfo | URL, init?: RequestInit) {
   return { method, headers, body, url: request.url };
 }
 
-async function saveResponse(key: string, method: string, url: string, response: Response) {
+async function saveResponse(key: string, method: string, url: string, response: Response, ownerId: string) {
   if (!response.ok) return;
   try {
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, name) => { responseHeaders[name] = value; });
     await putRecord<CacheRecord>(CACHE_STORE, {
       key,
+      ownerId,
       url,
       method,
       status: response.status,
@@ -280,7 +309,7 @@ async function cachedRows(table: string) {
   const rows = new Map<string, Record<string, unknown>>();
   let anonymous = 0;
   for (const record of records) {
-    if (record.method !== "GET" || tableName(record.url) !== table) continue;
+    if (!activeOfflineOwner || record.ownerId !== activeOfflineOwner || record.method !== "GET" || tableName(record.url) !== table) continue;
     const parsed = decodeJson(record);
     const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
     for (const item of list) {
@@ -322,7 +351,7 @@ async function synthesiseRead(method: string, urlString: string, headers: Header
 async function rewriteCachedTable(table: string, transform: (parsed: unknown, url: URL) => unknown) {
   const records = await getAllRecords<CacheRecord>(CACHE_STORE);
   for (const record of records) {
-    if (record.method !== "GET" || tableName(record.url) !== table) continue;
+    if (!activeOfflineOwner || record.ownerId !== activeOfflineOwner || record.method !== "GET" || tableName(record.url) !== table) continue;
     record.body = encodeJson(transform(decodeJson(record), new URL(record.url)));
     record.updatedAt = new Date().toISOString();
     await putRecord(CACHE_STORE, record);
@@ -529,6 +558,7 @@ async function applySuccessfulMutation(method: string, urlString: string, rawBod
 }
 
 async function queueMutation(method: string, urlString: string, headers: Headers, rawBody: string | null) {
+  if (!cacheOwner()) throw new TypeError("Sign in to save changes offline.");
   const table = tableName(urlString);
   const rpc = rpcName(urlString);
   if (rpc === EVENT_RPC) throw new TypeError("Offline: review events remain in the Heuresis event queue until synchronisation.");
@@ -538,6 +568,7 @@ async function queueMutation(method: string, urlString: string, headers: Headers
   const queuedBody = parsed === null ? rawBody : JSON.stringify(parsed);
   const item: QueueRecord = {
     id: crypto.randomUUID(),
+    ownerId: cacheOwner() ?? undefined,
     url: urlString,
     method,
     headers: headersObject(headers, false),
@@ -555,8 +586,14 @@ async function queueMutation(method: string, urlString: string, headers: Headers
 }
 
 export async function refreshOfflinePendingCount() {
-  try { emit({ pending: (await getAllRecords<QueueRecord>(QUEUE_STORE)).length }); }
-  catch { emit({ pending: 0 }); }
+  try {
+    const owner = cacheOwner();
+    const rows = await getAllRecords<QueueRecord>(QUEUE_STORE);
+    emit({
+      pending: owner ? rows.filter((row) => row.ownerId === owner).length : 0,
+      legacyPending: rows.filter((row) => !row.ownerId).length,
+    });
+  } catch { emit({ pending: 0, legacyPending: 0 }); }
   return state.pending;
 }
 
@@ -584,9 +621,16 @@ export function flushOfflineRequests(accessToken: string | null | undefined) {
 
 async function flushQueue(accessToken: string | null | undefined) {
   if (typeof navigator !== "undefined" && !navigator.onLine) return { sent: 0, pending: await refreshOfflinePendingCount() };
-  const queued = (await getAllRecords<QueueRecord>(QUEUE_STORE)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const owner = accessToken ? requestOwner(new Headers({ authorization: `Bearer ${accessToken}` })) : null;
+  if (!owner || owner !== cacheOwner()) {
+    throw new Error("Offline sync paused: sign in with the account that created these changes.");
+  }
+  const queued = (await getAllRecords<QueueRecord>(QUEUE_STORE))
+    .filter((row) => row.ownerId === owner)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   let sent = 0;
   for (const item of queued) {
+    if (cacheOwner() !== owner) throw new Error("Offline sync paused because the signed-in account changed.");
     const headers = new Headers(item.headers);
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     try {
@@ -613,16 +657,23 @@ export function pendingOfflineWrites() {
 
 export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const { method, headers, body, url } = await requestParts(input, init);
+  const owner = requestOwner(headers);
+  // Tokens are read only to identify the client-side cache partition.
+  // Online RLS continues to decide whether the request is authorised.
+  if (owner && owner !== cacheOwner()) setOfflineAccount(owner);
   const read = isRead(method, url);
   const mutation = isMutation(method, url);
   if (!read && !mutation) return networkFetch(input, init);
+  // Never use private offline state without a current signed-in identity.
+  // This also prevents old unowned v1 caches being used for private reads.
+  if (!cacheOwner() || !owner || owner !== cacheOwner()) return networkFetch(input, init);
 
   if (read) {
     const key = keyFor(method, url, headers, body);
     if (typeof navigator === "undefined" || navigator.onLine) {
       try {
         const response = await networkFetch(input, init);
-        if (response.ok) void saveResponse(key, method, url, response);
+        if (response.ok && cacheOwner() === owner) void saveResponse(key, method, url, response, owner);
         return response;
       } catch {
         // Fall back to the local copy.
@@ -640,12 +691,13 @@ export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit)
   if (typeof navigator === "undefined" || navigator.onLine) {
     try {
       const response = await networkFetch(input, init);
-      if (response.ok) void applySuccessfulMutation(method, url, body, response).catch(() => undefined);
+      if (response.ok && cacheOwner() === owner) void applySuccessfulMutation(method, url, body, response).catch(() => undefined);
       return response;
     } catch {
       // Queue below.
     }
   }
+  if (cacheOwner() !== owner) throw new TypeError("The signed-in account changed before this change was stored. Please try again.");
   return queueMutation(method, url, headers, body);
 }
 

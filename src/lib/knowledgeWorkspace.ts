@@ -38,6 +38,7 @@ export type PracticeEvent = {
 };
 export type KnowledgeSnapshot = {
   subjects: KnowledgeSubject[]; topics: KnowledgeTopic[]; entries: KnowledgeEntry[]; practice: PracticeEvent[];
+  practiceError?: string | null;
 };
 
 export type EntryInput = {
@@ -135,8 +136,9 @@ async function allRows(table: string, userId: string, order = "created_at", cap 
   const rows: Record<string, unknown>[] = [];
   for (let page = 0; page < cap; page += 1) {
     const offset = page * PAGE_SIZE;
-    const { data, error } = await db().from(table).select("*")
-      .eq("user_id", userId).order(order, { ascending: false }).order("id", { ascending: true })
+    let query = db().from(table).select("*").eq("user_id", userId);
+    if (table === "knowledge_records") query = query.is("deleted_at", null);
+    const { data, error } = await query.order(order, { ascending: false }).order("id", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
@@ -187,11 +189,15 @@ export async function loadKnowledge(userId: string): Promise<{ snapshot: Knowled
   if (!userId) throw new Error("A signed-in account is required.");
   const schema = await detectKnowledgeSchema().catch(() => schemaLevel);
   if (schema === "missing") return { snapshot: EMPTY_SNAPSHOT, schema };
+  let practiceError: string | null = null;
   const [subjects, topics, entries, practice] = await Promise.all([
     allRows("knowledge_subjects", userId),
     allRows("knowledge_topics", userId),
     allRows("knowledge_records", userId),
-    schema === "v2" ? allRows("knowledge_practice_events", userId, "created_at", 10).catch(() => []) : Promise.resolve([]),
+    schema === "v2" ? allRows("knowledge_practice_events", userId, "created_at", 10).catch((error: unknown) => {
+      practiceError = friendlyError(error);
+      return [];
+    }) : Promise.resolve([]),
   ]);
   return {
     schema,
@@ -200,6 +206,7 @@ export async function loadKnowledge(userId: string): Promise<{ snapshot: Knowled
       topics: topics.map(normaliseTopic).filter((row) => row.id),
       entries: entries.map(normaliseEntry).filter((row) => row.id),
       practice: practice.map(normaliseEvent).filter((row) => row.id),
+      practiceError,
     },
   };
 }
@@ -301,10 +308,11 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
   return entry;
 }
 
-/** Restore a just-deleted entry (Undo). Re-inserts the same id and content. */
+/** Undo a soft deletion without touching its lesson relationships or practice events. */
 export async function restoreEntry(entry: KnowledgeEntry) {
   requireWritable();
-  const { error } = await db().from("knowledge_records").insert(entry);
+  const { error } = await db().from("knowledge_records")
+    .update({ deleted_at: null }).eq("id", entry.id).eq("user_id", entry.user_id);
   if (error) throw error;
 }
 
@@ -315,17 +323,39 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
     if (current[key] !== value) (changed as Record<string, unknown>)[key] = value;
   }
   if (!Object.keys(changed).length) return current;
+  // Previous recall successes were for the old answer, not the new one.
+  if (current.kind === "mistake" && typeof changed.correction === "string"
+      && changed.correction.trim() !== current.correction.trim()) {
+    changed.recall_streak = 0;
+    changed.last_recalled_at = null;
+    changed.recall_due_at = null;
+    changed.status = "needs_practice";
+  }
   const next: KnowledgeEntry = { ...current, ...changed };
   validateEntry(next);
   const contentChanged = CONTENT_FIELDS.some((key) => key in changed);
-  const { error } = await db().from("knowledge_records").update(changed).eq("id", current.id).eq("user_id", userId);
+  // Compare-and-swap: do not silently replace a newer edit from another
+  // device. The server returns its exact updated_at for the next save.
+  const { data, error } = await db().from("knowledge_records").update(changed)
+    .eq("id", current.id).eq("user_id", userId)
+    .eq("updated_at", current.updated_at).is("deleted_at", null)
+    .select("*").maybeSingle();
   if (error) throw error;
+  if (data) return normaliseEntry(data as Record<string, unknown>);
+  if (typeof navigator === "undefined" || navigator.onLine) {
+    throw new Error("This note changed on another device, or was deleted. Your edit was not overwritten. Reopen it to reconcile the changes.");
+  }
+  // The offline request has been durably queued; replay retains its original
+  // revision filter rather than overwriting changes made elsewhere.
   return contentChanged ? { ...next, updated_at: new Date().toISOString() } : next;
 }
 
 export async function deleteEntry(userId: string, id: string) {
   requireWritable();
-  const { error } = await db().from("knowledge_records").delete().eq("id", id).eq("user_id", userId);
+  // Archiving instead of DELETE preserves cascading practice history and
+  // lesson capture links, so Undo restores the complete document.
+  const { error } = await db().from("knowledge_records")
+    .update({ deleted_at: new Date().toISOString() }).eq("id", id).eq("user_id", userId);
   if (error) throw error;
 }
 
@@ -358,10 +388,29 @@ export async function recordPractice(userId: string, entry: KnowledgeEntry, outc
     id: crypto.randomUUID(), user_id: userId, record_id: entry.id, outcome,
     answer: limit(answer.trim(), LIMITS.answer, "The answer"), created_at: new Date().toISOString(),
   };
-  const { error } = await db().from("knowledge_practice_events").insert(event);
+  // One database transaction inserts the event and updates its schedule.
+  // An offline call can be queued with the same event ID; the UI uses the
+  // deterministic local calculation until its server response arrives.
+  const { data, error } = await db().rpc("heuresis_record_knowledge_recall", {
+    p_record_id: entry.id,
+    p_event_id: event.id,
+    p_outcome: outcome,
+    p_answer: event.answer,
+    p_tz_offset_minutes: new Date().getTimezoneOffset(),
+  });
   if (error) throw error;
-  const next = await updateEntry(userId, entry, nextRecallState(entry, outcome));
-  return { event, entry: next };
+  const saved = data && typeof data === "object" && !Array.isArray(data)
+    ? data as Record<string, unknown> : null;
+  const fallback = nextRecallState(entry, outcome, new Date(event.created_at));
+  const next: KnowledgeEntry = {
+    ...entry,
+    recall_streak: typeof saved?.recall_streak === "number" ? saved.recall_streak : fallback.recall_streak,
+    last_recalled_at: typeof saved?.last_recalled_at === "string" ? saved.last_recalled_at : fallback.last_recalled_at,
+    recall_due_at: typeof saved?.recall_due_at === "string" ? saved.recall_due_at : fallback.recall_due_at,
+  };
+  return { event: {
+    ...event, created_at: typeof saved?.created_at === "string" ? saved.created_at : event.created_at,
+  }, entry: next };
 }
 
 // ---------------------------------------------------------------------------

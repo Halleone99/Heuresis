@@ -28,7 +28,7 @@ Note, Lesson and Mistake are capture types, not sections.
 * The panel opens with the right fields already focused; keys typed straight after the shortcut are not lost.
 * The destination is remembered: current lesson → last capture topic → the topic you are looking at. One click changes it, including creating a subject or topic on the spot.
 * A note ending in `?` is filed as a **Question** automatically (visible and reversible).
-* While a lesson is current (sidebar shows *In lesson*), notes and mistakes are attached to it (`lesson_id`). The lesson page lists them under *To revisit*, *Captured during the lesson* and *Mistakes from this lesson*, with *Move into lesson* and *Answered* actions for organising afterwards. A lesson stays current for up to ten hours or until *End*.
+* While a lesson is current (sidebar shows *In lesson*), notes and mistakes are attached to it (`lesson_id`). The lesson page lists them under *To revisit*, *Captured during the lesson* and *Mistakes from this lesson*, with *Copy into lesson* and *Answered* actions for organising afterwards. A lesson stays current for up to ten hours or until *End*.
 * Drafts are written to local storage as you type, so closing the panel, the window or the app never loses half a thought. Submitted captures are kept in a local outbox until the database confirms them and are retried with the same id after a restart, so they can never be stored twice.
 * **Pin** keeps the panel open for several captures in a row.
 
@@ -67,7 +67,7 @@ A separate “I did 30 minutes of listening” log would duplicate Personal OS's
 | `knowledge_records` | `kind` = `note` · `lesson` · `mistake`; `category` (note · question · grammar · vocabulary · phrase); `lesson_id` (captures → lesson, `on delete set null`); `lesson_date`; `pinned`; `recall_streak`, `last_recalled_at`, `recall_due_at`. `updated_at` moves only when content changes (not on pin/recall). |
 | `knowledge_practice_events` | Append-only recall attempts (`correct` / `incorrect`, the typed answer). |
 
-Migrations: `20261011190000_create_knowledge_workspace.sql` (v1, already applied) and **`20261012090000_knowledge_workspace_v2.sql`** (new, additive). The v2 migration adds columns, relaxes two checks (an empty lesson; a mistake recorded with only the attempt), adds triggers, a table and column-scoped grants. It does not update, copy or delete any row. Requires PostgreSQL 15+ (Supabase default). Rollback instructions are in the file header.
+Migrations: `20261011190000_create_knowledge_workspace.sql` (v1) and `20261012090000_knowledge_workspace_v2.sql` (v2). The v2 migration adds columns, relaxes two checks (an empty lesson; a mistake recorded with only the attempt), adds triggers, a table and column-scoped grants. It does not update, copy or delete any row. Requires PostgreSQL 15+ (Supabase default). Rollback instructions are in the file header.
 
 Until v2 is applied, the app detects it (`detectKnowledgeSchema`) and shows the Notebook **read-only** with a notice naming the file; Study is unaffected. Notes created by the first workspace version keep working; a note titled `Lesson · …` is shown as a lesson but cannot receive new captures.
 
@@ -76,6 +76,21 @@ Personal OS data stays read-only: `language_notebooks` (objectives) and `knowled
 ## Offline behaviour
 
 Knowledge reads and writes go through the same offline layer as Study. Offline captures and edits are applied to the local copy immediately (“Saved on this device — will sync”), queued, and replayed after reconnection; the Notebook refreshes once replay has finished. Two reliability fixes were made to the shared layer: replay is single-flight (concurrent sync triggers could previously send the same queued write twice), and a queued insert whose id already exists is treated as delivered instead of blocking the queue forever.
+
+## Data reliability repairs
+
+- **Account isolation:** Study's offline GET cache and queued writes are owned by the signed-in account. Switching accounts cannot retrieve another account's new cache entries or replay its writes. Older queue items without any owner are quarantined rather than discarded, and their count is visible as **Older unsynced** in the sync indicator. If you see this, do not clear local app storage: recover them deliberately after reviewing which account created them.
+- **Mistake recall:** `heuresis_record_knowledge_recall` atomically inserts a recall event and updates the next due date. It uses an idempotent event ID, the signed-in owner and a database row lock so a dropped response cannot double-count a recall.
+- **Reversible deletion:** Notes, lessons and mistakes are archived using `knowledge_records.deleted_at`; the normal Notebook excludes archived records. Undo simply restores the existing record, so practice history and lesson relationships are preserved. There is no automatic permanent purge yet.
+- **Lesson inclusion:** Copying a captured note into lesson text leaves the original intact instead of deleting it in a second call.
+- **Drafts:** Quick Capture keeps the text and a stable client ID through unconfirmed submissions. New document drafts are mirrored locally before their first server save and offered for recovery after relaunch.
+- **Conflicts:** Edits include the previous `updated_at` revision and cannot silently overwrite a newer online document. The user must reopen/reconcile the newer version if a conflict is detected. Offline conflict replay still needs practical testing.
+- **Truthful stats:** A failed recall-history load is presented as unavailable, not zero.
+- **Keyboard:** Confirmation dialogs now contain Tab focus and restore focus after dismissal.
+
+These changes add `20261012103000_atomic_knowledge_recall.sql` and `20261012103500_reversible_knowledge_deletion.sql`. Both migrations have been applied to the live Supabase project. No prior records were copied, removed or changed by these migrations.
+
+**Verification boundaries:** GitHub's frontend TypeScript/Vite build and architecture check are required before merging. Browser E2E, signed-in hosted Supabase, actual Tauri Windows and Android operation, interruption mid-write, two-account offline switching and simultaneous edits still need runtime smoke tests. Do not infer them from a successful compile.
 
 ## Appearance
 

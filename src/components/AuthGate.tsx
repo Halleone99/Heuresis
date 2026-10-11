@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { LogIn } from "lucide-react";
 import { readOfflineSession, rememberOfflineSession } from "../lib/offlineSession";
+import { setOfflineAccount } from "../lib/offlineFetch";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { reconcileStaleHeuresisSessions } from "../lib/sessionLifecycle";
 import HeuresisMark from "./HeuresisMark";
@@ -34,6 +35,7 @@ export default function AuthGate({ children }: Props) {
     };
     const acceptSession = (next: Session | null) => {
       const usable = next ?? ((typeof navigator !== "undefined" && !navigator.onLine) ? readOfflineSession() : null);
+      setOfflineAccount(usable?.user.id ?? null);
       setSession(usable);
       rememberOfflineSession(usable);
       reconcile(usable);
