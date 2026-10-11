@@ -46,3 +46,28 @@ another input so ordinary editor text is not hijacked.
 - Improve processing of Inbox items into organised notes, mistakes or existing Heuresis card links.
 - Add longitudinal delayed-recall evidence to distinguish comprehension from self-declared status.
 - Add UI/e2e coverage for authenticated creation, refresh, offline replay and mobile/tablet widths.
+
+
+## Daily-use polish (next iteration)
+
+The workspace still has **five sections**. Note, Lesson and Mistake are capture choices, not additional navigation sections.
+
+- **Reopen after relaunch:** Heuresis already remembers the last main section; Notebook now also remembers the last opened note/lesson per signed-in user. The chosen topic is remembered on the device, and returning to Notebook can reopen the document.
+- **Document view:** the Notebook topic list displays short previews; **Open note / Open lesson** enters the full formatted document with a Back control. Search results open the chosen note, rather than just its enclosing topic.
+- **Recent documents:** Overview now includes up to five recently updated notes/lessons, with direct open controls.
+- **Lesson template:** New lesson and Ctrl/Cmd+Shift+L launch a capture with prefilled headings (what we covered; vocabulary; corrections; to practise). A lesson remains an ordinary Knowledge note with a dated `Lesson ·` title, not a new database entity.
+- **Faster setup:** adding a subject or topic uses inline controls, without native browser prompts. On narrow screens, the subjects rail opens for first-time creation.
+- **Notebook filters:** All entries / Lessons / Notes. Mistake Log stays a separate main section.
+- **Latest capture:** a newly saved note/lesson is remembered for reopening from Notebook.
+
+### Manual smoke test required on the installed desktop build
+
+1. Sign in, create a Chinese subject from an empty Notebook, and confirm an Inbox topic appears.
+2. Capture a normal note via Ctrl+Shift+N. Save with Ctrl+Enter; verify the note is still present after reopening Heuresis.
+3. Capture a Lesson via Ctrl+Shift+L. Add content, save, then reopen it from Overview, Notebook and search.
+4. Open, edit and delete a note. Confirm all operations are reflected after refresh and a new sign-in.
+5. Capture and correct a mistake. Confirm the recall exercise remains available and Study still works.
+6. Confirm older Personal OS captures are read-only, the Anki Tracker stays separate and no legacy rows are duplicated.
+7. Verify keyboard controls, spacing and modal fields on the actual Windows app; repeat an offline capture and subsequent reconnect before claiming reliable offline behaviour.
+
+GitHub architecture and frontend checks are not substitutes for the manual steps above.

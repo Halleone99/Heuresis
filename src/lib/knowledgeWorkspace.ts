@@ -68,7 +68,7 @@ export async function createKnowledgeTopic(userId: string, subjectId: string, ra
   if (error) throw error;
   return data as KnowledgeTopic;
 }
-export async function saveKnowledgeEntry(userId: string, draft: KnowledgeDraft, existingId?: string): Promise<void> {
+export async function saveKnowledgeEntry(userId: string, draft: KnowledgeDraft, existingId?: string): Promise<string> {
   const title = draft.title.trim();
   if (title.length > 200) throw new Error("Title must be 200 characters or fewer.");
   if (!draft.topicId) throw new Error("Choose a topic first.");
@@ -88,13 +88,15 @@ export async function saveKnowledgeEntry(userId: string, draft: KnowledgeDraft, 
     const { error } = await db().from("knowledge_records")
       .update(fields).eq("id", existingId).eq("user_id", userId);
     if (error) throw error;
-  } else {
-    const { error } = await db().from("knowledge_records").insert({
-      id: crypto.randomUUID(), user_id: userId, kind: draft.kind,
-      status: draft.kind === "mistake" ? "needs_practice" : null, ...fields,
-    });
-    if (error) throw error;
+    return existingId;
   }
+  const id = crypto.randomUUID();
+  const { error } = await db().from("knowledge_records").insert({
+    id, user_id: userId, kind: draft.kind,
+    status: draft.kind === "mistake" ? "needs_practice" : null, ...fields,
+  });
+  if (error) throw error;
+  return id;
 }
 export async function setKnowledgeMistakeStatus(userId: string, id: string, status: MistakeStatus) {
   const { error } = await db().from("knowledge_records")

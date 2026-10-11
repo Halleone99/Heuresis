@@ -48,6 +48,7 @@ function HeuresisApp({ session }: { session: Session }) {
   });
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [quickCaptureKind, setQuickCaptureKind] = useState<KnowledgeKind>("note");
+  const [quickCaptureTemplate, setQuickCaptureTemplate] = useState<"note" | "lesson">("note");
   const [knowledgeTopicId, setKnowledgeTopicId] = useState("");
   const [knowledgeRevision, setKnowledgeRevision] = useState(0);
   const [view, setView] = useState<View>("library");
@@ -103,8 +104,9 @@ function HeuresisApp({ session }: { session: Session }) {
   useEffect(() => {
     try { localStorage.setItem("heuresis.workspace.section.v1", workspaceSection); } catch { /* optional */ }
   }, [workspaceSection]);
-  const openKnowledgeCapture = (kind: KnowledgeKind = "note") => {
+  const openKnowledgeCapture = (kind: KnowledgeKind = "note", template: "note" | "lesson" = "note") => {
     setQuickCaptureKind(kind);
+    setQuickCaptureTemplate(template);
     setQuickCaptureOpen(true);
   };
 
@@ -132,14 +134,17 @@ function HeuresisApp({ session }: { session: Session }) {
       if (isTypingTarget(event.target)) return;
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        setQuickCaptureKind("note");
-        setQuickCaptureOpen(true);
+        openKnowledgeCapture("note");
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
         event.preventDefault();
-        setQuickCaptureKind("mistake");
-        setQuickCaptureOpen(true);
+        openKnowledgeCapture("mistake");
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        openKnowledgeCapture("note", "lesson");
         return;
       }
       if (event.key === "/" || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
@@ -277,7 +282,7 @@ function HeuresisApp({ session }: { session: Session }) {
         {workspaceSection === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
       </main>
       </div>
-      {quickCaptureOpen ? <EntryComposer userId={session.user.id} initialKind={quickCaptureKind} initialTopicId={knowledgeTopicId}
+      {quickCaptureOpen ? <EntryComposer userId={session.user.id} initialKind={quickCaptureKind} initialTemplate={quickCaptureTemplate} initialTopicId={knowledgeTopicId}
         onClose={() => setQuickCaptureOpen(false)} onSaved={() => { setQuickCaptureOpen(false); setKnowledgeRevision((count) => count + 1); }} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} onClose={() => setSearchOpen(false)} onOpen={openPack} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
