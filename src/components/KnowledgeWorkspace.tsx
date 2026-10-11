@@ -5,7 +5,7 @@ import {
   knowledgeSearchText, loadKnowledge, saveKnowledgeEntry, setKnowledgeMistakeStatus,
   type KnowledgeDraft, type KnowledgeEntry, type KnowledgeKind, type KnowledgeSnapshot,
 } from "../lib/knowledgeWorkspace";
-import { loadLanguageObjectives, type LanguageObjectivesSnapshot } from "../lib/personalOsLanguageSources";
+import { loadCapturedLanguageEntries, loadLanguageObjectives, type CapturedLanguageEntry, type LanguageObjectivesSnapshot } from "../lib/personalOsLanguageSources";
 import { supabase } from "../lib/supabase";
 import "./knowledge-workspace.css";
 
@@ -85,6 +85,7 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
   const [answer, setAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [objectives, setObjectives] = useState<LanguageObjectivesSnapshot | null>(null);
+  const [legacyCaptures, setLegacyCaptures] = useState<CapturedLanguageEntry[]>([]);
   const [studyStats, setStudyStats] = useState<{ sessions: number; graded: number; lastAt: string | null } | null>(null);
   const subjects = snapshot.subjects;
   const topics = snapshot.topics;
@@ -183,6 +184,14 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
     setChecking(entry.id); setAnswer(""); setRevealed(false);
   }
   const activeGoals = objectives?.objectives.filter((o) => o.status === "active") ?? [];
+  useEffect(() => {
+    let cancelled = false;
+    void loadCapturedLanguageEntries(userId).then((items) => {
+      if (!cancelled) setLegacyCaptures(items);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [userId, revision]);
+  const legacyHere = legacyCaptures.filter((item) => normalise(item.subject ?? "") === normalise(selectedSubject?.name ?? ""));
 
   return <div className="kw-root">
     {(mode === "notebook" || mode === "mistakes") && <aside className={"kw-rail " + (showRail ? "kw-rail-open" : "")}>
@@ -225,6 +234,13 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
           }}><CircleHelp size={15}/><span>{e.title || e.attempt}</span><small>Practise →</small></button>)
             : <p className="kw-muted">No mistakes currently marked for practice. Capture a difficult example when you encounter one.</p>}
         </div>
+        {legacyCaptures.length > 0 && <div className="kw-panel"><h2>Earlier captures in Personal OS</h2>
+          <p className="kw-muted">Read-only, not duplicated or imported. These are notes you previously captured in the Personal OS language workspace.</p>
+          {legacyCaptures.slice(0, 6).map((item) => <div key={item.id} className="kw-legacy-row">
+            <span>{item.subject ?? "Language"} · {dateLabel(item.created_at)}</span>
+            <strong>{item.front}</strong>{item.back && <p>{item.back}</p>}{item.third_side && <small>{item.third_side}</small>}
+          </div>)}
+        </div>}
         <div className="kw-panel">
           <h2>Language objectives</h2>
           {activeGoals.length ? activeGoals.slice(0,6).map((goal) => {
@@ -256,6 +272,13 @@ export function KnowledgeWorkspace({ userId, mode, revision, onStartCapture, onM
             <p>No {mode === "notebook" ? "notes" : "mistakes"} in this topic yet.</p>
             <button className="kw-primary" onClick={() => onStartCapture(mode === "mistakes" ? "mistake" : "note")}>
               <Plus size={14}/> Add {mode === "notebook" ? "a note" : "a mistake"}</button></div>}
+          {mode === "notebook" && legacyHere.length > 0 && <details className="kw-legacy"><summary>Earlier captures from Personal OS ({legacyHere.length})</summary>
+            <p className="kw-muted">These remain in their original Personal OS records until a deliberate migration is implemented.</p>
+            {legacyHere.map((item) => <div key={item.id} className="kw-legacy-row">
+              <span>{dateLabel(item.created_at)} · {item.entry_type}</span><strong>{item.front}</strong>
+              {item.back && <p>{item.back}</p>}{item.third_side && <small>{item.third_side}</small>}
+            </div>)}
+          </details>}
           {shown.map((e) => <article key={e.id} className="kw-entry">
             <div className="kw-entry-top"><span className="kw-eyebrow">{e.kind === "note" ? "NOTE" : "MISTAKE"}</span>
               <div className="kw-entry-controls"><small>{dateLabel(e.created_at)}</small><button title="Edit entry" onClick={() => setEdit(e)}><Pencil size={14}/></button>
