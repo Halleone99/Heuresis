@@ -126,6 +126,30 @@ export function wikiLinks(markdown: string) {
 }
 
 
+/** Pinyin needs a font with complete precomposed Mandarin tone vowels.
+ * Split out Latin runs rather than switching the entire Chinese/English note
+ * to a sans-serif font. Normalize canonical decomposed tone marks for display.
+ * The original Markdown is otherwise unchanged.
+ */
+const LATIN_RUN = /[A-Za-z\u00c0-\u024f\u1e00-\u1eff]+(?:[ \t]+[A-Za-z\u00c0-\u024f\u1e00-\u1eff]+)*/gu;
+const PINYIN_TONE = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/iu;
+
+export function pinyinSegments(text: string): Array<{ text: string; pinyin: boolean }> {
+  const normalized = text.normalize("NFC");
+  const segments: Array<{ text: string; pinyin: boolean }> = [];
+  let last = 0;
+  for (const match of normalized.matchAll(LATIN_RUN)) {
+    const start = match.index ?? 0;
+    const value = match[0];
+    if (!PINYIN_TONE.test(value)) continue;
+    if (start > last) segments.push({ text: normalized.slice(last, start), pinyin: false });
+    segments.push({ text: value, pinyin: true });
+    last = start + value.length;
+  }
+  if (last < normalized.length) segments.push({ text: normalized.slice(last), pinyin: false });
+  return segments.length ? segments : [{ text: normalized, pinyin: false }];
+}
+
 export function inlinePlain(text: string) {
   return parseInline(text).map((part) => part.type === "link" ? part.label : part.text).join("");
 }
@@ -136,15 +160,22 @@ export function inlinePlain(text: string) {
 function escapeHtml(text: string) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+/** Span styling is visual only: editorToMarkdown() serializes its text,
+ * not the span, so pinyin never gains extra markup in the saved document. */
+function pinyinHtml(text: string) {
+  return pinyinSegments(text).map(({ text: value, pinyin }) =>
+    pinyin ? `<span class="nb-pinyin" lang="zh-Latn">${escapeHtml(value)}</span>` : escapeHtml(value)
+  ).join("");
+}
 /** Wiki links stay as literal [[text]] while editing so they cannot drift out of sync. */
 function inlineHtml(text: string) {
   return parseInline(text).map((part) => {
-    if (part.type === "strong") return `<strong>${escapeHtml(part.text)}</strong>`;
-    if (part.type === "em") return `<em>${escapeHtml(part.text)}</em>`;
-    if (part.type === "mark") return `<mark>${escapeHtml(part.text)}</mark>`;
-    if (part.type === "strike") return `<s>${escapeHtml(part.text)}</s>`;
+    if (part.type === "strong") return `<strong>${pinyinHtml(part.text)}</strong>`;
+    if (part.type === "em") return `<em>${pinyinHtml(part.text)}</em>`;
+    if (part.type === "mark") return `<mark>${pinyinHtml(part.text)}</mark>`;
+    if (part.type === "strike") return `<s>${pinyinHtml(part.text)}</s>`;
     if (part.type === "link") return escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`);
-    return escapeHtml(part.text);
+    return pinyinHtml(part.text);
   }).join("");
 }
 function paragraphHtml(text: string) {
