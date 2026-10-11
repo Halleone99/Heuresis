@@ -25,6 +25,8 @@ export type OfflineSyncState = {
   online: boolean;
   syncing: boolean;
   pending: number;
+  /** Old queued writes without an owner remain quarantined, not discarded. */
+  legacyPending: number;
   lastSyncedAt: string | null;
   error: string;
 };
@@ -59,7 +61,7 @@ export function setOfflineAccount(userId: string | null) {
   const next = userId || null;
   if (next === activeOfflineOwner) return;
   activeOfflineOwner = next;
-  emit({ lastSyncedAt: null, pending: 0, error: "" });
+  emit({ lastSyncedAt: null, pending: 0, legacyPending: 0, error: "" });
   void refreshOfflinePendingCount();
 }
 function cacheOwner() {
@@ -80,6 +82,7 @@ let state: OfflineSyncState = {
   online: typeof navigator === "undefined" ? true : navigator.onLine,
   syncing: false,
   pending: 0,
+  legacyPending: 0,
   lastSyncedAt: typeof localStorage === "undefined" ? null : localStorage.getItem(LAST_SYNC_KEY),
   error: "",
 };
@@ -585,8 +588,12 @@ async function queueMutation(method: string, urlString: string, headers: Headers
 export async function refreshOfflinePendingCount() {
   try {
     const owner = cacheOwner();
-    emit({ pending: owner ? (await getAllRecords<QueueRecord>(QUEUE_STORE)).filter((row) => row.ownerId === owner).length : 0 });
-  } catch { emit({ pending: 0 }); }
+    const rows = await getAllRecords<QueueRecord>(QUEUE_STORE);
+    emit({
+      pending: owner ? rows.filter((row) => row.ownerId === owner).length : 0,
+      legacyPending: rows.filter((row) => !row.ownerId).length,
+    });
+  } catch { emit({ pending: 0, legacyPending: 0 }); }
   return state.pending;
 }
 
