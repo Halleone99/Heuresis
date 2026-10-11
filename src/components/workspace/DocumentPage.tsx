@@ -48,6 +48,8 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
   const [confirmElement, confirm] = useConfirm();
   const editorRef = useRef<RichEditorHandle>(null);
   const entryIdRef = useRef<string | null>(entry?.id ?? null);
+  // New notes also need a durable draft key before they acquire a server ID.
+  const draftIdRef = useRef(entry?.id ?? `unsaved:${newDoc?.topicId ?? "inbox"}`);
   const draftRef = useRef(draft);
   const savedRef = useRef<Draft>(draftFromEntry(entry, newDoc));
   const savingRef = useRef(false);
@@ -63,15 +65,15 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
 
   useEffect(() => { if (entry) workspace.consumePendingEdit(entry.id); }, [entry, workspace]);
 
-  // Offer to restore text that was typed but never reached the database
-  // (checked once, when an existing document is opened).
+  // Recover unfinished drafts for both existing and brand-new documents.
   useEffect(() => {
-    if (!entry) return;
-    const stored = readDocumentDraft(userId, entry.id);
+    const key = draftIdRef.current;
+    const stored = readDocumentDraft(userId, key);
     if (!stored) return;
-    const differs = stored.title !== entry.title || canonicalMarkdown(stored.body) !== canonicalMarkdown(entry.body);
+    const initial = draftFromEntry(entry, newDoc);
+    const differs = stored.title !== initial.title || canonicalMarkdown(stored.body) !== canonicalMarkdown(initial.body);
     if (differs) setRestore({ title: stored.title, body: stored.body, savedAt: stored.savedAt });
-    else writeDocumentDraft(userId, entry.id, null);
+    else writeDocumentDraft(userId, key, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -107,7 +109,14 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
     try {
       if (!entryIdRef.current) {
         const created = await workspace.addEntry({ kind: "note", topicId: current.topicId, title: current.title, body: current.body, category: current.category });
+        const priorDraftKey = draftIdRef.current;
         entryIdRef.current = created.id;
+        draftIdRef.current = created.id;
+        writeDocumentDraft(userId, created.id, {
+          title: draftRef.current.title, body: draftRef.current.body,
+          savedAt: new Date().toISOString(), baseUpdatedAt: created.updated_at,
+        });
+        writeDocumentDraft(userId, priorDraftKey, null);
         onCreated(created);
       } else {
         const patch: Record<string, unknown> = { title: current.title.trim(), body: current.body, topic_id: current.topicId };
@@ -143,7 +152,10 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
     setDraft(next);
     if (!isDirty(next)) return;
     setSave((state) => state.kind === "saving" ? state : { kind: "dirty", at: state.at });
-    if (entryIdRef.current) writeDocumentDraft(userId, entryIdRef.current, { title: next.title, body: next.body, savedAt: new Date().toISOString(), baseUpdatedAt: liveEntry?.updated_at ?? "" });
+    writeDocumentDraft(userId, draftIdRef.current, {
+      title: next.title, body: next.body, savedAt: new Date().toISOString(),
+      baseUpdatedAt: liveEntry?.updated_at ?? "",
+    });
     scheduleSave();
   }, [isDirty, liveEntry?.updated_at, scheduleSave, userId]);
 
@@ -311,13 +323,13 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
 
     {moving ? <div className="ws-popover-host"><TopicPicker value={draft.topicId} onChange={(id) => void moveTo(id)} onClose={() => setMoving(false)} /></div> : null}
 
-    {restore && !editing ? <div className="nb-restore" role="alert">
+    {restore ? <div className="nb-restore" role="alert">
       <span>Unsaved changes from {relativeTime(restore.savedAt)} were found on this device.</span>
       <button type="button" className="ws-button is-small is-primary" onClick={() => {
         const next = { ...draftRef.current, title: restore.title, body: restore.body };
         draftRef.current = next; setDraft(next); setRestore(null); startEditing(); scheduleSave();
       }}>Restore</button>
-      <button type="button" className="ws-button is-small is-quiet" onClick={() => { if (entry) writeDocumentDraft(userId, entry.id, null); setRestore(null); }}>Discard</button>
+      <button type="button" className="ws-button is-small is-quiet" onClick={() => { writeDocumentDraft(userId, draftIdRef.current, null); setRestore(null); }}>Discard</button>
     </div> : null}
 
     <header className="nb-doc-head">
