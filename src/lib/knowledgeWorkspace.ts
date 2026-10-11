@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 
-// Canonical Knowledge tables are shared with Personal OS. Keep a single
-// source of truth; the Heuresis UI never copies these entries into cards.
+// Structured Knowledge records are separate from the legacy Personal OS capture queue.
+// They use owner-scoped tables and are never silently copied into flashcards.
 export type KnowledgeKind = "note" | "mistake";
 export type MistakeStatus = "needs_practice" | "understood";
 export type KnowledgeSubject = { id: string; user_id: string; name: string; created_at: string };
@@ -24,7 +24,7 @@ function db() {
   if (!supabase) throw new Error("Sign in to use the Knowledge workspace.");
   return supabase;
 }
-async function allRows(table: "knowledge_subjects" | "knowledge_topics" | "knowledge_entries", userId: string) {
+async function allRows(table: "knowledge_subjects" | "knowledge_topics" | "knowledge_records", userId: string) {
   const rows: Record<string, unknown>[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await db().from(table).select("*")
@@ -41,7 +41,7 @@ export async function loadKnowledge(userId: string): Promise<KnowledgeSnapshot> 
   const [subjects, topics, entries] = await Promise.all([
     allRows("knowledge_subjects", userId),
     allRows("knowledge_topics", userId),
-    allRows("knowledge_entries", userId),
+    allRows("knowledge_records", userId),
   ]);
   return {
     subjects: subjects as KnowledgeSubject[],
@@ -85,11 +85,11 @@ export async function saveKnowledgeEntry(userId: string, draft: KnowledgeDraft, 
   };
   if (existingId) {
     // 'kind' cannot change on edit: database deliberately protects identity.
-    const { error } = await db().from("knowledge_entries")
+    const { error } = await db().from("knowledge_records")
       .update(fields).eq("id", existingId).eq("user_id", userId);
     if (error) throw error;
   } else {
-    const { error } = await db().from("knowledge_entries").insert({
+    const { error } = await db().from("knowledge_records").insert({
       id: crypto.randomUUID(), user_id: userId, kind: draft.kind,
       status: draft.kind === "mistake" ? "needs_practice" : null, ...fields,
     });
@@ -97,12 +97,12 @@ export async function saveKnowledgeEntry(userId: string, draft: KnowledgeDraft, 
   }
 }
 export async function setKnowledgeMistakeStatus(userId: string, id: string, status: MistakeStatus) {
-  const { error } = await db().from("knowledge_entries")
+  const { error } = await db().from("knowledge_records")
     .update({ status }).eq("id", id).eq("user_id", userId).eq("kind", "mistake");
   if (error) throw error;
 }
 export async function deleteKnowledgeEntry(userId: string, id: string) {
-  const { error } = await db().from("knowledge_entries")
+  const { error } = await db().from("knowledge_records")
     .delete().eq("id", id).eq("user_id", userId);
   if (error) throw error;
 }
