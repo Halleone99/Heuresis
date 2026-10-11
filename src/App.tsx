@@ -230,7 +230,7 @@ function HeuresisApp({ session }: { session: Session }) {
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
           <button className="desktop-action" title={syncTitle} disabled={syncState.syncing} onClick={() => void runSync(false)}><RefreshCw size={14} /> <span>{syncLabel}</span></button>
-          <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search</span><kbd>⌘K</kbd></button>
+          {workspaceSection === "study" ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>⌘K</kbd></button> : null}
           {workspaceSection === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
           {workspaceSection === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
           <button className="desktop-action hw-capture-button" onClick={() => openKnowledgeCapture()}><Plus size={14} /> Quick note</button>
