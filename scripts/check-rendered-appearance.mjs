@@ -103,7 +103,7 @@ try {
       }
       const fg = composite(parse(result.foreground), bg);
       const actual = contrast(fg, bg);
-      assert.ok(actual >= 4.5, `${palette}/${mode} #${id}: text contrast ${actual.toFixed(2)}:1 < 4.5:1`);
+      assert.ok(actual >= 4.5, `${palette}/${mode} #${id}: text contrast ${actual.toFixed(2)}:1 < 4.5:1; fg ${result.foreground}, bg ${JSON.stringify(bg)}, layers ${JSON.stringify(result.layers)}`);
     }
     // Browser's actual input placeholder, not just the declared colour token.
     const placeholder = await page.evaluate(() => {
