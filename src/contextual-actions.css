@@ -53,27 +53,7 @@
 .desktop-topic-action { display: none; }
 .heuresis-desktop:has(.collection-page) .desktop-topic-action { display: inline-flex; }
 
-.desktop-header-actions > .desktop-action.desktop-primary {
-  position: static;
-  inset: auto;
-  z-index: auto;
-  height: 38px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 9px;
-  background: var(--ws-primary);
-  color: var(--ws-on-primary);
-  box-shadow: 0 7px 18px rgba(40,33,28,.13);
-  backdrop-filter: none;
-  font-size: 10.5px;
-  letter-spacing: 0;
-}
-.desktop-header-actions > .desktop-action.desktop-primary:hover {
-  background: var(--ws-primary);
-  box-shadow: 0 9px 22px rgba(40,33,28,.17);
-  transform: translateY(-1px);
-}
-.desktop-header-actions > .desktop-action.desktop-primary:active { transform: translateY(0); }
+/* Header actions use the shared chrome styles. */
 
 /* Typography: display serif stays; metadata returns to readable sans. */
 .eyebrow {
