@@ -44,7 +44,16 @@ const fixtures = `
 
 // Convert RGB(A) computed colours to RGBA channels.
 function parse(value) {
-  const match = value.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)(?:\s*[,/]\s*(\d+(?:\.\d+)?))?\s*\)$/i);
+  const input = value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(input)) return [...input.slice(1).match(/../g).map((v) => parseInt(v, 16)), 1];
+  const colorSrgb = input.match(/^color\(srgb\s+([^)]+)\)$/);
+  if (colorSrgb) {
+    const [channels, alpha = "1"] = colorSrgb[1].split("/");
+    const parts = channels.trim().split(/\s+/).map(Number);
+    assert.equal(parts.length, 3, "Unexpected srgb: " + input);
+    return [...parts.map((n) => Math.max(0, Math.min(255, n * 255))), Number(alpha.trim())];
+  }
+  const match = input.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)(?:\s*[,/]\s*(\d+(?:\.\d+)?))?\s*\)$/i);
   assert.ok(match, "Unexpected browser-computed colour: " + value);
   return [+match[1], +match[2], +match[3], match[4] === undefined ? 1 : +match[4]];
 }
@@ -69,7 +78,7 @@ try {
   mkdirSync("test-output/appearance", { recursive: true });
   for (const palette of palettes) for (const mode of modes) {
     await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}"><head><meta charset="UTF-8"><style>${css}</style></head><body>${fixtures}</body></html>`);
-    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => document.fonts.ready.then(() => true));
     for (const id of ["mark", "nav", "nav-active", "search", "card", "capture", "account", "sync-disabled", "disabled-capture", "disabled-primary", "disabled-browse"]) {
       const result = await page.evaluate((id) => {
         const el = document.getElementById(id);
