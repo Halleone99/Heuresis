@@ -327,6 +327,9 @@
 }
 :root[data-theme="dark"] [data-palette-preview="neutral"] { --preview-page: #121212; --preview-ink: #ededed; --preview-accent: #d6d6d6; }
 
+/* Semantic study statuses retain their meanings when the palette changes. */
+:root { --stage-unsorted:var(--c-amber); --stage-ready:var(--c-slate); --stage-reviewed:var(--c-sage); }
+
 /* Shared vocabulary used by older Study and window styles. */
 :root {
   --h-page:var(--ws-page); --h-paper:var(--ws-surface); --h-paper-soft:var(--ws-surface-2); --h-paper-muted:var(--ws-surface-2);
