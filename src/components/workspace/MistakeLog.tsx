@@ -123,7 +123,7 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
   async function remove() {
-    if (!await confirm({ title: "Delete this mistake?", body: "Its practice history is deleted with it. You can undo for a few seconds.", confirmLabel: "Delete", danger: true })) return;
+    if (!await confirm({ title: "Delete this mistake?", body: "You can undo this deletion for a few seconds. Its practice history is preserved.", confirmLabel: "Delete", danger: true })) return;
     try { await workspace.removeEntry(entry.id); } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
@@ -218,24 +218,12 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
 // ---------------------------------------------------------------------------
 // Recall: produce the corrected form before seeing it, then grade yourself.
 // ---------------------------------------------------------------------------
-function diffChars(answer: string, target: string) {
-  const a = Array.from(answer.trim()); const b = Array.from(target.trim());
-  if (a.length * b.length > 250_000) return b.map((char) => ({ char, ok: false }));
-  const table = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i -= 1) for (let j = b.length - 1; j >= 0; j -= 1) {
-    table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
-  }
-  const marks: Array<{ char: string; ok: boolean }> = [];
-  let i = 0; let j = 0;
-  while (j < b.length) {
-    if (i < a.length && a[i] === b[j]) { marks.push({ char: b[j], ok: true }); i += 1; j += 1; }
-    else if (i < a.length && table[i + 1][j] >= table[i][j + 1]) i += 1;
-    else { marks.push({ char: b[j], ok: false }); j += 1; }
-  }
-  return marks;
-}
+// Compare written answers without stripping the distinctions learners must master:
+// German capitals/umlauts, Cyrillic й/и and Mandarin pinyin tones.
 function answerKey(text: string) {
-  return normaliseSearch(text).replace(/[\s.,!?。！？；;:：、，"'“”‘’]/g, "");
+  return text.normalize("NFC")
+    .replace(/[.,!?。！？；;:：、，"“”]/g, "")
+    .replace(/\s+/g, " ").trim();
 }
 
 function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void }) {
@@ -243,6 +231,7 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [missed, setMissed] = useState(false);
   const [hint, setHint] = useState(false);
   const [results, setResults] = useState<Array<{ id: string; correct: boolean }>>([]);
   const [busy, setBusy] = useState(false);
@@ -253,26 +242,31 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
 
   useEffect(() => { if (!finished) window.requestAnimationFrame(() => inputRef.current?.focus()); }, [finished, index]);
 
-  const grade = useCallback(async (correct: boolean) => {
+  const next = useCallback(() => {
+    setIndex((value) => value + 1);
+    setAnswer(""); setRevealed(false); setHint(false); setMissed(false);
+  }, []);
+
+  const grade = useCallback(async (correct: boolean, showBeforeNext = false) => {
     if (!current || busy) return;
     setBusy(true);
     try {
       if (workspace.writable) await workspace.practise(current.id, correct ? "correct" : "incorrect", answer);
       setResults((list) => [...list, { id: current.id, correct }]);
-      setIndex((value) => value + 1);
-      setAnswer(""); setRevealed(false); setHint(false);
+      if (showBeforeNext) { setMissed(true); setRevealed(true); }
+      else next();
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
     finally { setBusy(false); }
-  }, [answer, busy, current, workspace]);
+  }, [answer, busy, current, next, workspace]);
 
-  const exact = current && answer.trim() ? answerKey(answer) === answerKey(current.correction) : false;
-  const marks = current && revealed && answer.trim() ? diffChars(answer, current.correction) : null;
+  const exact = Boolean(current && answer.trim() && answerKey(answer) === answerKey(current.correction));
 
   return <Portal><div className="ws-dialog-backdrop" role="presentation">
     <div className="ws-dialog is-recall" role="dialog" aria-modal="true" aria-labelledby="recall-title"
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
         if (event.key === "Escape") { event.preventDefault(); onClose(); }
-        if (!finished && (event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!revealed) setRevealed(true); else if (exact) void grade(true); }
+        if (!finished && (event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!revealed) setRevealed(true); }
       }}>
       <div className="ws-dialog-head">
         <h2 id="recall-title"><GraduationCap size={17} /> Recall {queue.length > 1 && !finished ? <small>{index + 1} of {queue.length}</small> : null}</h2>
@@ -293,15 +287,15 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
           <textarea ref={inputRef} rows={2} value={answer} readOnly={revealed} onChange={(event) => setAnswer(event.target.value)} placeholder="Type it before revealing…" /></label>
         {revealed ? <div className={`recall-result ${answer.trim() ? (exact ? "is-exact" : "is-different") : ""}`}>
           <span className="ml-label">Correct form</span>
-          <p className="recall-answer">{marks ? marks.map((mark, markIndex) => <span key={markIndex} className={mark.ok ? "" : "is-missed"}>{mark.char}</span>) : current.correction}</p>
-          <small>{!answer.trim() ? "Compare it with what you had in mind, then grade yourself honestly."
-            : exact ? "Exact match (punctuation and spacing ignored)." : "Underlined characters are ones your answer did not contain in that order."}</small>
+          <p className="recall-answer">{current.correction}</p>
+          <small>{!answer.trim() ? "Read the answer before continuing."
+            : exact ? "Exact match." : "Different from your answer. Check spelling, capitals and tone marks."}</small>
         </div> : null}
         <div className="ws-dialog-actions">
           {!revealed ? <>
-            <button type="button" className="ws-button" onClick={() => void grade(false)} disabled={busy}>I don't know</button>
+            <button type="button" className="ws-button" onClick={() => void grade(false, true)} disabled={busy}>I don't know</button>
             <button type="button" className="ws-button is-primary" onClick={() => setRevealed(true)}>Reveal <Kbd>{MOD_KEY} ↵</Kbd></button>
-          </> : <>
+          </> : missed ? <button type="button" className="ws-button is-primary" onClick={next}>Next</button> : <>
             <button type="button" className="ws-button" onClick={() => void grade(false)} disabled={busy}>Not yet</button>
             <button type="button" className="ws-button is-primary" onClick={() => void grade(true)} disabled={busy}><Check size={15} /> I had it</button>
           </>}

@@ -92,7 +92,10 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   // Mutations read and write through this ref so rapid successive saves never
   // apply a patch on top of a stale copy of the snapshot.
   const snapshotRef = useRef<KnowledgeSnapshot>(EMPTY_SNAPSHOT);
+  // Ignore a remote refresh that began before a local write completed.
+  const localWriteRevision = useRef(0);
   const setSnapshot = useCallback((next: KnowledgeSnapshot | ((current: KnowledgeSnapshot) => KnowledgeSnapshot)) => {
+    if (typeof next === "function") localWriteRevision.current += 1;
     snapshotRef.current = typeof next === "function" ? next(snapshotRef.current) : next;
     setSnapshotState(snapshotRef.current);
   }, []);
@@ -123,7 +126,11 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
         const { data } = await supabase.auth.getSession();
         await flushOfflineRequests(data.session?.access_token).catch(() => undefined);
       }
+      const revisionBeforeLoad = localWriteRevision.current;
       const result = await loadKnowledge(userId);
+      // A capture or edit saved during this download is newer than its result.
+      // Keep that local work, and allow the next focus refresh to retry.
+      if (localWriteRevision.current !== revisionBeforeLoad) return;
       setSnapshot(result.snapshot);
       setSchema(result.schema);
       setError("");
@@ -366,11 +373,12 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     setMemory((current) => ({ ...current, currentLesson: { id: lessonId, startedAt: new Date().toISOString() }, capture: { ...current.capture, attachToLesson: true } }));
   }, []);
   const endLesson = useCallback(() => setMemory((current) => ({ ...current, currentLesson: null })), []);
-  const currentLesson = useMemo(() => {
-    const id = memory.currentLesson?.id;
-    const entry = id ? entryById.get(id) : undefined;
-    return entry && isLesson(entry) && entry.kind === "lesson" ? entry : null;
-  }, [entryById, memory.currentLesson?.id]);
+  // Recheck expiry whenever the capture panel or another workspace state renders.
+  // A desktop app left open overnight must not attach notes to yesterday's lesson.
+  const started = memory.currentLesson?.startedAt;
+  const lessonActive = Boolean(started && Date.now() - new Date(started).getTime() < 10 * 60 * 60 * 1000);
+  const lessonEntry = lessonActive && memory.currentLesson ? entryById.get(memory.currentLesson.id) : undefined;
+  const currentLesson = lessonEntry && isLesson(lessonEntry) ? lessonEntry : null;
 
   const value: WorkspaceValue = {
     userId, snapshot, schema, writable: schema === "v2", loading, error, reload,

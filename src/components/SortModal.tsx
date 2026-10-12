@@ -90,6 +90,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      // Study shortcuts must never act on text typed in Quick Capture or an editor.
+      if (event.defaultPrevented || event.isComposing || (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog'))) return;
       if (event.key === "Escape") { onClose(); return; }
       if (!card || busy) return;
       if (["1","2","3","4","5"].includes(event.key)) { event.preventDefault(); void rank(Number(event.key)); }
