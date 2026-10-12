@@ -4,8 +4,8 @@
 .desktop-chrome {
   height: 54px !important;
   padding: 0 clamp(18px, 2vw, 28px) !important;
-  border-bottom: 1px solid rgba(69, 59, 51, .12) !important;
-  background: rgba(235, 231, 224, .985) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--ws-primary) 12%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-surface-2) 98.5%, transparent) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
 }
@@ -16,15 +16,15 @@
   padding: 0 !important;
   border-radius: 8px !important;
 }
-.desktop-wordmark:hover { background: rgba(255,255,255,.36) !important; }
+.desktop-wordmark:hover { background: color-mix(in srgb, var(--ws-ink) 36%, transparent) !important; }
 .desktop-mark-wrap {
   width: 28px !important;
   height: 28px !important;
   flex: 0 0 28px !important;
   border-radius: 7px !important;
-  border: 1px solid rgba(69,59,51,.16) !important;
-  background: rgba(250,248,244,.62) !important;
-  color: #3d3935 !important;
+  border: 1px solid color-mix(in srgb, var(--ws-primary) 16%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-surface) 62%, transparent) !important;
+  color: var(--ws-ink) !important;
   box-shadow: none !important;
 }
 .desktop-mark-wrap svg {
@@ -44,7 +44,7 @@
   font-size: 10.5px !important;
 }
 .desktop-nav-item.active {
-  background: rgba(255,255,255,.54) !important;
+  background: color-mix(in srgb, var(--ws-raised) 54%, transparent) !important;
   box-shadow: none !important;
 }
 .desktop-header-actions {
@@ -58,8 +58,8 @@
   height: 32px !important;
   justify-content: flex-start !important;
   padding: 0 9px !important;
-  background: rgba(250,248,244,.58) !important;
-  border-color: rgba(69,59,51,.11) !important;
+  background: color-mix(in srgb, var(--ws-surface) 58%, transparent) !important;
+  border-color: color-mix(in srgb, var(--ws-primary) 11%, transparent) !important;
   box-shadow: none !important;
 }
 .desktop-search-action kbd { margin-left: auto !important; }
@@ -114,7 +114,7 @@
   margin: 0 0 13px !important;
   padding: 2px 3px !important;
   border-radius: 8px !important;
-  background: rgba(248,246,241,.46) !important;
+  background: color-mix(in srgb, var(--ws-surface) 46%, transparent) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
 }
