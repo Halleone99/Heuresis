@@ -51,16 +51,6 @@ body { background: var(--ws-surface-2); }
 
 /* Desktop header is owned by theme/chrome.css. */
 
-.desktop-wordmark {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 0 9px 2px 3px;
-  font: 400 26px 'Libre Caslon Display', Georgia, serif;
-  letter-spacing: -.02em;
-  color: var(--ws-ink);
-}
-.desktop-wordmark span { color: var(--c-cinnabar); }
 .desktop-spacer { flex: 1; }
 .desktop-action {
   border: 0;
@@ -521,7 +511,6 @@ body { background: var(--ws-surface-2); }
 }
 
 @media (max-width: 800px) {
-  .desktop-chrome { overflow-x: auto; padding-inline: 12px; }
   .desktop-spacer { min-width: 12px; }
   .desktop-account-strip { padding-right: 15px; }
   .desktop-content { padding: 16px 15px 50px; }
