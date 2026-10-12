@@ -248,7 +248,7 @@
   padding: 0 15px;
   border: 1px solid transparent;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--ws-ink) 48%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 48%, transparent);
   display: grid;
   grid-template-columns: 9px minmax(0,1fr) auto;
   align-items: center;
