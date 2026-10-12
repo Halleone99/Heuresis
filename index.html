@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f4f0e7" />
     <title>Heuresis</title>
+    <script>
+      // Resolve appearance before React mounts (including Capture and Review popups).
+      (() => {
+        try {
+          const storedMode = localStorage.getItem("heuresis.theme.v1");
+          const mode = storedMode === "light" || storedMode === "dark" ? storedMode : "system";
+          const saved = localStorage.getItem("heuresis.palette.v1");
+          const palette = ["slate", "forest", "sepia", "neutral"].includes(saved) ? saved : "sepia";
+          const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.palette = palette;
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch { document.documentElement.dataset.palette = "sepia"; }
+      })();
+    </script>
     <style>
       html,
       body,
@@ -14,7 +29,7 @@
       }
 
       body {
-        background: #f4f0e7;
+        background: var(--ws-page, #f4f0e7);
       }
 
       .heuresis-boot {
@@ -25,9 +40,9 @@
         place-items: center;
         overflow: hidden;
         background:
-          radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.76), transparent 34%),
-          linear-gradient(180deg, #f7f3eb 0%, #f1ece2 100%);
-        color: #211d19;
+          radial-gradient(circle at 50% 42%, var(--ws-accent-soft, rgba(255,255,255,.22)), transparent 42%),
+          var(--ws-page, #f2efe9);
+        color: var(--ws-ink, #211d19);
         font-family: Georgia, "Times New Roman", serif;
       }
 
