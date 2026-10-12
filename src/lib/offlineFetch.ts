@@ -610,6 +610,20 @@ function isAlreadyAppliedInsert(method: string, status: number, responseText: st
   } catch { return false; }
 }
 
+// Only unrelated writes may pass a permanently rejected offline operation.
+// An ID-scoped PATCH following a failed INSERT of the same record must stay queued.
+function queuedRecordKey(item: QueueRecord): string | null {
+  const table = tableName(item.url);
+  if (!table) return null;
+  const idFilter = new URL(item.url).searchParams.get("id");
+  const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
+  const body = parseJson(item.body);
+  const bodyId = body && typeof body === "object" && !Array.isArray(body)
+    && typeof (body as Record<string, unknown>).id === "string"
+    ? (body as Record<string, string>).id : null;
+  return id || bodyId ? `${table}:${id ?? bodyId}` : null;
+}
+
 let activeFlush: Promise<{ sent: number; pending: number }> | null = null;
 
 /** Replays queued writes in order. Concurrent callers share one run so nothing is sent twice. */
@@ -629,15 +643,29 @@ async function flushQueue(accessToken: string | null | undefined) {
     .filter((row) => row.ownerId === owner)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   let sent = 0;
+  let held = 0;
+  const blockedRecords = new Set<string>();
   for (const item of queued) {
     if (cacheOwner() !== owner) throw new Error("Offline sync paused because the signed-in account changed.");
+    const key = queuedRecordKey(item);
+    if (key && blockedRecords.has(key)) { held += 1; continue; }
     const headers = new Headers(item.headers);
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     try {
       const response = await networkFetch(item.url, { method: item.method, headers, body: item.body });
       if (!response.ok) {
         const text = await response.text().catch(() => "");
-        if (!isAlreadyAppliedInsert(item.method, response.status, text)) throw new Error(text || `Sync failed with HTTP ${response.status}.`);
+        if (!isAlreadyAppliedInsert(item.method, response.status, text)) {
+          // A rejected row must not block captures and cards unrelated to it.
+          // Keep the original write locally for a future retry or recovery.
+          if (response.status >= 400 && response.status < 500 && response.status !== 401 && key) {
+            blockedRecords.add(key);
+            held += 1;
+            await putRecord(QUEUE_STORE, { ...item, attempts: item.attempts + 1 });
+            continue;
+          }
+          throw new Error(text || `Sync failed with HTTP ${response.status}.`);
+        }
       }
       await deleteRecord(QUEUE_STORE, item.id);
       sent += 1;
@@ -647,7 +675,9 @@ async function flushQueue(accessToken: string | null | undefined) {
       throw error;
     }
   }
-  return { sent, pending: await refreshOfflinePendingCount() };
+  const pending = await refreshOfflinePendingCount();
+  if (held) throw new Error(`${held} offline ${held === 1 ? "change needs" : "changes need"} attention. Other independent changes were synced; nothing was discarded.`);
+  return { sent, pending };
 }
 
 /** Number of writes made offline that have not reached the server yet. */
