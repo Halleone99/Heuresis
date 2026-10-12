@@ -130,10 +130,6 @@
 }
 
 @media (max-width: 820px) {
-  .desktop-search-action { width: auto !important; }
-  .desktop-search-action span,
-  .desktop-search-action kbd { display: none !important; }
-  .desktop-topic-action { display: none !important; }
   .library-identity-hero { min-height: 72px !important; }
   .collection-overview-grid { grid-template-columns: 1fr !important; }
 }
