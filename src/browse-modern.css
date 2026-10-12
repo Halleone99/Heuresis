@@ -223,7 +223,7 @@
   cursor: pointer;
 }
 .browse-reset-button:hover:not(:disabled) { background: color-mix(in srgb, var(--ws-text) 5.5%, transparent); color: var(--ws-text); }
-.browse-reset-button:disabled { opacity: .35; cursor: default; }
+.browse-reset-button:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; }
 .browse-start-button {
   min-height: 38px;
   padding: 0 15px;
@@ -240,7 +240,7 @@
   box-shadow: 0 8px 22px rgba(35,31,28,.12);
 }
 .browse-start-button:hover { background: var(--ws-primary); transform: translateY(-1px); }
-.browse-start-button:disabled { opacity: .35; cursor: default; transform: none; }
+.browse-start-button:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; transform: none; }
 
 /* Reading screen */
 .modern-browse-layer { background: color-mix(in srgb, var(--ws-surface) 82%, transparent) !important; backdrop-filter: blur(22px) saturate(.92); }
