@@ -161,7 +161,7 @@ body { background: var(--ws-surface-2); }
   transition: .16s ease;
 }
 .secondary-button:hover { border-color: var(--ws-faint); background: color-mix(in srgb, var(--ws-raised) 93%, transparent); }
-.secondary-button:disabled { opacity: .43; cursor: not-allowed; }
+.secondary-button:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; }
 .danger-text { color: var(--c-cinnabar); }
 .icon-button {
   width: 34px;
