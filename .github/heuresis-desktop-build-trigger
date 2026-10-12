@@ -1,3 +1,3 @@
-Build Heuresis Windows ARM64 with Claude-audited visual contrast repairs.
-Source: main at 75ea054010647269a86d20af5b497d28de6657cb
-Fixes: readable chrome, account menu, Study buttons, Capture, dark scrims and Connections editor across four palettes.
+Build Heuresis Windows ARM64 after consolidated appearance fixes.
+Source main: c7ae69b36d78c3725a13990142e9ef6a0b6dfd80
+Header single-source CSS and 8-palette Chromium smoke checks passed; Windows runtime visual acceptance pending.
