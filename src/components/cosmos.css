@@ -111,7 +111,7 @@
 .cosmos-tabs button > b { font:400 13px/1 var(--serif); }
 .cosmos-tabs button[data-empty="1"] { color:var(--faint); border-style:dashed; }
 .cosmos-tabs button[aria-expanded="true"] { color:var(--live); border-color:var(--ws-sunken); background:var(--live-soft); }
-.cosmos-tabs button:disabled { opacity:.35; cursor:default; }
+.cosmos-tabs button:disabled { opacity:1; cursor:default; color:var(--ws-muted); background:var(--ws-sunken); }
 .cosmos-tabs.left button:hover:not(:disabled) { transform:translateX(-3px); }
 .cosmos-tabs.right button:hover:not(:disabled) { transform:translateX(3px); }
 
