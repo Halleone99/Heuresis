@@ -134,9 +134,9 @@
   box-shadow: 0 6px 18px rgba(43, 51, 46, .045);
 }
 .browse-choice-grid button > i { width: 8px; height: 8px; border-radius: 50%; }
-.browse-choice-grid button > i[data-tone="unsorted"] { background: var(--ws-accent); }
-.browse-choice-grid button > i[data-tone="ready"] { background: var(--c-indigo); }
-.browse-choice-grid button > i[data-tone="reviewed"] { background: var(--c-sage); }
+.browse-choice-grid button > i[data-tone="unsorted"] { background: var(--stage-unsorted); }
+.browse-choice-grid button > i[data-tone="ready"] { background: var(--stage-ready); }
+.browse-choice-grid button > i[data-tone="reviewed"] { background: var(--stage-reviewed); }
 .browse-choice-grid button > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10px; font-weight: 650; }
 .browse-choice-grid button > b { color: var(--ws-muted); font-size: 9px; }
 .browse-choice-grid button.selected > b { color: var(--ws-text); }
