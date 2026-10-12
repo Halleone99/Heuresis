@@ -5,7 +5,7 @@
   height: auto !important;
   max-height: calc(100vh - 32px) !important;
   border-radius: 20px !important;
-  background: rgba(250,250,248,.97) !important;
+  background: color-mix(in srgb, var(--ws-surface) 97%, transparent) !important;
 }
 .compact-study-launcher .study-topbar {
   height: 54px !important;
@@ -45,7 +45,7 @@
   align-items: center;
   gap: 18px;
   padding-bottom: 18px;
-  border-bottom: 1px solid rgba(72,65,59,.07);
+  border-bottom: 1px solid color-mix(in srgb, var(--ws-text) 7%, transparent);
 }
 .compact-study-heading .study-back-link {
   padding: 0 !important;
@@ -65,23 +65,23 @@
 .compact-study-meta span {
   min-height: 28px;
   padding: 0 9px;
-  border: 1px solid rgba(72,65,59,.07);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 7%, transparent);
   border-radius: 999px;
-  background: rgba(255,255,255,.62);
-  color: #928a82;
+  background: color-mix(in srgb, var(--ws-raised) 62%, transparent);
+  color: var(--ws-muted);
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 9px;
 }
-.compact-study-meta b { color: #4c4641; font-size: 10px; }
+.compact-study-meta b { color: var(--ws-text); font-size: 10px; }
 
 .compact-study-controls {
   margin-top: 16px;
   padding: 12px;
-  border: 1px solid rgba(72,65,59,.075);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 7.5%, transparent);
   border-radius: 16px;
-  background: rgba(255,255,255,.44);
+  background: color-mix(in srgb, var(--ws-ink) 44%, transparent);
   display: grid;
   gap: 8px;
 }
@@ -98,9 +98,9 @@
 .compact-search,
 .study-tags-menu > summary {
   min-width: 0;
-  border: 1px solid rgba(72,65,59,.075);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 7.5%, transparent);
   border-radius: 11px;
-  background: rgba(250,250,248,.72);
+  background: color-mix(in srgb, var(--ws-surface) 72%, transparent);
 }
 .compact-field {
   padding: 9px 10px;
@@ -110,7 +110,7 @@
 .compact-field > span,
 .compact-order-panel > span,
 .study-compact-label > span {
-  color: #8e867e;
+  color: var(--ws-muted);
   font-size: 8px;
   font-weight: 750;
   letter-spacing: .08em;
@@ -123,8 +123,8 @@
   border: 0;
   border-radius: 8px;
   outline: 0;
-  background: rgba(255,255,255,.78);
-  color: #4e4842;
+  background: color-mix(in srgb, var(--ws-raised) 78%, transparent);
+  color: var(--ws-text);
   font-size: 10px;
 }
 .compact-count-panel,
@@ -144,7 +144,7 @@
   gap: 10px;
 }
 .study-compact-label b {
-  color: #716960;
+  color: var(--ws-text);
   font-size: 9px;
   font-weight: 700;
 }
@@ -152,7 +152,7 @@
   width: 100%;
   height: 18px;
   margin: 0;
-  accent-color: #66786d;
+  accent-color: var(--ws-muted);
 }
 .compact-count-shortcuts {
   margin-top: 0 !important;
@@ -175,7 +175,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #9a928a;
+  color: var(--ws-faint);
 }
 .compact-search input {
   min-width: 0;
@@ -183,7 +183,7 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #4d4741;
+  color: var(--ws-text);
   font-size: 10px;
 }
 
@@ -197,7 +197,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #706860;
+  color: var(--ws-text);
   font-size: 10px;
   font-weight: 650;
   cursor: pointer;
@@ -205,16 +205,16 @@
 .study-tags-menu > summary::-webkit-details-marker { display: none; }
 .study-tags-menu > summary.active,
 .study-tags-menu[open] > summary {
-  background: #45413d;
-  color: #fff;
-  border-color: #45413d;
+  background: var(--ws-text);
+  color: var(--ws-on-primary);
+  border-color: var(--ws-text);
 }
 .study-tags-menu > summary b {
   margin-left: auto;
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: rgba(255,255,255,.14);
+  background: color-mix(in srgb, var(--ws-ink) 14%, transparent);
   display: grid;
   place-items: center;
   font-size: 8px;
@@ -226,9 +226,9 @@
   z-index: 40;
   width: 310px;
   padding: 10px;
-  border: 1px solid rgba(72,65,59,.10);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent);
   border-radius: 13px;
-  background: rgba(250,250,248,.98);
+  background: color-mix(in srgb, var(--ws-surface) 98%, transparent);
   box-shadow: 0 18px 44px rgba(35,30,27,.14);
   backdrop-filter: blur(20px);
 }
@@ -236,10 +236,10 @@
 .study-tag-grid button,
 .study-tag-wrap button {
   min-height: 28px;
-  border: 1px solid rgba(72,65,59,.08);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent);
   border-radius: 8px;
-  background: rgba(255,255,255,.70);
-  color: #716960;
+  background: color-mix(in srgb, var(--ws-raised) 70%, transparent);
+  color: var(--ws-text);
   font-size: 8px;
   font-weight: 650;
   cursor: pointer;
@@ -248,11 +248,11 @@
 .study-tags-popover section {
   margin-top: 9px;
   padding-top: 8px;
-  border-top: 1px solid rgba(72,65,59,.07);
+  border-top: 1px solid color-mix(in srgb, var(--ws-text) 7%, transparent);
 }
 .study-tags-popover section > p {
   margin: 0 0 6px;
-  color: #9a928a;
+  color: var(--ws-faint);
   font-size: 7px;
   font-weight: 750;
   letter-spacing: .08em;
@@ -266,9 +266,9 @@
 .study-tag-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
 .study-tag-wrap button { padding: 0 8px; }
 .study-tags-popover button.selected {
-  background: #45413d;
-  border-color: #45413d;
-  color: #fff;
+  background: var(--ws-text);
+  border-color: var(--ws-text);
+  color: var(--ws-on-primary);
 }
 
 .sort-controls .compact-count-panel,
