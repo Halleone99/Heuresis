@@ -48,6 +48,7 @@ import "./tablet.css";
 import "./components/workspace/workspace.css";
 // Loaded last to resolve legacy and workspace colours with one shared palette.
 import "./theme/palettes.css";
+import "./theme/chrome.css";
 
 const params = new URLSearchParams(window.location.search);
 // Every window uses the same appearance; updates propagate across windows.
