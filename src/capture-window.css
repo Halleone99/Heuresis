@@ -3,8 +3,8 @@
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 82% 10%, rgba(255,255,255,.72), transparent 36%),
-    #f2eee6;
+    radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--ws-raised) 72%, transparent), transparent 36%),
+    var(--ws-surface-2);
 }
 
 .capture-window-host .capture-popup-backdrop {
@@ -56,23 +56,23 @@
   align-content: center;
   gap: 9px;
   padding: 28px;
-  background: #f2eee6;
-  color: #756b62;
+  background: var(--ws-surface-2);
+  color: var(--ws-muted);
   font-size: 12px;
   text-align: center;
 }
 
 .capture-window-state strong {
-  color: #3c342e;
+  color: var(--ws-ink);
   font: 400 26px 'Libre Caslon Display', Georgia, serif;
 }
 
 .capture-window-state button {
   margin-top: 8px;
-  border: 1px solid #cfc5b8;
+  border: 1px solid var(--ws-line);
   border-radius: 8px;
-  background: #fbf9f5;
-  color: #5f564e;
+  background: var(--ws-surface);
+  color: var(--ws-text);
   padding: 8px 13px;
   cursor: pointer;
 }
