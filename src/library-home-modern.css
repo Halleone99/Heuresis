@@ -4,7 +4,7 @@
 /* Keep the chosen background present across the entire viewport. The veil now fades gradually
    instead of letting the lower half collapse into a flat beige field. */
 .heuresis-desktop[data-custom-background="heuresis"] {
-  background: #ded8cf !important;
+  background: var(--ws-sunken) !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
   opacity: calc(var(--heuresis-background-opacity, .32) + .18) !important;
@@ -13,10 +13,10 @@
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
   background:
     linear-gradient(180deg,
-      rgba(242,240,234,.18) 0%,
-      rgba(242,239,232,.27) 24%,
-      rgba(238,233,224,.42) 56%,
-      rgba(230,223,213,.53) 100%) !important;
+      color-mix(in srgb, var(--ws-surface-2) 18%, transparent) 0%,
+      color-mix(in srgb, var(--ws-surface-2) 27%, transparent) 24%,
+      color-mix(in srgb, var(--ws-surface-2) 42%, transparent) 56%,
+      color-mix(in srgb, var(--ws-sunken) 53%, transparent) 100%) !important;
 }
 .desktop-content {
   background: transparent !important;
@@ -26,8 +26,8 @@
 .desktop-chrome {
   height: 58px !important;
   padding: 0 clamp(20px, 2.2vw, 34px) !important;
-  border-bottom: 1px solid rgba(255,255,255,.11) !important;
-  background: linear-gradient(180deg, rgba(24,24,23,.87), rgba(31,30,29,.79)) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--ws-ink) 11%, transparent) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ws-primary) 87%, transparent), color-mix(in srgb, var(--ws-primary) 79%, transparent)) !important;
   box-shadow: 0 10px 34px rgba(16,15,14,.15), inset 0 -1px 0 rgba(255,255,255,.03) !important;
   backdrop-filter: blur(24px) saturate(1.08) !important;
 }
@@ -35,82 +35,82 @@
   background: transparent !important;
 }
 .desktop-wordmark:hover {
-  background: rgba(255,255,255,.065) !important;
+  background: color-mix(in srgb, var(--ws-ink) 6.5%, transparent) !important;
 }
 .desktop-mark-wrap {
-  border-color: rgba(255,255,255,.15) !important;
-  background: rgba(255,255,255,.075) !important;
-  color: #f0eee9 !important;
+  border-color: color-mix(in srgb, var(--ws-ink) 15%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-ink) 7.5%, transparent) !important;
+  color: var(--ws-on-primary) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06) !important;
 }
 .desktop-mark-wrap svg {
   filter: none !important;
 }
 .desktop-wordmark-name {
-  color: #f3f1ec !important;
+  color: var(--ws-on-primary) !important;
 }
 .desktop-wordmark-name span {
-  color: #b8755e !important;
+  color: var(--c-cinnabar) !important;
 }
 .desktop-nav-item {
-  color: rgba(241,239,234,.68) !important;
+  color: color-mix(in srgb, var(--ws-on-primary) 68%, transparent) !important;
 }
 .desktop-nav-item:hover {
-  background: rgba(255,255,255,.07) !important;
-  color: #fff !important;
+  background: color-mix(in srgb, var(--ws-ink) 7%, transparent) !important;
+  color: var(--ws-on-primary) !important;
 }
 .desktop-nav-item.active {
-  background: rgba(255,255,255,.11) !important;
-  color: #fff !important;
+  background: color-mix(in srgb, var(--ws-ink) 11%, transparent) !important;
+  color: var(--ws-on-primary) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.055) !important;
 }
 .desktop-nav-item.active::after {
-  background: #bc765e !important;
+  background: var(--c-cinnabar) !important;
   opacity: .9 !important;
 }
 .desktop-search-action {
-  background: rgba(255,255,255,.07) !important;
-  border-color: rgba(255,255,255,.10) !important;
-  color: rgba(247,245,240,.82) !important;
+  background: color-mix(in srgb, var(--ws-ink) 7%, transparent) !important;
+  border-color: color-mix(in srgb, var(--ws-ink) 10%, transparent) !important;
+  color: color-mix(in srgb, var(--ws-on-primary) 82%, transparent) !important;
 }
 .desktop-search-action:hover {
-  background: rgba(255,255,255,.105) !important;
+  background: color-mix(in srgb, var(--ws-ink) 10.5%, transparent) !important;
 }
 .desktop-search-action kbd {
-  border-color: rgba(255,255,255,.10) !important;
-  background: rgba(255,255,255,.06) !important;
-  color: rgba(238,236,231,.54) !important;
+  border-color: color-mix(in srgb, var(--ws-ink) 10%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-ink) 6%, transparent) !important;
+  color: color-mix(in srgb, var(--ws-on-primary) 54%, transparent) !important;
 }
 .desktop-topic-action {
-  border-color: rgba(255,255,255,.11) !important;
-  background: rgba(255,255,255,.05) !important;
-  color: rgba(246,244,239,.80) !important;
+  border-color: color-mix(in srgb, var(--ws-ink) 11%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-ink) 5%, transparent) !important;
+  color: color-mix(in srgb, var(--ws-on-primary) 80%, transparent) !important;
 }
 .desktop-topic-action:hover {
-  background: rgba(255,255,255,.085) !important;
-  color: #fff !important;
+  background: color-mix(in srgb, var(--ws-ink) 8.5%, transparent) !important;
+  color: var(--ws-on-primary) !important;
 }
 .desktop-action.desktop-primary {
-  background: rgba(250,247,241,.94) !important;
-  color: #262321 !important;
+  background: color-mix(in srgb, var(--ws-surface) 94%, transparent) !important;
+  color: var(--ws-ink) !important;
   box-shadow: 0 7px 18px rgba(0,0,0,.14) !important;
 }
 .desktop-action.desktop-primary:hover {
-  background: #fff !important;
-  color: #171615 !important;
+  background: var(--ws-raised) !important;
+  color: var(--ws-ink) !important;
 }
 .desktop-account-menu > summary {
-  color: rgba(243,241,236,.68) !important;
+  color: color-mix(in srgb, var(--ws-on-primary) 68%, transparent) !important;
 }
 .desktop-account-menu > summary:hover,
 .desktop-account-menu[open] > summary {
-  background: rgba(255,255,255,.07) !important;
-  color: #fff !important;
+  background: color-mix(in srgb, var(--ws-ink) 7%, transparent) !important;
+  color: var(--ws-on-primary) !important;
 }
 .desktop-account-avatar {
-  background: rgba(255,255,255,.11) !important;
-  border: 1px solid rgba(255,255,255,.10) !important;
-  color: #f4f2ed !important;
+  background: color-mix(in srgb, var(--ws-ink) 11%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--ws-ink) 10%, transparent) !important;
+  color: var(--ws-on-primary) !important;
 }
 
 /* Library home: a compact central workspace, not a dashboard floating in empty space. */
@@ -133,7 +133,7 @@
 .intelligent-library-head p {
   margin-top: 8px !important;
   font-size: 14px !important;
-  color: #625b54 !important;
+  color: var(--ws-text) !important;
   text-shadow: 0 1px 12px rgba(250,247,241,.90) !important;
 }
 .library-summary-actions {
@@ -150,9 +150,9 @@
 .library-new-collection {
   min-height: 36px !important;
   padding: 0 13px !important;
-  border: 1px solid rgba(83,68,56,.13) !important;
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 13%, transparent) !important;
   border-radius: 10px !important;
-  background: rgba(252,249,244,.80) !important;
+  background: color-mix(in srgb, var(--ws-surface) 80%, transparent) !important;
   box-shadow: 0 7px 22px rgba(52,38,29,.055) !important;
   backdrop-filter: blur(14px) saturate(1.06);
 }
@@ -164,14 +164,14 @@
   align-items: start !important;
 }
 .library-resume {
-  border-color: rgba(88,72,59,.14) !important;
+  border-color: color-mix(in srgb, var(--ws-accent) 14%, transparent) !important;
   border-radius: 18px !important;
-  background: rgba(253,250,246,.80) !important;
+  background: color-mix(in srgb, var(--ws-surface) 80%, transparent) !important;
   box-shadow: 0 18px 54px rgba(45,32,24,.07), inset 0 1px 0 rgba(255,255,255,.62) !important;
   backdrop-filter: blur(18px) saturate(1.05) !important;
 }
 .library-resume::before {
-  background: radial-gradient(115% 85% at 92% -15%, color-mix(in srgb,var(--accent,#a4402f) 10%,transparent), transparent 64%) !important;
+  background: radial-gradient(115% 85% at 92% -15%, color-mix(in srgb,var(--accent,var(--c-cinnabar)) 10%,transparent), transparent 64%) !important;
 }
 .library-resume-head {
   padding: 25px 30px 22px !important;
@@ -180,14 +180,14 @@
   flex-basis: 106px !important;
   height: 106px !important;
   border-radius: 14px !important;
-  background: linear-gradient(160deg, rgba(255,255,255,.92), color-mix(in srgb,var(--accent,#a4402f) 8%,rgba(248,244,237,.88))) !important;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--ws-raised) 92%, transparent), color-mix(in srgb,var(--accent,var(--c-cinnabar)) 8%,color-mix(in srgb, var(--ws-surface) 88%, transparent))) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.78) !important;
 }
 .library-resume-title {
   font-size: 34px !important;
 }
 .library-resume-title:hover {
-  color: var(--accent,#8f6747) !important;
+  color: var(--accent,var(--c-cinnabar)) !important;
 }
 .library-resume-head>div>p:not(.eyebrow) {
   margin-top: 3px !important;
@@ -206,54 +206,54 @@
   transition: background .16s ease, padding-left .16s ease !important;
 }
 .library-resume-topics>button:hover {
-  background: rgba(255,255,255,.72) !important;
+  background: color-mix(in srgb, var(--ws-raised) 72%, transparent) !important;
   padding-left: 33px !important;
 }
 .library-resume-topics>button>i {
   height: 5px !important;
-  background: rgba(118,102,87,.14) !important;
+  background: color-mix(in srgb, var(--ws-accent) 14%, transparent) !important;
 }
 .library-resume-topics>button>i em {
   min-width: 3px;
   opacity: 1 !important;
-  background: var(--accent,#a4402f) !important;
+  background: var(--accent,var(--c-cinnabar)) !important;
 }
 .library-resume-topics>button>b {
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  color: #665d55 !important;
+  color: var(--ws-text) !important;
   font-size: 11px !important;
   font-weight: 550 !important;
   text-align: right;
 }
 .library-resume-topics>button:hover>b {
-  color: var(--accent,#8f6747) !important;
+  color: var(--accent,var(--c-cinnabar)) !important;
 }
 
 /* Make the unsorted-word queue read as a real next action. */
 .library-waiting {
   min-height: 49px !important;
   padding: 13px 30px !important;
-  background: color-mix(in srgb,var(--signal-amber) 9%,rgba(252,249,244,.58)) !important;
+  background: color-mix(in srgb,var(--signal-amber) 9%,color-mix(in srgb, var(--ws-surface) 58%, transparent)) !important;
 }
 .library-waiting strong {
   min-width: 28px;
   font-size: 15px !important;
 }
 .library-waiting span {
-  color: #514a43 !important;
+  color: var(--ws-text) !important;
 }
 .library-waiting b {
   padding: 6px 9px;
   border: 1px solid color-mix(in srgb,var(--signal-amber) 30%,transparent) !important;
   border-radius: 8px;
-  background: rgba(255,255,255,.45);
+  background: color-mix(in srgb, var(--ws-ink) 45%, transparent);
   text-decoration: none;
 }
 .library-waiting:hover b {
-  background: rgba(255,255,255,.72);
+  background: color-mix(in srgb, var(--ws-raised) 72%, transparent);
 }
 
 /* Right-hand collection switcher. */
@@ -271,17 +271,17 @@
 }
 .library-stack-head .eyebrow {
   margin: 0;
-  color: rgba(67,60,54,.76) !important;
+  color: color-mix(in srgb, var(--ws-ink) 76%, transparent) !important;
   font-size: 9px !important;
   letter-spacing: .13em !important;
 }
 .library-stack-new {
   min-height: 27px;
   padding: 0 8px;
-  border: 1px solid rgba(82,69,58,.13);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 13%, transparent);
   border-radius: 8px;
-  background: rgba(252,249,244,.58);
-  color: #645c54;
+  background: color-mix(in srgb, var(--ws-surface) 58%, transparent);
+  color: var(--ws-text);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -290,39 +290,39 @@
   backdrop-filter: blur(10px);
 }
 .library-stack-new:hover {
-  background: rgba(255,253,249,.88);
-  color: #302b27;
+  background: color-mix(in srgb, var(--ws-raised) 88%, transparent);
+  color: var(--ws-ink);
 }
 .library-mini {
   min-height: 78px !important;
   padding: 14px 15px !important;
-  border-color: rgba(86,72,60,.13) !important;
+  border-color: color-mix(in srgb, var(--ws-accent) 13%, transparent) !important;
   border-radius: 14px !important;
-  background: rgba(253,250,246,.72) !important;
+  background: color-mix(in srgb, var(--ws-surface) 72%, transparent) !important;
   box-shadow: 0 9px 25px rgba(44,32,24,.035), inset 0 1px 0 rgba(255,255,255,.55) !important;
   backdrop-filter: blur(15px) saturate(1.04) !important;
   transition: transform .16s ease, background .16s ease, box-shadow .16s ease !important;
 }
 .library-mini:hover {
   transform: translateX(-2px) !important;
-  background: rgba(255,253,249,.91) !important;
+  background: color-mix(in srgb, var(--ws-raised) 91%, transparent) !important;
   box-shadow: 0 12px 31px rgba(44,32,24,.06) !important;
 }
 .library-mini-glyph {
   flex-basis: 52px !important;
   height: 52px !important;
   border-radius: 11px !important;
-  background: rgba(255,255,255,.70) !important;
+  background: color-mix(in srgb, var(--ws-raised) 70%, transparent) !important;
 }
 .library-mini strong {
   font-size: 20px !important;
 }
 .library-mini small {
-  color: #9b8f83 !important;
+  color: var(--ws-accent) !important;
 }
 .library-mini>i {
   height: 3px !important;
-  background: rgba(118,102,87,.13) !important;
+  background: color-mix(in srgb, var(--ws-accent) 13%, transparent) !important;
 }
 .library-mini>i em {
   min-width: 3px;
@@ -333,23 +333,23 @@
 .library-mini.off {
   opacity: 1 !important;
   border-style: solid !important;
-  background: rgba(248,245,239,.62) !important;
-  color: #70675e !important;
+  background: color-mix(in srgb, var(--ws-surface) 62%, transparent) !important;
+  color: var(--ws-text) !important;
 }
 .library-mini.off:hover {
-  background: rgba(253,250,245,.88) !important;
-  color: #413b35 !important;
+  background: color-mix(in srgb, var(--ws-surface) 88%, transparent) !important;
+  color: var(--ws-ink) !important;
 }
 .library-mini.off .library-mini-glyph {
   border-style: solid !important;
-  background: rgba(255,255,255,.42) !important;
-  color: #b2a79b !important;
+  background: color-mix(in srgb, var(--ws-ink) 42%, transparent) !important;
+  color: var(--ws-faint) !important;
 }
 .library-mini.off strong {
-  color: #6f665e !important;
+  color: var(--ws-text) !important;
 }
 .library-mini.off small {
-  color: #a6784d !important;
+  color: var(--ws-accent) !important;
 }
 
 .library-empty .library-new-collection {
