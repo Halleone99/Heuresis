@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Libre+Caslon+Display&display=swap');
 
 :root { font-family: Inter, system-ui, sans-serif; color:var(--ws-ink); background:var(--ws-surface-2); font-synthesis:none; }
 * { box-sizing:border-box; }
