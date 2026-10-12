@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--ws-primary) 18%, transparent);
+  background: var(--ws-scrim);
   backdrop-filter: blur(3px) saturate(.96);
   -webkit-backdrop-filter: blur(3px) saturate(.96);
 }
@@ -35,7 +35,7 @@
   background: color-mix(in srgb, var(--ws-surface) 93%, transparent);
 }
 .capture-context-pickers { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }
-.capture-context-pickers > span:not(.capture-schema-badge) { color: var(--ws-line-strong); font-size: 11px; }
+.capture-context-pickers > span:not(.capture-schema-badge) { color: var(--ws-muted); font-size: 11px; }
 .capture-context-pickers select {
   min-width: 0;
   max-width: 185px;
@@ -123,7 +123,7 @@
   outline: 0;
   font: 400 16px/1.42 system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-.capture-slot textarea::placeholder { color: var(--ws-line); }
+.capture-slot textarea::placeholder { color: var(--ws-muted); }
 .capture-slot-display textarea {
   min-height: 39px;
   font: 400 30px/1.16 'Libre Caslon Display', Georgia, serif;
@@ -181,7 +181,7 @@
 .capture-enrichment-block > textarea:focus,
 .capture-relation-fields input:focus { border-bottom-color: var(--ws-accent); }
 .capture-enrichment-block > textarea::placeholder,
-.capture-relation-fields input::placeholder { color: var(--ws-line-strong); }
+.capture-relation-fields input::placeholder { color: var(--ws-muted); }
 .capture-relation-fields { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
 
 .capture-tag-panel { margin-top: 14px; padding-top: 11px; border-top: 1px solid color-mix(in srgb, var(--ws-accent) 12%, transparent); }
