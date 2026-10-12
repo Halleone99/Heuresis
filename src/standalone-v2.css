@@ -49,20 +49,7 @@ body { background: var(--ws-surface-2); }
   background: radial-gradient(circle at 80% 8%, color-mix(in srgb, var(--ws-raised) 78%, transparent), transparent 34%), var(--ws-surface-2);
 }
 
-.desktop-chrome {
-  position: sticky;
-  top: 0;
-  z-index: 35;
-  height: 58px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 22px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ws-accent) 17%, transparent);
-  background: color-mix(in srgb, var(--ws-surface) 80%, transparent);
-  backdrop-filter: blur(20px) saturate(1.1);
-  box-shadow: 0 8px 26px rgba(45, 35, 28, .035);
-}
+/* Desktop header is owned by theme/chrome.css. */
 
 .desktop-wordmark {
   border: 0;
