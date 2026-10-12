@@ -65,23 +65,12 @@
 .collection-metrics em { color: var(--ws-muted); font: 7.5px 'DM Mono', ui-monospace, monospace; font-style: normal; text-transform: uppercase; letter-spacing: .05em; }
 
 @media (max-width: 1180px) {
-  .desktop-nav-group { margin-left: 22px; }
-  .desktop-nav-item { padding-inline: 8px; }
-  .desktop-search-action kbd { display: none; }
 }
 
 @media (max-width: 980px) {
-  .desktop-chrome { padding-inline: 14px; }
-  .desktop-wordmark-name { display: none; }
-  .desktop-nav-group { margin-left: 12px; }
-  .desktop-search-action span { display: none; }
-  .desktop-search-action { width: 36px; justify-content: center; padding: 0; }
 }
 
 @media (max-width: 760px) {
-  .desktop-nav-group { display: none; }
-  .desktop-topic-action { display: none; }
-  .desktop-action.desktop-primary { padding-inline: 10px; }
   .desktop-content { padding-top: 22px; }
   .library-hero { align-items: flex-start; }
   .library-summary { align-items: flex-start; }
