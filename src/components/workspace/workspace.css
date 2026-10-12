@@ -28,11 +28,7 @@
 .heuresis-desktop:not([data-section="study"]) { background: var(--ws-page) !important; }
 /* The wallpaper belongs to Study; reading and writing happen on plain paper. */
 .heuresis-desktop:not([data-section="study"]) :is(.heuresis-wallpaper, .heuresis-wallpaper-lower, .heuresis-veil) { display: none !important; }
-/* Same tint as Study's translucent bar, laid over the page colour so scrolled text does not show through it. */
-.heuresis-desktop:not([data-section="study"]) .desktop-chrome {
-  background: linear-gradient(180deg, rgba(20,20,20,.84), rgba(27,27,27,.76)), var(--ws-page) !important;
-  backdrop-filter: none !important;
-}
+/* Shared chrome stays charcoal in every workspace section (theme/chrome.css). */
 .heuresis-workspace-layout {
   position: relative;
   z-index: 2;
