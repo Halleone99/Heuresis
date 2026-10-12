@@ -9,73 +9,11 @@
   --ws-sans: Inter, system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --ws-serif: "Iowan Old Style", Georgia, "Noto Serif", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", serif;
   --ws-mono: "DM Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
-
-  --ws-page: #f2efe9;
-  --ws-surface: #fbfaf7;
-  --ws-raised: #ffffff;
-  --ws-surface-2: #f5f2ec;
-  --ws-sunken: #ece8e0;
-  --ws-ink: #221e1a;
-  --ws-text: #463f38;
-  --ws-muted: #756c62;
-  --ws-faint: #a59c92;
-  --ws-line: rgba(64, 52, 40, .12);
-  --ws-line-strong: rgba(64, 52, 40, .21);
-  --ws-accent: #9b5537;
-  --ws-accent-strong: #7f4127;
-  --ws-accent-soft: rgba(155, 85, 55, .085);
-  --ws-accent-line: rgba(155, 85, 55, .3);
-  --ws-primary: #26211d;
-  --ws-primary-hover: #3b342e;
-  --ws-on-primary: #fbfaf7;
-  --ws-good: #3d7050;
-  --ws-good-soft: rgba(61, 112, 80, .1);
-  --ws-warn: #8f611c;
-  --ws-warn-soft: rgba(176, 128, 40, .12);
-  --ws-bad: #a0402e;
-  --ws-bad-soft: rgba(160, 64, 46, .08);
-  --ws-mark: #f4e3a6;
-  --ws-bar: #a65d3f;
-  --ws-shadow-1: 0 1px 2px rgba(40, 30, 20, .045), 0 6px 18px rgba(40, 30, 20, .04);
-  --ws-shadow-2: 0 24px 60px rgba(32, 24, 16, .16), 0 2px 8px rgba(32, 24, 16, .07);
   --ws-radius: 10px;
   --ws-radius-sm: 7px;
   --ws-radius-lg: 14px;
   --ws-sidebar: 196px;
   --ws-rail: 252px;
-}
-
-:root[data-theme="dark"] {
-  --ws-page: #161412;
-  --ws-surface: #1d1a17;
-  --ws-raised: #25211d;
-  --ws-surface-2: #211e1a;
-  --ws-sunken: #121010;
-  --ws-ink: #f2ede6;
-  --ws-text: #d4ccc1;
-  --ws-muted: #a1978c;
-  --ws-faint: #6c645b;
-  --ws-line: rgba(242, 232, 220, .085);
-  --ws-line-strong: rgba(242, 232, 220, .16);
-  --ws-accent: #e0a07f;
-  --ws-accent-strong: #efb79a;
-  --ws-accent-soft: rgba(224, 160, 127, .11);
-  --ws-accent-line: rgba(224, 160, 127, .32);
-  --ws-primary: #ece5da;
-  --ws-primary-hover: #fffaf2;
-  --ws-on-primary: #1b1815;
-  --ws-good: #8fc29f;
-  --ws-good-soft: rgba(143, 194, 159, .12);
-  --ws-warn: #e2b46a;
-  --ws-warn-soft: rgba(226, 180, 106, .12);
-  --ws-bad: #ef9d8a;
-  --ws-bad-soft: rgba(239, 157, 138, .1);
-  --ws-mark: rgba(214, 172, 74, .32);
-  --ws-bar: #cf7c52;
-  --ws-shadow-1: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .18);
-  --ws-shadow-2: 0 28px 70px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .3);
-  --h-focus: #e0a07f;
-  color-scheme: dark;
 }
 
 /* --------------------------------------------------------------------------
@@ -966,17 +904,8 @@
   .nb-copy { opacity: 1; }
 }
 
-/* --------------------------------------------------------------------------
-   Dark mode. The workspace sections and the shell are fully themed. Study's
-   own screens were designed for paper and are not yet themed, so in dark mode
-   Study keeps its light reading surface inside the dark shell rather than
-   rendering half-inverted cards.
-   -------------------------------------------------------------------------- */
+/* Dark-mode structural adjustments; colour tokens live in palettes.css. */
 :root[data-theme="dark"] body { background: var(--ws-page); }
 :root[data-theme="dark"] .heuresis-desktop:not([data-section="study"]) { background: var(--ws-page) !important; color: var(--ws-ink); }
-:root[data-theme="dark"] .heuresis-desktop[data-section="study"] .desktop-content.is-study { color-scheme: light; }
-:root[data-theme="dark"] .heuresis-desktop[data-section="study"] .modal-backdrop { color-scheme: light; }
 :root[data-theme="dark"] .desktop-notice { background: var(--ws-raised); color: var(--ws-ink); border-color: var(--ws-line); }
-:root[data-theme="dark"] .desktop-account-popover .hw-theme-row { background: rgba(255, 255, 255, .06); }
-:root[data-theme="dark"] .desktop-account-popover .hw-theme-row button.is-active { background: rgba(255, 255, 255, .14); color: #fff; }
 :root[data-theme="dark"] .boot-screen { background: var(--ws-page); color: var(--ws-muted); }
