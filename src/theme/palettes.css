@@ -357,13 +357,6 @@
 :root[data-theme="dark"] { --c-cinnabar:#e29682; --c-indigo:#a5b1e8; --c-amber:#e6ba65; --c-sage:#9abf92; --c-burgundy:#dda6b6; --c-slate:#b2c3d2; --c-violet:#c5aae5; }
 :root[data-theme] body { background:var(--ws-page); color:var(--ws-ink); }
 :root[data-theme] button:focus-visible, :root[data-theme] input:focus-visible, :root[data-theme] textarea:focus-visible { outline-color:var(--ws-accent); }
-:root[data-theme] .desktop-chrome { background:var(--ws-chrome) !important; color:var(--ws-chrome-text) !important; }
-:root[data-theme] .desktop-chrome :is(button, .desktop-action, .desktop-nav-item, .desktop-wordmark, .desktop-account-menu > summary) { color:var(--ws-chrome-text); }
-:root[data-theme] .desktop-chrome :is(.desktop-nav-item:hover,.desktop-action:hover) { background:rgba(255,255,255,.12); }
-:root[data-theme] .desktop-chrome .desktop-nav-item.active { background:rgba(255,255,255,.16); color:var(--ws-chrome-text); }
-:root[data-theme] .desktop-chrome .desktop-nav-item.active::after { background:var(--ws-chrome-accent); }
-:root[data-theme] .desktop-account-popover { background:var(--ws-raised); border-color:var(--ws-line); color:var(--ws-ink); }
-:root[data-theme] .desktop-account-popover button { color:var(--ws-ink); }
 :root[data-theme] .catalogue-read-mode { --crm-paper:var(--ws-surface); --crm-paper-warm:var(--ws-surface-2); --crm-paper-deep:var(--ws-sunken); --crm-ink:var(--ws-ink); --crm-soft:var(--ws-text); --crm-faint:var(--ws-muted); --crm-rubric:var(--ws-accent); --crm-sage:var(--c-sage); --crm-rule:var(--ws-line-strong); --crm-rule-faint:var(--ws-line); }
 :root[data-theme] .cosmos-shell { --paper:var(--ws-surface); --ink:var(--ws-ink); --muted:var(--ws-muted); --line:var(--ws-line); --live:var(--ws-accent); }
 :root[data-theme] .heuresis-desktop { background-color:var(--ws-page); color:var(--ws-ink); }
@@ -392,55 +385,7 @@
 :root[data-theme] .settings-copy span { color:var(--ws-muted); }
 :root[data-theme] .settings-rule { background:var(--ws-line); }
 
-/* Chrome is always dark, regardless of the selected page palette. Do not
-   inherit page ink or page surfaces into its navigation. */
-:root[data-theme] .desktop-chrome {
-  background: var(--ws-chrome) !important;
-  color: var(--ws-chrome-text) !important;
-  border-bottom-color: rgba(255,255,255,.1) !important;
-}
-:root[data-theme] .desktop-chrome :is(.desktop-wordmark,.desktop-nav-item,.desktop-action,.desktop-account-menu > summary) {
-  color: var(--ws-chrome-text) !important;
-}
-:root[data-theme] .desktop-chrome .desktop-nav-item:not(.active),
-:root[data-theme] .desktop-chrome .desktop-search-action,
-:root[data-theme] .desktop-chrome .desktop-search-action kbd {
-  color: var(--ws-chrome-muted) !important;
-}
-:root[data-theme] .desktop-chrome :is(.desktop-nav-item:hover,.desktop-nav-item.active,.desktop-wordmark:hover,.desktop-action:hover,.desktop-account-menu > summary:hover) {
-  background: rgba(255,255,255,.11) !important;
-  color: var(--ws-chrome-text) !important;
-}
-:root[data-theme] .desktop-chrome :is(.desktop-mark-wrap,.desktop-search-action,.desktop-search-action kbd,.desktop-topic-action,.desktop-account-avatar) {
-  background: rgba(255,255,255,.08) !important;
-  border-color: rgba(255,255,255,.15) !important;
-  color: var(--ws-chrome-text) !important;
-}
-:root[data-theme] .desktop-chrome .desktop-search-action:hover { background:rgba(255,255,255,.14) !important; }
-:root[data-theme] .desktop-chrome .desktop-wordmark-name { color:var(--ws-chrome-text) !important; }
-:root[data-theme] .desktop-chrome .desktop-wordmark-name span { color:var(--ws-chrome-accent) !important; }
-:root[data-theme] .desktop-chrome .desktop-action.hw-capture-button {
-  background:var(--ws-chrome-accent) !important;
-  color:var(--ws-on-chrome-accent) !important;
-  border-color:transparent !important;
-}
-:root[data-theme] .desktop-chrome .desktop-action.hw-capture-button:hover {
-  background:var(--ws-chrome-accent) !important;
-  filter:brightness(.95);
-}
-:root[data-theme] .desktop-chrome .desktop-action.hw-capture-button :is(svg,span) { color:inherit !important; }
-/* The account popover is a light/dark *page surface*, not part of dark chrome. */
-:root[data-theme] .desktop-chrome .desktop-account-popover {
-  background:var(--ws-raised) !important;
-  color:var(--ws-ink) !important;
-  border-color:var(--ws-line-strong) !important;
-}
-:root[data-theme] .desktop-chrome .desktop-account-popover :is(button,span,small,svg,strong) {
-  color:var(--ws-ink) !important;
-}
-:root[data-theme] .desktop-chrome .desktop-account-popover button:hover {
-  background:var(--ws-accent-soft) !important;
-}
+/* Desktop header presentation and account menu: theme/chrome.css. */
 :root[data-theme] :is(input,textarea,select)::placeholder { color:var(--ws-muted); opacity:1; }
 :root[data-theme] input:is([type="range"],[type="checkbox"],[type="radio"]) { accent-color:var(--ws-accent); }
 :root[data-theme] :is(button,input,textarea,select):disabled {
@@ -448,7 +393,6 @@
   cursor:not-allowed;
   color:var(--ws-muted);
 }
-:root[data-theme] button:disabled { background:var(--ws-sunken); }
 
 /* Paper-style text halos disappear against dark surfaces; retain them on
    light paper and whenever the user chooses the existing wallpaper treatment. */
