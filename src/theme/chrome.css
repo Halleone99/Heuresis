@@ -10,7 +10,8 @@
   height: 58px;
   padding: 0 clamp(18px, 2vw, 28px);
   border-bottom: 1px solid rgba(255,255,255,.12);
-  background: var(--ws-chrome);
+  /* Override legacy !important gradient headers so foreground is always readable. */
+  background: var(--ws-chrome) !important;
   color: var(--ws-chrome-text);
   box-shadow: 0 5px 16px rgba(0,0,0,.11);
   backdrop-filter: blur(16px);
