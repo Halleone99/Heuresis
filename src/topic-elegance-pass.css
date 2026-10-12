@@ -80,7 +80,7 @@
 }
 .workflow-stage-arrow {
   font-size: 11px !important;
-  color: color-mix(in srgb, var(--ws-text) 22%, transparent) !important;
+  color: var(--ws-muted) !important;
 }
 
 /* Give each stage only a whisper of colour rather than three heavy cards. */
@@ -145,8 +145,8 @@
   height: 20px !important;
   padding: 0 6px !important;
   border-radius: 999px !important;
-  background: color-mix(in srgb, var(--c-cinnabar) 9%, transparent) !important;
-  color: var(--c-cinnabar) !important;
+  background: color-mix(in srgb, var(--ws-on-primary) 18%, transparent) !important;
+  color: var(--ws-on-primary) !important;
   font-size: 8.5px !important;
 }
 
@@ -163,7 +163,7 @@
 
 .topic-utility-actions .secondary-button {
   border: 1px solid color-mix(in srgb, var(--ws-primary) 7.5%, transparent) !important;
-  background: color-mix(in srgb, var(--ws-ink) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-raised) 30%, transparent) !important;
   color: var(--ws-muted) !important;
 }
 .topic-utility-actions .secondary-button:hover:not(:disabled) {
@@ -178,7 +178,7 @@
   padding: 0 12px !important;
   border: 1px solid color-mix(in srgb, var(--ws-primary) 9%, transparent) !important;
   border-radius: 999px !important;
-  background: color-mix(in srgb, var(--ws-ink) 44%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-raised) 44%, transparent) !important;
   color: var(--ws-text) !important;
   box-shadow: 0 5px 14px rgba(42,36,31,.025) !important;
   backdrop-filter: blur(12px);
@@ -205,7 +205,7 @@
 .filter-menu > summary {
   min-height: 35px !important;
   border-radius: 9px !important;
-  background: color-mix(in srgb, var(--ws-ink) 46%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-raised) 46%, transparent) !important;
 }
 
 @media (max-width: 1100px) {
