@@ -4,9 +4,9 @@
   padding:0 9px 0 7px;
   gap:5px;
   border-radius:8px;
-  border:1px solid rgba(67,111,78,.20);
-  background:linear-gradient(180deg,rgba(241,249,243,.96),rgba(231,243,234,.96));
-  color:#3f6b4a;
+  border:1px solid color-mix(in srgb, var(--c-sage) 20%, transparent);
+  background:linear-gradient(180deg,color-mix(in srgb, var(--ws-surface) 96%, transparent),color-mix(in srgb, var(--ws-surface-2) 96%, transparent));
+  color:var(--c-sage);
   font:700 9.5px/1 Inter,sans-serif;
   letter-spacing:.005em;
   box-shadow:0 1px 2px rgba(51,84,59,.035),0 5px 16px rgba(51,84,59,.055);
@@ -24,9 +24,9 @@
   font-size:9.5px;
 }
 .vocabulary-actions .vocabulary-promote:hover{
-  background:linear-gradient(180deg,#e7f5ea,#dceddf);
-  border-color:rgba(58,103,69,.31);
-  color:#315d3d;
+  background:linear-gradient(180deg,var(--ws-surface-2),var(--ws-surface-2));
+  border-color:color-mix(in srgb, var(--c-sage) 31%, transparent);
+  color:var(--c-sage);
   box-shadow:0 2px 4px rgba(51,84,59,.05),0 7px 18px rgba(51,84,59,.085);
 }
 @media(max-width:1080px){
