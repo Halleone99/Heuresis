@@ -12,7 +12,7 @@
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
-  color: #8a8179;
+  color: var(--ws-muted);
 }
 
 .excel-filter {
@@ -22,7 +22,7 @@
 }
 .excel-filter > span {
   padding-left: 2px;
-  color: #9a928a;
+  color: var(--ws-faint);
   font-size: 7px;
   font-weight: 750;
   letter-spacing: .11em;
@@ -31,19 +31,19 @@
 .excel-filter select {
   min-height: 32px;
   padding: 0 26px 0 8px;
-  border: 1px solid rgba(75,67,60,.10);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent);
   border-radius: 8px;
   outline: 0;
-  background: rgba(255,255,255,.68);
-  color: #5e5750;
+  background: color-mix(in srgb, var(--ws-raised) 68%, transparent);
+  color: var(--ws-text);
   font: inherit;
   font-size: 10px;
   cursor: pointer;
 }
 .excel-filter select:hover,
 .excel-filter select:focus {
-  border-color: rgba(62,56,51,.22);
-  background: rgba(255,255,255,.90);
+  border-color: color-mix(in srgb, var(--ws-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 90%, transparent);
 }
 .sort-filter { min-width: 100px; }
 
@@ -51,10 +51,10 @@
 .filter-clear-button {
   align-self: end;
   min-height: 32px;
-  border: 1px solid rgba(75,67,60,.10);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent);
   border-radius: 8px;
-  background: rgba(255,255,255,.66);
-  color: #655e57;
+  background: color-mix(in srgb, var(--ws-raised) 66%, transparent);
+  color: var(--ws-text);
   font-size: 11px;
   cursor: pointer;
 }
@@ -65,19 +65,19 @@
 }
 .filter-clear-button {
   padding: 0 9px;
-  color: #8e5c43;
+  color: var(--c-cinnabar);
 }
 .sort-direction-button:hover,
-.filter-clear-button:hover { background: #fff; color: #332f2b; }
+.filter-clear-button:hover { background: var(--ws-raised); color: var(--ws-ink); }
 
 .topic-selection-hint {
   min-height: 23px;
   padding: 5px 4px 0;
-  color: #9b938b;
+  color: var(--ws-faint);
   font-size: 9px;
 }
 .topic-selection-hint strong {
-  color: #5b544d;
+  color: var(--ws-text);
   font-weight: 650;
 }
 
@@ -98,7 +98,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #9b938a;
+  color: var(--ws-faint);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -112,7 +112,7 @@
 }
 .excel-topic-thead > button:hover,
 .excel-topic-thead > button.active {
-  color: #504a44;
+  color: var(--ws-text);
 }
 .excel-topic-thead > button svg {
   opacity: .45;
@@ -127,17 +127,17 @@
   outline: none;
 }
 .excel-topic-row:hover {
-  background: rgba(255,255,255,.68) !important;
+  background: color-mix(in srgb, var(--ws-raised) 68%, transparent) !important;
 }
 .excel-topic-row.selected,
 .excel-topic-row:focus-visible {
-  background: rgba(255,255,255,.88) !important;
+  background: color-mix(in srgb, var(--ws-raised) 88%, transparent) !important;
   box-shadow:
     inset 3px 0 0 color-mix(in srgb,var(--accent,#a4402f) 72%,transparent),
     inset 0 0 0 1px color-mix(in srgb,var(--accent,#a4402f) 13%,transparent) !important;
 }
 .excel-topic-row.selected .modern-card-title > strong {
-  color: #221f1c;
+  color: var(--ws-ink);
 }
 
 .excel-topic-row .modern-card-cell {
@@ -174,22 +174,22 @@
   white-space: nowrap;
 }
 .status-unsorted {
-  border-color: rgba(154,103,68,.15);
-  background: rgba(169,112,70,.08);
-  color: #946749;
+  border-color: color-mix(in srgb, var(--c-cinnabar) 15%, transparent);
+  background: color-mix(in srgb, var(--c-cinnabar) 8%, transparent);
+  color: var(--c-cinnabar);
 }
 .status-sorted {
-  border-color: rgba(90,105,89,.13);
-  background: rgba(93,115,92,.08);
-  color: #687a66;
+  border-color: color-mix(in srgb, var(--ws-text) 13%, transparent);
+  background: color-mix(in srgb, var(--ws-text) 8%, transparent);
+  color: var(--ws-muted);
 }
 .status-reviewed {
-  border-color: rgba(65,75,97,.13);
-  background: rgba(71,84,111,.09);
-  color: #5e6882;
+  border-color: color-mix(in srgb, var(--c-indigo) 13%, transparent);
+  background: color-mix(in srgb, var(--c-indigo) 9%, transparent);
+  color: var(--c-indigo);
 }
 .topic-status-cell > small {
-  color: #aaa29a;
+  color: var(--ws-faint);
   font-size: 8px;
 }
 
@@ -220,18 +220,18 @@
   width: 30px;
   height: 30px;
   padding: 0;
-  border: 1px solid rgba(74,66,59,.10);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent);
   border-radius: 8px;
-  background: rgba(255,255,255,.58);
-  color: #746c64;
+  background: color-mix(in srgb, var(--ws-raised) 58%, transparent);
+  color: var(--ws-muted);
   display: grid;
   place-items: center;
   cursor: pointer;
 }
 .row-connections-icon:hover {
-  background: #fff;
-  color: #332f2b;
-  border-color: rgba(64,57,51,.18);
+  background: var(--ws-raised);
+  color: var(--ws-ink);
+  border-color: color-mix(in srgb, var(--ws-primary) 18%, transparent);
 }
 
 /* Keep interest visible but prevent it from pushing the word apart. */
