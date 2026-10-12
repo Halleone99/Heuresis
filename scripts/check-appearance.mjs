@@ -62,13 +62,13 @@ assert.match(files.auth, /\.auth-card input \{/, "Sign-in form inputs must be st
 assert.match(files.sort, /\.sort-backdrop\{[^}]*background:var\(--ws-scrim\)/, "Sort modal must use a neutral scrim");
 assert.match(files.study, /\.sort-command b \{[^}]*color: var\(--ws-on-primary\)/, "Sort badge must use contrast-safe text");
 const main = readFileSync("src/main.tsx", "utf8");
-const cssImports = [...main.matchAll(/^import ["'](\\.\\/[^"']+\\.css)["'];?$/gm)].map((m) => m[1]);
+const cssImports = [...main.matchAll(/^import ["'](\.\/[^"']+\.css)["'];?$/gm)].map((m) => m[1]);
 assert.equal(cssImports.at(-1), "./theme/chrome.css", "Canonical chrome must be the last CSS import");
 for (const file of ["library-home-modern.css", "library-shell-elegance.css", "desktop-density-pass.css"]) {
   const old = readFileSync("src/" + file, "utf8");
-  assert.doesNotMatch(old, /(?:^|\\n)\\.desktop-chrome\\s*\\{/, file + " still owns duplicated header styles");
+  assert.doesNotMatch(old, /(?:^|\n)\.desktop-chrome\s*\{/, file + " still owns duplicated header styles");
 }
-assert.doesNotMatch(readFileSync("src/components/workspace/workspace.css", "utf8"), /\\.hw-theme-row/, "Obsolete account theme controls should be removed");
-assert.match(files.chrome, /\\.desktop-account-popover \\{/, "Account popover appearance must be defined by shared chrome");
+assert.doesNotMatch(readFileSync("src/components/workspace/workspace.css", "utf8"), /\.hw-theme-row/, "Obsolete account theme controls should be removed");
+assert.match(files.chrome, /\.desktop-account-popover \{/, "Account popover appearance must be defined by shared chrome");
 assert.match(files.chrome, /--ws-chrome-accent/, "Header uses the selected palette accent");
 console.log(`Appearance: ${combinations} palette/mode token-contrast checks and canonical header integration checks passed.`);
