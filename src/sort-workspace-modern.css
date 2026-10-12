@@ -19,11 +19,11 @@
 .sort-tag-group + .sort-tag-group {
   margin-top: 10px !important;
   padding-top: 9px;
-  border-top: 1px solid rgba(72,65,59,.07);
+  border-top: 1px solid color-mix(in srgb, var(--ws-text) 7%, transparent);
 }
 .sort-tag-group > p {
   margin: 0 0 6px;
-  color: #999189;
+  color: var(--ws-faint);
   font-size: 7px;
   font-weight: 760;
   letter-spacing: .09em;
