@@ -222,7 +222,7 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
 // German capitals/umlauts, Cyrillic й/и and Mandarin pinyin tones.
 function answerKey(text: string) {
   return text.normalize("NFC")
-    .replace(/[.,!?。！？；;:：、，"'“”‘’]/g, "")
+    .replace(/[.,!?。！？；;:：、，"“”]/g, "")
     .replace(/\s+/g, " ").trim();
 }
 
