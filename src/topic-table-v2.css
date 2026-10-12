@@ -173,21 +173,9 @@
   font-weight: 700;
   white-space: nowrap;
 }
-.status-unsorted {
-  border-color: color-mix(in srgb, var(--c-cinnabar) 15%, transparent);
-  background: color-mix(in srgb, var(--c-cinnabar) 8%, transparent);
-  color: var(--c-cinnabar);
-}
-.status-sorted {
-  border-color: color-mix(in srgb, var(--ws-text) 13%, transparent);
-  background: color-mix(in srgb, var(--ws-text) 8%, transparent);
-  color: var(--ws-muted);
-}
-.status-reviewed {
-  border-color: color-mix(in srgb, var(--c-indigo) 13%, transparent);
-  background: color-mix(in srgb, var(--c-indigo) 9%, transparent);
-  color: var(--c-indigo);
-}
+.status-unsorted { border-color:color-mix(in srgb,var(--stage-unsorted) 25%,transparent); background:color-mix(in srgb,var(--stage-unsorted) 11%,transparent); color:var(--stage-unsorted); }
+.status-sorted { border-color:color-mix(in srgb,var(--stage-ready) 25%,transparent); background:color-mix(in srgb,var(--stage-ready) 11%,transparent); color:var(--stage-ready); }
+.status-reviewed { border-color:color-mix(in srgb,var(--stage-reviewed) 25%,transparent); background:color-mix(in srgb,var(--stage-reviewed) 11%,transparent); color:var(--stage-reviewed); }
 .topic-status-cell > small {
   color: var(--ws-faint);
   font-size: 8px;
