@@ -275,9 +275,9 @@
   border-radius: 50%;
   box-shadow: 0 0 0 4px rgba(0,0,0,.025);
 }
-[data-stage="unsorted"] .workflow-stage-dot { background: var(--ws-accent); }
-[data-stage="ready"] .workflow-stage-dot { background: var(--c-indigo); }
-[data-stage="reviewed"] .workflow-stage-dot { background: var(--c-sage); }
+[data-stage="unsorted"] .workflow-stage-dot { background: var(--stage-unsorted); }
+[data-stage="ready"] .workflow-stage-dot { background: var(--stage-ready); }
+[data-stage="reviewed"] .workflow-stage-dot { background: var(--stage-reviewed); }
 .workflow-stage-copy {
   min-width: 0;
   display: grid;
