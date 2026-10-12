@@ -449,3 +449,15 @@
   color:var(--ws-muted);
 }
 :root[data-theme] button:disabled { background:var(--ws-sunken); }
+
+/* Paper-style text halos disappear against dark surfaces; retain them on
+   light paper and whenever the user chooses the existing wallpaper treatment. */
+:root[data-theme="dark"] :is(.catalogue-heading h1,.catalogue-heading p,.collection-page .back-button,.collection-page-glyph,.library-stat,.intelligent-library-head h1,.intelligent-library-head p,.library-hero,.collection-page-head,.topics-intro,.pack-page-head,.pack-toolbar,.card-table) {
+  text-shadow:none !important;
+}
+:root[data-theme="dark"] .heuresis-desktop[data-custom-background="heuresis"] :is(.library-hero,.collection-page-head,.topics-intro,.catalogue-heading,.pack-page-head,.pack-toolbar,.card-table) {
+  text-shadow:none !important;
+}
+:root[data-theme="dark"] .cosmos-card {
+  box-shadow:var(--ws-shadow-2) !important;
+}
