@@ -200,7 +200,7 @@
   color: var(--ws-on-primary);
 }
 .study-source-tickers button.selected b { background: color-mix(in srgb, var(--ws-on-primary) 13%, transparent); color: var(--ws-on-primary); }
-.study-source-tickers button:disabled { opacity: .38; cursor: default; }
+.study-source-tickers button:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; }
 
 .study-count-control input[type="range"],
 .browse-amount-section input[type="range"] {
