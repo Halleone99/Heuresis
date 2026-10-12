@@ -118,7 +118,7 @@
   padding: 10px;
   border: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--ws-ink) 46%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 46%, transparent);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(250px, .72fr);
   gap: 8px;
@@ -199,7 +199,7 @@
   background: var(--ws-text);
   color: var(--ws-on-primary);
 }
-.study-source-tickers button.selected b { background: color-mix(in srgb, var(--ws-ink) 13%, transparent); color: color-mix(in srgb, var(--ws-on-primary) 88%, transparent); }
+.study-source-tickers button.selected b { background: color-mix(in srgb, var(--ws-on-primary) 13%, transparent); color: var(--ws-on-primary); }
 .study-source-tickers button:disabled { opacity: .38; cursor: default; }
 
 .study-count-control input[type="range"],

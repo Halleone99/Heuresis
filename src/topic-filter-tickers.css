@@ -34,7 +34,7 @@
   padding: 5px 6px;
   border: 1px solid color-mix(in srgb, var(--ws-text) 8.5%, transparent);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--ws-ink) 46%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 46%, transparent);
 }
 
 .filter-ticker-label,
@@ -103,7 +103,7 @@
 }
 
 .filter-ticker-cluster > button.selected > b {
-  background: color-mix(in srgb, var(--ws-ink) 14%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 14%, transparent);
   color: color-mix(in srgb, var(--ws-on-primary) 88%, transparent);
 }
 
@@ -128,7 +128,7 @@
   padding: 5px 6px 5px 8px;
   border: 1px solid color-mix(in srgb, var(--ws-text) 8.5%, transparent);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--ws-ink) 46%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 46%, transparent);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -190,7 +190,7 @@
 }
 
 .topic-interest-cell > span {
-  color: var(--ws-line-strong);
+  color: var(--ws-muted);
   font-size: 10px;
 }
 
@@ -214,7 +214,7 @@
   border-radius: 6px;
 }
 .ticker-topic-thead > button:hover {
-  background: color-mix(in srgb, var(--ws-ink) 42%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 42%, transparent);
 }
 .ticker-topic-thead > button.active {
   color: var(--ws-text) !important;

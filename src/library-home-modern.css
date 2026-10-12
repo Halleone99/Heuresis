@@ -249,7 +249,7 @@
   padding: 6px 9px;
   border: 1px solid color-mix(in srgb,var(--signal-amber) 30%,transparent) !important;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--ws-ink) 45%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 45%, transparent);
   text-decoration: none;
 }
 .library-waiting:hover b {
@@ -342,7 +342,7 @@
 }
 .library-mini.off .library-mini-glyph {
   border-style: solid !important;
-  background: color-mix(in srgb, var(--ws-ink) 42%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-raised) 42%, transparent) !important;
   color: var(--ws-faint) !important;
 }
 .library-mini.off strong {

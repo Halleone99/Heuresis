@@ -81,7 +81,7 @@
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--ws-text) 7.5%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--ws-ink) 44%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 44%, transparent);
   display: grid;
   gap: 8px;
 }
@@ -214,7 +214,7 @@
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ws-ink) 14%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 14%, transparent);
   display: grid;
   place-items: center;
   font-size: 8px;
