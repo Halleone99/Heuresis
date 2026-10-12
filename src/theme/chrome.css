@@ -45,7 +45,7 @@
   border: 1px solid rgba(255,255,255,.14);
   border-radius: 7px;
   background: rgba(255,255,255,.08);
-  color: var(--ws-chrome-text);
+  color: var(--ws-chrome-text) !important;
   box-shadow: none;
 }
 :root[data-theme] .desktop-mark-wrap svg { display:block; width:20px; height:20px; filter:none; }
