@@ -1,4 +1,4 @@
-.study-backdrop{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:18px;background:color-mix(in srgb, var(--ws-primary) 55%, transparent);backdrop-filter:blur(10px)}
+.study-backdrop{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:18px;background:var(--ws-scrim);backdrop-filter:blur(10px)}
 .study-modal{width:min(1040px,96vw);height:min(780px,94vh);display:grid;grid-template-rows:auto 1fr;overflow:hidden;border:1px solid var(--ws-line-strong);border-radius:12px;background:var(--ws-surface-2);box-shadow:0 38px 120px rgba(15,12,10,.32)}
 .study-topbar{height:68px;padding:0 22px;border-bottom:1px solid var(--ws-line);display:flex;align-items:center;gap:14px;background:color-mix(in srgb, var(--ws-surface) 92%, transparent)}
 .study-topbar>div{display:grid;gap:3px}.study-topbar strong{font-family:'Libre Caslon Display',serif;font-size:19px;font-weight:400}.study-close{margin-left:auto;border:0;background:transparent;padding:8px;cursor:pointer;color:var(--ws-muted)}
