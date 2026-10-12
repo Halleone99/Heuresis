@@ -2,6 +2,7 @@ import { ImagePlus, RotateCcw, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { DEFAULT_BACKGROUND_SETTINGS, type BackgroundSettings } from "../hooks/useHeuresisBackground";
 import type { Collection, PackWithType } from "../lib/heuresis";
+import { useAppearance, type PalettePreference } from "../lib/theme";
 import SortingSettings from "./SortingSettings";
 import StructureSettings from "./StructureSettings";
 
@@ -28,6 +29,11 @@ type Props = {
 function AppearanceSettings({ background }: { background: BackgroundApi }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState("");
+  const { mode, palette, chooseMode, choosePalette } = useAppearance();
+  const palettes: Array<{ id: PalettePreference; label: string }> = [
+    { id: "slate", label: "Slate" }, { id: "forest", label: "Forest" },
+    { id: "sepia", label: "Sepia" }, { id: "neutral", label: "Neutral" },
+  ];
 
   async function choose(file: File | undefined) {
     if (!file) return;
@@ -37,7 +43,23 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
     finally { if (fileRef.current) fileRef.current.value = ""; }
   }
 
-  return <section className="appearance-settings"><div className="settings-copy"><strong>Heuresis background</strong><span>This is the same Supabase-backed Heuresis wallpaper used by Personal OS. Changes here follow the account rather than creating a separate desktop-only background.</span></div><input ref={fileRef} className="hidden-file" type="file" accept="image/*" onChange={(event) => void choose(event.target.files?.[0])} /><div className="background-preview">{background.imageUrl ? <img src={background.imageUrl} alt="Current Heuresis background" /> : <div className="background-empty" />}<span>{background.hasImage ? "Current account background" : "No Heuresis background has been synced yet."}</span></div><div className="settings-actions"><button className="secondary-button" disabled={background.syncing} onClick={() => fileRef.current?.click()}><ImagePlus size={14} /> {background.hasImage ? "Replace image" : "Choose image"}</button>{background.hasImage ? <button className="secondary-button" disabled={background.syncing} onClick={() => void background.removeImage()}><Trash2 size={14} /> Remove</button> : null}<button className="secondary-button" onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}><RotateCcw size={14} /> Reset appearance</button></div><div className="settings-controls"><label><span>Image opacity</span><input type="range" min="0.2" max="1" step="0.05" value={background.settings.opacity} onChange={(event) => background.updateSettings({ opacity: Number(event.target.value) })} /><em>{Math.round(background.settings.opacity * 100)}%</em></label><label><span>Readability veil</span><input type="range" min="0" max="1" step="0.05" value={background.settings.veil} onChange={(event) => background.updateSettings({ veil: Number(event.target.value) })} /><em>{Math.round(background.settings.veil * 100)}%</em></label><label><span>Blur</span><input type="range" min="0" max="12" step="1" value={background.settings.blur} onChange={(event) => background.updateSettings({ blur: Number(event.target.value) })} /><em>{background.settings.blur}px</em></label><div className="setting-choice"><span>Position</span><div>{(["top", "center", "bottom"] as const).map((position) => <button key={position} aria-pressed={background.settings.position === position} onClick={() => background.updateSettings({ position })}>{position === "center" ? "Centre" : position[0].toUpperCase() + position.slice(1)}</button>)}</div></div><div className="setting-choice"><span>Fit</span><div>{(["cover", "contain"] as const).map((fit) => <button key={fit} aria-pressed={background.settings.fit === fit} onClick={() => background.updateSettings({ fit })}>{fit[0].toUpperCase() + fit.slice(1)}</button>)}</div></div></div>{background.syncError ? <div className="settings-note error">{background.syncError}</div> : null}{notice ? <div className="settings-note">{notice}</div> : null}</section>;
+  return <section className="appearance-settings">
+    <div className="appearance-choice" aria-label="Heuresis appearance">
+      <div className="settings-copy"><strong>Appearance</strong><span>Choose a mode and a colour palette. The setting also applies to Capture and Review windows.</span></div>
+      <div className="appearance-mode" role="group" aria-label="Appearance mode">
+        {([{ id: "system", label: "Auto" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" }] as const).map((option) =>
+          <button key={option.id} type="button" aria-pressed={mode === option.id} onClick={() => chooseMode(option.id)}>{option.label}</button>)}
+      </div>
+      <div className="appearance-palettes" role="group" aria-label="Colour palette">
+        {palettes.map((option) => <button key={option.id} className="appearance-palette" type="button"
+          aria-label={option.label} aria-pressed={palette === option.id} onClick={() => choosePalette(option.id)}>
+          <span className="appearance-palette-preview" data-palette-preview={option.id}><i /><b /><em /></span>
+          <span>{option.label}</span>
+        </button>)}
+      </div>
+    </div>
+    <div className="settings-rule" />
+    <div className="settings-copy"><strong>Study background</strong><span>This is the same Supabase-backed Heuresis wallpaper used by Personal OS. Changes here follow the account rather than creating a separate desktop-only background.</span></div><input ref={fileRef} className="hidden-file" type="file" accept="image/*" onChange={(event) => void choose(event.target.files?.[0])} /><div className="background-preview">{background.imageUrl ? <img src={background.imageUrl} alt="Current Heuresis background" /> : <div className="background-empty" />}<span>{background.hasImage ? "Current account background" : "No Heuresis background has been synced yet."}</span></div><div className="settings-actions"><button className="secondary-button" disabled={background.syncing} onClick={() => fileRef.current?.click()}><ImagePlus size={14} /> {background.hasImage ? "Replace image" : "Choose image"}</button>{background.hasImage ? <button className="secondary-button" disabled={background.syncing} onClick={() => void background.removeImage()}><Trash2 size={14} /> Remove</button> : null}<button className="secondary-button" onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}><RotateCcw size={14} /> Reset wallpaper</button></div><div className="settings-controls"><label><span>Image opacity</span><input type="range" min="0.2" max="1" step="0.05" value={background.settings.opacity} onChange={(event) => background.updateSettings({ opacity: Number(event.target.value) })} /><em>{Math.round(background.settings.opacity * 100)}%</em></label><label><span>Readability veil</span><input type="range" min="0" max="1" step="0.05" value={background.settings.veil} onChange={(event) => background.updateSettings({ veil: Number(event.target.value) })} /><em>{Math.round(background.settings.veil * 100)}%</em></label><label><span>Blur</span><input type="range" min="0" max="12" step="1" value={background.settings.blur} onChange={(event) => background.updateSettings({ blur: Number(event.target.value) })} /><em>{background.settings.blur}px</em></label><div className="setting-choice"><span>Position</span><div>{(["top", "center", "bottom"] as const).map((position) => <button key={position} aria-pressed={background.settings.position === position} onClick={() => background.updateSettings({ position })}>{position === "center" ? "Centre" : position[0].toUpperCase() + position.slice(1)}</button>)}</div></div><div className="setting-choice"><span>Fit</span><div>{(["cover", "contain"] as const).map((fit) => <button key={fit} aria-pressed={background.settings.fit === fit} onClick={() => background.updateSettings({ fit })}>{fit[0].toUpperCase() + fit.slice(1)}</button>)}</div></div></div>{background.syncError ? <div className="settings-note error">{background.syncError}</div> : null}{notice ? <div className="settings-note">{notice}</div> : null}</section>;
 }
 
 export default function SettingsModal({ background, packs, collections, onDataChanged, onClose }: Props) {

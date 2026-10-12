@@ -9,9 +9,9 @@
   display: inline-flex;
   align-items: stretch;
   overflow: hidden;
-  border: 1px solid rgba(82, 69, 59, .16);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 16%, transparent);
   border-radius: 999px;
-  background: rgba(252, 250, 245, .62);
+  background: color-mix(in srgb, var(--ws-surface) 62%, transparent);
   box-shadow: 0 8px 26px rgba(38, 29, 23, .035);
   backdrop-filter: blur(14px);
 }
@@ -25,16 +25,16 @@
 }
 
 .library-summary-metrics > span + span {
-  border-left: 1px solid rgba(82, 69, 59, .12);
+  border-left: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent);
 }
 
 .library-summary-metrics strong {
-  color: #352f2a;
+  color: var(--ws-ink);
   font: 500 11px 'DM Mono', ui-monospace, monospace;
 }
 
 .library-summary-metrics em {
-  color: #8b8177;
+  color: var(--ws-muted);
   font: 8px 'DM Mono', ui-monospace, monospace;
   font-style: normal;
   text-transform: uppercase;
@@ -44,11 +44,11 @@
 .library-new-collection {
   min-height: 36px;
   padding: 0 13px;
-  border: 1px solid rgba(82, 69, 59, .18);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 18%, transparent);
   border-radius: 999px;
-  background: rgba(252, 250, 245, .72);
+  background: color-mix(in srgb, var(--ws-surface) 72%, transparent);
   box-shadow: 0 8px 28px rgba(38, 29, 23, .04);
-  color: #5d544c;
+  color: var(--ws-text);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -60,8 +60,8 @@
 
 .library-new-collection:hover {
   transform: translateY(-1px);
-  border-color: rgba(82, 69, 59, .28);
-  background: rgba(255, 255, 255, .88);
+  border-color: color-mix(in srgb, var(--ws-text) 28%, transparent);
+  background: color-mix(in srgb, var(--ws-raised) 88%, transparent);
 }
 
 .capture-hub-pack .topic-card-main::after {
@@ -81,8 +81,8 @@
 .capture-hub-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-top: 1px solid rgba(91,78,65,.13);
-  background: rgba(244,241,235,.58);
+  border-top: 1px solid color-mix(in srgb, var(--ws-accent) 13%, transparent);
+  background: color-mix(in srgb, var(--ws-surface-2) 58%, transparent);
 }
 
 .capture-hub-actions button {
@@ -90,7 +90,7 @@
   padding: 0 13px;
   border: 0;
   background: transparent;
-  color: #5f6f62;
+  color: var(--ws-text);
   display: flex;
   align-items: center;
   gap: 7px;
@@ -101,12 +101,12 @@
 }
 
 .capture-hub-actions button + button {
-  border-left: 1px solid rgba(91,78,65,.13);
+  border-left: 1px solid color-mix(in srgb, var(--ws-accent) 13%, transparent);
 }
 
 .capture-hub-actions button:hover {
-  background: rgba(255,255,255,.52);
-  color: #355443;
+  background: color-mix(in srgb, var(--ws-raised) 52%, transparent);
+  color: var(--c-sage);
 }
 
 .capture-hub-actions button span {
@@ -117,8 +117,8 @@
   min-width: 22px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(79,111,91,.09);
-  color: #62806d;
+  background: color-mix(in srgb, var(--c-sage) 9%, transparent);
+  color: var(--c-sage);
   font: 8px 'DM Mono', ui-monospace, monospace;
   font-style: normal;
   text-align: center;
@@ -141,19 +141,19 @@
 .capture-state-badge {
   justify-self: start;
   padding: 4px 7px;
-  border: 1px solid rgba(104,91,79,.14);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 14%, transparent);
   border-radius: 999px;
-  background: rgba(239,235,228,.72);
-  color: #786d63;
+  background: color-mix(in srgb, var(--ws-surface-2) 72%, transparent);
+  color: var(--ws-muted);
   font: 7px 'DM Mono', ui-monospace, monospace;
   letter-spacing: .07em;
   text-transform: uppercase;
 }
 
 .capture-state-badge.waiting {
-  border-color: rgba(79,111,91,.20);
-  background: rgba(231,239,232,.76);
-  color: #55745f;
+  border-color: color-mix(in srgb, var(--c-sage) 20%, transparent);
+  background: color-mix(in srgb, var(--ws-surface-2) 76%, transparent);
+  color: var(--c-sage);
 }
 
 .related-target strong {
@@ -168,10 +168,10 @@
   align-items: center;
   gap: 6px;
   padding: 5px 8px;
-  border: 1px solid rgba(99, 85, 73, .14);
+  border: 1px solid color-mix(in srgb, var(--ws-accent) 14%, transparent);
   border-radius: 999px;
-  background: rgba(239, 235, 228, .66);
-  color: #7f756c;
+  background: color-mix(in srgb, var(--ws-surface-2) 66%, transparent);
+  color: var(--ws-muted);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -180,7 +180,7 @@
   max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #a0958b;
+  color: var(--ws-faint);
   font: 7px 'DM Mono', ui-monospace, monospace;
   text-transform: uppercase;
 }
@@ -189,7 +189,7 @@
   max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #655c54;
+  color: var(--ws-text);
   font-size: 9px;
 }
 
@@ -228,7 +228,7 @@
 
   .capture-hub-actions button + button {
     border-left: 0;
-    border-top: 1px solid rgba(91,78,65,.13);
+    border-top: 1px solid color-mix(in srgb, var(--ws-accent) 13%, transparent);
   }
 
   .related-table-row,

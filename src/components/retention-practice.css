@@ -66,7 +66,7 @@
   padding:10px 12px;
   border:1px solid var(--line);
   border-radius:7px;
-  background:rgba(244,239,228,.58);
+  background:color-mix(in srgb, var(--ws-surface-2) 58%, transparent);
 }
 
 .retention-type-panel {
@@ -116,7 +116,7 @@
   padding:10px 14px;
   border:1px solid var(--line);
   border-radius:6px;
-  background:rgba(244,239,228,.52);
+  background:color-mix(in srgb, var(--ws-surface-2) 52%, transparent);
   text-align:left;
 }
 
@@ -156,7 +156,7 @@
 
 .retention-revealed-tools button:hover {
   border-color:var(--muted);
-  background:rgba(244,239,228,.42);
+  background:color-mix(in srgb, var(--ws-surface-2) 42%, transparent);
 }
 
 @media (max-width:860px) {

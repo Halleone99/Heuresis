@@ -19,9 +19,9 @@
   align-items: center;
   gap: 3px;
   padding: 3px;
-  border: 1px solid rgba(95, 84, 72, .18);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 18%, transparent);
   border-radius: 999px;
-  background: rgba(251, 248, 241, .88);
+  background: color-mix(in srgb, var(--ws-surface) 88%, transparent);
   box-shadow: 0 9px 24px -18px rgba(38, 32, 25, .62);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -29,7 +29,7 @@
 }
 
 .review-scratchpad-tools.active {
-  background: rgba(251, 248, 241, .95);
+  background: color-mix(in srgb, var(--ws-surface) 95%, transparent);
   box-shadow: 0 12px 28px -18px rgba(38, 32, 25, .72);
 }
 
@@ -42,27 +42,27 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: #756b61;
+  color: var(--ws-muted);
   cursor: pointer;
 }
 
 .review-scratchpad-tools button:hover {
-  background: rgba(40, 36, 31, .06);
-  color: #28241f;
+  background: color-mix(in srgb, var(--ws-primary) 6%, transparent);
+  color: var(--ws-ink);
 }
 
 .review-scratchpad-tools button.selected {
-  background: #332e29;
-  color: #fbf8f1;
+  background: var(--ws-primary);
+  color: var(--ws-on-primary);
 }
 
 .review-scratchpad-tools button.reveal {
-  color: #4d7566;
+  color: var(--c-sage);
 }
 
 .review-scratchpad-tools button.reveal:hover {
-  background: #e7efea;
-  color: #365d50;
+  background: var(--ws-surface-2);
+  color: var(--c-sage);
 }
 
 @media (max-width: 720px), (pointer: coarse) {

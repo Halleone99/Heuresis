@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut, Monitor, Moon,
-  NotebookPen, Plus, Radio, RefreshCw, Search, Settings2, Sun, TriangleAlert, X,
+  BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut,
+  NotebookPen, Plus, Radio, RefreshCw, Search, Settings2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
@@ -32,8 +32,7 @@ import { entryTitle, isRecallDue } from "./lib/knowledgeWorkspace";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { supabase } from "./lib/supabase";
 import { synchroniseHeuresis } from "./lib/sync";
-import { applyTheme, useThemePreference } from "./lib/theme";
-import { readSection, writeSection, type ThemePreference, type WorkspaceSection } from "./lib/workspaceMemory";
+import { readSection, writeSection, type WorkspaceSection } from "./lib/workspaceMemory";
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 
@@ -93,7 +92,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const workspace = useWorkspace();
   const notebookPage = workspace.memory.notebook;
   useSectionScroll(section, section === "notebook" ? `${notebookPage.docId ?? ""}|${notebookPage.topicId ?? ""}|${notebookPage.subjectId ?? ""}` : "");
-  const [theme, setTheme] = useThemePreference();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cardQuery, setCardQuery] = useState("");
@@ -299,10 +297,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     setNotice("Topic created from Raw.");
   }
 
-  function chooseTheme(next: ThemePreference) {
-    setTheme(next);
-    if (accountMenuRef.current) accountMenuRef.current.open = false;
-  }
 
   const workspaceNotice = workspace.schema !== "v2" && section !== "study" ? <div className="ws-schema-notice" role="status">
     <TriangleAlert size={16} />
@@ -338,15 +332,10 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
-              <div className="hw-theme-row" role="group" aria-label="Appearance">
-                <button type="button" className={theme === "system" ? "is-active" : ""} aria-pressed={theme === "system"} onClick={() => chooseTheme("system")}><Monitor size={13} /> Auto</button>
-                <button type="button" className={theme === "light" ? "is-active" : ""} aria-pressed={theme === "light"} onClick={() => chooseTheme("light")}><Sun size={13} /> Light</button>
-                <button type="button" className={theme === "dark" ? "is-active" : ""} aria-pressed={theme === "dark"} onClick={() => chooseTheme("dark")}><Moon size={13} /> Dark</button>
-              </div>
               <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Synchronise offline copy</button>
               <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
               <button onClick={() => { setShortcutsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Keyboard size={14} /> Keyboard shortcuts</button>
-              <button onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Settings</button>
+              <button onClick={() => { setSettingsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Settings2 size={14} /> Settings & appearance</button>
               <div className="desktop-account-divider" />
               <button onClick={() => void supabase?.auth.signOut()}><LogOut size={14} /> Sign out</button>
             </div>
@@ -431,6 +420,5 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 }
 
 export default function App() {
-  useEffect(() => { applyTheme(); }, []);
   return <AuthGate>{(session) => <HeuresisApp session={session} />}</AuthGate>;
 }

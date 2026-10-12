@@ -1,15 +1,15 @@
 /* Final interface pass: preserve Heuresis' parchment/serif identity while fixing hierarchy, density and action consistency. */
 
 :root {
-  --h-page: #f1eee8;
-  --h-paper: #fbf9f4;
-  --h-paper-muted: #f6f2eb;
-  --h-ink: #27221e;
-  --h-text: #5f574f;
-  --h-muted: #8a8178;
-  --h-line: rgba(72, 61, 52, .14);
-  --h-line-strong: rgba(72, 61, 52, .22);
-  --h-focus: #875c43;
+  --h-page: var(--ws-surface-2);
+  --h-paper: var(--ws-surface);
+  --h-paper-muted: var(--ws-surface);
+  --h-ink: var(--ws-primary);
+  --h-text: var(--ws-text);
+  --h-muted: var(--ws-muted);
+  --h-line: color-mix(in srgb, var(--ws-text) 14%, transparent);
+  --h-line-strong: color-mix(in srgb, var(--ws-text) 22%, transparent);
+  --h-focus: var(--c-cinnabar);
   --h-radius-sm: 7px;
   --h-radius-md: 10px;
   --h-radius-lg: 14px;
@@ -40,11 +40,11 @@
 }
 
 .heuresis-veil {
-  background: linear-gradient(to bottom, rgba(245,242,235,var(--heuresis-background-veil,.52)) 0%, rgba(245,242,235,.68) 72%, var(--h-page) 100%);
+  background: linear-gradient(to bottom, rgba(245,242,235,var(--heuresis-background-veil,.52)) 0%, color-mix(in srgb, var(--ws-surface) 68%, transparent) 72%, var(--h-page) 100%);
 }
 
 .heuresis-desktop:not([data-custom-background="heuresis"]) .heuresis-veil {
-  background: linear-gradient(to bottom, rgba(250,248,243,.72), var(--h-page));
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--ws-surface) 72%, transparent), var(--h-page));
 }
 
 .desktop-content { padding-top: 26px; padding-bottom: 64px; }
@@ -61,15 +61,15 @@
   padding: 0 14px;
   border: 0;
   border-radius: 9px;
-  background: #28231f;
-  color: #fff;
+  background: var(--ws-primary);
+  color: var(--ws-on-primary);
   box-shadow: 0 7px 18px rgba(40,33,28,.13);
   backdrop-filter: none;
   font-size: 10.5px;
   letter-spacing: 0;
 }
 .desktop-header-actions > .desktop-action.desktop-primary:hover {
-  background: #3a332e;
+  background: var(--ws-primary);
   box-shadow: 0 9px 22px rgba(40,33,28,.17);
   transform: translateY(-1px);
 }
@@ -81,7 +81,7 @@
   font-size: 9px !important;
   font-weight: 600 !important;
   letter-spacing: .085em !important;
-  color: #847a71 !important;
+  color: var(--ws-muted) !important;
 }
 
 .library-hero h1,
@@ -99,7 +99,7 @@
   font-family: Inter, system-ui, sans-serif !important;
   letter-spacing: 0 !important;
 }
-.pack-record { font-size: 10px; text-transform: none; color: #746b63; }
+.pack-record { font-size: 10px; text-transform: none; color: var(--ws-muted); }
 
 /* Library: compact collection cards, no decorative dead band. */
 .library-hero { padding: 16px 0 15px; }
@@ -135,7 +135,7 @@
 }
 .collection-overview-card h2 { margin: 2px 0 5px; font-size: 29px; }
 .collection-overview-card p { font-size: 11px; line-height: 1.45; }
-.collection-overview-meta { align-self: end; font-size: 9px; color: #877e75; }
+.collection-overview-meta { align-self: end; font-size: 9px; color: var(--ws-muted); }
 .collection-open { align-self: end; font-size: 10px; }
 
 /* Collection hero: the glyph is a mark, not part of the collection name. */
@@ -147,7 +147,7 @@
   height: 56px;
   border: 1px solid var(--h-line);
   border-radius: 12px;
-  background: rgba(251,249,244,.72);
+  background: color-mix(in srgb, var(--ws-surface) 72%, transparent);
   display: grid;
   place-items: center;
   font-size: 37px;
@@ -188,7 +188,7 @@
   height: 19px;
   padding: 0 5px;
   border-radius: 999px;
-  background: rgba(55,47,41,.07);
+  background: color-mix(in srgb, var(--ws-primary) 7%, transparent);
   display: inline-grid;
   place-items: center;
   font-size: 8px;
@@ -213,7 +213,7 @@
 .pack-toolbar { margin: 17px 0 10px; gap: 9px; }
 .pack-search { max-width: 480px; background: var(--h-paper); }
 .filter-strip { gap: 5px; }
-.filter-strip button { padding: 5px 9px; font-size: 9px; background: rgba(251,249,244,.58); }
+.filter-strip button { padding: 5px 9px; font-size: 9px; background: color-mix(in srgb, var(--ws-surface) 58%, transparent); }
 
 .card-table {
   border: 1px solid var(--h-line);
@@ -231,7 +231,7 @@
   grid-template-columns: minmax(250px, .95fr) minmax(320px, 1.35fr) 220px;
   gap: 18px;
   align-items: center;
-  color: #8d837a;
+  color: var(--ws-muted);
   font: 600 8px Inter, system-ui, sans-serif;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -242,10 +242,10 @@
   padding: 7px 12px;
   grid-template-columns: minmax(250px, .95fr) minmax(320px, 1.35fr) 220px;
   gap: 18px;
-  border-top: 1px solid rgba(72,61,52,.105);
+  border-top: 1px solid color-mix(in srgb, var(--ws-text) 10.5%, transparent);
   background: var(--h-paper) !important;
 }
-.card-data-row:hover { background: #fff !important; }
+.card-data-row:hover { background: var(--ws-raised) !important; }
 .card-term { gap: 1px; }
 .card-term strong { font-size: 17px; line-height: 1.12; }
 .card-term em { font-size: 9.5px; }
@@ -254,7 +254,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #514a43;
+  color: var(--ws-text);
   font-size: 11px;
   line-height: 1.3;
 }
@@ -264,10 +264,10 @@
 .card-tally { min-width: 0; justify-content: flex-end; gap: 5px; }
 .row-status {
   padding: 3px 6px;
-  border: 1px solid rgba(76,64,54,.12);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent);
   border-radius: 999px;
-  background: #f6f2eb;
-  color: #766c63;
+  background: var(--ws-surface);
+  color: var(--ws-muted);
   font: 500 8px Inter, system-ui, sans-serif;
   white-space: nowrap;
 }

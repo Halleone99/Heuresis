@@ -2,14 +2,14 @@
 .compact-direction-picker {
   min-width: 0;
   padding: 10px;
-  border: 1px solid rgba(72,65,59,.075);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 7.5%, transparent);
   border-radius: 12px;
-  background: rgba(255,255,255,.56);
+  background: color-mix(in srgb, var(--ws-raised) 56%, transparent);
   display: grid;
   gap: 8px;
 }
 .compact-direction-picker > span {
-  color: #746d66;
+  color: var(--ws-muted);
   font-size: 8px;
   font-weight: 760;
   letter-spacing: .08em;
@@ -22,19 +22,19 @@
 }
 .direction-mode-toggle button {
   min-height: 36px;
-  border: 1px solid rgba(72,65,59,.08);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent);
   border-radius: 10px;
-  background: rgba(255,255,255,.72);
-  color: #716960;
+  background: color-mix(in srgb, var(--ws-raised) 72%, transparent);
+  color: var(--ws-text);
   font-size: 10px;
   font-weight: 680;
   cursor: pointer;
 }
-.direction-mode-toggle button:hover:not(:disabled) { background: #fff; }
+.direction-mode-toggle button:hover:not(:disabled) { background: var(--ws-raised); }
 .direction-mode-toggle button.selected {
-  border-color: #45413d;
-  background: #45413d;
-  color: #fff;
+  border-color: var(--ws-text);
+  background: var(--ws-text);
+  color: var(--ws-on-primary);
 }
 .direction-mode-toggle button:disabled { opacity: .34; cursor: default; }
 .direction-detail {
@@ -46,11 +46,11 @@
   width: 100%;
   height: 36px;
   padding: 0 34px 0 10px;
-  border: 1px solid rgba(72,65,59,.08);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent);
   border-radius: 9px;
   outline: 0;
-  background: rgba(250,250,248,.82);
-  color: #514a44;
+  background: color-mix(in srgb, var(--ws-surface) 82%, transparent);
+  color: var(--ws-text);
   font-size: 10px;
 }
 .direction-detail strong {
@@ -58,8 +58,8 @@
   min-height: 34px;
   padding: 0 10px;
   border-radius: 9px;
-  background: rgba(72,65,59,.045);
-  color: #665f58;
+  background: color-mix(in srgb, var(--ws-text) 4.5%, transparent);
+  color: var(--ws-text);
   display: flex;
   align-items: center;
   font-size: 10px;
@@ -67,22 +67,22 @@
 }
 
 /* Multi-select tag popover: selection stays open and shows the active count. */
-.study-tags-menu > summary.active { border-color: rgba(75,89,80,.24) !important; }
+.study-tags-menu > summary.active { border-color: color-mix(in srgb, var(--ws-text) 24%, transparent) !important; }
 .study-tags-menu > summary.active b {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   border-radius: 99px;
-  background: #55665c;
-  color: #fff;
+  background: var(--ws-text);
+  color: var(--ws-on-primary);
   display: inline-grid;
   place-items: center;
   font-size: 8px;
 }
 .study-tags-popover button.selected {
-  background: #45413d !important;
-  border-color: #45413d !important;
-  color: #fff !important;
+  background: var(--ws-text) !important;
+  border-color: var(--ws-text) !important;
+  color: var(--ws-on-primary) !important;
 }
 
 @media (max-width: 720px) {

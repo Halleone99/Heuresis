@@ -20,7 +20,6 @@ type Stroke = {
   width: number;
 };
 
-const INK = "#332e29";
 
 function rectChanged(previous: TargetRect | null, next: TargetRect) {
   if (!previous) return true;
@@ -50,8 +49,9 @@ export default function ReviewScratchpad() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, bounds.width, bounds.height);
-    ctx.strokeStyle = INK;
-    ctx.fillStyle = INK;
+    const ink = getComputedStyle(document.documentElement).getPropertyValue("--ws-ink").trim() || "#332e29";
+    ctx.strokeStyle = ink;
+    ctx.fillStyle = ink;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
