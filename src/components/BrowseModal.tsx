@@ -100,6 +100,8 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (event.defaultPrevented || event.isComposing || (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog'))) return;
       if (event.key === "Escape") { event.preventDefault(); close(); return; }
       if (phase !== "browse") return;
       if (event.key === "ArrowRight") setIndex((value) => Math.min(browseCards.length - 1, value + 1));
