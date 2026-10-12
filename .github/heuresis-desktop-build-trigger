@@ -1,3 +1,3 @@
-Build Heuresis Windows ARM64 with corrected pinyin tone mark rendering.
-Source: main at ae48ece0fd98605b6158eb90448a00033d16e54c
-Fix: Notebook reader + editor pinyin Unicode font fallback and NFC composition; no schema changes.
+Build Heuresis Windows ARM64 from workspace reliability fixes.
+Source: main at 2b0933ca995692268e253c6d333d4ee7944efe20
+Changes: capture keyboard isolation, recall corrections, refresh race and offline queue handling.
