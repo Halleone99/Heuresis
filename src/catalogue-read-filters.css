@@ -6,7 +6,7 @@
   border-bottom:1px solid var(--crm-rule-faint);
   flex-wrap:wrap;
 }
-.crm-scope-tabs{display:flex;gap:3px;padding:3px;background:rgba(51,41,31,.045);border:1px solid var(--crm-rule);}
+.crm-scope-tabs{display:flex;gap:3px;padding:3px;background:color-mix(in srgb, var(--ws-primary) 4.5%, transparent);border:1px solid var(--crm-rule);}
 .crm-scope-tabs button{
   border:0;
   background:transparent;
