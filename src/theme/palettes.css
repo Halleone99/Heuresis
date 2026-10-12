@@ -32,7 +32,9 @@
   --ws-chrome: rgba(25,30,35,.93);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #5377a5;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: #ffffff;
+  --ws-scrim: rgba(24,20,16,.38);
   --ws-veil: 245 247 248;
   --ws-preview-page: #eef1f4;
   --ws-preview-ink: #18212d;
@@ -73,7 +75,9 @@
   --ws-chrome: rgba(10,14,17,.95);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #8fb1df;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: var(--ws-page);
+  --ws-scrim: rgba(0,0,0,.55);
   --ws-veil: 16 19 22;
   --ws-preview-page: #10151b;
   --ws-preview-ink: #e8edf3;
@@ -114,7 +118,9 @@
   --ws-chrome: rgba(25,30,35,.93);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #5d8e70;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: #ffffff;
+  --ws-scrim: rgba(24,20,16,.38);
   --ws-veil: 245 247 248;
   --ws-preview-page: #eef0eb;
   --ws-preview-ink: #1a221c;
@@ -155,7 +161,9 @@
   --ws-chrome: rgba(10,14,17,.95);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #93c4a3;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: var(--ws-page);
+  --ws-scrim: rgba(0,0,0,.55);
   --ws-veil: 16 19 22;
   --ws-preview-page: #111512;
   --ws-preview-ink: #e8eee8;
@@ -196,7 +204,9 @@
   --ws-chrome: rgba(25,30,35,.93);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #a65d3f;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: #ffffff;
+  --ws-scrim: rgba(24,20,16,.38);
   --ws-veil: 245 247 248;
   --ws-preview-page: #f2efe9;
   --ws-preview-ink: #221e1a;
@@ -237,7 +247,9 @@
   --ws-chrome: rgba(10,14,17,.95);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #e0a07f;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: var(--ws-page);
+  --ws-scrim: rgba(0,0,0,.55);
   --ws-veil: 16 19 22;
   --ws-preview-page: #161412;
   --ws-preview-ink: #f2ede6;
@@ -278,7 +290,9 @@
   --ws-chrome: rgba(25,30,35,.93);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #656565;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: #ffffff;
+  --ws-scrim: rgba(24,20,16,.38);
   --ws-veil: 245 247 248;
   --ws-preview-page: #f2f2f1;
   --ws-preview-ink: #1a1a1a;
@@ -319,7 +333,9 @@
   --ws-chrome: rgba(10,14,17,.95);
   --ws-chrome-text: #f2f4f6;
   --ws-chrome-muted: #b8c3ce;
-  --ws-chrome-accent: #d6d6d6;
+  --ws-chrome-accent: var(--ws-accent);
+  --ws-on-chrome-accent: var(--ws-page);
+  --ws-scrim: rgba(0,0,0,.55);
   --ws-veil: 16 19 22;
   --ws-preview-page: #121212;
   --ws-preview-ink: #ededed;
@@ -375,3 +391,61 @@
 :root[data-theme] .settings-tabs button[aria-pressed="true"] { background:var(--ws-primary);color:var(--ws-on-primary); }
 :root[data-theme] .settings-copy span { color:var(--ws-muted); }
 :root[data-theme] .settings-rule { background:var(--ws-line); }
+
+/* Chrome is always dark, regardless of the selected page palette. Do not
+   inherit page ink or page surfaces into its navigation. */
+:root[data-theme] .desktop-chrome {
+  background: var(--ws-chrome) !important;
+  color: var(--ws-chrome-text) !important;
+  border-bottom-color: rgba(255,255,255,.1) !important;
+}
+:root[data-theme] .desktop-chrome :is(.desktop-wordmark,.desktop-nav-item,.desktop-action,.desktop-account-menu > summary) {
+  color: var(--ws-chrome-text) !important;
+}
+:root[data-theme] .desktop-chrome .desktop-nav-item:not(.active),
+:root[data-theme] .desktop-chrome .desktop-search-action,
+:root[data-theme] .desktop-chrome .desktop-search-action kbd {
+  color: var(--ws-chrome-muted) !important;
+}
+:root[data-theme] .desktop-chrome :is(.desktop-nav-item:hover,.desktop-nav-item.active,.desktop-wordmark:hover,.desktop-action:hover,.desktop-account-menu > summary:hover) {
+  background: rgba(255,255,255,.11) !important;
+  color: var(--ws-chrome-text) !important;
+}
+:root[data-theme] .desktop-chrome :is(.desktop-mark-wrap,.desktop-search-action,.desktop-search-action kbd,.desktop-topic-action,.desktop-account-avatar) {
+  background: rgba(255,255,255,.08) !important;
+  border-color: rgba(255,255,255,.15) !important;
+  color: var(--ws-chrome-text) !important;
+}
+:root[data-theme] .desktop-chrome .desktop-search-action:hover { background:rgba(255,255,255,.14) !important; }
+:root[data-theme] .desktop-chrome .desktop-wordmark-name { color:var(--ws-chrome-text) !important; }
+:root[data-theme] .desktop-chrome .desktop-wordmark-name span { color:var(--ws-chrome-accent) !important; }
+:root[data-theme] .desktop-chrome .desktop-action.hw-capture-button {
+  background:var(--ws-chrome-accent) !important;
+  color:var(--ws-on-chrome-accent) !important;
+  border-color:transparent !important;
+}
+:root[data-theme] .desktop-chrome .desktop-action.hw-capture-button:hover {
+  background:var(--ws-chrome-accent) !important;
+  filter:brightness(.95);
+}
+:root[data-theme] .desktop-chrome .desktop-action.hw-capture-button :is(svg,span) { color:inherit !important; }
+/* The account popover is a light/dark *page surface*, not part of dark chrome. */
+:root[data-theme] .desktop-chrome .desktop-account-popover {
+  background:var(--ws-raised) !important;
+  color:var(--ws-ink) !important;
+  border-color:var(--ws-line-strong) !important;
+}
+:root[data-theme] .desktop-chrome .desktop-account-popover :is(button,span,small,svg,strong) {
+  color:var(--ws-ink) !important;
+}
+:root[data-theme] .desktop-chrome .desktop-account-popover button:hover {
+  background:var(--ws-accent-soft) !important;
+}
+:root[data-theme] :is(input,textarea,select)::placeholder { color:var(--ws-muted); opacity:1; }
+:root[data-theme] input:is([type="range"],[type="checkbox"],[type="radio"]) { accent-color:var(--ws-accent); }
+:root[data-theme] :is(button,input,textarea,select):disabled {
+  opacity:1;
+  cursor:not-allowed;
+  color:var(--ws-muted);
+}
+:root[data-theme] button:disabled { background:var(--ws-sunken); }
