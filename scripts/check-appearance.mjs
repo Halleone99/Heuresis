@@ -47,7 +47,8 @@ const files = {
   auth: readFileSync("src/styles.css", "utf8"),
 };
 for (const [palette, mode] of expected.flatMap((palette) => ["light", "dark"].map((mode) => [palette, mode]))) {
-  const block = css.match(new RegExp(':root\\\\[data-palette="' + palette + '"\\\\]\\\\[data-theme="' + mode + '"\\\\]\\\\s*\\\\{([^}]+)\\\\}'))?.[1];
+  const start = css.indexOf(':root[data-palette="' + palette + '"][data-theme="' + mode + '"] {');
+  const block = start >= 0 ? css.slice(start, css.indexOf("}", start)) : "";
   assert.ok(block?.includes("--ws-scrim:"), `Missing dialog scrim in ${palette}/${mode}`);
   assert.ok(block?.includes("--ws-on-chrome-accent:"), `Missing chrome button contrast in ${palette}/${mode}`);
 }
@@ -55,7 +56,7 @@ assert.match(css, /\.desktop-chrome \.desktop-account-popover :is\(button,span,s
 assert.match(css, /:is\(input,textarea,select\)::placeholder \{ color:var\(--ws-muted\); opacity:1; \}/, "Input placeholder contrast");
 assert.match(files.capture, /capture-slot textarea::placeholder \{ color: var\(--ws-muted\)/, "Capture placeholder contrast");
 assert.doesNotMatch(files.capture, /color:\s*var\(--ws-line(?:-strong)?\)/, "Capture separators must not use border tokens as text");
-assert.doesNotMatch(files.related, /#[0-9a-f]{3,8}\\b/i, "Related editor must use palette or semantic tokens");
+assert.doesNotMatch(files.related, /#[0-9a-f]{3,8}\b/i, "Related editor must use palette or semantic tokens");
 assert.match(files.auth, /\.auth-card input \{/, "Sign-in form inputs must be styled");
 assert.match(files.sort, /\.sort-backdrop\{[^}]*background:var\(--ws-scrim\)/, "Sort modal must use a neutral scrim");
 assert.match(files.study, /\.sort-command b \{[^}]*color: var\(--ws-on-primary\)/, "Sort badge must use contrast-safe text");
