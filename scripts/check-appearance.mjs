@@ -19,7 +19,7 @@ for (const palette of expected) for (const mode of ["light", "dark"]) {
   const re = new RegExp(':root\\[data-palette="' + palette + '"\\]\\[data-theme="' + mode + '"\\]\\s*\\{([^}]+)\\}');
   const match = css.match(re);
   assert.ok(match, `Missing ${palette}/${mode}`);
-  const tokens = Object.fromEntries([...match[1].matchAll(/--([\\w-]+):\\s*(#[0-9a-f]{6});/gi)].map((item) => [item[1], item[2]]));
+  const tokens = Object.fromEntries([...match[1].matchAll(/--([\w-]+):\s*(#[0-9a-f]{6});/gi)].map((item) => [item[1], item[2]]));
   for (const key of keys) assert.ok(tokens[key], `Missing ${key} in ${palette}/${mode}`);
   for (const [foreground, background, minimum] of [
     ["ws-ink", "ws-surface", 7], ["ws-text", "ws-surface", 7],
