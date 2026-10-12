@@ -39,6 +39,7 @@ for (const key of ["heuresis.theme.v1", "heuresis.palette.v1"]) {
 
 const files = {
   palette: css,
+  chrome: readFileSync("src/theme/chrome.css", "utf8"),
   capture: readFileSync("src/popup-system.css", "utf8"),
   related: readFileSync("src/components/related.css", "utf8"),
   study: readFileSync("src/topic-elegance-pass.css", "utf8"),
@@ -52,7 +53,7 @@ for (const [palette, mode] of expected.flatMap((palette) => ["light", "dark"].ma
   assert.ok(block?.includes("--ws-scrim:"), `Missing dialog scrim in ${palette}/${mode}`);
   assert.ok(block?.includes("--ws-on-chrome-accent:"), `Missing chrome button contrast in ${palette}/${mode}`);
 }
-assert.match(css, /\.desktop-chrome \.desktop-account-popover :is\(button,span,small,svg,strong\)/, "Account popover must override dark chrome text");
+assert.match(files.chrome, /\.desktop-account-popover :is\(button,button span,button svg\)/, "Account popover must override dark chrome text");
 assert.match(css, /:is\(input,textarea,select\)::placeholder \{ color:var\(--ws-muted\); opacity:1; \}/, "Input placeholder contrast");
 assert.match(files.capture, /capture-slot textarea::placeholder \{ color: var\(--ws-muted\)/, "Capture placeholder contrast");
 assert.doesNotMatch(files.capture, /(?:^|[;{])\s*color:\s*var\(--ws-line(?:-strong)?\)/m, "Capture separators must not use border tokens as text");
@@ -60,4 +61,14 @@ assert.doesNotMatch(files.related, /#[0-9a-f]{3,8}\b/i, "Related editor must use
 assert.match(files.auth, /\.auth-card input \{/, "Sign-in form inputs must be styled");
 assert.match(files.sort, /\.sort-backdrop\{[^}]*background:var\(--ws-scrim\)/, "Sort modal must use a neutral scrim");
 assert.match(files.study, /\.sort-command b \{[^}]*color: var\(--ws-on-primary\)/, "Sort badge must use contrast-safe text");
-console.log(`Appearance: ${combinations} palette/mode token-contrast checks, plus cross-component CSS regression checks passed.`);
+const main = readFileSync("src/main.tsx", "utf8");
+const cssImports = [...main.matchAll(/^import ["'](\.\/[^"']+\.css)["'];?$/gm)].map((m) => m[1]);
+assert.equal(cssImports.at(-1), "./theme/chrome.css", "Canonical chrome must be the last CSS import");
+for (const file of ["library-home-modern.css", "library-shell-elegance.css", "desktop-density-pass.css"]) {
+  const old = readFileSync("src/" + file, "utf8");
+  assert.doesNotMatch(old, /(?:^|\n)\.desktop-chrome\s*\{/, file + " still owns duplicated header styles");
+}
+assert.doesNotMatch(readFileSync("src/components/workspace/workspace.css", "utf8"), /\.hw-theme-row/, "Obsolete account theme controls should be removed");
+assert.match(files.chrome, /\.desktop-account-popover \{/, "Account popover appearance must be defined by shared chrome");
+assert.match(files.chrome, /--ws-chrome-accent/, "Header uses the selected palette accent");
+console.log(`Appearance: ${combinations} palette/mode token-contrast checks and canonical header integration checks passed.`);

@@ -49,31 +49,8 @@ body { background: var(--ws-surface-2); }
   background: radial-gradient(circle at 80% 8%, color-mix(in srgb, var(--ws-raised) 78%, transparent), transparent 34%), var(--ws-surface-2);
 }
 
-.desktop-chrome {
-  position: sticky;
-  top: 0;
-  z-index: 35;
-  height: 58px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 22px;
-  border-bottom: 1px solid color-mix(in srgb, var(--ws-accent) 17%, transparent);
-  background: color-mix(in srgb, var(--ws-surface) 80%, transparent);
-  backdrop-filter: blur(20px) saturate(1.1);
-  box-shadow: 0 8px 26px rgba(45, 35, 28, .035);
-}
+/* Desktop header is owned by theme/chrome.css. */
 
-.desktop-wordmark {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding: 0 9px 2px 3px;
-  font: 400 26px 'Libre Caslon Display', Georgia, serif;
-  letter-spacing: -.02em;
-  color: var(--ws-ink);
-}
-.desktop-wordmark span { color: var(--c-cinnabar); }
 .desktop-spacer { flex: 1; }
 .desktop-action {
   border: 0;
@@ -161,7 +138,7 @@ body { background: var(--ws-surface-2); }
   transition: .16s ease;
 }
 .secondary-button:hover { border-color: var(--ws-faint); background: color-mix(in srgb, var(--ws-raised) 93%, transparent); }
-.secondary-button:disabled { opacity: .43; cursor: not-allowed; }
+.secondary-button:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; }
 .danger-text { color: var(--c-cinnabar); }
 .icon-button {
   width: 34px;
@@ -534,7 +511,6 @@ body { background: var(--ws-surface-2); }
 }
 
 @media (max-width: 800px) {
-  .desktop-chrome { overflow-x: auto; padding-inline: 12px; }
   .desktop-spacer { min-width: 12px; }
   .desktop-account-strip { padding-right: 15px; }
   .desktop-content { padding: 16px 15px 50px; }

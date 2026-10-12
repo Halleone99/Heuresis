@@ -1,0 +1,230 @@
+/* Single owner of Heuresis's desktop header.
+   Palette values come from palettes.css; the header stays charcoal in all modes. */
+:root[data-theme] .desktop-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 58px;
+  padding: 0 clamp(18px, 2vw, 28px);
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  /* Override legacy !important gradient headers so foreground is always readable. */
+  background: var(--ws-chrome) !important;
+  color: var(--ws-chrome-text);
+  box-shadow: 0 5px 16px rgba(0,0,0,.11);
+  backdrop-filter: blur(16px);
+}
+:root[data-theme] .desktop-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ws-chrome-text);
+  cursor: pointer;
+}
+:root[data-theme] .desktop-wordmark:hover,
+:root[data-theme] .desktop-account-menu[open] > summary,
+:root[data-theme] .desktop-account-menu > summary:hover {
+  background: rgba(255,255,255,.12);
+}
+:root[data-theme] .desktop-wordmark-name { display: none; }
+:root[data-theme] .desktop-mark-wrap {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 7px;
+  background: rgba(255,255,255,.08);
+  color: var(--ws-chrome-text) !important;
+  box-shadow: none;
+}
+:root[data-theme] .desktop-mark-wrap svg { display:block; width:20px; height:20px; filter:none; }
+:root[data-theme] .desktop-nav-group { display:inline-flex;align-items:center;gap:2px;margin-left:12px;padding:0;border:0;background:transparent;box-shadow:none; }
+:root[data-theme] .desktop-nav-item {
+  position: relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  height:32px;
+  padding:0 9px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:var(--ws-chrome-muted);
+  font-size:10.5px;
+  white-space:nowrap;
+  cursor:pointer;
+  transition: background .14s ease, color .14s ease;
+}
+:root[data-theme] .desktop-nav-item:hover,
+:root[data-theme] .desktop-nav-item.active {
+  background:rgba(255,255,255,.13);
+  color:var(--ws-chrome-text);
+}
+:root[data-theme] .desktop-nav-item.active::after { content:none; }
+:root[data-theme] .desktop-spacer { flex:1;min-width:12px; }
+:root[data-theme] .desktop-header-actions { display:inline-flex;align-items:center;gap:5px; }
+:root[data-theme] .desktop-header-actions > .desktop-action {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:32px;
+  height:32px;
+  padding:0 9px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:var(--ws-chrome-text);
+  font-size:10.5px;
+  white-space:nowrap;
+  cursor:pointer;
+  box-shadow:none;
+}
+:root[data-theme] .desktop-header-actions > .desktop-action:not(.desktop-primary):not(.hw-capture-button):hover {
+  background:rgba(255,255,255,.12);
+  color:var(--ws-chrome-text);
+}
+:root[data-theme] .desktop-header-actions > .desktop-action:disabled {
+  opacity:1;
+  color:var(--ws-chrome-muted);
+  background:transparent;
+  cursor:not-allowed;
+}
+:root[data-theme] .desktop-search-action {
+  width:clamp(190px,18vw,270px);
+  justify-content:flex-start;
+  border:1px solid rgba(255,255,255,.15) !important;
+  background:rgba(255,255,255,.08) !important;
+  color:var(--ws-chrome-muted) !important;
+}
+:root[data-theme] .desktop-search-action:hover { background:rgba(255,255,255,.14) !important; color:var(--ws-chrome-text) !important; }
+:root[data-theme] .desktop-search-action kbd {
+  margin-left:auto;
+  padding:2px 5px;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:5px;
+  background:rgba(255,255,255,.06);
+  color:var(--ws-chrome-muted);
+  font:8px "DM Mono",ui-monospace,monospace;
+}
+:root[data-theme] .desktop-topic-action { border:1px solid rgba(255,255,255,.14) !important; background:rgba(255,255,255,.08) !important; }
+:root[data-theme] .desktop-header-actions > .desktop-action.desktop-primary {
+  min-height:32px;
+  height:32px;
+  padding:0 11px;
+  background:rgba(255,255,255,.88);
+  color:#172027;
+  border:0;
+  box-shadow:none;
+  font-weight:600;
+  transform:none;
+}
+:root[data-theme] .desktop-header-actions > .desktop-action.desktop-primary:hover {
+  background:#ffffff;
+  color:#172027;
+  transform:none;
+}
+:root[data-theme] .desktop-header-actions > .desktop-action.hw-capture-button {
+  height:32px;
+  padding:0 11px;
+  border:0;
+  border-radius:7px;
+  background:var(--ws-chrome-accent);
+  color:var(--ws-on-chrome-accent);
+  box-shadow:none;
+  font-weight:600;
+}
+:root[data-theme] .desktop-header-actions > .desktop-action.hw-capture-button:hover { background:var(--ws-chrome-accent); color:var(--ws-on-chrome-accent);filter:brightness(.95); }
+:root[data-theme] .desktop-header-actions > .desktop-action.hw-capture-button :is(span,svg) { color:inherit; }
+:root[data-theme] .desktop-account-menu { position:relative;margin-left:2px; }
+:root[data-theme] .desktop-account-menu > summary {
+  display:flex;
+  align-items:center;
+  gap:4px;
+  height:36px;
+  padding:0 6px;
+  border-radius:8px;
+  color:var(--ws-chrome-muted);
+  cursor:pointer;
+  list-style:none;
+}
+:root[data-theme] .desktop-account-menu > summary::-webkit-details-marker { display:none; }
+:root[data-theme] .desktop-account-avatar {
+  display:grid;
+  place-items:center;
+  width:26px;
+  height:26px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:50%;
+  background:rgba(255,255,255,.08);
+  color:var(--ws-chrome-text);
+  font:500 10px "DM Mono",ui-monospace,monospace;
+}
+:root[data-theme] .desktop-account-popover {
+  position:absolute;
+  z-index:80;
+  right:0;
+  top:calc(100% + 8px);
+  width:230px;
+  padding:7px;
+  border:1px solid var(--ws-line-strong);
+  border-radius:11px;
+  background:var(--ws-raised);
+  color:var(--ws-ink);
+  box-shadow:var(--ws-shadow-2);
+}
+:root[data-theme] .desktop-account-identity { display:grid;gap:4px;padding:10px 10px 11px; }
+:root[data-theme] .desktop-account-identity span { color:var(--ws-muted);font:8px "DM Mono",ui-monospace,monospace;letter-spacing:.12em; }
+:root[data-theme] .desktop-account-identity strong { color:var(--ws-text);font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis; }
+:root[data-theme] .desktop-account-popover button {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  min-height:34px;
+  padding:0 9px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:var(--ws-ink);
+  text-align:left;
+  font-size:10px;
+  cursor:pointer;
+}
+:root[data-theme] .desktop-account-popover :is(button,button span,button svg) { color:var(--ws-ink); }
+:root[data-theme] .desktop-account-popover button:hover { background:var(--ws-accent-soft); }
+:root[data-theme] .desktop-account-divider { height:1px;margin:5px 3px;background:var(--ws-line); }
+@media(max-width:1180px) {
+  :root[data-theme] .desktop-nav-item { padding-inline:8px; }
+  :root[data-theme] .desktop-search-action kbd { display:none; }
+}
+@media(max-width:1100px) {
+  :root[data-theme] .desktop-header-actions .desktop-search-action svg { display:block; }
+}
+@media(max-width:980px) {
+  :root[data-theme] .desktop-chrome { padding-inline:14px; }
+  :root[data-theme] .desktop-search-action { width:36px;min-width:36px;justify-content:center; padding:0; }
+  :root[data-theme] .desktop-search-action span { display:none; }
+}
+@media(max-width:820px) {
+  :root[data-theme] .desktop-topic-action { display:none; }
+}
+@media(max-width:760px) {
+  :root[data-theme] .desktop-nav-group { display:none; }
+  :root[data-theme] .desktop-header-actions .hw-capture-button span { display:none; }
+  :root[data-theme] .desktop-header-actions > .desktop-action.hw-capture-button { width:38px;padding:0;justify-content:center; }
+}
+@media(prefers-reduced-motion:reduce) {
+  :root[data-theme] .desktop-chrome * { transition:none !important; }
+}

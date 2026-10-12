@@ -28,11 +28,7 @@
 .heuresis-desktop:not([data-section="study"]) { background: var(--ws-page) !important; }
 /* The wallpaper belongs to Study; reading and writing happen on plain paper. */
 .heuresis-desktop:not([data-section="study"]) :is(.heuresis-wallpaper, .heuresis-wallpaper-lower, .heuresis-veil) { display: none !important; }
-/* Same tint as Study's translucent bar, laid over the page colour so scrolled text does not show through it. */
-.heuresis-desktop:not([data-section="study"]) .desktop-chrome {
-  background: linear-gradient(180deg, rgba(20,20,20,.84), rgba(27,27,27,.76)), var(--ws-page) !important;
-  backdrop-filter: none !important;
-}
+/* Shared chrome stays charcoal in every workspace section (theme/chrome.css). */
 .heuresis-workspace-layout {
   position: relative;
   z-index: 2;
@@ -109,18 +105,7 @@
 }
 .hw-capture-hint:hover { border-style: solid; color: var(--ws-ink); background: var(--ws-surface); }
 
-/* Header capture action: the one accent element in the charcoal chrome. */
-.desktop-header-actions .desktop-action.hw-capture-button {
-  height: 36px; padding: 0 13px; border-radius: 9px; border: 0;
-  background: var(--ws-chrome-accent); color: var(--ws-on-primary); font-weight: 600; gap: 6px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, .18);
-}
-.desktop-header-actions .desktop-action.hw-capture-button:hover { background: var(--ws-chrome-accent); color: var(--ws-on-primary); }
-.desktop-header-actions .desktop-action.hw-capture-button svg { color: inherit; }
-
-.hw-theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 4px; margin: 2px 0 6px; border-radius: 9px; background: rgba(0, 0, 0, .05); }
-.desktop-account-popover .hw-theme-row button { justify-content: center; gap: 5px; padding: 7px 4px !important; font-size: 11px; border-radius: 7px; }
-.desktop-account-popover .hw-theme-row button.is-active { background: rgba(255, 255, 255, .9); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); font-weight: 600; }
+/* Header capture styles are shared in theme/chrome.css. */
 
 /* Workspace sections own their padding (an older Study pass zeroes it globally). */
 .heuresis-desktop .desktop-content.is-workspace {

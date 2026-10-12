@@ -49,7 +49,7 @@
   outline: none;
 }
 .capture-context-pickers select:focus { border-color: var(--c-cinnabar); }
-.capture-context-pickers select:disabled { opacity: .62; cursor: not-allowed; }
+.capture-context-pickers select:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; }
 .capture-schema-badge {
   flex: 0 0 auto;
   padding: 4px 7px;
@@ -284,7 +284,7 @@
   cursor: pointer;
   font-size: 10px;
 }
-.capture-foot-actions button:disabled { opacity: .35; cursor: not-allowed; }
+.capture-foot-actions button:disabled { opacity: 1; color: var(--ws-muted); background: var(--ws-sunken); cursor: not-allowed; }
 .capture-secondary { border: 1px solid var(--ws-line); background: transparent; color: var(--ws-text); }
 .capture-secondary:hover:not(:disabled) { border-color: var(--ws-accent); color: var(--c-cinnabar); }
 .capture-commit { border: 1px solid var(--ws-primary); background: var(--ws-primary); color: var(--ws-on-primary); }

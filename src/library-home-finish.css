@@ -1,12 +1,7 @@
 /* Final library-home corrections: remove the strip under the chrome, centre the visual mass,
    and keep the custom wallpaper visibly continuous across the full viewport. */
 
-.desktop-chrome {
-  border-bottom: 0 !important;
-  box-shadow: none !important;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--ws-primary) 84%, transparent), color-mix(in srgb, var(--ws-primary) 76%, transparent)) !important;
-  backdrop-filter: blur(26px) saturate(1.06) !important;
-}
+/* Desktop header is owned by theme/chrome.css. */
 
 /* Neutral fallback only. The actual visual surface is always the wallpaper. */
 .heuresis-desktop[data-custom-background="heuresis"] {
