@@ -114,10 +114,6 @@
 .desktop-header-actions .desktop-action.hw-capture-button:hover { background: var(--ws-chrome-accent); color: var(--ws-on-primary); }
 .desktop-header-actions .desktop-action.hw-capture-button svg { color: inherit; }
 
-.hw-theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 4px; margin: 2px 0 6px; border-radius: 9px; background: rgba(0, 0, 0, .05); }
-.desktop-account-popover .hw-theme-row button { justify-content: center; gap: 5px; padding: 7px 4px !important; font-size: 11px; border-radius: 7px; }
-.desktop-account-popover .hw-theme-row button.is-active { background: rgba(255, 255, 255, .9); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); font-weight: 600; }
-
 /* Workspace sections own their padding (an older Study pass zeroes it globally). */
 .heuresis-desktop .desktop-content.is-workspace {
   min-width: 0;
