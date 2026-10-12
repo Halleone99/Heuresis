@@ -221,6 +221,9 @@ export function QuickCapture() {
 
   return <div className="qc-panel" ref={panelRef} role="dialog" aria-label="Quick capture"
     onKeyDown={(event) => {
+      // A capture is its own keyboard layer, even above a Study modal.
+      event.stopPropagation();
+      if (event.nativeEvent.isComposing) return;
       const mod = event.ctrlKey || event.metaKey;
       if (event.key === "Escape" && !picking && !creatingSubject) { event.preventDefault(); close(); }
       if (mod && event.key === "Enter") { event.preventDefault(); void submit(); }
@@ -276,7 +279,7 @@ export function QuickCapture() {
           <input ref={(node) => { if (node) firstFieldRef.current = node; }} value={draft.lessonTitle} maxLength={200}
             placeholder={`e.g. HSK 2 · Chapter 4   (default: Lesson — ${formatDay(lessonDate)})`}
             onChange={(event) => patch({ lessonTitle: event.target.value })}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void submit(); } }} /></label>
+            onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} /></label>
         <div className="qc-lesson-row">
           <label className="qc-field is-inline"><span>Date</span><input type="date" value={lessonDate} onChange={(event) => setLessonDate(event.target.value)} /></label>
           <label className="qc-check"><input type="checkbox" checked={openLesson} onChange={(event) => setOpenLesson(event.target.checked)} /> Open the lesson page</label>
