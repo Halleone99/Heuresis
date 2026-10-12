@@ -55,7 +55,7 @@ for (const [palette, mode] of expected.flatMap((palette) => ["light", "dark"].ma
 assert.match(css, /\.desktop-chrome \.desktop-account-popover :is\(button,span,small,svg,strong\)/, "Account popover must override dark chrome text");
 assert.match(css, /:is\(input,textarea,select\)::placeholder \{ color:var\(--ws-muted\); opacity:1; \}/, "Input placeholder contrast");
 assert.match(files.capture, /capture-slot textarea::placeholder \{ color: var\(--ws-muted\)/, "Capture placeholder contrast");
-assert.doesNotMatch(files.capture, /color:\s*var\(--ws-line(?:-strong)?\)/, "Capture separators must not use border tokens as text");
+assert.doesNotMatch(files.capture, /(?:^|[;{])\s*color:\s*var\(--ws-line(?:-strong)?\)/m, "Capture separators must not use border tokens as text");
 assert.doesNotMatch(files.related, /#[0-9a-f]{3,8}\b/i, "Related editor must use palette or semantic tokens");
 assert.match(files.auth, /\.auth-card input \{/, "Sign-in form inputs must be styled");
 assert.match(files.sort, /\.sort-backdrop\{[^}]*background:var\(--ws-scrim\)/, "Sort modal must use a neutral scrim");
