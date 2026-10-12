@@ -1,3 +1,3 @@
-Build Heuresis Windows ARM64 with four coordinated appearance palettes.
-Source: main at f08f8b506ce1ccdc4bdab8fddced7ae55085c811
-Appearance: Auto/Light/Dark and Slate/Forest/Sepia/Neutral, shared by Study, Notebook, Capture and Review.
+Build Heuresis Windows ARM64 with Claude-audited visual contrast repairs.
+Source: main at 75ea054010647269a86d20af5b497d28de6657cb
+Fixes: readable chrome, account menu, Study buttons, Capture, dark scrims and Connections editor across four palettes.
