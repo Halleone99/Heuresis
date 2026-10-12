@@ -18,15 +18,15 @@
   inset: 0;
   pointer-events: none;
   background-image: var(--heuresis-background-image, none);
-  background-size: cover !important;
-  background-position: center center !important;
+  background-size: var(--heuresis-background-fit, cover) !important;
+  background-position: var(--heuresis-background-position, center) !important;
   background-repeat: no-repeat !important;
 }
 
 /* Main wallpaper remains visible from top to bottom. */
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
   z-index: -4 !important;
-  opacity: .68 !important;
+  opacity: var(--heuresis-background-opacity, .68) !important;
   filter: blur(var(--heuresis-background-blur, 0px)) saturate(.94) contrast(1.02) !important;
   transform: scale(1.025) !important;
 }
@@ -36,7 +36,7 @@
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
   z-index: -3 !important;
   top: 34% !important;
-  opacity: .40 !important;
+  opacity: calc(var(--heuresis-background-opacity, .68) * .6) !important;
   filter: blur(14px) saturate(.64) contrast(.98) brightness(1.05) !important;
   transform: scale(1.045) !important;
   transform-origin: center center;
@@ -48,13 +48,7 @@
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
   z-index: -2 !important;
   overflow: hidden !important;
-  background:
-    radial-gradient(circle at 72% 8%, rgba(255,255,255,.10), transparent 44%),
-    linear-gradient(180deg,
-      rgba(248,249,249,.04) 0%,
-      rgba(248,249,249,.05) 46%,
-      rgba(246,248,248,.09) 72%,
-      rgba(244,247,247,.14) 100%) !important;
+  background: rgb(var(--ws-veil) / var(--heuresis-background-veil, .55)) !important;
 }
 .heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
   content: none !important;
