@@ -20,10 +20,10 @@
   list-style: none;
   min-height: 38px;
   padding: 0 11px 0 12px;
-  border: 1px solid rgba(67,61,56,.10);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent);
   border-radius: 10px;
-  background: rgba(255,255,255,.62);
-  color: #665f58;
+  background: color-mix(in srgb, var(--ws-raised) 62%, transparent);
+  color: var(--ws-text);
   display: flex;
   align-items: center;
   gap: 7px;
@@ -37,11 +37,11 @@
 .filter-menu > summary:hover,
 .filter-menu > summary.active,
 .filter-menu[open] > summary {
-  background: rgba(255,255,255,.90);
-  border-color: rgba(64,57,52,.18);
+  background: color-mix(in srgb, var(--ws-raised) 90%, transparent);
+  border-color: color-mix(in srgb, var(--ws-primary) 18%, transparent);
   box-shadow: 0 5px 16px rgba(40,34,30,.05);
 }
-.filter-menu > summary svg { color: #999189; transition: transform .14s ease; }
+.filter-menu > summary svg { color: var(--ws-faint); transition: transform .14s ease; }
 .filter-menu[open] > summary svg { transform: rotate(180deg); }
 .filter-menu > summary > b {
   min-width: 19px;
@@ -50,8 +50,8 @@
   border-radius: 999px;
   display: inline-grid;
   place-items: center;
-  background: #ece9e4;
-  color: #625b54;
+  background: var(--ws-surface-2);
+  color: var(--ws-text);
   font-size: 9px;
 }
 .filter-menu-popover {
@@ -60,9 +60,9 @@
   right: 0;
   min-width: 238px;
   padding: 12px;
-  border: 1px solid rgba(65,58,52,.11);
+  border: 1px solid color-mix(in srgb, var(--ws-primary) 11%, transparent);
   border-radius: 14px;
-  background: rgba(251,250,247,.96);
+  background: color-mix(in srgb, var(--ws-surface) 96%, transparent);
   box-shadow: 0 18px 46px rgba(35,29,25,.14);
   backdrop-filter: blur(22px) saturate(1.06);
   z-index: 50;
@@ -70,7 +70,7 @@
 .filter-menu-popover > p,
 .filter-menu-popover section > p {
   margin: 0 0 8px;
-  color: #938b83;
+  color: var(--ws-muted);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: .12em;
@@ -86,24 +86,24 @@
 .tag-menu-footer button {
   min-height: 31px;
   padding: 0 9px;
-  border: 1px solid rgba(72,64,58,.09);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 9%, transparent);
   border-radius: 8px;
-  background: rgba(255,255,255,.62);
-  color: #6d655e;
+  background: color-mix(in srgb, var(--ws-raised) 62%, transparent);
+  color: var(--ws-text);
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 10px;
   cursor: pointer;
 }
-.filter-chip-grid button b { margin-left: auto; color: #9a928a; font-size: 8px; }
+.filter-chip-grid button b { margin-left: auto; color: var(--ws-faint); font-size: 8px; }
 .filter-chip-grid button i { width: 7px; height: 7px; border: 1.5px solid currentColor; border-radius: 2px; }
 .filter-chip-grid button.selected,
 .other-tag-list button.selected,
 .tag-menu-footer button.selected {
-  border-color: rgba(65,84,67,.24);
-  background: rgba(224,235,224,.72);
-  color: #536854;
+  border-color: color-mix(in srgb, var(--ws-text) 24%, transparent);
+  background: color-mix(in srgb, var(--ws-surface-2) 72%, transparent);
+  color: var(--ws-text);
 }
 .filter-chip-grid button.selected i { background: currentColor; }
 
@@ -125,43 +125,43 @@
 .interest-score-option:hover, .interest-score-option.selected { opacity: 1; transform: translateY(-1px); }
 .interest-score-option.selected { box-shadow: 0 0 0 2px rgba(55,50,46,.16); }
 .interest-score-option.neutral,
-.filter-menu > summary > b.neutral { background: #efede9; color: #777067; }
+.filter-menu > summary > b.neutral { background: var(--ws-surface-2); color: var(--ws-muted); }
 .menu-reset {
   margin-top: 9px;
   border: 0;
   background: transparent;
-  color: #81786f;
+  color: var(--ws-muted);
   font-size: 9px;
   cursor: pointer;
 }
 
 .tag-menu-popover { min-width: 300px; }
-.tag-menu-popover section + section { margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(72,64,58,.08); }
+.tag-menu-popover section + section { margin-top: 12px; padding-top: 11px; border-top: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent); }
 .lesson-tag-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
 .lesson-tag-grid button {
   min-height: 30px;
-  border: 1px solid rgba(72,64,58,.09);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 9%, transparent);
   border-radius: 8px;
-  background: rgba(255,255,255,.60);
-  color: #6f675f;
+  background: color-mix(in srgb, var(--ws-raised) 60%, transparent);
+  color: var(--ws-text);
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
 }
-.lesson-tag-grid button:hover, .lesson-tag-grid button.selected { background: #3e3934; color: #fff; border-color: #3e3934; }
+.lesson-tag-grid button:hover, .lesson-tag-grid button.selected { background: var(--ws-primary); color: var(--ws-on-primary); border-color: var(--ws-primary); }
 .other-tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
-.tag-menu-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(72,64,58,.08); display: flex; justify-content: space-between; gap: 6px; }
+.tag-menu-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent); display: flex; justify-content: space-between; gap: 6px; }
 
 .compact-clear-filter {
   min-height: 38px;
   padding: 0 10px;
   border: 0;
   background: transparent;
-  color: #946b55;
+  color: var(--c-cinnabar);
   font-size: 10px;
   cursor: pointer;
 }
-.compact-clear-filter:hover { color: #633f2f; }
+.compact-clear-filter:hover { color: var(--c-cinnabar); }
 
 /* Interest is a score, not a fraction. High scores are green; low scores warm towards yellow. */
 .topic-interest-cell .interest-badge,
@@ -177,11 +177,11 @@
   font-weight: 800 !important;
   font-style: normal !important;
 }
-.interest-5 { background: #597a61 !important; color: #fff !important; }
-.interest-4 { background: #d9ead9 !important; color: #45614b !important; }
-.interest-3 { background: #e9efcf !important; color: #657044 !important; }
-.interest-2 { background: #f2e7b8 !important; color: #7a6736 !important; }
-.interest-1 { background: #f2d49a !important; color: #815f2f !important; }
+.interest-5 { background: var(--c-sage) !important; color: var(--ws-on-primary) !important; }
+.interest-4 { background: var(--ws-surface-2) !important; color: var(--c-sage) !important; }
+.interest-3 { background: var(--ws-surface-2) !important; color: var(--ws-text) !important; }
+.interest-2 { background: var(--ws-surface-2) !important; color: var(--ws-accent) !important; }
+.interest-1 { background: var(--ws-sunken) !important; color: var(--c-cinnabar) !important; }
 
 /* A fork glyph reads more clearly as a knowledge tree than the old network box. */
 .row-connections-icon {
@@ -189,15 +189,15 @@
   height: 29px !important;
   border: 0 !important;
   border-radius: 50% !important;
-  background: rgba(67,79,70,.075) !important;
-  color: #667168 !important;
+  background: color-mix(in srgb, var(--ws-text) 7.5%, transparent) !important;
+  color: var(--ws-muted) !important;
   box-shadow: inset 0 0 0 1px rgba(67,79,70,.08);
   transition: transform .14s ease, background .14s ease, color .14s ease !important;
 }
 .row-connections-icon:hover {
   transform: translateY(-1px) scale(1.04);
-  background: rgba(66,86,70,.13) !important;
-  color: #405448 !important;
+  background: color-mix(in srgb, var(--ws-text) 13%, transparent) !important;
+  color: var(--ws-text) !important;
 }
 
 /* The topic summary is a workflow, not a miscellaneous statistics strip. */
@@ -209,29 +209,29 @@
   grid-template-columns: 104px minmax(0,1fr);
   align-items: stretch;
   gap: 10px;
-  border: 1px solid rgba(61,57,53,.09);
+  border: 1px solid color-mix(in srgb, var(--ws-primary) 9%, transparent);
   border-radius: 18px;
-  background: rgba(250,250,248,.72);
+  background: color-mix(in srgb, var(--ws-surface) 72%, transparent);
   box-shadow: 0 14px 38px rgba(42,38,34,.05), inset 0 1px 0 rgba(255,255,255,.72);
   backdrop-filter: blur(20px) saturate(1.02);
 }
 .workflow-overview-label {
   padding: 0 13px 0 8px;
-  border-right: 1px solid rgba(66,61,56,.08);
+  border-right: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent);
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
 }
 .workflow-overview-label > span {
-  color: #857d75;
+  color: var(--ws-muted);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
 .workflow-overview-label > small {
-  color: #4f4943;
+  color: var(--ws-text);
   font-size: 11px;
   font-weight: 700;
 }
@@ -248,25 +248,25 @@
   padding: 0 15px;
   border: 1px solid transparent;
   border-radius: 14px;
-  background: rgba(255,255,255,.48);
+  background: color-mix(in srgb, var(--ws-ink) 48%, transparent);
   display: grid;
   grid-template-columns: 9px minmax(0,1fr) auto;
   align-items: center;
   gap: 10px;
-  color: #514b45;
+  color: var(--ws-text);
   cursor: pointer;
   text-align: left;
   transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 .workflow-overview-stages > button:hover {
   transform: translateY(-1px);
-  background: rgba(255,255,255,.82);
-  border-color: rgba(67,61,55,.10);
+  background: color-mix(in srgb, var(--ws-raised) 82%, transparent);
+  border-color: color-mix(in srgb, var(--ws-text) 10%, transparent);
   box-shadow: 0 8px 20px rgba(44,38,33,.045);
 }
 .workflow-overview-stages > button.active {
-  background: rgba(255,255,255,.92);
-  border-color: rgba(66,60,54,.16);
+  background: color-mix(in srgb, var(--ws-raised) 92%, transparent);
+  border-color: color-mix(in srgb, var(--ws-primary) 16%, transparent);
   box-shadow: 0 8px 22px rgba(42,36,31,.07), inset 0 0 0 1px rgba(255,255,255,.65);
 }
 .workflow-stage-dot {
@@ -275,9 +275,9 @@
   border-radius: 50%;
   box-shadow: 0 0 0 4px rgba(0,0,0,.025);
 }
-[data-stage="unsorted"] .workflow-stage-dot { background: #c98e63; }
-[data-stage="ready"] .workflow-stage-dot { background: #7c93a7; }
-[data-stage="reviewed"] .workflow-stage-dot { background: #6f9277; }
+[data-stage="unsorted"] .workflow-stage-dot { background: var(--ws-accent); }
+[data-stage="ready"] .workflow-stage-dot { background: var(--c-indigo); }
+[data-stage="reviewed"] .workflow-stage-dot { background: var(--c-sage); }
 .workflow-stage-copy {
   min-width: 0;
   display: grid;
@@ -285,7 +285,7 @@
 }
 .workflow-stage-copy > b {
   overflow: hidden;
-  color: #4b4540;
+  color: var(--ws-text);
   font-size: 11px;
   font-weight: 720;
   white-space: nowrap;
@@ -293,21 +293,21 @@
 }
 .workflow-stage-copy > small {
   overflow: hidden;
-  color: #a0978e;
+  color: var(--ws-faint);
   font-size: 8px;
   font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 .workflow-overview-stages > button > strong {
-  color: #302c28;
+  color: var(--ws-ink);
   font-size: 24px;
   font-weight: 620;
   letter-spacing: -.035em;
   line-height: 1;
 }
 .workflow-stage-arrow {
-  color: rgba(82,75,68,.28);
+  color: color-mix(in srgb, var(--ws-text) 28%, transparent);
   display: grid;
   place-items: center;
   font-size: 16px;
@@ -319,7 +319,7 @@
   .compact-filter-actions { justify-content: flex-start; }
   .filter-menu-popover { left: 0; right: auto; }
   .topic-workflow-overview { grid-template-columns: 1fr; }
-  .workflow-overview-label { padding: 4px 6px 8px; border-right: 0; border-bottom: 1px solid rgba(66,61,56,.08); flex-direction: row; justify-content: space-between; }
+  .workflow-overview-label { padding: 4px 6px 8px; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--ws-text) 8%, transparent); flex-direction: row; justify-content: space-between; }
 }
 
 @media (max-width: 760px) {
