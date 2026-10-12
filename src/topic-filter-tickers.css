@@ -8,14 +8,14 @@
   gap: 10px !important;
   align-items: center !important;
   border-radius: 15px !important;
-  background: rgba(252,251,248,.76) !important;
+  background: color-mix(in srgb, var(--ws-surface) 76%, transparent) !important;
   box-shadow: 0 10px 28px rgba(42,36,31,.035) !important;
 }
 
 .ticker-topic-toolbar .modern-topic-search {
   min-height: 42px !important;
   border-radius: 11px !important;
-  background: rgba(255,255,255,.76) !important;
+  background: color-mix(in srgb, var(--ws-raised) 76%, transparent) !important;
 }
 
 .ticker-filter-line {
@@ -32,15 +32,15 @@
   gap: 5px;
   min-height: 42px;
   padding: 5px 6px;
-  border: 1px solid rgba(74,67,61,.085);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 8.5%, transparent);
   border-radius: 11px;
-  background: rgba(255,255,255,.46);
+  background: color-mix(in srgb, var(--ws-ink) 46%, transparent);
 }
 
 .filter-ticker-label,
 .ticker-select > span {
   margin: 0 3px 0 2px;
-  color: #9b938b;
+  color: var(--ws-faint);
   font-size: 7px;
   font-weight: 760;
   letter-spacing: .11em;
@@ -54,7 +54,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #726b64;
+  color: var(--ws-text);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -65,14 +65,14 @@
 }
 
 .filter-ticker-cluster > button:hover {
-  background: rgba(255,255,255,.76);
-  color: #3f3934;
+  background: color-mix(in srgb, var(--ws-raised) 76%, transparent);
+  color: var(--ws-ink);
 }
 
 .filter-ticker-cluster > button.selected {
-  border-color: rgba(62,56,51,.13);
-  background: #3d3935;
-  color: #fff;
+  border-color: color-mix(in srgb, var(--ws-primary) 13%, transparent);
+  background: var(--ws-primary);
+  color: var(--ws-on-primary);
   box-shadow: 0 4px 12px rgba(45,39,34,.08);
 }
 
@@ -94,41 +94,41 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: rgba(70,64,58,.07);
+  background: color-mix(in srgb, var(--ws-text) 7%, transparent);
   display: inline-grid;
   place-items: center;
-  color: #918980;
+  color: var(--ws-muted);
   font-size: 8px;
   font-weight: 700;
 }
 
 .filter-ticker-cluster > button.selected > b {
-  background: rgba(255,255,255,.14);
-  color: rgba(255,255,255,.88);
+  background: color-mix(in srgb, var(--ws-ink) 14%, transparent);
+  color: color-mix(in srgb, var(--ws-on-primary) 88%, transparent);
 }
 
 .status-filter-tickers > button:nth-of-type(1).selected {
-  background: #865d43;
-  border-color: rgba(134,93,67,.22);
+  background: var(--c-cinnabar);
+  border-color: color-mix(in srgb, var(--c-cinnabar) 22%, transparent);
 }
 .status-filter-tickers > button:nth-of-type(1).selected > i { box-shadow: inset 0 0 0 2px #865d43; }
 .status-filter-tickers > button:nth-of-type(2).selected {
-  background: #647462;
-  border-color: rgba(100,116,98,.22);
+  background: var(--ws-muted);
+  border-color: color-mix(in srgb, var(--ws-muted) 22%, transparent);
 }
 .status-filter-tickers > button:nth-of-type(2).selected > i { box-shadow: inset 0 0 0 2px #647462; }
 .status-filter-tickers > button:nth-of-type(3).selected {
-  background: #58647c;
-  border-color: rgba(88,100,124,.22);
+  background: var(--c-indigo);
+  border-color: color-mix(in srgb, var(--c-indigo) 22%, transparent);
 }
 .status-filter-tickers > button:nth-of-type(3).selected > i { box-shadow: inset 0 0 0 2px #58647c; }
 
 .ticker-select {
   min-height: 42px;
   padding: 5px 6px 5px 8px;
-  border: 1px solid rgba(74,67,61,.085);
+  border: 1px solid color-mix(in srgb, var(--ws-text) 8.5%, transparent);
   border-radius: 11px;
-  background: rgba(255,255,255,.46);
+  background: color-mix(in srgb, var(--ws-ink) 46%, transparent);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -141,8 +141,8 @@
   border: 0;
   border-radius: 8px;
   outline: 0;
-  background: rgba(255,255,255,.68);
-  color: #5e5750;
+  background: color-mix(in srgb, var(--ws-raised) 68%, transparent);
+  color: var(--ws-text);
   font: inherit;
   font-size: 9px;
   cursor: pointer;
@@ -150,7 +150,7 @@
 
 .ticker-select select:hover,
 .ticker-select select:focus {
-  background: #fff;
+  background: var(--ws-raised);
   box-shadow: inset 0 0 0 1px rgba(71,64,58,.11);
 }
 
@@ -160,7 +160,7 @@
 }
 
 .signal-filter-tickers > button.selected {
-  background: #5d5751;
+  background: var(--ws-text);
 }
 
 .ticker-clear-button {
@@ -169,12 +169,12 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #9a674c;
+  color: var(--c-cinnabar);
   font-size: 9px;
   font-weight: 650;
   cursor: pointer;
 }
-.ticker-clear-button:hover { background: rgba(255,255,255,.72); color: #704831; }
+.ticker-clear-button:hover { background: color-mix(in srgb, var(--ws-raised) 72%, transparent); color: var(--c-cinnabar); }
 
 /* Interest gets its own sortable column instead of being squeezed into the card title. */
 .ticker-topic-thead,
@@ -190,7 +190,7 @@
 }
 
 .topic-interest-cell > span {
-  color: #b1aaa3;
+  color: var(--ws-line-strong);
   font-size: 10px;
 }
 
@@ -214,10 +214,10 @@
   border-radius: 6px;
 }
 .ticker-topic-thead > button:hover {
-  background: rgba(255,255,255,.42);
+  background: color-mix(in srgb, var(--ws-ink) 42%, transparent);
 }
 .ticker-topic-thead > button.active {
-  color: #45403a !important;
+  color: var(--ws-text) !important;
 }
 
 @media (max-width: 1280px) {
