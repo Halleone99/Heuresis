@@ -16,4 +16,5 @@ jobs:
           node-version: 22
       - run: npm install --ignore-scripts
       - run: node scripts/check-architecture.mjs
+      - run: node scripts/check-appearance.mjs
       - run: npm run build
