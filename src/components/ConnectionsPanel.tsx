@@ -117,7 +117,7 @@ export default function ConnectionsPanel({ pack, card, onClose }: Props) {
   return <div className="connections-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="connections-panel" role="dialog" aria-modal="true" aria-label="Knowledge connections">
       <header className="connections-head">
-        <div><p className="eyebrow">CONNECTIONS · ALL HEURESIS</p><h2>{rootCopy.term}</h2><p>{rootCopy.reading}{rootCopy.reading && rootCopy.meaning ? " · " : ""}{rootCopy.meaning}</p>{rootCopy.origin ? <small style={{ display: "block", marginTop: 5, color: "#a0988f", fontSize: 9 }}>{rootCopy.origin}</small> : null}</div>
+        <div><p className="eyebrow">CONNECTIONS · ALL HEURESIS</p><h2>{rootCopy.term}</h2><p>{rootCopy.reading}{rootCopy.reading && rootCopy.meaning ? " · " : ""}{rootCopy.meaning}</p>{rootCopy.origin ? <small style={{ display: "block", marginTop: 5, color: "var(--ws-muted)", fontSize: 11 }}>{rootCopy.origin}</small> : null}</div>
         <div className="connections-head-actions"><div className="connections-filters">{visibleTypes.map((type) => <button key={type} aria-pressed={enabled[type]} onClick={() => setEnabled((current) => ({ ...current, [type]: !current[type] }))}><i data-type={type} />{relationLabel(type)}</button>)}</div><button className="connections-close" onClick={onClose}><X size={17} /></button></div>
       </header>
 
@@ -138,7 +138,7 @@ export default function ConnectionsPanel({ pack, card, onClose }: Props) {
             const copy = nodeCopy(point.id);
             const score = scorePercent(node);
             return <button key={`${point.id}-${point.ring}`} className={`connection-node ring-${point.ring} ${relatedOnlyIds.has(point.id) ? "related-only" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%` }} onMouseEnter={() => point.ring === 1 ? setHovered(point.id) : undefined} onFocus={() => point.ring === 1 ? setHovered(point.id) : undefined} onClick={() => recenter(point.id)} title={copy.origin}>
-              <strong>{copy.term}</strong>{copy.reading ? <em>{copy.reading}</em> : null}{point.ring !== 2 && copy.meaning ? <span>{copy.meaning}</span> : null}{point.ring !== 2 && copy.origin ? <small style={{ marginTop: 4, maxWidth: 126, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#aaa197", fontSize: 7.5 }}>{copy.origin}</small> : null}{score !== null ? <i className="connection-meter"><b style={{ width: `${score}%` }} /></i> : null}
+              <strong>{copy.term}</strong>{copy.reading ? <em>{copy.reading}</em> : null}{point.ring !== 2 && copy.meaning ? <span>{copy.meaning}</span> : null}{point.ring !== 2 && copy.origin ? <small style={{ marginTop: 4, maxWidth: 126, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--ws-muted)", fontSize: 10 }}>{copy.origin}</small> : null}{score !== null ? <i className="connection-meter"><b style={{ width: `${score}%` }} /></i> : null}
             </button>;
           })}
         </> : null}
