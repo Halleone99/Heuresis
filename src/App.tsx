@@ -229,6 +229,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const accountInitial = accountLabel.slice(0, 1).toUpperCase();
   const syncLabel = syncState.legacyPending
     ? `Older unsynced · ${syncState.legacyPending}`
+    : syncState.error && syncState.pending && syncState.online
+    ? `Sync problem · ${syncState.pending}`
     : syncState.syncing
     ? "Syncing…"
     : !syncState.online
@@ -238,6 +240,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         : syncState.lastSyncedAt ? "Synced" : "Sync";
   const syncTitle = syncState.legacyPending
     ? `${syncState.legacyPending} unowned offline changes from an older Heuresis version were kept safely but cannot be replayed automatically across accounts. Do not clear this app's local storage.`
+    : syncState.error && syncState.pending
+    ? `${syncState.error} The unsent changes remain on this device. Do not clear local app data.`
     : !syncState.online
     ? "Heuresis is using the local copy on this device. Changes will upload when internet returns."
     : syncState.lastSyncedAt
