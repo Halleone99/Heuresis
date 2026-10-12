@@ -35,4 +35,28 @@ for (const key of ["heuresis.theme.v1", "heuresis.palette.v1"]) {
   assert.ok(html.includes(key), `Pre-paint script missing ${key}`);
   assert.ok((js + readFileSync("src/lib/workspaceMemory.ts", "utf8")).includes(key), `Appearance logic missing ${key}`);
 }
-console.log(`Appearance: ${combinations} palette/mode combinations pass contrast and storage-key checks.`);
+
+
+const files = {
+  palette: css,
+  capture: readFileSync("src/popup-system.css", "utf8"),
+  related: readFileSync("src/components/related.css", "utf8"),
+  study: readFileSync("src/topic-elegance-pass.css", "utf8"),
+  sort: readFileSync("src/components/sort.css", "utf8"),
+  account: readFileSync("src/App.tsx", "utf8"),
+  auth: readFileSync("src/styles.css", "utf8"),
+};
+for (const [palette, mode] of expected.flatMap((palette) => ["light", "dark"].map((mode) => [palette, mode]))) {
+  const block = css.match(new RegExp(':root\\\\[data-palette="' + palette + '"\\\\]\\\\[data-theme="' + mode + '"\\\\]\\\\s*\\\\{([^}]+)\\\\}'))?.[1];
+  assert.ok(block?.includes("--ws-scrim:"), `Missing dialog scrim in ${palette}/${mode}`);
+  assert.ok(block?.includes("--ws-on-chrome-accent:"), `Missing chrome button contrast in ${palette}/${mode}`);
+}
+assert.match(css, /\.desktop-chrome \.desktop-account-popover :is\(button,span,small,svg,strong\)/, "Account popover must override dark chrome text");
+assert.match(css, /:is\(input,textarea,select\)::placeholder \{ color:var\(--ws-muted\); opacity:1; \}/, "Input placeholder contrast");
+assert.match(files.capture, /capture-slot textarea::placeholder \{ color: var\(--ws-muted\)/, "Capture placeholder contrast");
+assert.doesNotMatch(files.capture, /color:\s*var\(--ws-line(?:-strong)?\)/, "Capture separators must not use border tokens as text");
+assert.doesNotMatch(files.related, /#[0-9a-f]{3,8}\\b/i, "Related editor must use palette or semantic tokens");
+assert.match(files.auth, /\.auth-card input \{/, "Sign-in form inputs must be styled");
+assert.match(files.sort, /\.sort-backdrop\{[^}]*background:var\(--ws-scrim\)/, "Sort modal must use a neutral scrim");
+assert.match(files.study, /\.sort-command b \{[^}]*color: var\(--ws-on-primary\)/, "Sort badge must use contrast-safe text");
+console.log(`Appearance: ${combinations} palette/mode token-contrast checks, plus cross-component CSS regression checks passed.`);
