@@ -18,3 +18,17 @@ jobs:
       - run: node scripts/check-architecture.mjs
       - run: node scripts/check-appearance.mjs
       - run: npm run build
+      # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
+      # Test-only dependencies: no Playwright package added to the application.
+      - name: Install browser for appearance smoke check
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Check rendered appearance
+        run: node scripts/check-rendered-appearance.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: heuresis-appearance-smoke
+          path: test-output/appearance/*.png
+          if-no-files-found: ignore
