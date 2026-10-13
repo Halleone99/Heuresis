@@ -9,6 +9,8 @@ import { KindIcon, Kbd, MOD_KEY, formatDay, formatLongDay, relativeTime } from "
 import { usePersonalOsCaptures, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 
+const SESSION_MODE_LABELS: Record<string, string> = { sort: "sorting", review: "review", browse: "browsing", related: "connections" };
+
 export type StudySummary = { cards: number; collections: number; topics: number };
 
 export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOpenStudy: () => void }) {
@@ -57,8 +59,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
       </div>
       <div className="ws-page-actions">
         {workspace.writable ? <>
-          <button type="button" className="ws-button" onClick={() => workspace.openCapture({ mode: "lesson" })} title={`${MOD_KEY}+Shift+L`}><GraduationCap size={15} /> Start a lesson</button>
-          <button type="button" className="ws-button is-primary" onClick={() => workspace.openCapture({ mode: "note" })} title={`${MOD_KEY}+Shift+N`}><NotebookPen size={15} /> Quick note</button>
+          <button type="button" className="ws-button is-primary" onClick={() => workspace.openCapture({ mode: "lesson" })} title={`${MOD_KEY}+Shift+L`}><GraduationCap size={15} /> Start a lesson</button>
         </> : null}
       </div>
     </header>
@@ -136,7 +137,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
             <div className="ov-figures">
               <div><strong>{due.length}</strong><span>due for recall</span></div>
               <div><strong>{toCorrect.length}</strong><span>need a correction</span></div>
-              <div><strong>{mistakes.filter((entry) => mistakeStage(entry) === "practising").length}</strong><span>practising</span></div>
+              <div><strong>{mistakes.filter((entry) => mistakeStage(entry) === "practising").length}</strong><span>in review</span></div>
             </div>
             {due.length ? <button type="button" className="ws-button is-primary is-block" onClick={() => workspace.openMistake(due[0].id, { practise: true, ids: due.map((entry) => entry.id) })}>
               <RotateCcw size={14} /> {due.length === 1 ? "Practise the due mistake" : `Practise ${due.length} due mistakes`}</button> : null}
@@ -154,7 +155,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
         </section> : null}
 
         <section className="ws-panel">
-          <div className="ws-panel-head"><h2><Target size={16} /> Objectives</h2><span className="ws-muted ws-tiny">from Personal OS · read-only</span></div>
+          <div className="ws-panel-head"><h2><Target size={16} /> Objectives</h2><span className="ws-muted ws-tiny" title="Objectives are displayed from Personal OS and cannot be edited here." aria-label="Objectives information">ⓘ</span></div>
           {goals.length ? <ul className="ov-goals">{goals.slice(0, 6).map(({ goal, language }) => {
             const done = goal.kind === "counted" ? goal.current : goal.steps.filter((step) => step.done).length;
             const total = goal.kind === "counted" ? goal.target : goal.steps.length;
@@ -172,7 +173,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
           <div className="ws-panel-head"><h2><BookOpen size={16} /> Study</h2>
             <button type="button" className="nb-link-button" onClick={onOpenStudy}>Open Study →</button></div>
           <p className="ov-study-line">{study.cards.toLocaleString()} cards in {study.topics} {study.topics === 1 ? "topic" : "topics"} across {study.collections} {study.collections === 1 ? "collection" : "collections"}.</p>
-          <p className="ws-muted">{lastSession ? `Last study session ${relativeTime(lastSession.started_at)} (${lastSession.mode}${lastSession.cards_encountered ? `, ${lastSession.cards_encountered} cards` : ""}).` : "No study session recorded yet."}</p>
+          <p className="ws-muted">{lastSession ? `Last studied ${relativeTime(lastSession.started_at)} · ${SESSION_MODE_LABELS[lastSession.mode] ?? lastSession.mode}${lastSession.cards_encountered ? `, ${lastSession.cards_encountered} cards` : ""}.` : "No study session recorded yet."}</p>
         </section>
       </div>
     </div>
