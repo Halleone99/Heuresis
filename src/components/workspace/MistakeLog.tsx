@@ -10,7 +10,7 @@ import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, dueLabel, formatDay, rel
 import { useWorkspace } from "./WorkspaceContext";
 
 type StageFilter = "all" | MistakeStage | "due";
-const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "Practising", understood: "Understood" };
+const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "In review", understood: "Understood" };
 
 export function MistakeLog() {
   const workspace = useWorkspace();
@@ -59,17 +59,16 @@ export function MistakeLog() {
   return <div className="ml-page">
     <header className="ws-page-head">
       <div>
-        <span className="ws-eyebrow">Attempt → Correction → Why → Practice</span>
         <h1>Mistake Log</h1>
         <p className="ws-page-sub">
-          <span>{counts.to_correct} to correct</span><span>{counts.practising} practising</span>
+          <span>{counts.to_correct} to correct</span><span>{counts.practising} in review</span>
           <span className={counts.due ? "is-accent" : ""}>{counts.due} due for recall</span><span>{counts.understood} understood</span>
         </p>
       </div>
       <div className="ws-page-actions">
-        <button type="button" className="ws-button" disabled={!due.length} onClick={() => setSession(due.map((entry) => entry.id))}>
+        <button type="button" className="ws-button is-primary" disabled={!due.length} onClick={() => setSession(due.map((entry) => entry.id))}>
           <GraduationCap size={15} /> Practise due{due.length ? ` (${due.length})` : ""}</button>
-        {workspace.writable ? <button type="button" className="ws-button is-primary" onClick={() => workspace.openCapture({ mode: "mistake" })} title={`${MOD_KEY}+Shift+M`}><Plus size={15} /> Record mistake</button> : null}
+        {workspace.writable ? <button type="button" className="ws-button" onClick={() => workspace.openCapture({ mode: "mistake" })} title={`${MOD_KEY}+Shift+M`}><Plus size={15} /> Record mistake</button> : null}
       </div>
     </header>
 
@@ -158,14 +157,13 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
           ? <>{attempts.filter((event) => event.outcome === "correct").length}/{attempts.length} recalls correct · last {relativeTime(lastAttempt.created_at)}
             {entry.recall_streak >= RETAINED_STREAK ? <b> · recalled on {entry.recall_streak} separate days</b> : null}
             {entry.recall_due_at && entry.correction ? <> · {dueLabel(entry.recall_due_at)}</> : null}</>
-          : entry.correction ? (entry.recall_due_at ? <>Not practised yet · {dueLabel(entry.recall_due_at)}</> : "Not practised yet") : "Add the correct form to practise it"}
+          : entry.correction ? (entry.recall_due_at ? <>Not recalled yet · {dueLabel(entry.recall_due_at)}</> : "Not recalled yet") : "Add the correct form to practise it"}
       </span>
       <span className="ml-card-actions">
         {entry.correction ? <button type="button" className="ws-button is-small" onClick={onPractise}><RotateCcw size={13} /> Test recall</button> : null}
         {workspace.writable && entry.correction ? (entry.status === "understood"
           ? <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(false)}>Practise again</button>
           : <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(true)} title="Self-assessed — recall checks continue"><Check size={13} /> I understand it</button>) : null}
-        {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="Edit mistake" onClick={onEdit}><Pencil size={14} /></button> : null}
       </span>
     </div>
   </article>;
