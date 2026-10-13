@@ -61,7 +61,7 @@ export function MistakeLog() {
       <div>
         <h1>Mistake Log</h1>
         <p className="ws-page-sub">
-          <span>{counts.to_correct} to correct</span><span>{counts.practising} practising</span>
+          <span>{counts.to_correct} to correct</span><span>{counts.practising} in review</span>
           <span className={counts.due ? "is-accent" : ""}>{counts.due} due for recall</span><span>{counts.understood} understood</span>
         </p>
       </div>
