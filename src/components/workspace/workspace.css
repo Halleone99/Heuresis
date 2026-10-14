@@ -1461,3 +1461,20 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 @media (min-width: 901px) {
   .nb-crumbs .nb-back { display: none; }
 }
+
+
+/* Capture language stays visible without replacing the existing topic picker. */
+.qc-language-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 0 0 8px; }
+.qc-language-caption { flex: none; margin-right: 3px; color: var(--ws-muted); font: 600 10px/1.5 var(--ws-sans); text-transform: uppercase; letter-spacing: .04em; }
+.qc-language-choices > button {
+  min-height: 29px; max-width: 100%; display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 10px; border: 1px solid var(--ws-line); border-radius: 8px;
+  background: var(--ws-raised); color: var(--ws-text); font: 600 11px/1.35 var(--ws-sans);
+  cursor: pointer; overflow-wrap: anywhere;
+}
+.qc-language-choices > button.is-active { background: var(--ws-accent-soft); color: var(--ws-accent); border-color: var(--ws-accent-line); }
+.qc-language-choices > button:hover:not(:disabled) { border-color: var(--ws-accent); }
+.qc-language-choices > button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.qc-language-choices > button:disabled { cursor: wait; opacity: .65; }
+.quick-floating-root .qc-language-choices { padding-bottom: 5px; }
+.quick-floating-root .qc-language-choices > button { min-height: 27px; padding: 4px 7px; font-size: 10px; }
