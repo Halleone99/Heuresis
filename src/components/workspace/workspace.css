@@ -153,8 +153,8 @@
 .ws-button:hover:not(:disabled) { border-color: var(--ws-accent-line); background: var(--ws-surface); }
 .ws-button:active:not(:disabled) { transform: translateY(1px); }
 .ws-button:disabled { opacity: 1; cursor: not-allowed; color: var(--ws-muted); background: var(--ws-sunken); }
-.ws-button.is-primary { background: var(--ws-primary); border-color: var(--ws-primary); color: var(--ws-on-primary); font-weight: 600; }
-.ws-button.is-primary:hover:not(:disabled) { background: var(--ws-primary-hover); border-color: var(--ws-primary-hover); }
+.ws-button.is-primary { background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); color: var(--ws-on-primary); font-weight: 600; }
+.ws-button.is-primary:hover:not(:disabled) { background: var(--ws-accent); border-color: var(--ws-accent); }
 .ws-button.is-danger { background: var(--ws-bad); border-color: var(--ws-bad); color: var(--ws-on-primary); font-weight: 600; }
 
 .ws-button.is-quiet { border-color: transparent; background: transparent; color: var(--ws-muted); }
@@ -473,7 +473,7 @@
 
 .nb-welcome { max-width: 620px; margin: 0 auto; padding: 12vh 28px 60px; }
 .nb-welcome h1 { margin: 12px 0 14px; color: var(--ws-ink); font: 400 clamp(32px, 3.6vw, 46px)/1.08 var(--ws-display); letter-spacing: -.015em; }
-.nb-welcome p { color: var(--ws-text); font: 400 16px/1.7 var(--ws-serif); margin: 0 0 22px; }
+.nb-welcome p { color: var(--ws-text); font: 400 16px/1.7 var(--ws-sans); margin: 0 0 22px; }
 .nb-welcome .ws-empty-actions { justify-content: flex-start; }
 .nb-welcome-form { max-width: 380px; }
 
@@ -511,12 +511,15 @@
 .nb-legacy-note { font-size: 12px; margin: 10px 0 0; }
 
 .nb-doc-body { position: relative; padding: 18px 0 8px; border-top: 1px solid var(--ws-line); margin-top: 18px; }
-.nb-doc-empty { font: italic 400 16px/1.7 var(--ws-serif); }
+.nb-doc-empty { font: italic 400 16px/1.7 var(--ws-sans); }
 .nb-continue { display: inline-flex; align-items: center; gap: 7px; margin-top: 18px; padding: 7px 10px; border: 1px dashed var(--ws-line-strong); border-radius: 8px; background: transparent; color: var(--ws-muted); font: 500 12.5px/1 var(--ws-sans); cursor: pointer; opacity: 1; }
 .nb-continue:hover { opacity: 1; border-style: solid; color: var(--ws-accent); border-color: var(--ws-accent-line); }
 
 /* Reading typography — shared by the reader and the editor so both look alike. */
-.nb-prose { color: var(--ws-text); font: 400 17.5px/1.75 var(--ws-serif); overflow-wrap: anywhere; white-space: pre-wrap; tab-size: 2; }
+.nb-prose { color: var(--ws-text); font: 400 17px/1.75 var(--ws-sans); overflow-wrap: anywhere; white-space: pre-wrap; tab-size: 2; }
+/* Reserve the reading serif for tagged target-language sentences and example quotations. */
+.nb-prose :is([lang="zh"], [lang="de"], [lang="ru"], [lang="fr"], [lang="en"]) { font-family: var(--ws-serif); }
+.nb-prose blockquote[data-callout="example"] > p:first-child { font-family: var(--ws-serif); }
 /* Latin Extended tone vowels (ǎ, ǒ, ǐ, ǔ, ǚ) can mis-render with
    decorative serif fonts on Windows WebView2. Restrict a Unicode-complete
    system font to romanized Mandarin only; Hanzi and English retain the
@@ -599,7 +602,7 @@
 .nb-editor { min-height: 46vh; padding: 4px 0 40px; outline: none; caret-color: var(--ws-accent); }
 .nb-editor:focus { outline: none; }
 .heuresis-desktop .nb-editor:focus-visible { outline: none !important; }
-.nb-placeholder { position: absolute; top: 4px; left: 0; right: 0; color: var(--ws-muted); font: italic 400 17px/1.75 var(--ws-serif); pointer-events: none; }
+.nb-placeholder { position: absolute; top: 4px; left: 0; right: 0; color: var(--ws-muted); font: italic 400 17px/1.75 var(--ws-sans); pointer-events: none; }
 .nb-source { width: 100%; min-height: 50vh; padding: 14px; border: 1px solid var(--ws-line-strong); border-radius: 10px; background: var(--ws-raised); color: var(--ws-ink); font: 400 14px/1.7 var(--ws-mono); resize: vertical; outline: none; }
 .nb-editor-hints { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 6px 0 0; color: var(--ws-muted); font-size: 11.5px; }
 .nb-editor-hints code { font: 500 11px var(--ws-mono); color: var(--ws-muted); }
@@ -655,7 +658,7 @@
 .qc-categories button.is-active { border-color: var(--ws-accent-line); background: var(--ws-accent-soft); color: var(--ws-accent); }
 .qc-field { display: grid; gap: 5px; color: var(--ws-muted); font: 500 12px/1.3 var(--ws-sans); }
 .qc-field small { color: var(--ws-muted); font-weight: 400; }
-.qc-field textarea { font: 400 15.5px/1.55 var(--ws-serif); }
+.qc-field textarea { font: 400 15.5px/1.55 var(--ws-sans); }
 .qc-field.is-inline { grid-template-columns: auto auto; align-items: center; gap: 8px; }
 .qc-field.is-inline input { width: auto; padding: 6px 8px; font-size: 13px; }
 .qc-add-why { justify-self: start; padding: 2px 0; border: 0; background: none; color: var(--ws-accent); font: 500 12.5px/1 var(--ws-sans); cursor: pointer; }
@@ -744,7 +747,7 @@
 .ov-col { display: grid; gap: 18px; min-width: 0; }
 .ov-welcome { margin-bottom: 20px; padding: 26px 28px; border-radius: var(--ws-radius-lg); border: 1px solid var(--ws-accent-line); background: var(--ws-accent-soft); }
 .ov-welcome h2 { margin: 0 0 8px; color: var(--ws-ink); font: 400 28px/1.15 var(--ws-display); }
-.ov-welcome p { max-width: 720px; margin: 0; color: var(--ws-text); font: 400 15.5px/1.7 var(--ws-serif); }
+.ov-welcome p { max-width: 720px; margin: 0; color: var(--ws-text); font: 400 15.5px/1.7 var(--ws-sans); }
 .ov-welcome .ws-empty-actions { justify-content: flex-start; }
 .ov-continue { display: grid; gap: 8px; padding: 18px 20px; border-radius: var(--ws-radius-lg); border: 1px solid var(--ws-line); background: var(--ws-surface); box-shadow: var(--ws-shadow-1); }
 .ov-continue.is-live { border-color: var(--ws-accent-line); background: linear-gradient(135deg, var(--ws-accent-soft), transparent 70%), var(--ws-surface); }
@@ -792,7 +795,7 @@
 @media (prefers-reduced-motion: reduce) { .ov-legacy-chevron { transition: none; } }
 .ov-legacy ul { list-style: none; margin: 10px 0 0; padding: 0 12px; display: grid; border-left: 2px solid var(--ws-line-strong); }
 .ov-legacy li { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--ws-line); }
-.ov-legacy li strong { color: var(--ws-ink); font: 400 16px/1.4 var(--ws-serif); }
+.ov-legacy li strong { color: var(--ws-ink); font: 500 14px/1.4 var(--ws-sans); }
 .ov-legacy li span:not(.ws-muted), .ov-legacy li small { color: var(--ws-text); font-size: 13px; }
 
 /* --------------------------------------------------------------------------
