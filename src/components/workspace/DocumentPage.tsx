@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, Trash2,
+  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
@@ -32,8 +32,8 @@ function draftFromEntry(entry: KnowledgeEntry | null, newDoc: NewDocRequest): Dr
   };
 }
 
-export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNewNote }: {
-  entry: KnowledgeEntry | null; newDoc: NewDocRequest; onBack: () => void;
+export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote }: {
+  entry: KnowledgeEntry | null; newDoc: NewDocRequest; onBack: () => void; onClose: () => void;
   navigate: (location: NotebookLocation) => void; onCreated: (entry: KnowledgeEntry) => void;
   onNewNote: (topicId: string | null, title?: string) => void;
 }) {
@@ -286,6 +286,26 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
     catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
+  async function closeNote() {
+    if (editing) {
+      const result = await finishEditing();
+      if (result !== "done") return;
+    }
+    onClose();
+  }
+
+  // Escape in reading mode closes the note; editing Escape saves before closing.
+  useEffect(() => {
+    if (editing) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector(".ws-dialog-backdrop, .qc-panel, .ws-palette")) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [editing, onClose]);
+
   const statusText = save.kind === "saving" ? "Saving…"
     : save.kind === "dirty" ? "Unsaved changes"
       : save.kind === "saved" ? (save.message ?? `Saved ${save.at ? formatTime(save.at) : ""}`)
@@ -319,6 +339,7 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
             onFlashcard={() => setFlashcard(true)}
             onDelete={workspace.writable ? () => void remove() : undefined} /> : null}
         </>}
+        <button type="button" className="ws-icon-button" aria-label="Close note" title="Close note (Esc)" onClick={() => void closeNote()}><X size={16} /></button>
       </div>
     </div>
 
@@ -350,7 +371,7 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
         onChange={(event) => updateDraft({ title: event.target.value })}
         onKeyDown={(event) => {
           if (!event.nativeEvent.isComposing && (event.key === "Enter" || event.key === "ArrowDown")) { event.preventDefault(); editorRef.current?.focus("start"); }
-          if (event.key === "Escape") { event.preventDefault(); void finishEditing(); }
+          if (event.key === "Escape") { event.preventDefault(); void closeNote(); }
           if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") { event.preventDefault(); void persist(); }
         }} />
         : <h1 className="nb-doc-title">{title || <span className="ws-muted">Untitled</span>}</h1>}
@@ -371,7 +392,7 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
       <RichEditor ref={editorRef} resetKey={editorKey.current} value={draft.body} autoFocus
         placeholder={lesson ? "Write during or after the lesson — or add the outline above. Quick captures appear below." : "Start writing. Use # for a heading, - for a list, > for a quotation, or the Example and Rule blocks."}
         onChange={(body) => updateDraft({ body })}
-        onEscape={() => void finishEditing()} onDone={() => void finishEditing()} onSave={() => void persist()} />
+        onEscape={() => void closeNote()} onDone={() => void finishEditing()} onSave={() => void persist()} />
       <p className="nb-editor-hints"><Kbd>{MOD_KEY} B</Kbd> bold · <Kbd>{MOD_KEY} I</Kbd> italic · <Kbd>{MOD_KEY} ⇧ H</Kbd> highlight · <code>[[Title]]</code> links another note · <Kbd>{MOD_KEY} ↵</Kbd> done</p>
     </div> : <div className="nb-doc-body">
       {draft.body.trim() ? <RichText text={draft.body} resolve={resolveLink} className="nb-reading" />
@@ -396,7 +417,7 @@ export function DocumentPage({ entry, newDoc, onBack, navigate, onCreated, onNew
           <span className="nb-mistake-attempt">{mistake.attempt || "—"}</span>
           <ArrowRight size={14} />
           <span className="nb-mistake-correct">{mistake.correction || <em>needs a correction</em>}</span>
-          <small>{mistakeStage(mistake) === "to_correct" ? "To correct" : mistakeStage(mistake) === "understood" ? "Understood" : "Practising"}</small>
+          <small>{mistakeStage(mistake) === "to_correct" ? "To correct" : mistakeStage(mistake) === "understood" ? "Understood" : "In review"}</small>
         </button>)}
       </div> : null}
       {!captures.length && !editing ? <p className="ws-muted nb-extras-empty">
