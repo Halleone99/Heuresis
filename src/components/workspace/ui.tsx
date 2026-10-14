@@ -186,7 +186,7 @@ export function InlineNameForm({ label, placeholder, initial = "", submitLabel =
 }
 
 // ---------------------------------------------------------------------------
-// Topic picker: one searchable list of "Subject › Topic › Sub-topic"
+// Topic picker: one searchable list of "Language › Topic › Sub-topic"
 // ---------------------------------------------------------------------------
 export function TopicPicker({ value, onChange, onClose, allowCreate = true }: {
   value: string | null; onChange: (topicId: string) => void; onClose: () => void; allowCreate?: boolean;
@@ -222,9 +222,9 @@ export function TopicPicker({ value, onChange, onClose, allowCreate = true }: {
   if (creating) {
     const subject = creating.subjectId ? workspace.subjectById.get(creating.subjectId) : null;
     return <div className="ws-picker">
-      <div className="ws-picker-head"><strong>{subject ? `New topic in ${subject.name}` : "New subject"}</strong>
+      <div className="ws-picker-head"><strong>{subject ? `New topic in ${subject.name}` : "New language"}</strong>
         <button type="button" className="ws-icon-button" aria-label="Close" onClick={() => setCreating(null)}><X size={14} /></button></div>
-      <InlineNameForm label={subject ? "Topic name" : "Subject name"} placeholder={subject ? "Grammar, Lesson 7, Inbox…" : "Chinese, German, Russian…"}
+      <InlineNameForm label={subject ? "Topic name" : "Language name"} placeholder={subject ? "Grammar, Lesson 7, Inbox…" : "Chinese, German, Russian…"}
         initial={query} onCancel={() => setCreating(null)}
         onSubmit={async (name) => {
           if (subject) {
@@ -260,7 +260,7 @@ export function TopicPicker({ value, onChange, onClose, allowCreate = true }: {
     </div>
     {allowCreate && workspace.writable ? <div className="ws-picker-foot">
       {selectedSubject ? <button type="button" onClick={() => setCreating({ subjectId: selectedSubject, parentId: null })}><Plus size={13} /> New topic in {workspace.subjectById.get(selectedSubject)?.name}</button> : null}
-      <button type="button" onClick={() => setCreating({ subjectId: null, parentId: null })}><FolderPlus size={13} /> New subject</button>
+      <button type="button" onClick={() => setCreating({ subjectId: null, parentId: null })}><FolderPlus size={13} /> New language</button>
     </div> : null}
   </div>;
 }
