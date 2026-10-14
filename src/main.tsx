@@ -6,6 +6,7 @@ import "@fontsource/inter/600.css";
 import "@fontsource/dm-mono/400.css";
 import "@fontsource/dm-mono/500.css";
 import "@fontsource/libre-caslon-display/400.css";
+import "@fontsource/noto-serif/400.css";
 import App from "./App";
 import { applyAppearance, watchAppearance } from "./lib/theme";
 import CaptureWindow from "./components/CaptureWindow";

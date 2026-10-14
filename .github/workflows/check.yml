@@ -17,6 +17,7 @@ jobs:
       - run: npm install --ignore-scripts
       - run: node scripts/check-architecture.mjs
       - run: node scripts/check-capture-parse.mjs
+      - run: node scripts/check-pinyin-unicode.mjs
       - run: node scripts/check-sort-review-flow.mjs
       - run: node scripts/check-workspace-noise.mjs
       - run: node scripts/check-appearance.mjs

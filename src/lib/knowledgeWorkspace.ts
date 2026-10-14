@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { repairPinyinToneMarks } from "./pinyinUnicode";
 
 /**
  * Structured Knowledge (Notebook, lessons, Mistake Log).
@@ -148,17 +149,18 @@ async function allRows(table: string, userId: string, order = "created_at", cap 
 }
 
 const str = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback);
+const contentStr = (value: unknown) => repairPinyinToneMarks(str(value));
 const nullableStr = (value: unknown) => (typeof value === "string" && value ? value : null);
 
 export function normaliseSubject(row: Record<string, unknown>): KnowledgeSubject {
   const created = str(row.created_at, new Date().toISOString());
-  return { id: str(row.id), user_id: str(row.user_id), name: str(row.name), created_at: created, updated_at: str(row.updated_at, created) };
+  return { id: str(row.id), user_id: str(row.user_id), name: contentStr(row.name), created_at: created, updated_at: str(row.updated_at, created) };
 }
 export function normaliseTopic(row: Record<string, unknown>): KnowledgeTopic {
   const created = str(row.created_at, new Date().toISOString());
   return {
     id: str(row.id), user_id: str(row.user_id), subject_id: str(row.subject_id), parent_id: nullableStr(row.parent_id),
-    name: str(row.name), created_at: created, updated_at: str(row.updated_at, created),
+    name: contentStr(row.name), created_at: created, updated_at: str(row.updated_at, created),
   };
 }
 const CATEGORIES = new Set<NoteCategory>(["note", "question", "grammar", "vocabulary", "phrase"]);
@@ -168,8 +170,8 @@ export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
   const category = typeof row.category === "string" && CATEGORIES.has(row.category as NoteCategory) ? row.category as NoteCategory : null;
   return {
     id: str(row.id), user_id: str(row.user_id), topic_id: str(row.topic_id), kind,
-    title: str(row.title), body: str(row.body), attempt: str(row.attempt), correction: str(row.correction),
-    explanation: str(row.explanation),
+    title: contentStr(row.title), body: contentStr(row.body), attempt: contentStr(row.attempt), correction: contentStr(row.correction),
+    explanation: contentStr(row.explanation),
     status: kind === "mistake" ? (row.status === "understood" ? "understood" : "needs_practice") : null,
     category, mistake_mode_id: nullableStr(row.mistake_mode_id), lesson_id: nullableStr(row.lesson_id), lesson_date: nullableStr(row.lesson_date),
     pinned: row.pinned === true, recall_streak: typeof row.recall_streak === "number" ? row.recall_streak : 0,
@@ -180,7 +182,7 @@ export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
 function normaliseEvent(row: Record<string, unknown>): PracticeEvent {
   return {
     id: str(row.id), user_id: str(row.user_id), record_id: str(row.record_id),
-    outcome: row.outcome === "correct" ? "correct" : "incorrect", answer: str(row.answer),
+    outcome: row.outcome === "correct" ? "correct" : "incorrect", answer: contentStr(row.answer),
     created_at: str(row.created_at, new Date().toISOString()),
   };
 }
@@ -217,7 +219,7 @@ function requireWritable() {
 }
 
 export function cleanName(value: string) {
-  const clean = value.trim().replace(/\s+/g, " ");
+  const clean = repairPinyinToneMarks(value).trim().replace(/\s+/g, " ");
   if (!clean) throw new Error("Give it a name first.");
   if (clean.length > LIMITS.name) throw new Error(`Names can be at most ${LIMITS.name} characters.`);
   return clean;
@@ -289,11 +291,11 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
   const kind = input.kind;
   const entry: KnowledgeEntry = {
     id: input.id ?? crypto.randomUUID(), user_id: userId, topic_id: input.topicId, kind,
-    title: (input.title ?? "").trim(),
-    body: kind === "mistake" ? "" : (input.body ?? "").replace(/\s+$/, ""),
-    attempt: kind === "mistake" ? (input.attempt ?? "").trim() : "",
-    correction: kind === "mistake" ? (input.correction ?? "").trim() : "",
-    explanation: kind === "mistake" ? (input.explanation ?? "").trim() : "",
+    title: repairPinyinToneMarks(input.title ?? "").trim(),
+    body: kind === "mistake" ? "" : repairPinyinToneMarks(input.body ?? "").replace(/\s+$/, ""),
+    attempt: kind === "mistake" ? repairPinyinToneMarks(input.attempt ?? "").trim() : "",
+    correction: kind === "mistake" ? repairPinyinToneMarks(input.correction ?? "").trim() : "",
+    explanation: kind === "mistake" ? repairPinyinToneMarks(input.explanation ?? "").trim() : "",
     status: kind === "mistake" ? "needs_practice" : null,
     category: kind === "note" ? (input.category ?? "note") : kind === "mistake" ? (input.category ?? null) : null,
     mistake_mode_id: kind === "mistake" ? (input.mistakeModeId ?? null) : null,
@@ -321,7 +323,9 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
   requireWritable();
   const changed: EntryPatch = {};
   for (const [key, value] of Object.entries(patch) as Array<[keyof EntryPatch, unknown]>) {
-    if (current[key] !== value) (changed as Record<string, unknown>)[key] = value;
+    const normalized = typeof value === "string" && ["title", "body", "attempt", "correction", "explanation"].includes(key)
+      ? repairPinyinToneMarks(value) : value;
+    if (current[key] !== normalized) (changed as Record<string, unknown>)[key] = normalized;
   }
   if (!Object.keys(changed).length) return current;
   // Previous recall successes were for the old answer, not the new one.
@@ -456,22 +460,23 @@ export function plainLine(text: string) {
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/^\s*(#{1,6}\s+|[-*•]\s+|\d+[.)]\s+|>\s?(\[![a-z]+\]\s*)?)/i, "")
       .replace(/\*\*|==|~~|\[\[|\]\]/g, "").replace(/(^|\s)\*(\S)/g, "$1$2").trim();
-    if (line && line !== "---") return line;
+    if (line && line !== "---") return repairPinyinToneMarks(line);
   }
   return "";
 }
 export function entryTitle(entry: KnowledgeEntry) {
-  if (entry.kind === "mistake") return entry.title.trim() || entry.correction.trim() || entry.attempt.trim() || "Mistake";
+  if (entry.kind === "mistake") return repairPinyinToneMarks(entry.title.trim() || entry.correction.trim() || entry.attempt.trim() || "Mistake");
   const title = entry.title.trim();
-  if (title) return title;
+  if (title) return repairPinyinToneMarks(title);
   return plainLine(entry.body) || (entry.kind === "lesson" ? "Untitled lesson" : "Untitled note");
 }
 export function entryPreview(entry: KnowledgeEntry, max = 180) {
-  if (entry.kind === "mistake") return [entry.attempt, entry.correction].filter(Boolean).join(" → ");
+  if (entry.kind === "mistake") return repairPinyinToneMarks([entry.attempt, entry.correction].filter(Boolean).join(" → "));
   const lines = entry.body.split(/\r?\n/).map((line) => plainLine(line)).filter(Boolean);
   const title = entry.title.trim();
   const body = (title ? lines : lines.slice(1)).join(" · ");
-  return body.length > max ? `${body.slice(0, max - 1).trimEnd()}…` : body;
+  const repaired = repairPinyinToneMarks(body);
+  return repaired.length > max ? `${repaired.slice(0, max - 1).trimEnd()}…` : repaired;
 }
 
 export function normaliseSearch(text: string) {
