@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Table2 } from "lucide-react";
 import { loadStudyActivity, meaningfulStudySessions, weekStart, type StudyActivity } from "../../lib/activity";
-import { isLesson, mistakeStage, RETAINED_STREAK, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
+import { isLesson, RETAINED_STREAK } from "../../lib/knowledgeWorkspace";
+import { mistakeJourney, MISTAKE_MILESTONES } from "../../lib/mistakeJourney";
 import { languageStack, type LanguageSeries } from "../../lib/progressLanguage";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { formatDay } from "./ui";
@@ -52,8 +53,9 @@ function useWidth(fallback: number) {
   return [ref, width] as const;
 }
 
-function WeeklyBars({ title, unit, weeks, note, table, series = [] }: {
-  title: string; unit: string; weeks: Week[]; note?: string; table: boolean; series?: LanguageSeries[];
+function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel = "language" }: {
+  title: string; unit: string; weeks: Week[]; note?: string; table: boolean;
+  series?: LanguageSeries[]; seriesLabel?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const total = weeks.reduce((sum, week) => sum + week.value, 0);
@@ -72,7 +74,7 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [] }: {
       <strong className="pg-chart-total">{total.toLocaleString()} <small className="pg-total-period">· {weeks.length} wk</small></strong>
       {note ? <small>{note}</small> : null}
     </figcaption>
-    {series.length ? <div className="pg-language-legend" aria-label={`${title} language legend`}>
+    {series.length ? <div className="pg-language-legend" aria-label={`${title} ${seriesLabel} legend`}>
       {series.map((item, index) => <span key={item.id}><i style={{ backgroundColor: seriesColor(index) }} aria-hidden="true"/>{item.name}</span>)}
     </div> : null}
     {table ? <table className="pg-table">
@@ -81,7 +83,7 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [] }: {
       <tbody>{weeks.map((week) => <tr key={week.key}><td>{formatDay(week.start.toISOString())}</td><td>{week.value}</td>
         {series.map((item) => <td key={item.id}>{week.segments?.[item.id] ?? 0}</td>)}</tr>)}</tbody>
     </table> : <div className="pg-plot" ref={plotRef}>
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${total} in ${weeks.length} weeks${series.length ? ", stacked by language" : ""}`}>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${total} in ${weeks.length} weeks${series.length ? `, stacked by ${seriesLabel}` : ""}`}>
         <line x1="0" x2={width} y1={top} y2={top} className="pg-grid" />
         <line x1="0" x2={width} y1={top + plot / 2} y2={top + plot / 2} className="pg-grid" />
         <line x1="0" x2={width} y1={top + plot} y2={top + plot} className="pg-axis" />
@@ -165,6 +167,10 @@ export function ProgressView() {
       subjectId: subjectFor(workspace.entryById.get(event.record_id)?.topic_id),
     })), snapshot.subjects), [weeks, practice, snapshot.subjects, byTopic, workspace.entryById]);
   const retained = mistakes.filter((entry) => entry.recall_streak >= RETAINED_STREAK).length;
+  // Build milestone history from every loaded recall (including before the
+  // selected interval), otherwise the 3rd-day count would be inaccurate.
+  const journey = useMemo(() => mistakeJourney(weeks, mistakes, snapshot.practice),
+    [weeks, mistakes, snapshot.practice]);
 
   const bySubject = useMemo(() => [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name)).map((subject) => {
     const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subject.id).map((topic) => topic.id));
@@ -179,7 +185,6 @@ export function ProgressView() {
     };
   }), [practice, since, snapshot.entries, snapshot.subjects, snapshot.topics]);
 
-  const stageCount = (stage: ReturnType<typeof mistakeStage>) => mistakes.filter((entry: KnowledgeEntry) => mistakeStage(entry) === stage).length;
 
   return <div className="pg-page">
     <header className="ws-page-head">
@@ -211,17 +216,25 @@ export function ProgressView() {
         note={snapshot.practiceError ? "Recall history unavailable — not a zero count." : recallShare !== null ? `${recallShare}% produced correctly from memory` : "Produce the correction before seeing it"} />
       <WeeklyBars title="Notes captured" unit="notes" table={table} weeks={noteStack.weeks} series={noteStack.series}
         note="Quick notes and written notes" />
+      {!snapshot.practiceError ? <WeeklyBars title="Mistake learning milestones" unit="events"
+        table={table} weeks={journey.weeks} series={MISTAKE_MILESTONES} seriesLabel="milestone"
+        note="Logged → first successful recall → three different recall days" /> : null}
     </div>
 
     <div className="pg-columns">
       <section className="ws-panel">
-        <div className="ws-panel-head"><h2>Mistakes — what the evidence says</h2></div>
-        <dl className="pg-evidence">
-          <div><dt>Need a correction</dt><dd>{stageCount("to_correct")}</dd></div>
-          <div><dt>In review</dt><dd>{stageCount("practising")}</dd></div>
-          <div><dt>Marked “I understand” <small>self-assessed</small></dt><dd>{stageCount("understood")}</dd></div>
-          <div><dt>Recalled correctly on {RETAINED_STREAK}+ separate days</dt><dd>{retained}</dd></div>
-        </dl>
+        <div className="ws-panel-head"><h2>Mistake learning milestones</h2></div>
+        {snapshot.practiceError ? <p className="ws-muted">
+          Recall evidence is unavailable. Retry loading the history to see the milestones.
+        </p> : <dl className="pg-evidence">
+          <div><dt>Recalled correctly at least once</dt><dd>{journey.firstCorrectCount}</dd></div>
+          <div><dt>Reached three different correct recall days <small>historical milestones</small></dt>
+            <dd>{journey.achievedThreeDays}</dd></div>
+          <div><dt>Currently on a {RETAINED_STREAK}+-day correct streak <small>resets after a miss</small></dt>
+            <dd>{retained}</dd></div>
+        </dl>}
+        <p className="pg-evidence-footnote">Milestones use recorded answers, not self-assessed status labels.
+          A missed recall resets the current streak, but does not erase a historical milestone.</p>
       </section>
       <section className="ws-panel">
         <div className="ws-panel-head"><h2>By subject</h2></div>
