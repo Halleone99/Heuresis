@@ -176,7 +176,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
               <div className="ov-meter" role="meter" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={goal.title}><span style={{ width: `${share * 100}%` }} /></div>
               {goal.kind === "stepped" ? <small className="ws-muted">Next: {goal.steps.find((step) => !step.done)?.label ?? "all steps done"}</small> : null}
             </li>;
-          })}</ul> : <p className="ws-muted">{objectives ? "No active objectives for this selection." : "Objectives from Personal OS appear here when available."}</p>}
+          })}</ul> : <p className="ws-muted">{objectives ? "No active objectives for this selection." : "No objectives to display yet."}</p>}
         </section>
 
         <section className="ws-panel">
