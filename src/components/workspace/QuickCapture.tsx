@@ -4,6 +4,7 @@ import { CATEGORY_LABELS, entryTitle, friendlyError, localDateKey, LIMITS, type 
 import { captureDraftHasContent, readCaptureDraft, writeCaptureDraft, type CaptureDraft } from "../../lib/workspaceMemory";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { parseCaptureLine } from "../../lib/captureParse";
+import { resolveCaptureContext } from "../../lib/captureContext";
 import { InlineNameForm, Kbd, MOD_KEY, TopicPicker, formatDay } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
@@ -20,7 +21,8 @@ function looksLikeQuestion(text: string) {
 export function QuickCapture({ floating = false }: { floating?: boolean } = {}) {
   const workspace = useWorkspace();
   const { capture: request, memory, updateMemory, currentLesson, userId } = workspace;
-  const [draft, setDraft] = useState<CaptureDraft>(() => readCaptureDraft(userId) ?? EMPTY_DRAFT("note"));
+  const draftSurface = floating ? "floating" : "inline";
+  const [draft, setDraft] = useState<CaptureDraft>(() => readCaptureDraft(userId, draftSurface) ?? EMPTY_DRAFT("note"));
   const [topicId, setTopicId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
@@ -37,8 +39,8 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
 
   const mode = draft.mode as CaptureMode;
   const attachToLesson = Boolean(currentLesson && memory.capture.attachToLesson && mode !== "lesson");
-  const keepOpen = memory.capture.keepOpen;
-  const stream = mode === "note" && Boolean(memory.capture.stream);
+  const keepOpen = floating || memory.capture.keepOpen;
+  const stream = mode === "note" && (floating || Boolean(memory.capture.stream));
 
   // Remember where the user was typing so closing the panel puts them straight back there.
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -80,7 +82,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     setHandledRequest(request);
     setError(""); setFlash(""); setPicking(false);
     setDraft((current) => {
-      const stored = captureDraftHasContent(current) ? current : readCaptureDraft(userId) ?? current;
+      const stored = captureDraftHasContent(current) ? current : readCaptureDraft(userId, draftSurface) ?? current;
       const base = captureDraftHasContent(stored) ? stored : EMPTY_DRAFT(request.mode);
       const next = { ...base, mode: request.mode };
       if (request.text) next.text = request.text;
@@ -88,10 +90,15 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       next.mistakeModeId = request.mode === "mistake" ? (request.mistakeModeId ?? null) : null;
       return next;
     });
-    const valid = (id: string | null | undefined) => (id && workspace.topicById.has(id) ? id : null);
     const lessonTopic = currentLesson && memory.capture.attachToLesson && request.mode !== "lesson" ? currentLesson.topic_id : null;
-    setTopicId(valid(request.topicId) ?? valid(lessonTopic) ?? valid(memory.capture.topicId) ?? valid(memory.notebook.topicId)
-      ?? valid(memory.notebook.docId ? workspace.entryById.get(memory.notebook.docId)?.topic_id : null) ?? workspace.snapshot.topics[0]?.id ?? null);
+    const resolved = resolveCaptureContext({
+      subjects: workspace.snapshot.subjects, topics: workspace.snapshot.topics,
+      requestedTopicId: request.topicId, lessonTopicId: lessonTopic,
+      savedSubjectId: memory.capture.subjectId, savedTopicId: memory.capture.topicId,
+      notebookSubjectId: memory.notebook.subjectId, notebookTopicId: memory.notebook.topicId,
+      documentTopicId: memory.notebook.docId ? workspace.entryById.get(memory.notebook.docId)?.topic_id : null,
+    });
+    setTopicId(resolved.topicId);
   }
 
   // Focus the first field after React has committed the fields for the current mode.
@@ -113,15 +120,15 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     if (!request) return;
     if (draftTimer.current) window.clearTimeout(draftTimer.current);
     draftTimer.current = window.setTimeout(() => {
-      writeCaptureDraft(userId, captureDraftHasContent(draft) || draft.lessonTitle.trim() ? { ...draft, updatedAt: new Date().toISOString() } : null);
+      writeCaptureDraft(userId, captureDraftHasContent(draft) || draft.lessonTitle.trim() ? { ...draft, updatedAt: new Date().toISOString() } : null, draftSurface);
     }, 250);
     return () => { if (draftTimer.current) window.clearTimeout(draftTimer.current); };
   }, [draft, request, userId]);
 
   const close = useCallback((options: { discard?: boolean } = {}) => {
-    if (options.discard) { writeCaptureDraft(userId, null); setDraft(EMPTY_DRAFT(mode)); }
+    if (options.discard) { writeCaptureDraft(userId, null, draftSurface); setDraft(EMPTY_DRAFT(mode)); }
     else if (captureDraftHasContent(draft)) {
-      writeCaptureDraft(userId, { ...draft, updatedAt: new Date().toISOString() });
+      writeCaptureDraft(userId, { ...draft, updatedAt: new Date().toISOString() }, draftSurface);
       workspace.toast("Draft kept — it will be here when you reopen Quick capture.");
     }
     setPicking(false);
@@ -164,7 +171,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         const parsed = stream ? parseCaptureLine(draft.text) : null;
         const sent = { ...draft };
         const id = sent.pendingId ?? crypto.randomUUID();
-        writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
+        writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() }, draftSurface);
         setDraft((current) => ({ ...current, pendingId: id }));
         const input = parsed?.kind === "mistake"
           ? { id, kind: "mistake" as const, topicId: destination, attempt: parsed.attempt, correction: parsed.correction,
@@ -181,7 +188,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         const label = (draft.attempt || draft.correction).trim().slice(0, 40);
         const sent = { ...draft };
         const id = sent.pendingId ?? crypto.randomUUID();
-        writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
+        writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() }, draftSurface);
         setDraft((current) => ({ ...current, pendingId: id }));
         const created = await workspace.submitCapture({ id, kind: "mistake", topicId: destination, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, mistakeModeId: sent.mistakeModeId ?? null, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
         if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
@@ -190,7 +197,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       } else {
         const title = draft.lessonTitle.trim() || `Lesson — ${formatDay(lessonDate)}`;
         const created = await workspace.addEntry({ kind: "lesson", topicId: destination, title, body: "", lessonDate });
-        writeCaptureDraft(userId, null);
+        writeCaptureDraft(userId, null, draftSurface);
         setDraft(EMPTY_DRAFT("note"));
         updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: destination } }));
         workspace.startLesson(created.id);
@@ -211,7 +218,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       const next = current.mode === "note"
         ? { ...current, text: "", category: "note" as const, categoryTouched: false, pendingId: undefined }
         : { ...current, attempt: "", correction: "", explanation: "", pendingId: undefined };
-      writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null);
+      writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null, draftSurface);
       return next;
     });
     setShowWhy(false);
