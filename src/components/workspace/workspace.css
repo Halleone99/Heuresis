@@ -1102,3 +1102,30 @@
  .qc-stream-meta { font-size: 11px; }
  .qc-stream-toggle { padding: 7px; }
 }
+
+
+/* Account-isolated recovery of unsent writes from older offline versions. */
+.legacy-recovery { width: min(800px, calc(100vw - 28px)); max-height: min(90vh, 850px); overflow-y: auto; }
+.legacy-recovery-explain { display: flex; gap: 12px; align-items: flex-start; color: var(--ws-text); background: var(--ws-sunken); border: 1px solid var(--ws-line); border-radius: 9px; padding: 11px 13px; }
+.legacy-recovery-explain svg { color: var(--ws-warn); flex: none; }
+.legacy-recovery-explain p { margin: 0; font-size: 12.5px; line-height: 1.6; }
+.legacy-recovery-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 15px 0 8px; }
+.legacy-recovery-toolbar > span { flex: 1; color: var(--ws-muted); font-size: 12px; min-width: 150px; }
+.legacy-recovery-list { display: grid; gap: 7px; max-height: 42vh; overflow-y: auto; overscroll-behavior: contain; }
+.legacy-recovery-entry { display: flex; align-items: start; gap: 11px; padding: 11px 12px; border: 1px solid var(--ws-line); background: var(--ws-surface); border-radius: 9px; cursor: pointer; }
+.legacy-recovery-entry:focus-within { border-color: var(--ws-accent); }
+.legacy-recovery-entry > input { margin-top: 4px; accent-color: var(--ws-accent); flex: none; }
+.legacy-recovery-entry-body { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.legacy-recovery-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 13px; }
+.legacy-recovery-row strong { color: var(--ws-ink); font: 600 13px var(--ws-sans); }
+.legacy-recovery-row > span { color: var(--ws-muted); font-size: 11px; }
+.legacy-recovery-row > span:last-child { margin-left: auto; }
+.legacy-recovery-row .legacy-replay-ok { color: var(--ws-good); }
+.legacy-recovery-row .legacy-replay-manual { color: var(--ws-warn); }
+.legacy-recovery-entry-body > small { color: var(--ws-muted); font-size: 11px; }
+.legacy-recovery-entry details summary { color: var(--ws-accent); font-size: 11.5px; cursor: pointer; }
+.legacy-recovery-entry pre { max-width: 100%; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 180px; border-radius: 7px; padding: 9px; background: var(--ws-sunken); color: var(--ws-text); font: 11px/1.6 var(--ws-mono); }
+.legacy-recovery-empty { display: flex; gap: 8px; align-items: center; color: var(--ws-good); font-size: 13px; }
+.legacy-recovery-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 15px; }
+.legacy-recovery-actions .ws-button:last-child { margin-left: auto; }
+.legacy-recovery-note { font-size: 11.5px; line-height: 1.5; color: var(--ws-muted); }
