@@ -7,7 +7,7 @@ export const MISTAKE_MILESTONES: Array<{ id: MistakeMilestoneKind; name: string 
   { id: "three_days", name: "Three-day milestone" },
 ];
 type Week = { start: Date; key: string; value: number; segments?: Record<string, number> };
-export type MistakeJourney = { weeks: Week[]; achievedThreeDays: number; withRecall: number };
+export type MistakeJourney = { weeks: Week[]; achievedThreeDays: number; firstCorrectCount: number };
 
 function weekStart(date: Date) {
   const copy = new Date(date);
@@ -63,6 +63,7 @@ export function mistakeJourney(
   }
 
   let achievedThreeDays = 0;
+  let firstCorrectCount = 0;
   for (const events of byRecord.values()) {
     events.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
     let firstCorrect = false;
@@ -80,6 +81,7 @@ export function mistakeJourney(
       if (event.outcome !== "correct") continue;
       if (!firstCorrect) {
         firstCorrect = true;
+        firstCorrectCount++;
         add(date, "first_correct");
       }
       const day = localDay(date);
@@ -94,5 +96,5 @@ export function mistakeJourney(
       }
     }
   }
-  return { weeks: result, achievedThreeDays, withRecall: byRecord.size };
+  return { weeks: result, achievedThreeDays, firstCorrectCount };
 }
