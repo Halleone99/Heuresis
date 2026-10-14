@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -17,7 +17,7 @@ function docSortKey(entry: KnowledgeEntry) {
   return isLesson(entry) && entry.lesson_date ? `${entry.lesson_date}T23:59:59` : entry.updated_at;
 }
 
-export function NotebookView({ onSearch }: { onSearch: () => void }) {
+export function NotebookView() {
   const workspace = useWorkspace();
   const { memory, updateMemory, snapshot, entryById, topicById, subjectById } = workspace;
   const location = memory.notebook;
@@ -72,15 +72,20 @@ export function NotebookView({ onSearch }: { onSearch: () => void }) {
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, topicId: null } }));
   }, [location.topicId, topic, updateMemory, workspace.loading]);
 
-  // Keep the rail showing where the open document lives.
+  // Reveal a topic on navigation, not after a deliberate collapse.
+  const visibleTopicId = doc?.topic_id ?? topic?.id;
   useEffect(() => {
-    const topicId = doc?.topic_id ?? topic?.id;
+    const topicId = visibleTopicId;
     if (!topicId) return;
     const path = workspace.topicPath(topicId);
     const ids = [path.subject?.id, ...path.chain.slice(0, -1).map((item) => item.id)].filter(Boolean) as string[];
     if (ids.every((id) => memory.notebook.expanded.includes(id))) return;
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: Array.from(new Set([...current.notebook.expanded, ...ids])) } }));
-  }, [doc?.topic_id, memory.notebook.expanded, topic?.id, updateMemory, workspace]);
+  }, [visibleTopicId, updateMemory, workspace.topicPath]);
+
+  const closeDocument = useCallback((topicId: string) => {
+    navigate({ topicId, docId: null }, { push: false });
+  }, [navigate]);
 
   const goBack = useCallback(() => {
     const previous = history[history.length - 1];
@@ -129,16 +134,16 @@ export function NotebookView({ onSearch }: { onSearch: () => void }) {
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
-  else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} navigate={navigate}
+  else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
-  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
+  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} onNewNote={startNewNote} onBack={goBack} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} onBack={goBack} />;
   else main = <NotebookHome navigate={navigate} onNewNote={startNewNote} />;
 
   return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
-    <NotebookRail location={location} navigate={navigate} onSearch={onSearch} onNewNote={startNewNote} onCollapse={toggleRail} />
+    <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} />
     <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
     <section className="nb-main">
       <div className="nb-main-tools">
@@ -155,8 +160,8 @@ export function NotebookView({ onSearch }: { onSearch: () => void }) {
 // ---------------------------------------------------------------------------
 // Rail: subjects → topics (nested), with inline creation and a small menu
 // ---------------------------------------------------------------------------
-function NotebookRail({ location, navigate, onSearch, onNewNote, onCollapse }: {
-  location: NotebookLocation; navigate: (location: NotebookLocation) => void; onSearch: () => void;
+function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
+  location: NotebookLocation; navigate: (location: NotebookLocation) => void;
   onNewNote: (topicId: string | null) => void; onCollapse: () => void;
 }) {
   const workspace = useWorkspace();
@@ -255,21 +260,12 @@ function NotebookRail({ location, navigate, onSearch, onNewNote, onCollapse }: {
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
   const suggestions = (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
     .filter((name) => !subjects.some((subject) => subject.name.toLowerCase() === name.toLowerCase())).slice(0, 4);
-  const recent = memory.recentDocs.map((id) => workspace.entryById.get(id)).filter((entry): entry is KnowledgeEntry => Boolean(entry && isDocument(entry))).slice(0, 4);
 
   return <aside className="nb-rail" aria-label="Notebook topics">
     {confirmElement}
     <div className="nb-rail-head">
-      <button type="button" className="nb-rail-search" onClick={onSearch}><Search size={14} /><span>Search</span><Kbd>{MOD_KEY} K</Kbd></button>
       <button type="button" className="ws-icon-button nb-rail-collapse" aria-label="Hide topics" title="Hide topics" onClick={onCollapse}><PanelLeftClose size={15} /></button>
     </div>
-    {recent.length ? <div className="nb-rail-section">
-      <span className="ws-eyebrow">Recent</span>
-      {recent.map((entry) => <button type="button" key={entry.id} className={`nb-rail-recent ${location.docId === entry.id ? "is-active" : ""}`}
-        onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
-        <KindIcon entry={entry} size={13} /><span>{entryTitle(entry)}</span>
-      </button>)}
-    </div> : null}
     <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Subjects and topics">
       <div className="nb-rail-section-head">
         <span className="ws-eyebrow">Subjects</span>
