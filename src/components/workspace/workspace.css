@@ -1082,3 +1082,23 @@
 @media (prefers-reduced-motion: reduce) {
   .ml-summary-chevron { transition: none; }
 }
+
+
+/* Stream capture: lightweight continuous input without forcing category clicks. */
+.qc-stream-toggle {
+  display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px;
+  border: 1px solid var(--ws-line-strong); border-radius: 8px;
+  background: transparent; color: var(--ws-text); cursor: pointer; font: 600 11px var(--ws-sans);
+}
+.qc-stream-toggle:hover, .qc-stream-toggle.is-active {
+  background: var(--ws-accent-soft); color: var(--ws-accent); border-color: var(--ws-accent-line);
+}
+.qc-stream-toggle:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.qc-stream-meta { display: grid; gap: 5px; color: var(--ws-muted); font-size: 11.5px; line-height: 1.5; }
+.qc-stream-meta > span:first-child { color: var(--ws-accent); font-weight: 600; }
+.qc-stream-meta small { font-size: 11px; color: var(--ws-muted); }
+.qc-body .qc-main-input:disabled { opacity: 0.8; cursor: progress; }
+@media (max-width: 560px) {
+ .qc-stream-meta { font-size: 11px; }
+ .qc-stream-toggle { padding: 7px; }
+}
