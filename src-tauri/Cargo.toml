@@ -18,5 +18,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Native desktop-wide Capture shortcut. Unsupported on Android and iOS.
-[target.'cfg(desktop)'.dependencies]
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2.3.0"
