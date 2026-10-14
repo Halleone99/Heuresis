@@ -309,7 +309,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
           </div> : null}
         </div>;
       })}
-      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Subjects hold your languages or fields — Chinese, German, Russian…</p> : null}
+      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Languages contain your topics — Chinese, German, Russian…</p> : null}
     </div>
   </aside>;
 }
@@ -441,7 +441,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
     </ul> : <EmptyState icon={filter === "questions" ? <CircleHelp size={22} /> : <FilePlus2 size={22} />}
       title={filter === "questions" ? "No open questions here" : filter === "lessons" ? "No lessons here yet" : docs.length ? "Nothing matches this filter" : "Nothing written here yet"}
       action={workspace.writable && fallbackTopic ? <div className="ws-empty-actions">
-        <button type="button" className="ws-button is-primary" onClick={() => onNewNote(fallbackTopic)}><FilePlus2 size={15} /> Write a note</button>
+        <button type="button" className="ws-button is-primary" onClick={() => onNewNote(fallbackTopic)}><FilePlus2 size={15} /> New note</button>
         <button type="button" className="ws-button" onClick={() => workspace.openCapture({ mode: "lesson", topicId: fallbackTopic })}><GraduationCap size={15} /> Start a lesson</button>
       </div> : null}>
       {filter === "questions" ? "Questions you capture (end a quick note with ?) collect here until you answer them." : `Quick notes land here instantly with ${MOD_KEY}+Shift+N from anywhere.`}
