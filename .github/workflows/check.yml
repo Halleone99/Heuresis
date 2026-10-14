@@ -25,6 +25,7 @@ jobs:
       - run: node scripts/check-mistake-journey.mjs
       - run: node scripts/check-progress-study-error.mjs
       - run: node scripts/check-notebook-consistency.mjs
+      - run: node scripts/check-mistake-filter-row.mjs
       - run: node scripts/check-navigation-polish.mjs
       - run: node scripts/check-lesson-cleanup.mjs
       - run: node scripts/check-native-quick-capture.mjs
