@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, BookMarked, Check, ChevronRight, CircleHelp, FileText, FolderPlus, GraduationCap, Plus, Quote, Search, X } from "lucide-react";
+import { AlertTriangle, BookOpen, Check, ChevronRight, CircleHelp, FileText, FolderPlus, GraduationCap, MessageSquareQuote, Plus, Puzzle, Search, X } from "lucide-react";
 import { CATEGORY_LABELS, isLesson, normaliseSearch, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -33,15 +33,20 @@ export function formatTime(value: string | null | undefined) {
 export function relativeTime(value: string | null | undefined) {
   const date = parseDay(value);
   if (!date) return "";
-  const diff = Date.now() - date.getTime();
-  const minutes = Math.round(diff / 60000);
+  const now = new Date();
+  const elapsed = now.getTime() - date.getTime();
+  // Future timestamps can occur during clock skew; do not say "−2 h ago".
+  if (elapsed < -60_000) return formatDay(value);
+  const minutes = Math.max(0, Math.floor(elapsed / 60000));
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24 && date.getDate() === new Date().getDate()) return `${hours} h ago`;
-  const days = Math.round(diff / 86400000);
-  if (days <= 1) return "yesterday";
-  if (days < 7) return `${days} days ago`;
+  // Calendar-day boundaries, not elapsed-hour rounding, govern yesterday.
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const then = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((today - then) / 86400000);
+  if (days === 0) return `${Math.floor(elapsed / 3600000)} h ago`;
+  if (days === 1) return "yesterday";
+  if (days <= 6) return `${days} days ago`;
   return formatDay(value);
 }
 export function dueLabel(value: string | null | undefined) {
@@ -61,8 +66,9 @@ export function KindIcon({ entry, size = 15 }: { entry: KnowledgeEntry; size?: n
   if (entry.kind === "mistake") return <AlertTriangle size={size} />;
   if (isLesson(entry)) return <GraduationCap size={size} />;
   if (entry.category === "question") return <CircleHelp size={size} />;
-  if (entry.category === "phrase") return <Quote size={size} />;
-  if (entry.category === "grammar" || entry.category === "vocabulary") return <BookMarked size={size} />;
+  if (entry.category === "phrase") return <MessageSquareQuote size={size} />;
+  if (entry.category === "grammar") return <Puzzle size={size} />;
+  if (entry.category === "vocabulary") return <BookOpen size={size} />;
   return <FileText size={size} />;
 }
 
