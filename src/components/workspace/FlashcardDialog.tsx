@@ -51,8 +51,13 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
       try { remembered = localStorage.getItem(LAST_PACK_KEY) ?? ""; } catch { /* optional */ }
       const subject = subjectName.toLowerCase();
       const collectionMatch = nextCollections.find((collection) => collection.title.toLowerCase() === subject);
-      const initial = nextPacks.find((pack) => pack.id === remembered)
-        ?? nextPacks.find((pack) => pack.collection_id === collectionMatch?.id) ?? nextPacks[0];
+      // Keep a note in its own language by default. Only reuse the last topic
+      // when it belongs to the same collection, or no subject match exists.
+      const rememberedPack = nextPacks.find((pack) => pack.id === remembered);
+      const initial = (collectionMatch
+        ? nextPacks.find((pack) => pack.collection_id === collectionMatch.id && pack.id === remembered)
+          ?? nextPacks.find((pack) => pack.collection_id === collectionMatch.id)
+        : null) ?? rememberedPack ?? nextPacks[0];
       if (initial) { setPackId(initial.id); setValues(suggestedValues(entry, initial)); }
     }).catch((loadError) => { if (alive) setError(friendlyError(loadError)); })
       .finally(() => { if (alive) setLoading(false); });
