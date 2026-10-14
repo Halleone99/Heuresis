@@ -4,7 +4,7 @@ const css = readFileSync("src/theme/palettes.css", "utf8");
 const html = readFileSync("index.html", "utf8");
 const js = readFileSync("src/lib/theme.ts", "utf8");
 const expected = ["slate", "forest", "sepia", "neutral"];
-const keys = ["ws-page", "ws-surface", "ws-sunken", "ws-ink", "ws-text", "ws-muted", "ws-accent", "ws-primary", "ws-on-primary"];
+const keys = ["ws-page", "ws-surface", "ws-raised", "ws-sunken", "ws-ink", "ws-text", "ws-muted", "ws-accent", "ws-primary", "ws-on-primary"];
 function luminance(hex) {
   const values = hex.slice(1).match(/.{2}/g).map((value) => parseInt(value, 16) / 255)
     .map((value) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
@@ -23,11 +23,22 @@ for (const palette of expected) for (const mode of ["light", "dark"]) {
   for (const key of keys) assert.ok(tokens[key], `Missing ${key} in ${palette}/${mode}`);
   for (const [foreground, background, minimum] of [
     ["ws-ink", "ws-surface", 7], ["ws-text", "ws-surface", 7],
-    ["ws-muted", "ws-sunken", 4.5], ["ws-accent", "ws-sunken", 4.5],
+    ["ws-muted", "ws-sunken", 4.5], ["ws-muted", "ws-surface", 4.5], ["ws-accent", "ws-sunken", 4.5],
     ["ws-on-primary", "ws-primary", 7],
   ]) {
     const value = ratio(tokens[foreground], tokens[background]);
     assert.ok(value >= minimum, `${palette}/${mode}: ${foreground} on ${background} is ${value.toFixed(2)}:1`);
+  }
+  const pageLightness = luminance(tokens["ws-page"]);
+  const cardLightness = luminance(tokens["ws-surface"]);
+  const raisedLightness = luminance(tokens["ws-raised"]);
+  assert.ok(pageLightness < cardLightness && cardLightness < raisedLightness,
+    `${palette}/${mode}: require frame → workspace → card → raised luminance ordering`);
+  if (mode === "dark") {
+    assert.ok(cardLightness - pageLightness >= .009,
+      `${palette}/dark: reading surface must be visibly lighter than workspace`);
+    assert.ok(raisedLightness - cardLightness >= .012,
+      `${palette}/dark: controls must be visibly lifted above reading cards`);
   }
   combinations++;
 }
