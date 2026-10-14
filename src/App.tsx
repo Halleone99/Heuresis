@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Session } from "@supabase/supabase-js";
 import {
   ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut,
-  NotebookPen, Plus, Radio, RefreshCw, Search, Settings2, TriangleAlert, X,
+  NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
@@ -36,6 +36,14 @@ import { synchroniseHeuresis } from "./lib/sync";
 import { readSection, writeSection, type WorkspaceSection } from "./lib/workspaceMemory";
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
+type SidebarMode = "full" | "rail" | "hidden";
+function sidebarKey(userId: string) { return `heuresis.sidebar.mode.v1:${userId}`; }
+function readSidebarMode(userId: string): SidebarMode {
+  try {
+    const value = localStorage.getItem(sidebarKey(userId));
+    return value === "full" || value === "rail" || value === "hidden" ? value : "full";
+  } catch { return "full"; }
+}
 
 type BackgroundStyle = CSSProperties & {
   "--heuresis-background-image"?: string;
@@ -115,6 +123,28 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [topicModalPack, setTopicModalPack] = useState<PackWithType | null>(null);
   const [topicPreferredCollectionId, setTopicPreferredCollectionId] = useState<string | null>(null);
   const [syncState, setSyncState] = useState(getOfflineSyncState());
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => readSidebarMode(session.user.id));
+  const [narrowWindow, setNarrowWindow] = useState(() => window.innerWidth <= 1100);
+  const previousSidebarMode = useRef<"full" | "rail">("full");
+  const actualSidebarMode: SidebarMode = sidebarMode === "hidden" ? "hidden" : narrowWindow ? "rail" : sidebarMode;
+  useEffect(() => {
+    try { localStorage.setItem(sidebarKey(session.user.id), sidebarMode); } catch { /* optional */ }
+  }, [session.user.id, sidebarMode]);
+  useEffect(() => {
+    const onResize = () => setNarrowWindow(window.innerWidth <= 1100);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setSidebarMode((current) => current === "hidden" ? previousSidebarMode.current
+      : current === "full" ? "rail" : "full");
+  }, []);
+  const toggleFocus = useCallback(() => {
+    setSidebarMode((current) => {
+      if (current !== "hidden") { previousSidebarMode.current = current; return "hidden"; }
+      return previousSidebarMode.current;
+    });
+  }, []);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
@@ -194,6 +224,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     const onKey = (event: KeyboardEvent) => {
       if (event.isComposing) return;
       const mod = event.ctrlKey || event.metaKey;
+      if (mod && !event.altKey && event.code === "Backslash") {
+        event.preventDefault();
+        if (event.shiftKey) toggleFocus(); else toggleSidebar();
+        return;
+      }
       if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM", "KeyL"].includes(event.code)) {
         event.preventDefault();
         workspace.openCapture({ mode: event.code === "KeyN" ? "note" : event.code === "KeyM" ? "mistake" : "lesson" });
@@ -219,7 +254,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openPalette, section, setSection, workspace]);
+  }, [openPalette, section, setSection, toggleFocus, toggleSidebar, workspace]);
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
@@ -309,7 +344,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   </div> : null;
 
   return (
-    <div className="heuresis-desktop" data-section={section} style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
+    <div className="heuresis-desktop" data-section={section} data-sidebar={actualSidebarMode} style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
       <div className="heuresis-wallpaper" aria-hidden="true" />
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
@@ -323,6 +358,12 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </nav> : null}
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
+          <button type="button" className="desktop-action hw-sidebar-header-toggle" onClick={toggleSidebar}
+            title={actualSidebarMode === "hidden" ? "Show sidebar (Ctrl+\\)" : "Toggle sidebar (Ctrl+\\)"}
+            aria-label={actualSidebarMode === "hidden" ? "Show navigation sidebar" : "Toggle navigation sidebar"}
+            aria-expanded={actualSidebarMode === "full"}>
+            <PanelLeftOpen size={16}/>
+          </button>
           <button className="desktop-action" title={syncTitle}
             onClick={() => syncState.legacyPending ? setRecoveryOpen(true) : void runSync(false)}>
             {syncState.legacyPending ? <TriangleAlert size={14}/> : <RefreshCw size={14}/>}
@@ -353,6 +394,14 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
+          <div className="hw-sidebar-header">
+            <span className="hw-sidebar-heading">Navigation</span>
+            <button type="button" className="hw-sidebar-collapse" onClick={toggleSidebar}
+              title={actualSidebarMode === "full" ? "Collapse sidebar (Ctrl+\\)" : "Expand sidebar (Ctrl+\\)"}
+              aria-label={actualSidebarMode === "full" ? "Collapse sidebar" : "Expand sidebar"}>
+              {actualSidebarMode === "full" ? <PanelLeftClose size={16}/> : <PanelLeftOpen size={16}/>}
+            </button>
+          </div>
           <nav className="hw-sections">
             {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => setSection(id)} title={`${label} (Alt+${key})`}>
@@ -410,6 +459,8 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} ⇧ L`, "Start a lesson"],
     [`${MOD_KEY} ↵`, "Save the capture · finish editing"],
     [`${MOD_KEY} K  or  /`, "Search notes (in Study: search cards)"],
+    [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
+    [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
     ["Alt 1 – 5", "Overview · Study · Notebook · Mistake Log · Progress"],
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
