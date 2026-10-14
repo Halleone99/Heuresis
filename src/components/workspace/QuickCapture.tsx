@@ -257,6 +257,10 @@ export function QuickCapture() {
         <button type="button" role="tab" aria-selected={mode === "lesson"} className={mode === "lesson" ? "is-active" : ""} onClick={() => setMode("lesson")} title={`${MOD_KEY}+Shift+L`}><GraduationCap size={13} /> Lesson</button>
       </div>
       <span className="qc-head-spacer" />
+      {mode === "note" ? <button type="button" className={`qc-stream-toggle ${stream ? "is-active" : ""}`} aria-pressed={stream}
+        title={stream ? "Switch to structured note capture" : "Rapid continuous capture: Enter saves"}
+        onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, stream: !current.capture.stream } }))}>
+        <ListPlus size={14} /> Stream</button> : null}
       {mode !== "lesson" ? <button type="button" className={`ws-icon-button ${keepOpen ? "is-on" : ""}`} aria-pressed={keepOpen}
         title={keepOpen ? "Stays open after saving (for several notes in a row)" : "Keep open after saving"}
         onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, keepOpen: !current.capture.keepOpen } }))}>
@@ -264,7 +268,7 @@ export function QuickCapture() {
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
     </div>
 
-    {noSubjects && workspace.writable ? <div className="qc-first-run">
+    {noSubjects && workspace.writable && !stream ? <div className="qc-first-run">
       <strong>Where should your notes live?</strong>
       <p>Pick a subject. Heuresis creates an Inbox topic inside it; you can organise later.</p>
       {creatingSubject ? <InlineNameForm label="Subject name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
@@ -280,13 +284,24 @@ export function QuickCapture() {
 
     <div className="qc-body">
       {mode === "note" ? <>
-        <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={3} value={draft.text}
-          aria-label="Quick note" placeholder="A phrase, a question, an explanation… capture it now, organise it later."
-          onChange={(event) => patch({ text: event.target.value })} />
-        <div className="qc-categories" role="radiogroup" aria-label="Kind of note">
+        <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={stream ? 2 : 3} value={draft.text}
+          aria-label={stream ? "Stream capture" : "Quick note"}
+          placeholder={stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
+          disabled={saving} onChange={(event) => patch({ text: event.target.value })}
+          onKeyDown={(event) => {
+            if (stream && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              void submit();
+            }
+          }} />
+        {stream ? <div className="qc-stream-meta">
+          <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : "Language Inbox"}</span>
+          <span><Kbd>Enter</Kbd> save · <Kbd>⇧ Enter</Kbd> newline</span>
+          <small>Use a → b for mistakes, // for why, #g grammar, #v vocabulary, #e expressions; ? for questions.</small>
+        </div> : <div className="qc-categories" role="radiogroup" aria-label="Kind of note">
           {(Object.keys(CATEGORY_LABELS) as NoteCategory[]).map((key) => <button key={key} type="button" role="radio" aria-checked={category === key}
             className={category === key ? "is-active" : ""} onClick={() => patch({ category: key, categoryTouched: true })}>{CATEGORY_LABELS[key]}</button>)}
-        </div>
+        </div>}
       </> : mode === "mistake" ? <>
         <label className="qc-field"><span>What I said or wrote</span>
           <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} rows={2} value={draft.attempt}
@@ -321,7 +336,7 @@ export function QuickCapture() {
       <div className="qc-destination-row">
         <span className="qc-label">{mode === "lesson" ? "In" : "To"}</span>
         <button type="button" className="qc-topic" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking((value) => !value)} disabled={noSubjects}>
-          {destinationLabel || "Choose a topic"} <ChevronDown size={13} />
+          {stream && !attachToLesson ? (topicId && workspace.topicById.get(topicId) ? `${workspace.topicPath(topicId).subject?.name ?? "Current language"} › Inbox` : "Current language › Inbox") : destinationLabel || "Automatic Inbox"} <ChevronDown size={13} />
         </button>
         {currentLesson && mode !== "lesson" ? <button type="button" className={`qc-lesson-chip ${attachToLesson ? "is-on" : ""}`} aria-pressed={attachToLesson}
           title={attachToLesson ? "Attached to the current lesson — click to file it on its own" : "Attach to the current lesson"}
@@ -340,7 +355,7 @@ export function QuickCapture() {
     {flash ? <p className="qc-flash" role="status">{flash}</p> : null}
 
     <div className="qc-foot">
-      <span className="qc-hint"><Kbd>{MOD_KEY} ↵</Kbd> save · <Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
+      <span className="qc-hint">{stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}<Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
       {hasContent ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
       <button type="button" className="ws-button is-primary" disabled={saving} onClick={() => void submit()}>
         {mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
