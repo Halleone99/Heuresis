@@ -267,9 +267,9 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
     <div className="nb-rail-head">
       <button type="button" className="ws-icon-button nb-rail-collapse" aria-label="Hide topics" title="Hide topics" onClick={onCollapse}><PanelLeftClose size={15} /></button>
     </div>
-    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Subjects and topics">
+    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Languages and topics">
       <div className="nb-rail-section-head">
-        <span className="ws-eyebrow">Subjects</span>
+        <span className="ws-eyebrow">Languages</span>
         {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="New language" title="New language" onClick={() => setCreating({ subjectId: null, parentId: null })}><Plus size={14} /></button> : null}
       </div>
       {creating && !creating.subjectId ? <InlineNameForm label="Language name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
@@ -469,7 +469,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
     return <div className="nb-welcome">
       <span className="ws-eyebrow">Notebook</span>
       <h1>Where what you learn is kept, and found again.</h1>
-      <p>Start with a subject — usually a language. Heuresis adds an <em>Inbox</em> topic so quick notes always have somewhere to land; organise them into topics whenever you like.</p>
+      <p>Start with a language. Heuresis adds an <em>Inbox</em> topic so quick notes always have somewhere to land; organise them into topics whenever you like.</p>
       {workspace.writable ? (creating
         ? <div className="nb-welcome-form"><InlineNameForm label="Language name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
           onCancel={() => setCreating(false)}
@@ -489,7 +489,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
               navigate({ topicId: inbox.id, docId: null });
             } catch (error) { workspace.toast(error instanceof Error ? error.message : String(error), { tone: "error" }); }
           }}><Plus size={14} /> {name}</button>)}
-          <button type="button" className="ws-button is-primary" onClick={() => setCreating(true)}><Plus size={14} /> Other subject…</button>
+          <button type="button" className="ws-button is-primary" onClick={() => setCreating(true)}><Plus size={14} /> Other language…</button>
         </div>) : null}
     </div>;
   }
