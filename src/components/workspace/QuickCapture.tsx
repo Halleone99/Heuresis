@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, CornerDownLeft, GraduationCap, NotebookPen, Pin, PinOff, Radio, TriangleAlert, X } from "lucide-react";
+import { ChevronDown, CornerDownLeft, GraduationCap, ListPlus, NotebookPen, Pin, PinOff, Radio, TriangleAlert, X } from "lucide-react";
 import { CATEGORY_LABELS, entryTitle, friendlyError, localDateKey, LIMITS, type NoteCategory } from "../../lib/knowledgeWorkspace";
 import { captureDraftHasContent, readCaptureDraft, writeCaptureDraft, type CaptureDraft } from "../../lib/workspaceMemory";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
+import { parseCaptureLine } from "../../lib/captureParse";
 import { InlineNameForm, Kbd, MOD_KEY, TopicPicker, formatDay } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
@@ -37,6 +38,7 @@ export function QuickCapture() {
   const mode = draft.mode as CaptureMode;
   const attachToLesson = Boolean(currentLesson && memory.capture.attachToLesson && mode !== "lesson");
   const keepOpen = memory.capture.keepOpen;
+  const stream = mode === "note" && Boolean(memory.capture.stream);
 
   // Remember where the user was typing so closing the panel puts them straight back there.
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -142,21 +144,38 @@ export function QuickCapture() {
     setError("");
     try {
     if (!workspace.writable) { setError("Apply the Notebook database update before capturing (see the notice in Notebook)."); return; }
-    if (!topicId) { setError("Choose where this belongs first."); setPicking(true); return; }
+    let destination = topicId;
+    if (!destination || (stream && !attachToLesson)) {
+      const contextTopic = topicId ? workspace.topicById.get(topicId) : null;
+      const subjectId = contextTopic?.subject_id
+        ?? (memory.notebook.subjectId && workspace.subjectById.has(memory.notebook.subjectId) ? memory.notebook.subjectId : null)
+        ?? workspace.snapshot.subjects[0]?.id
+        ?? (await workspace.addSubject("General")).id;
+      destination = (await workspace.ensureInbox(subjectId)).id;
+    }
     const lessonId = attachToLesson ? currentLesson?.id ?? null : null;
+    if (lessonId && currentLesson) destination = currentLesson.topic_id;
+    if (!destination) { setError("No destination could be created. Your draft is kept."); return; }
+    setTopicId(destination);
     try {
       if (mode === "note") {
         if (!draft.text.trim()) { setError("Write something first."); return; }
         if (draft.text.length > LIMITS.body) { setError("That note is too long for a quick capture."); return; }
-        const label = draft.text.trim().split(/\n/)[0].slice(0, 40);
+        const parsed = stream ? parseCaptureLine(draft.text) : null;
         const sent = { ...draft };
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
         setDraft((current) => ({ ...current, pendingId: id }));
-        const created = await workspace.submitCapture({ id, kind: "note", topicId, body: sent.text, category, lessonId }, label);
-        if (!created) { setError("The note is safely retained for retry. Keep this draft until its save is confirmed."); return; }
-        reset();
-        confirmSaved(created.id, created.topic_id, lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
+        const input = parsed?.kind === "mistake"
+          ? { id, kind: "mistake" as const, topicId: destination, attempt: parsed.attempt, correction: parsed.correction,
+              explanation: parsed.explanation, category: parsed.category, lessonId }
+          : { id, kind: "note" as const, topicId: destination, body: parsed?.kind === "note" ? parsed.body : sent.text,
+              category: parsed?.kind === "note" ? parsed.category : category, lessonId };
+        const label = (input.kind === "mistake" ? input.attempt || input.correction : input.body).trim().slice(0, 40);
+        const created = await workspace.submitCapture(input, label);
+        if (!created) { setError("The capture is kept for retry. It has not been discarded."); return; }
+        reset(destination);
+        confirmSaved(created.id, created.topic_id, input.kind === "mistake" ? "the Mistake Log" : lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
       } else if (mode === "mistake") {
         if (!draft.attempt.trim() && !draft.correction.trim()) { setError("Write what you said, or the correct form."); return; }
         const label = (draft.attempt || draft.correction).trim().slice(0, 40);
@@ -164,16 +183,16 @@ export function QuickCapture() {
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
         setDraft((current) => ({ ...current, pendingId: id }));
-        const created = await workspace.submitCapture({ id, kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, mistakeModeId: sent.mistakeModeId ?? null, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
+        const created = await workspace.submitCapture({ id, kind: "mistake", topicId: destination, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, mistakeModeId: sent.mistakeModeId ?? null, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
         if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
-        reset();
+        reset(destination);
         confirmSaved(created.id, created.topic_id, "the Mistake Log");
       } else {
         const title = draft.lessonTitle.trim() || `Lesson — ${formatDay(lessonDate)}`;
-        const created = await workspace.addEntry({ kind: "lesson", topicId, title, body: "", lessonDate });
+        const created = await workspace.addEntry({ kind: "lesson", topicId: destination, title, body: "", lessonDate });
         writeCaptureDraft(userId, null);
         setDraft(EMPTY_DRAFT("note"));
-        updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId } }));
+        updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: destination } }));
         workspace.startLesson(created.id);
         workspace.closeCapture();
         workspace.toast(`Lesson started. Quick captures now attach to “${entryTitle(created)}”.`);
@@ -185,8 +204,8 @@ export function QuickCapture() {
     } finally { setSaving(false); }
   }
 
-  function reset() {
-    updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId } }));
+  function reset(savedTopicId: string) {
+    updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: savedTopicId } }));
     // Clear only what was just saved; text typed in another mode stays as a draft.
     setDraft((current) => {
       const next = current.mode === "note"
@@ -196,8 +215,8 @@ export function QuickCapture() {
       return next;
     });
     setShowWhy(false);
-    if (keepOpen) {
-      setFlash("Saving…");
+    if (keepOpen || stream) {
+      setFlash("Saved. Ready for the next line.");
       setFocusNonce((value) => value + 1);
     } else {
       workspace.closeCapture();
@@ -207,7 +226,7 @@ export function QuickCapture() {
   function confirmSaved(id: string, savedTopicId: string, where: string) {
     const offline = !getOfflineSyncState().online;
     const message = offline ? `Saved on this device — will sync to ${where}.` : `Saved to ${where}.`;
-    if (keepOpen && workspace.capture) setFlash(message);
+    if ((keepOpen || stream) && workspace.capture) setFlash(message);
     workspace.toast(message, {
       action: {
         label: "Undo",
