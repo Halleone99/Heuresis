@@ -14,7 +14,7 @@ import {
 } from "../../lib/workspaceMemory";
 
 export type CaptureMode = "note" | "mistake" | "lesson";
-export type CaptureRequest = { mode: CaptureMode; topicId?: string | null; lessonId?: string | null; text?: string; category?: NoteCategory };
+export type CaptureRequest = { mode: CaptureMode; topicId?: string | null; lessonId?: string | null; text?: string; category?: NoteCategory; mistakeModeId?: string | null };
 export type Toast = { id: number; message: string; tone?: "default" | "error"; action?: { label: string; run: () => void } };
 export type TopicPath = { subject: KnowledgeSubject | null; chain: KnowledgeTopic[] };
 

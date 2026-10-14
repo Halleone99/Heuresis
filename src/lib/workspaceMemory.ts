@@ -12,7 +12,7 @@ export type NotebookLocation = { topicId: string | null; docId: string | null; s
 export type CurrentLesson = { id: string; startedAt: string };
 export type CaptureDraft = {
   mode: Exclude<KnowledgeKind, "lesson"> | "lesson";
-  text: string; category: NoteCategory | null; categoryTouched: boolean;
+  text: string; category: NoteCategory | null; categoryTouched: boolean; mistakeModeId?: string | null;
   attempt: string; correction: string; explanation: string;
   lessonTitle: string; updatedAt: string;
   /** Stable identity of a capture awaiting confirmation; prevents duplicate retries. */

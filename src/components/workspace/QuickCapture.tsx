@@ -83,6 +83,7 @@ export function QuickCapture() {
       const next = { ...base, mode: request.mode };
       if (request.text) next.text = request.text;
       if (request.category) { next.category = request.category; next.categoryTouched = true; }
+      next.mistakeModeId = request.mode === "mistake" ? (request.mistakeModeId ?? null) : null;
       return next;
     });
     const valid = (id: string | null | undefined) => (id && workspace.topicById.has(id) ? id : null);
@@ -163,7 +164,7 @@ export function QuickCapture() {
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
         setDraft((current) => ({ ...current, pendingId: id }));
-        const created = await workspace.submitCapture({ id, kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
+        const created = await workspace.submitCapture({ id, kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, mistakeModeId: sent.mistakeModeId ?? null, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
         if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
         reset();
         confirmSaved(created.id, created.topic_id, "the Mistake Log");
