@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const app=readFileSync("src/App.tsx","utf8"),css=readFileSync("src/components/workspace/workspace.css","utf8"),chrome=readFileSync("src/theme/chrome.css","utf8");
+assert.match(app, /className="hw-sidebar-brand"/);
+assert.match(app, /className="hw-sidebar-mark"><HeuresisMark\/>/);
+assert.doesNotMatch(app, /className="desktop-mark-wrap"><HeuresisMark/);
+assert.match(chrome, /height: 48px/);
+assert.match(css, /top: 48px/);
+assert.match(css, /100dvh - 48px/);
+assert.match(css,/data-sidebar="rail"\] \.hw-sidebar-collapse \{ display: none/);
+assert.match(css, /@media \(prefers-reduced-motion: no-preference\)/);
+assert.match(css, /animation: ws-page-enter \.17s ease-out both/);
+assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+assert.match(css, /\.heuresis-desktop :is\(button, a, input, textarea, select, summary, \[role="tab"\]\):focus-visible/);
+assert.match(css, /@media \(forced-colors: active\)/);
+console.log("Slim chrome, sidebar brand, reduced-motion and accessible focus checks passed.");
