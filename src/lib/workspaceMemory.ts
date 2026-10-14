@@ -24,7 +24,7 @@ export type WorkspaceMemory = {
   notebook: NotebookLocation & { railCollapsed: boolean; expanded: string[]; filter: "all" | "lessons" | "notes" | "questions" };
   recentDocs: string[];
   currentLesson: CurrentLesson | null;
-  capture: { topicId: string | null; keepOpen: boolean; attachToLesson: boolean; stream?: boolean };
+  capture: { topicId: string | null; subjectId?: string | null; keepOpen: boolean; attachToLesson: boolean; stream?: boolean };
   mistakes: { subjectId: string | null; stage: "all" | "to_correct" | "practising" | "due" | "understood" };
   study: { view: string | null; packId: string | null };
 };
@@ -32,7 +32,9 @@ export type WorkspaceMemory = {
 const SECTION_KEY = "heuresis.workspace.section.v1";
 const THEME_KEY = "heuresis.theme.v1";
 const memoryKey = (userId: string) => `heuresis.workspace.memory.v2:${userId}`;
-const captureDraftKey = (userId: string) => `heuresis.capture.draft.v2:${userId}`;
+export type CaptureDraftSurface = "inline" | "floating";
+const captureDraftKey = (userId: string, surface: CaptureDraftSurface = "inline") =>
+  `heuresis.capture.draft.v2:${userId}${surface === "floating" ? ":floating" : ""}`;
 const docDraftKey = (userId: string, id: string) => `heuresis.doc.draft.v2:${userId}:${id}`;
 const LESSON_TTL_MS = 10 * 60 * 60 * 1000;
 
@@ -40,7 +42,7 @@ const DEFAULT_MEMORY: WorkspaceMemory = {
   notebook: { topicId: null, docId: null, subjectId: null, railCollapsed: false, expanded: [], filter: "all" },
   recentDocs: [],
   currentLesson: null,
-  capture: { topicId: null, keepOpen: false, attachToLesson: true, stream: false },
+  capture: { topicId: null, subjectId: null, keepOpen: false, attachToLesson: true, stream: false },
   mistakes: { subjectId: null, stage: "all" },
   study: { view: null, packId: null },
 };
@@ -106,11 +108,11 @@ export function pushRecent(list: string[], id: string) {
   return [id, ...list.filter((item) => item !== id)].slice(0, 12);
 }
 
-export function readCaptureDraft(userId: string): CaptureDraft | null {
-  return read<CaptureDraft>(captureDraftKey(userId));
+export function readCaptureDraft(userId: string, surface: CaptureDraftSurface = "inline"): CaptureDraft | null {
+  return read<CaptureDraft>(captureDraftKey(userId, surface));
 }
-export function writeCaptureDraft(userId: string, draft: CaptureDraft | null) {
-  write(captureDraftKey(userId), draft);
+export function writeCaptureDraft(userId: string, draft: CaptureDraft | null, surface: CaptureDraftSurface = "inline") {
+  write(captureDraftKey(userId, surface), draft);
 }
 export function captureDraftHasContent(draft: CaptureDraft | null) {
   if (!draft) return false;
