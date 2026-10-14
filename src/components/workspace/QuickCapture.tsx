@@ -402,7 +402,8 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       <span className="qc-hint">{stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}<Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
       {hasContent ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
       <button type="button" className="ws-button is-primary" disabled={saving || (subjects.length > 1 && !selectedSubjectId)} onClick={() => void submit()}>
-        {mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
+        {saving ? <><span className="ws-spinner is-small" aria-hidden="true" /> Saving…</>
+          : mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
       </button>
     </div>
   </div>;
