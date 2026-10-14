@@ -7,7 +7,7 @@
 :root {
   --ws-display: "Libre Caslon Display", Georgia, "Times New Roman", serif;
   --ws-sans: Inter, system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
-  --ws-serif: "Iowan Old Style", Georgia, "Noto Serif", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", serif;
+  --ws-serif: "Noto Serif", "Iowan Old Style", Georgia, "Noto Serif SC", "Source Han Serif SC", "Songti SC", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", serif;
   --ws-mono: "DM Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
   --ws-radius: 10px;
   --ws-radius-sm: 7px;
