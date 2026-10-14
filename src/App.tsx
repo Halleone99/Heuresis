@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Session } from "@supabase/supabase-js";
 import {
   ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut, Maximize2,
-  NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, TriangleAlert, X,
+  NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
@@ -22,6 +22,7 @@ import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
+import { KnowledgeTrashDialog } from "./components/workspace/KnowledgeTrashDialog";
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch } from "./components/workspace/WorkspaceSearch";
@@ -157,6 +158,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     });
   }, []);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
   const background = useHeuresisBackground();
@@ -393,6 +395,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
               <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending ? ` (${syncState.legacyPending})` : ""}
               </button>
+              <button onClick={() => { setTrashOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <Trash2 size={14}/> Trash & knowledge export
+              </button>
               <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
               <button onClick={() => { toggleFocus(); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <Maximize2 size={14}/> {sidebarMode === "hidden" ? "Leave focus mode" : "Focus mode · hide sidebar"}
@@ -454,6 +459,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       </div>
       <QuickCapture />
       {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
+      {trashOpen ? <KnowledgeTrashDialog onClose={() => setTrashOpen(false)} /> : null}
       <Toaster />
       {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
