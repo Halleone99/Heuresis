@@ -44,7 +44,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [restore, setRestore] = useState<{ title: string; body: string; savedAt: string } | null>(null);
   const [moving, setMoving] = useState(false);
-  const [flashcard, setFlashcard] = useState(false);
+  const [flashcardTarget, setFlashcardTarget] = useState<KnowledgeEntry | null>(null);
   const [rubyPinyin, setRubyPinyin] = useState(() => {
     try { return localStorage.getItem(`heuresis.notebook.ruby.v1:${userId}`) === "true"; }
     catch { return false; }
@@ -337,7 +337,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
 
   return <article className={`nb-doc ${editing ? "is-editing" : ""} ${lesson ? "is-lesson" : ""}`} aria-label={title || "New note"}>
     {confirmElement}
-    {flashcard && liveEntry ? <FlashcardDialog entry={liveEntry} onClose={() => setFlashcard(false)} /> : null}
+    {flashcardTarget ? <FlashcardDialog entry={flashcardTarget} onClose={() => setFlashcardTarget(null)} /> : null}
     <div className="nb-doc-bar">
       <nav className="nb-crumbs" aria-label="Location">
         <button type="button" className="nb-back" onClick={() => { if (editing) void finishEditing().then((result) => { if (result === "done") onBack(); }); else onBack(); }} aria-label="Back"><ArrowLeft size={15} /></button>
@@ -359,7 +359,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           {liveEntry ? <DocMenu
             onMove={workspace.writable ? () => setMoving(true) : undefined}
             onCopy={() => { void navigator.clipboard?.writeText([liveEntry.title, liveEntry.body].filter(Boolean).join("\n\n")).then(() => workspace.toast("Copied to the clipboard.")); }}
-            onFlashcard={() => setFlashcard(true)}
+            onFlashcard={() => { if (liveEntry) setFlashcardTarget(liveEntry); }}
             onDelete={workspace.writable ? () => void remove() : undefined} /> : null}
         </>}
         <button type="button" className="ws-icon-button" aria-label="Close note" title="Close note (Esc)" onClick={() => void closeNote()}><X size={16} /></button>
@@ -434,22 +434,27 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     {lessonId ? <section className="nb-lesson-extras" aria-label="Captured during this lesson">
       {capturedQuestions.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><CircleHelp size={15} /> To revisit</h2>
-        {capturedQuestions.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })}
+        {capturedQuestions.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })} onFlashcard={() => setFlashcardTarget(capture)}
           actions={workspace.writable ? (editing ? [{ label: "Answered", run: () => void markAnswered(capture) }] : [{ label: "Answered", run: () => void markAnswered(capture) }, { label: "Copy into lesson", run: () => void mergeCapture(capture) }]) : []} />)}
       </div> : null}
       {capturedNotes.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><Layers size={15} /> Captured during the lesson</h2>
-        {capturedNotes.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })}
+        {capturedNotes.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })} onFlashcard={() => setFlashcardTarget(capture)}
           actions={workspace.writable && !editing ? [{ label: "Copy into lesson", run: () => void mergeCapture(capture) }] : []} />)}
       </div> : null}
       {capturedMistakes.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><GraduationCap size={15} /> Mistakes from this lesson</h2>
-        {capturedMistakes.map((mistake) => <button type="button" key={mistake.id} className="nb-mistake-row" onClick={() => workspace.openMistake(mistake.id)}>
-          <span className="nb-mistake-attempt">{mistake.attempt || "—"}</span>
-          <ArrowRight size={14} />
-          <span className="nb-mistake-correct">{mistake.correction || <em>needs a correction</em>}</span>
-          <small>{mistakeStage(mistake) === "to_correct" ? "To correct" : mistakeStage(mistake) === "understood" ? "Understood" : "In review"}</small>
-        </button>)}
+        {capturedMistakes.map((mistake) => <div key={mistake.id} className="nb-mistake-with-card">
+          <button type="button" className="nb-mistake-row" onClick={() => workspace.openMistake(mistake.id)}>
+            <span className="nb-mistake-attempt">{mistake.attempt || "—"}</span>
+            <ArrowRight size={14} />
+            <span className="nb-mistake-correct">{mistake.correction || <em>needs a correction</em>}</span>
+            <small>{mistakeStage(mistake) === "to_correct" ? "To correct" : mistakeStage(mistake) === "understood" ? "Understood" : "In review"}</small>
+          </button>
+          {mistake.correction ? <button type="button" className="ws-button is-small is-quiet"
+            title="Make flashcard from this corrected mistake" aria-label="Make flashcard from this corrected mistake"
+            onClick={() => setFlashcardTarget(mistake)}><Layers size={14}/> Flashcard</button> : null}
+        </div>)}
       </div> : null}
       {!captures.length && !editing ? <p className="ws-muted nb-extras-empty">
         {capturing ? <>Press <Kbd>{MOD_KEY} ⇧ N</Kbd> for a note or <Kbd>{MOD_KEY} ⇧ M</Kbd> for a mistake — they will appear here.</>
@@ -486,7 +491,7 @@ function KeyboardEdit({ enabled, onEdit }: { enabled: boolean; onEdit: () => voi
   return null;
 }
 
-function CaptureRow({ capture, onOpen, actions }: { capture: KnowledgeEntry; onOpen: () => void; actions: Array<{ label: string; run: () => void }> }) {
+function CaptureRow({ capture, onOpen, onFlashcard, actions }: { capture: KnowledgeEntry; onOpen: () => void; onFlashcard: () => void; actions: Array<{ label: string; run: () => void }> }) {
   return <div className="nb-capture-row">
     <span className="nb-capture-time">{formatTime(capture.created_at)}</span>
     <div className="nb-capture-body">
@@ -495,6 +500,7 @@ function CaptureRow({ capture, onOpen, actions }: { capture: KnowledgeEntry; onO
     </div>
     <div className="nb-capture-actions">
       {actions.map((action) => <button type="button" key={action.label} className="ws-button is-small is-quiet" onClick={action.run}>{action.label}</button>)}
+      <button type="button" className="ws-button is-small" onClick={onFlashcard}><Layers size={13}/> Flashcard</button>
       <button type="button" className="ws-button is-small is-quiet" onClick={onOpen}>Open</button>
     </div>
   </div>;
