@@ -1,6 +1,7 @@
 import { ImagePlus, RotateCcw, Trash2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { DEFAULT_BACKGROUND_SETTINGS, type BackgroundSettings } from "../hooks/useHeuresisBackground";
+import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
 import SortingSettings from "./SortingSettings";
@@ -43,6 +44,20 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
     finally { if (fileRef.current) fileRef.current.value = ""; }
   }
 
+  const dim = dimPercent(background.settings.opacity, background.settings.veil);
+  function setFocal(event: MouseEvent<HTMLButtonElement>) {
+    if (!background.imageUrl) return;
+    const choices = ["top", "center", "bottom"] as const;
+    if (!event.detail) {
+      const index = choices.indexOf(background.settings.position);
+      background.updateSettings({ position: choices[(index + 1) % choices.length] });
+      return;
+    }
+    const box = event.currentTarget.getBoundingClientRect();
+    const fraction = Math.max(0, Math.min(1, (event.clientY - box.top) / Math.max(box.height, 1)));
+    background.updateSettings({ position: fraction < 1 / 3 ? "top" : fraction > 2 / 3 ? "bottom" : "center" });
+  }
+
   return <section className="appearance-settings">
     <div className="appearance-choice" aria-label="Heuresis appearance">
       <div className="settings-copy"><strong>Appearance</strong><span>Choose a mode and a colour palette. The setting also applies to Capture and Review windows.</span></div>
@@ -59,7 +74,54 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
       </div>
     </div>
     <div className="settings-rule" />
-    <div className="settings-copy"><strong>Study background</strong><span>Choose a Study background. Your choice follows your account across devices.</span></div><input ref={fileRef} className="hidden-file" type="file" accept="image/*" onChange={(event) => void choose(event.target.files?.[0])} /><div className="background-preview">{background.imageUrl ? <img src={background.imageUrl} alt="Current Heuresis background" /> : <div className="background-empty" />}<span>{background.hasImage ? "Current account background" : "No Heuresis background has been synced yet."}</span></div><div className="settings-actions"><button className="secondary-button" disabled={background.syncing} onClick={() => fileRef.current?.click()}><ImagePlus size={14} /> {background.hasImage ? "Replace image" : "Choose image"}</button>{background.hasImage ? <button className="secondary-button" disabled={background.syncing} onClick={() => void background.removeImage()}><Trash2 size={14} /> Remove</button> : null}<button className="secondary-button" onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}><RotateCcw size={14} /> Reset wallpaper</button></div><div className="settings-controls"><label><span>Image opacity</span><input type="range" min="0.2" max="1" step="0.05" value={background.settings.opacity} onChange={(event) => background.updateSettings({ opacity: Number(event.target.value) })} /><em>{Math.round(background.settings.opacity * 100)}%</em></label><label><span>Readability veil</span><input type="range" min="0" max="1" step="0.05" value={background.settings.veil} onChange={(event) => background.updateSettings({ veil: Number(event.target.value) })} /><em>{Math.round(background.settings.veil * 100)}%</em></label><label><span>Blur</span><input type="range" min="0" max="12" step="1" value={background.settings.blur} onChange={(event) => background.updateSettings({ blur: Number(event.target.value) })} /><em>{background.settings.blur}px</em></label><div className="setting-choice"><span>Position</span><div>{(["top", "center", "bottom"] as const).map((position) => <button key={position} aria-pressed={background.settings.position === position} onClick={() => background.updateSettings({ position })}>{position === "center" ? "Centre" : position[0].toUpperCase() + position.slice(1)}</button>)}</div></div><div className="setting-choice"><span>Fit</span><div>{(["cover", "contain"] as const).map((fit) => <button key={fit} aria-pressed={background.settings.fit === fit} onClick={() => background.updateSettings({ fit })}>{fit[0].toUpperCase() + fit.slice(1)}</button>)}</div></div></div>{background.syncError ? <div className="settings-note error">{background.syncError}</div> : null}{notice ? <div className="settings-note">{notice}</div> : null}</section>;
+    <div className="settings-copy"><strong>Study background</strong>
+      <span>See how your image looks behind a learning card. Your choice follows your account across devices.</span></div>
+    <input ref={fileRef} className="hidden-file" type="file" accept="image/*"
+      onChange={(event) => void choose(event.target.files?.[0])}/>
+    <div className="background-preview background-preview-live">
+      <button type="button" className="background-preview-canvas"
+        disabled={!background.imageUrl}
+        title="Click top, middle or bottom to set the image focal area. Enter cycles these positions."
+        aria-label={`Preview background; focal area ${background.settings.position}. Click to move focus or press Enter to cycle.`}
+        onClick={setFocal}>
+        {background.imageUrl ? <img src={background.imageUrl} alt=""
+          style={{ opacity: background.settings.opacity, filter: `blur(${background.settings.blur}px)`,
+            objectFit: "cover", objectPosition: `center ${background.settings.position}` }}/> : <span className="background-empty" aria-hidden="true"/>}
+        <span className="background-preview-veil" style={{ opacity: background.settings.veil }} aria-hidden="true"/>
+        <span className="background-preview-example" aria-hidden="true">
+          <small>GERMAN · GRAMMAR</small>
+          <strong>Ich stelle fest, dass …</strong>
+          <span>To notice or establish something</span>
+          <em>Review · Remember</em>
+        </span>
+      </button>
+      <span className="background-preview-caption">{background.hasImage
+        ? `Live preview · focal area: ${background.settings.position}`
+        : "Choose an image to preview its appearance."}</span>
+    </div>
+    <div className="settings-actions">
+      <button type="button" className="secondary-button" disabled={background.syncing}
+        onClick={() => fileRef.current?.click()}><ImagePlus size={14}/>
+        {background.hasImage ? "Replace image" : "Choose image"}</button>
+      {background.hasImage ? <button type="button" className="secondary-button"
+        disabled={background.syncing} onClick={() => void background.removeImage()}>
+        <Trash2 size={14}/> Remove image</button> : null}
+      <button type="button" className="secondary-button" title="Restore default appearance settings but keep your image"
+        onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}>
+        <RotateCcw size={14}/> Use default</button>
+    </div>
+    <div className="settings-controls">
+      <label><span>Dim</span><input type="range" min="0" max="95" step="5" value={dim}
+        onChange={(event) => background.updateSettings(dimToLegacySettings(Number(event.target.value)))}
+        aria-label="Background dimming"/><em>{dim}%</em></label>
+      <label><span>Blur</span><input type="range" min="0" max="12" step="1"
+        value={background.settings.blur}
+        onChange={(event) => background.updateSettings({ blur: Number(event.target.value) })}/>
+        <em>{background.settings.blur}px</em></label>
+      <p className="background-focal-hint">Click the preview to focus the top, centre or bottom of the image.</p>
+    </div>
+    {background.syncError ? <div className="settings-note error" role="alert">{background.syncError}</div> : null}
+    {notice ? <div className="settings-note" role="status">{notice}</div> : null}</section>;
 }
 
 export default function SettingsModal({ background, packs, collections, onDataChanged, onClose }: Props) {
