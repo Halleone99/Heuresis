@@ -102,10 +102,17 @@ export function MistakeLog() {
     setQuery("");
     setEditingId(null);
   }
-  function recordMistake() {
-    const topicId = language === "All" ? null
-      : snapshot.topics.find((topic) => topic.subject_id === activeSubject?.id)?.id ?? null;
-    workspace.openCapture({ mode: "mistake", topicId, category: categoryFor(view) });
+  async function recordMistake() {
+    // A language choice must never silently file a mistake under another language.
+    try {
+      let topicId: string | null = null;
+      if (language !== "All") {
+        const subject = activeSubject ?? await workspace.addSubject(language);
+        topicId = snapshot.topics.find((topic) => topic.subject_id === subject.id)?.id
+          ?? (await workspace.ensureInbox(subject.id)).id;
+      }
+      workspace.openCapture({ mode: "mistake", topicId, category: categoryFor(view) });
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
   const title = view === "history" ? "History" : MODE_CARDS.find((item) => item.id === view)?.title ?? "Choose a mode";
 
@@ -203,7 +210,7 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
   const [flashcard, setFlashcard] = useState(false);
   const stage = mistakeStage(entry);
   const lesson = entry.lesson_id ? workspace.entryById.get(entry.lesson_id) : null;
-  const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id);
+  const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const lastAttempt = attempts[0];
 
   async function setUnderstood(understood: boolean) {
@@ -228,6 +235,7 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
         {lesson ? <> · <button type="button" className="nb-link-button" onClick={() => workspace.openDocument(lesson.id)}>{entryTitle(lesson)}</button></> : null}
         <span> · {formatDay(entry.created_at)}</span>
       </span>
+      <span className="ml-kind">{MODE_CARDS.find((item) => item.id === mistakeMode(entry))?.title}</span>
       <span className={`ml-stage is-${stage}`}>{STAGE_LABEL[stage]}</span>
       {workspace.writable ? <RowMenu label="mistake" items={[
         { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
@@ -260,12 +268,22 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
         {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="Edit mistake" onClick={onEdit}><Pencil size={14} /></button> : null}
       </span>
     </div>
+    {attempts.length ? <details className="ml-attempt-history">
+      <summary><History size={13} /> Previous attempts ({attempts.length})</summary>
+      <ol>
+        {attempts.map((event) => <li key={event.id}>
+          <span>{formatDay(event.created_at)}</span>
+          <strong className={event.outcome === "correct" ? "is-correct" : "is-incorrect"}>{event.outcome === "correct" ? "Correct" : "Needs work"}</strong>
+          <p>{event.answer || "No written answer recorded"}</p>
+        </li>)}
+      </ol>
+    </details> : null}
   </article>;
 }
 
 function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () => void }) {
   const workspace = useWorkspace();
-  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction, explanation: entry.explanation, topicId: entry.topic_id });
+  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction, explanation: entry.explanation, topicId: entry.topic_id, category: categoryFor(mistakeMode(entry)) });
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -275,7 +293,7 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
     if (busy) return;
     setBusy(true); setError("");
     try {
-      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(), correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId });
+      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(), correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId, category: values.category });
       onDone();
     } catch (saveError) { setError(friendlyError(saveError)); }
     finally { setBusy(false); }
@@ -291,6 +309,12 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
       <label className="ws-field"><span>Correct form</span><textarea rows={2} autoFocus={firstEmpty === "correction"} value={values.correction} onChange={(event) => setValues({ ...values, correction: event.target.value })} /></label>
     </div>
     <label className="ws-field"><span>Why it was wrong</span><textarea rows={2} value={values.explanation} placeholder="The rule, or what you misunderstood" onChange={(event) => setValues({ ...values, explanation: event.target.value })} /></label>
+    <div className="ml-edit-kind" role="group" aria-label="Mistake category">
+      <span>Type of mistake</span>
+      {MODE_CARDS.map((item) => <button type="button" key={item.id} className={mistakeMode({ ...entry, category: values.category }) === item.id ? "is-active" : ""}
+        aria-pressed={mistakeMode({ ...entry, category: values.category }) === item.id}
+        onClick={() => setValues((current) => ({ ...current, category: categoryFor(item.id) }))}>{item.title}</button>)}
+    </div>
     <div className="ml-edit-grid">
       <label className="ws-field"><span>Short label <small>optional</small></span><input value={values.title} maxLength={200} placeholder="e.g. 了 inside a 的时候 clause" onChange={(event) => setValues({ ...values, title: event.target.value })} /></label>
       <div className="ws-field"><span>Topic</span>
