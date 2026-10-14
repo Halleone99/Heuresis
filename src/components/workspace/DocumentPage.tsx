@@ -420,7 +420,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         onEscape={() => void closeNote()} onDone={() => void finishEditing()} onSave={() => void persist()} />
       <p className="nb-editor-hints"><Kbd>{MOD_KEY} B</Kbd> bold · <Kbd>{MOD_KEY} I</Kbd> italic · <Kbd>{MOD_KEY} ⇧ H</Kbd> highlight · <code>[[Title]]</code> links another note · <Kbd>{MOD_KEY} ↵</Kbd> done</p>
     </div> : <div className="nb-doc-body">
-      {!editing && /\p{Script=Han}/u.test(draft.body) && /\\[!example\\]/i.test(draft.body) ? <div className="nb-reading-controls">
+      {!editing && /\p{Script=Han}/u.test(draft.body) && draft.body.toLowerCase().includes("[!example]") ? <div className="nb-reading-controls">
         <button type="button" className={rubyPinyin ? "is-active" : ""} aria-pressed={rubyPinyin}
           onClick={() => setRubyPinyin((value) => !value)} title="Show or hide pinyin above Chinese example sentences">
           <Languages size={14}/> Pinyin above Hanzi
