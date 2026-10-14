@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const page = readFileSync("src/components/workspace/ProgressView.tsx","utf8");
+const css = readFileSync("src/components/workspace/workspace.css","utf8");
+assert.match(page,/const \[studyLoading, setStudyLoading\] = useState\(true\)/);
+assert.match(page,/setActivity\(null\); \/\/ Never display results from a different date range\./);
+assert.match(page,/loadStudyActivity\(workspace\.userId, range \* 7, studyRetry \? 0 : 60_000\)/);
+assert.match(page,/\[range, workspace\.userId, studyRetry\]/);
+assert.match(page,/setStudyError\(error instanceof Error \? error\.message : String\(error\)\); setStudyLoading\(false\)/);
+assert.match(page,/Study statistics unavailable\./);
+assert.match(page,/Retry Study statistics/);
+assert.match(page,/setStudyRetry\(\(value\) => value \+ 1\)/);
+assert.match(page,/Loading Study statistics for \{range\} weeks/);
+assert.match(page,/\{activity && !studyLoading && !studyError \? <>/);
+assert.match(page,/title="Lessons recorded"/);
+assert.match(page,/title="Mistake recalls"/);
+assert.match(page,/title="Notes captured"/);
+assert.match(page,/title="Mistake learning milestones"/);
+assert.doesNotMatch(page,/title="Card reviews in Study"[\s\S]*?note=\{studyError \?/, 
+  "Do not draw an empty Study chart with an error note pretending to be real statistics");
+assert.match(css,/\.pg-study-load-state \{/);
+assert.match(css,/\.pg-study-loading \{/);
+console.log("Progress Study loading, failed-read, retry and no-false-zero checks passed.");
