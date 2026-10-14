@@ -16,6 +16,7 @@ jobs:
           node-version: 22
       - run: npm install --ignore-scripts
       - run: node scripts/check-architecture.mjs
+      - run: node scripts/check-capture-parse.mjs
       - run: node scripts/check-appearance.mjs
       - run: npm run build
       # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
