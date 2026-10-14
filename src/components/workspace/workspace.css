@@ -34,13 +34,13 @@
   z-index: 2;
   display: grid;
   grid-template-columns: var(--ws-sidebar) minmax(0, 1fr);
-  min-height: calc(100vh - 58px);
+  min-height: calc(100vh - 48px);
 }
 
 .heuresis-section-sidebar {
   position: sticky;
-  top: 58px;
-  height: calc(100vh - 58px);
+  top: 48px;
+  height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -372,11 +372,11 @@
 /* --------------------------------------------------------------------------
    Notebook layout & rail
    -------------------------------------------------------------------------- */
-.nb-layout { display: grid; grid-template-columns: var(--ws-rail) minmax(0, 1fr); min-height: calc(100vh - 58px); }
+.nb-layout { display: grid; grid-template-columns: var(--ws-rail) minmax(0, 1fr); min-height: calc(100vh - 48px); }
 .nb-layout.is-rail-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
 .nb-layout.is-rail-collapsed .nb-rail { visibility: hidden; padding: 0; border: 0; overflow: hidden; }
 .nb-rail {
-  position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; overscroll-behavior: contain;
+  position: sticky; top: 48px; height: calc(100vh - 48px); overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: 16px; padding: 16px 12px 24px;
   border-right: 1px solid var(--ws-line); background: var(--ws-surface-2);
   scrollbar-width: thin;
@@ -481,7 +481,7 @@
    Document page
    -------------------------------------------------------------------------- */
 .nb-doc { max-width: 860px; margin: 0 auto; padding: 18px clamp(20px, 4vw, 64px) 96px; }
-.nb-doc-bar { position: sticky; top: 58px; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 calc(-1 * clamp(20px, 4vw, 64px)); padding: 10px clamp(20px, 4vw, 64px); background: var(--ws-page); }
+.nb-doc-bar { position: sticky; top: 48px; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 calc(-1 * clamp(20px, 4vw, 64px)); padding: 10px clamp(20px, 4vw, 64px); background: var(--ws-page); }
 .nb-layout.is-rail-collapsed .nb-doc-bar { padding-left: max(52px, clamp(20px, 4vw, 64px)); }
 .nb-doc-bar .nb-crumbs { min-width: 0; flex-wrap: nowrap; overflow: hidden; }
 .nb-doc-bar .nb-crumbs button { white-space: nowrap; }
@@ -874,7 +874,7 @@
 }
 @media (max-width: 900px) {
   .nb-layout, .nb-layout.is-rail-collapsed { grid-template-columns: minmax(0, 1fr); }
-  .nb-rail { position: fixed; top: 58px; bottom: 0; left: var(--ws-sidebar); width: min(300px, 82vw); height: auto; z-index: 90; transform: translateX(-110%); transition: transform .2s ease; box-shadow: var(--ws-shadow-2); visibility: visible !important; padding: 16px 12px 24px !important; border-right: 1px solid var(--ws-line) !important; }
+  .nb-rail { position: fixed; top: 48px; bottom: 0; left: var(--ws-sidebar); width: min(300px, 82vw); height: auto; z-index: 90; transform: translateX(-110%); transition: transform .2s ease; box-shadow: var(--ws-shadow-2); visibility: visible !important; padding: 16px 12px 24px !important; border-right: 1px solid var(--ws-line) !important; }
   .nb-layout.is-rail-open .nb-rail { transform: none; }
   .nb-layout.is-rail-open .nb-rail-scrim { display: block; position: fixed; inset: 58px 0 0 var(--ws-sidebar); z-index: 80; border: 0; background: rgba(20, 16, 12, .3); }
   .nb-main-tools, .nb-layout:not(.is-rail-collapsed) .nb-main-tools { display: block; }
@@ -1241,7 +1241,7 @@
 @media (max-width: 1100px) {
   .heuresis-desktop[data-sidebar="full"] { --ws-sidebar: 60px; }
   .heuresis-desktop[data-sidebar="full"] .heuresis-section-sidebar {
-    position: fixed; top: 58px; left: 0; bottom: 0; height: calc(100dvh - 58px);
+    position: fixed; top: 48px; left: 0; bottom: 0; height: calc(100dvh - 48px);
     width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
   }
   .heuresis-desktop[data-sidebar="full"] .hw-sections button { justify-content: flex-start; padding: 0 11px; }
@@ -1498,7 +1498,7 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 @media (min-width: 901px) {
   .heuresis-desktop[data-section="notebook"] .nb-layout,
   .heuresis-desktop[data-section="notebook"] .nb-layout.is-rail-collapsed {
-    display: block; min-height: calc(100dvh - 58px);
+    display: block; min-height: calc(100dvh - 48px);
   }
   .heuresis-desktop[data-section="notebook"] .nb-rail,
   .heuresis-desktop[data-section="notebook"] .nb-rail-scrim,
@@ -1773,5 +1773,58 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   :is(.ml-details, .ml-summary-details, .nb-subtopic-form, .qc-first-run, .hw-nb-editor) {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* #16 – brand belongs to the navigation, not an oversized header. */
+.hw-sidebar-brand {
+  min-width: 0; display: flex; align-items: center; gap: 9px; flex: 1;
+  border: 0; padding: 0 4px; background: transparent;
+  color: var(--ws-chrome-text); text-align: left; cursor: pointer;
+}
+.hw-sidebar-mark { display: grid; place-items: center; flex: none; width: 26px; height: 26px;
+  border-radius: 7px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); }
+.hw-sidebar-mark svg { width: 19px; height: 19px; }
+.hw-sidebar-brand:hover .hw-sidebar-mark { background: rgba(255,255,255,.15); }
+.hw-sidebar-brand:focus-visible { outline: 2px solid var(--ws-chrome-text); outline-offset: 2px; border-radius: 5px; }
+.hw-sidebar-heading { color: var(--ws-chrome-text); text-transform: none; letter-spacing: .005em; font-size: 13px; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-brand { flex: none; padding: 0; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-collapse { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-collapse { display: grid; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-brand { flex: 1; }
+}
+
+/* #53 – subtle transitions that tell the eye what changed. Never animate a
+   large content surface or force compositing on thousands of document rows. */
+@media (prefers-reduced-motion: no-preference) {
+  .heuresis-desktop .desktop-content > :is(.ov-page,.ml-page,.pg-page,.nb-layout) {
+    animation: ws-page-enter .17s ease-out both;
+  }
+  .ml-expanded-content, .lc-picker-panel, .lc-merge-panel { animation: ws-page-enter .17s ease-out both; }
+  .heuresis-desktop .hw-nb-row, .ws-segmented button {
+    transition: background-color .17s ease, color .17s ease;
+  }
+}
+@keyframes ws-page-enter { from { opacity: .65; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .heuresis-desktop .desktop-content > :is(.ov-page,.ml-page,.pg-page,.nb-layout),
+  .ml-expanded-content, .lc-picker-panel, .lc-merge-panel { animation: none !important; }
+}
+
+/* #60 – one keyboard focus standard across the custom workspace controls. */
+.heuresis-desktop :is(button, a, input, textarea, select, summary, [role="tab"]):focus-visible,
+.quick-floating-root :is(button, a, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 2px;
+}
+.heuresis-desktop .heuresis-section-sidebar :is(button, a, summary):focus-visible,
+.heuresis-desktop .desktop-chrome :is(button, a, summary):focus-visible {
+  outline-color: var(--ws-chrome-text);
+}
+@media (forced-colors: active) {
+  .heuresis-desktop :is(button, a, input, textarea, select, summary):focus-visible,
+  .quick-floating-root :is(button, a, input, textarea, select, summary):focus-visible {
+    outline: 2px solid Highlight;
   }
 }
