@@ -9,7 +9,7 @@ import {
 } from "../../lib/knowledgeWorkspace";
 import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
 import { readDocumentDraft, writeDocumentDraft, type NotebookLocation } from "../../lib/workspaceMemory";
-import { getOfflineSyncState } from "../../lib/offlineFetch";
+import { getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
 import { FlashcardDialog } from "./FlashcardDialog";
 import type { NewDocRequest } from "./NotebookView";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
@@ -18,7 +18,7 @@ import { KindIcon, Kbd, MOD_KEY, TopicPicker, entryKindLabel, formatDay, formatL
 import { useWorkspace } from "./WorkspaceContext";
 
 type Draft = { title: string; body: string; category: NoteCategory; lessonDate: string; topicId: string };
-type SaveState = { kind: "idle" | "dirty" | "saving" | "saved" | "error" | "invalid"; message?: string; at?: string };
+type SaveState = { kind: "idle" | "dirty" | "saving" | "local" | "saved" | "error" | "invalid"; message?: string; at?: string };
 
 const LESSON_OUTLINE = "# Grammar\n\n# Explanation\n\n# Examples\n> [!example]\n> \n\n# New expressions\n- \n\n# To revisit\n- ";
 
@@ -127,8 +127,11 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       savedRef.current = current;
       const stillDirty = isDirty(draftRef.current);
       if (!stillDirty && entryIdRef.current) writeDocumentDraft(userId, entryIdRef.current, null);
-      const offline = !getOfflineSyncState().online;
-      setSave({ kind: stillDirty ? "dirty" : "saved", at: new Date().toISOString(), message: offline ? "Saved on this device — will sync when online" : undefined });
+      const sync = getOfflineSyncState();
+      const needsSync = !sync.online || sync.pending > 0;
+      setSave({ kind: stillDirty ? "dirty" : needsSync ? "local" : "saved",
+        at: new Date().toISOString(),
+        message: needsSync ? "On device · waiting to sync" : undefined });
       return "saved";
     } catch (error) {
       setSave({ kind: "error", message: friendlyError(error) });
@@ -140,6 +143,17 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     }
   }, [isDirty, liveEntry?.kind, onCreated, userId, workspace]);
   persistRef.current = persist;
+
+  // Offline writes are durable locally, but must never be presented as
+  // confirmed on the server. Update that label only when the pending queue
+  // has actually drained successfully.
+  useEffect(() => subscribeOfflineSync((state) => {
+    if (state.online && !state.pending && !state.syncing && !state.error) {
+      setSave((current) => current.kind === "local"
+        ? { kind: "saved", at: new Date().toISOString(), message: "Synced" }
+        : current);
+    }
+  }), []);
 
   const scheduleSave = useCallback(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
@@ -308,6 +322,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
 
   const statusText = save.kind === "saving" ? "Saving…"
     : save.kind === "dirty" ? "Unsaved changes"
+      : save.kind === "local" ? save.message ?? "On device · waiting to sync"
       : save.kind === "saved" ? (save.message ?? `Saved ${save.at ? formatTime(save.at) : ""}`)
         : save.kind === "error" ? save.message ?? "Could not save"
           : save.kind === "invalid" ? save.message ?? "" : entryIdRef.current ? "All changes saved" : "Not saved yet";
@@ -324,7 +339,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       <div className="nb-doc-actions">
         {editing ? <>
           <span className={`nb-save-state is-${save.kind}`} role="status" aria-live="polite">
-            {save.kind === "saving" ? <span className="ws-spinner is-small" /> : save.kind === "saved" || save.kind === "idle" ? <Check size={13} /> : null}
+            {save.kind === "saving" ? <span className="ws-spinner is-small" /> : save.kind === "local" || save.kind === "saved" || save.kind === "idle" ? <Check size={13} /> : null}
             {statusText}
             {save.kind === "error" ? <button type="button" onClick={() => void persist()}><RotateCcw size={12} /> Retry</button> : null}
           </span>
