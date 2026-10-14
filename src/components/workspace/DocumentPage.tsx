@@ -340,7 +340,6 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     {flashcardTarget ? <FlashcardDialog entry={flashcardTarget} onClose={() => setFlashcardTarget(null)} /> : null}
     <div className="nb-doc-bar">
       <nav className="nb-crumbs" aria-label="Location">
-        <button type="button" className="nb-back" onClick={() => { if (editing) void finishEditing().then((result) => { if (result === "done") onBack(); }); else onBack(); }} aria-label="Back"><ArrowLeft size={15} /></button>
         <button type="button" onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject?.id ?? null })}>{path.subject?.name ?? "Notebook"}</button>
         {path.chain.map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button></span>)}
       </nav>
