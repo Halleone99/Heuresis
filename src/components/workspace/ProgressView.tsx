@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Table2 } from "lucide-react";
 import { loadStudyActivity, meaningfulStudySessions, weekStart, type StudyActivity } from "../../lib/activity";
 import { isLesson, mistakeStage, RETAINED_STREAK, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
+import { languageStack, type LanguageSeries } from "../../lib/progressLanguage";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { formatDay } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
 type Range = 8 | 12 | 26;
-type Week = { start: Date; key: string; value: number };
+type Week = { start: Date; key: string; value: number; segments?: Record<string, number> };
+const seriesColor = (index: number) => `var(--ws-chart-series-${index % 5 + 1})`;
 
 function emptyWeeks(count: number): Week[] {
   const current = weekStart(new Date());
@@ -50,7 +52,9 @@ function useWidth(fallback: number) {
   return [ref, width] as const;
 }
 
-function WeeklyBars({ title, unit, weeks, note, table }: { title: string; unit: string; weeks: Week[]; note?: string; table: boolean }) {
+function WeeklyBars({ title, unit, weeks, note, table, series = [] }: {
+  title: string; unit: string; weeks: Week[]; note?: string; table: boolean; series?: LanguageSeries[];
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const total = weeks.reduce((sum, week) => sum + week.value, 0);
   const max = niceMax(Math.max(...weeks.map((week) => week.value), 0));
@@ -68,11 +72,16 @@ function WeeklyBars({ title, unit, weeks, note, table }: { title: string; unit: 
       <strong className="pg-chart-total">{total.toLocaleString()} <small className="pg-total-period">· {weeks.length} wk</small></strong>
       {note ? <small>{note}</small> : null}
     </figcaption>
+    {series.length ? <div className="pg-language-legend" aria-label={`${title} language legend`}>
+      {series.map((item, index) => <span key={item.id}><i style={{ backgroundColor: seriesColor(index) }} aria-hidden="true"/>{item.name}</span>)}
+    </div> : null}
     {table ? <table className="pg-table">
-      <thead><tr><th scope="col">Week of</th><th scope="col">{unit}</th></tr></thead>
-      <tbody>{weeks.map((week) => <tr key={week.key}><td>{formatDay(week.start.toISOString())}</td><td>{week.value}</td></tr>)}</tbody>
+      <thead><tr><th scope="col">Week of</th><th scope="col">{unit}</th>
+        {series.map((item) => <th key={item.id} scope="col">{item.name}</th>)}</tr></thead>
+      <tbody>{weeks.map((week) => <tr key={week.key}><td>{formatDay(week.start.toISOString())}</td><td>{week.value}</td>
+        {series.map((item) => <td key={item.id}>{week.segments?.[item.id] ?? 0}</td>)}</tr>)}</tbody>
     </table> : <div className="pg-plot" ref={plotRef}>
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${total} in ${weeks.length} weeks`}>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}: ${total} in ${weeks.length} weeks${series.length ? ", stacked by language" : ""}`}>
         <line x1="0" x2={width} y1={top} y2={top} className="pg-grid" />
         <line x1="0" x2={width} y1={top + plot / 2} y2={top + plot / 2} className="pg-grid" />
         <line x1="0" x2={width} y1={top + plot} y2={top + plot} className="pg-axis" />
@@ -82,11 +91,21 @@ function WeeklyBars({ title, unit, weeks, note, table }: { title: string; unit: 
           const y = top + plot - h;
           const r = Math.min(4, h, barWidth / 2);
           const path = h ? `M${x},${top + plot} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + barWidth - r},${y} Q${x + barWidth},${y} ${x + barWidth},${y + r} L${x + barWidth},${top + plot} Z` : "";
+          let segmentTop = top + plot;
+          const stacked = series.length ? series.map((item, seriesIndex) => {
+            const count = week.segments?.[item.id] ?? 0;
+            if (!count) return null;
+            const segmentHeight = count / max * plot;
+            segmentTop -= segmentHeight;
+            return <rect key={item.id} className="pg-stack-segment" x={x}
+              y={segmentTop} width={barWidth} height={segmentHeight}
+              fill={seriesColor(seriesIndex)} rx={1}/>;
+          }) : null;
           return <g key={week.key} className={`pg-bar ${hover === index ? "is-hover" : ""}`} tabIndex={0}
             aria-label={`Week of ${formatDay(week.start.toISOString())}: ${week.value} ${unit}`}
             onPointerEnter={() => setHover(index)} onPointerLeave={() => setHover(null)} onFocus={() => setHover(index)} onBlur={() => setHover(null)}>
             <rect x={index * slot} y={top} width={slot} height={plot} fill="transparent" />
-            {path ? <path d={path} /> : null}
+            {stacked ?? (path ? <path d={path} /> : null)}
           </g>;
         })}
       </svg>
@@ -95,6 +114,10 @@ function WeeklyBars({ title, unit, weeks, note, table }: { title: string; unit: 
       {hover !== null && weeks[hover] ? <div className="pg-tip" role="tooltip" style={{ left: `${tooltipLeft}%` }}>
         <strong>{weeks[hover].value.toLocaleString()} {unit}</strong>
         <span>{weeks[hover].start.getTime() === thisWeek ? "This week (so far)" : `Week of ${formatDay(weeks[hover].start.toISOString())}`}</span>
+        {series.length ? <div className="pg-tip-languages">
+          {series.filter((item) => (weeks[hover].segments?.[item.id] ?? 0) > 0).map((item) =>
+            <span key={item.id}>{item.name}: <strong>{weeks[hover].segments?.[item.id] ?? 0}</strong></span>)}
+        </div> : null}
       </div> : null}
     </div>}
   </figure>;
@@ -121,12 +144,26 @@ export function ProgressView() {
   const reviews = activity?.reviews ?? [];
   const activeSessions = useMemo(() => meaningfulStudySessions(activity?.sessions ?? [], reviews), [activity, reviews]);
   const goodShare = reviews.length ? Math.round(reviews.filter((event) => event.event_type === "good" || event.event_type === "easy").length / reviews.length * 100) : null;
-  const lessons = snapshot.entries.filter(isLesson);
-  const notes = snapshot.entries.filter((entry) => entry.kind === "note" && !isLesson(entry));
   const since = weeks[0]?.start.toISOString() ?? "";
   const practice = snapshot.practice.filter((event) => event.created_at >= since);
   const recallShare = practice.length ? Math.round(practice.filter((event) => event.outcome === "correct").length / practice.length * 100) : null;
   const mistakes = snapshot.entries.filter((entry) => entry.kind === "mistake");
+  const byTopic = useMemo(() => new Map(snapshot.topics.map((row) => [row.id, row.subject_id])),
+    [snapshot.topics]);
+  const subjectFor = (topicId: string | undefined) => topicId ? byTopic.get(topicId) ?? null : null;
+  const lessonStack = useMemo(() => languageStack(weeks,
+    snapshot.entries.filter(isLesson).map((entry) => ({
+      at: entry.lesson_date ?? entry.created_at, subjectId: byTopic.get(entry.topic_id),
+    })), snapshot.subjects), [weeks, snapshot.entries, snapshot.subjects, byTopic]);
+  const noteStack = useMemo(() => languageStack(weeks,
+    snapshot.entries.filter((entry) => entry.kind === "note" && !isLesson(entry)).map((entry) => ({
+      at: entry.created_at, subjectId: byTopic.get(entry.topic_id),
+    })), snapshot.subjects), [weeks, snapshot.entries, snapshot.subjects, byTopic]);
+  const recallStack = useMemo(() => languageStack(weeks,
+    practice.map((event) => ({
+      at: event.created_at,
+      subjectId: subjectFor(workspace.entryById.get(event.record_id)?.topic_id),
+    })), snapshot.subjects), [weeks, practice, snapshot.subjects, byTopic, workspace.entryById]);
   const retained = mistakes.filter((entry) => entry.recall_streak >= RETAINED_STREAK).length;
 
   const bySubject = useMemo(() => [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name)).map((subject) => {
@@ -168,11 +205,11 @@ export function ProgressView() {
         note={studyError ? "Study activity could not be loaded." : offline && !activity ? "Needs a connection." : goodShare !== null ? `${goodShare}% answered good or easy` : "Graded answers in flashcard review"} />
       <WeeklyBars title="Study sessions" unit="sessions" table={table} weeks={bucket(weeks, activeSessions.map((session) => session.started_at))}
         note={studyError ? "Study session data could not be loaded." : "Sessions with a card encounter or a graded review; empty launches excluded"} />
-      <WeeklyBars title="Lessons recorded" unit="lessons" table={table} weeks={bucket(weeks, lessons.map((entry) => entry.lesson_date ?? entry.created_at))}
+      <WeeklyBars title="Lessons recorded" unit="lessons" table={table} weeks={lessonStack.weeks} series={lessonStack.series}
         note="By lesson date" />
-      <WeeklyBars title="Mistake recalls" unit="recalls" table={table} weeks={bucket(weeks, practice.map((event) => event.created_at))}
+      <WeeklyBars title="Mistake recalls" unit="recalls" table={table} weeks={recallStack.weeks} series={recallStack.series}
         note={snapshot.practiceError ? "Recall history unavailable — not a zero count." : recallShare !== null ? `${recallShare}% produced correctly from memory` : "Produce the correction before seeing it"} />
-      <WeeklyBars title="Notes captured" unit="notes" table={table} weeks={bucket(weeks, notes.map((entry) => entry.created_at))}
+      <WeeklyBars title="Notes captured" unit="notes" table={table} weeks={noteStack.weeks} series={noteStack.series}
         note="Quick notes and written notes" />
     </div>
 

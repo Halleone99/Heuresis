@@ -1610,3 +1610,24 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   background: color-mix(in srgb, var(--ws-accent) 32%, var(--ws-surface));
   color: var(--ws-ink);
 }
+
+
+/* #42: language breakdowns remain readable in every light/dark palette. */
+.pg-page {
+  --ws-chart-series-1: var(--ws-bar);
+  --ws-chart-series-2: var(--ws-good);
+  --ws-chart-series-3: var(--ws-warn);
+  --ws-chart-series-4: var(--ws-bad);
+  --ws-chart-series-5: color-mix(in srgb, var(--ws-accent) 58%, var(--ws-text));
+}
+.pg-language-legend { display: flex; flex-wrap: wrap; gap: 5px 11px; padding-bottom: 10px; color: var(--ws-muted); }
+.pg-language-legend > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font: 11px/1.3 var(--ws-sans); }
+.pg-language-legend i { width: 9px; height: 9px; flex: none; border-radius: 3px; }
+.pg-bar .pg-stack-segment { stroke: none; transition: opacity .12s; }
+.pg-plot:has(.pg-bar.is-hover) .pg-bar:not(.is-hover) .pg-stack-segment { opacity: .42; }
+.pg-tip-languages { display: grid; gap: 2px; padding-top: 5px; margin-top: 2px; border-top: 1px solid currentColor; }
+.pg-tip-languages > span { display: flex; justify-content: space-between; gap: 12px; font: 10px/1.35 var(--ws-sans); }
+.pg-tip-languages strong { font-weight: 650; }
+@media (max-width: 700px) {
+  .pg-language-legend { gap: 7px 10px; }
+}
