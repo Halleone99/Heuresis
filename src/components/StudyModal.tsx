@@ -60,7 +60,7 @@ function CountControl({ value, available, onChange }: { value: number; available
   const safe = clampCount(value, available);
   return <div className="study-count-control compact-count-control">
     <div className="study-compact-label"><span>Amount</span><b>{available ? safe : 0}/{available}</b></div>
-    <input type="range" min={1} max={Math.max(1, available)} value={safe} disabled={!available} onChange={(event) => onChange(Number(event.target.value))} />
+    <input type="range" aria-label="Number of cards to review" min={1} max={Math.max(1, available)} value={safe} disabled={!available} onChange={(event) => onChange(Number(event.target.value))} />
     <div className="study-count-shortcuts compact-count-shortcuts">
       {[10, 20, 50].filter((count) => count < available).map((count) => <button type="button" key={count} className={safe === count ? "selected" : ""} onClick={() => onChange(count)}>{count}</button>)}
       <button type="button" className={available > 0 && safe === available ? "selected" : ""} disabled={!available} onClick={() => onChange(Math.max(1, available))}>All</button>
@@ -68,7 +68,7 @@ function CountControl({ value, available, onChange }: { value: number; available
   </div>;
 }
 
-export default function StudyModal({ pack, cards, onClose }: Props) {
+export default function StudyModal({ pack, cards, onClose, onComplete }: Props) {
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [directionMode, setDirectionMode] = useState<DirectionMode>("one");
@@ -92,6 +92,8 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError("");
+    setTemplates([]);
     void loadStudySetup(pack.id, pack.card_type_id)
       .then(({ templates: next, defaultTemplateId }) => {
         if (cancelled) return;
@@ -115,6 +117,7 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
     setBusy(true); setError("");
     try {
       await openCosmosWindow({ mode: "review", packId: pack.id, templateIds: selectedTemplateIds, source, order: randomOrder ? "random" : "pack", count: clampCount(reviewCount, pool.length) });
+      onComplete();
       onClose();
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Could not open Review.");
@@ -137,21 +140,22 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
         <div className="compact-study-heading"><div><p className="eyebrow">REVIEW</p><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> first</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
 
         {loading ? <div className="study-state">Loading…</div> : null}
-        {!loading && !templates.length ? <div className="study-state">No review direction is configured.</div> : null}
+        {!loading && !error && !templates.length ? <div className="study-state">No review direction is configured.</div> : null}
         {!loading && templates.length ? <div className="compact-study-controls review-controls">
           <section className="compact-direction-picker">
             <span>Direction</span>
             <div className="direction-mode-toggle">
-              <button type="button" className={directionMode === "both" ? "selected" : ""} disabled={!pairs.length} onClick={() => setDirectionMode("both")}>Both sides</button>
-              <button type="button" className={directionMode === "one" ? "selected" : ""} onClick={() => setDirectionMode("one")}>One side</button>
+              <button type="button" className={directionMode === "both" ? "selected" : ""} aria-pressed={directionMode === "both"} disabled={!pairs.length} onClick={() => setDirectionMode("both")}>Mixed directions</button>
+              <button type="button" className={directionMode === "one" ? "selected" : ""} aria-pressed={directionMode === "one"} onClick={() => setDirectionMode("one")}>One side</button>
             </div>
             {directionMode === "both" ? <div className="direction-detail">
               {pairs.length > 1 ? <select value={activePair?.key ?? ""} onChange={(event) => setDirectionPairKey(event.target.value)}>{pairs.map((pair) => <option key={pair.key} value={pair.key}>{pair.label}</option>)}</select> : <strong>{activePair?.label ?? "No reversible pair"}</strong>}
             </div> : <div className="direction-detail"><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
+            <small className="study-direction-hint">{directionMode === "both" ? "Alternates directions across cards; each card appears once." : "Uses the selected direction for every card."}</small>
           </section>
           <label className="compact-field"><span>Cards</span><select value={source} onChange={(event) => setSource(event.target.value as ReviewSource)}>{reviewSources.map(([value, label, count]) => <option key={value} value={value} disabled={!count && value !== "all"}>{label} · {count}</option>)}</select></label>
           <section className="compact-count-panel"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
-          <section className="compact-order-panel"><span>Order</span><div className="study-order-toggle"><button type="button" className={!randomOrder ? "selected" : ""} onClick={() => setRandomOrder(false)}>Topic</button><button type="button" className={randomOrder ? "selected" : ""} onClick={() => setRandomOrder(true)}><Shuffle size={13} /> Random</button></div></section>
+          <section className="compact-order-panel"><span>Order</span><div className="study-order-toggle"><button type="button" className={!randomOrder ? "selected" : ""} aria-pressed={!randomOrder} onClick={() => setRandomOrder(false)}>Topic</button><button type="button" className={randomOrder ? "selected" : ""} aria-pressed={randomOrder} onClick={() => setRandomOrder(true)}><Shuffle size={13} /> Random</button></div></section>
         </div> : null}
 
         {error ? <div className="study-error">{error}</div> : null}

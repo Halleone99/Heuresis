@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteCard,
   fieldByRole,
@@ -149,6 +149,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const [editing, setEditing] = useState<CardWithStats | null>(null);
   const [connectionsCard, setConnectionsCard] = useState<CardWithStats | null>(null);
   const [studyOpen, setStudyOpen] = useState(false);
+  const reviewOpened = useRef(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
@@ -178,6 +179,16 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     setSortField("status");
     setSortDirection("asc");
     void reload();
+  }, [pack.id]);
+
+  useEffect(() => {
+    reviewOpened.current = false;
+    const refreshAfterReview = () => {
+      // Study grading flushes as the review popup closes.
+      if (reviewOpened.current) void reload();
+    };
+    window.addEventListener("focus", refreshAfterReview);
+    return () => window.removeEventListener("focus", refreshAfterReview);
   }, [pack.id]);
 
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
@@ -463,7 +474,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} /> : null}
       {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} /> : null}
-      {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => void refreshAll()} /> : null}
+      {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => { reviewOpened.current = true; }} /> : null}
       {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
