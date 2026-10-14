@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut,
+  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut, Maximize2,
   NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
@@ -125,20 +125,31 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [syncState, setSyncState] = useState(getOfflineSyncState());
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => readSidebarMode(session.user.id));
   const [narrowWindow, setNarrowWindow] = useState(() => window.innerWidth <= 1100);
+  const [narrowExpanded, setNarrowExpanded] = useState(false);
   const previousSidebarMode = useRef<"full" | "rail">("full");
-  const actualSidebarMode: SidebarMode = sidebarMode === "hidden" ? "hidden" : narrowWindow ? "rail" : sidebarMode;
+  const actualSidebarMode: SidebarMode = sidebarMode === "hidden" ? "hidden"
+    : narrowWindow && !narrowExpanded ? "rail" : sidebarMode;
   useEffect(() => {
     try { localStorage.setItem(sidebarKey(session.user.id), sidebarMode); } catch { /* optional */ }
   }, [session.user.id, sidebarMode]);
   useEffect(() => {
-    const onResize = () => setNarrowWindow(window.innerWidth <= 1100);
+    const onResize = () => {
+      setNarrowWindow(window.innerWidth <= 1100);
+      if (window.innerWidth > 1100) setNarrowExpanded(false);
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
   const toggleSidebar = useCallback(() => {
+    if (narrowWindow && actualSidebarMode !== "hidden") {
+      const expand = actualSidebarMode === "rail";
+      setSidebarMode(expand ? "full" : "rail");
+      setNarrowExpanded(expand);
+      return;
+    }
     setSidebarMode((current) => current === "hidden" ? previousSidebarMode.current
       : current === "full" ? "rail" : "full");
-  }, []);
+  }, [actualSidebarMode, narrowWindow]);
   const toggleFocus = useCallback(() => {
     setSidebarMode((current) => {
       if (current !== "hidden") { previousSidebarMode.current = current; return "hidden"; }
@@ -383,6 +394,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
                 <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending ? ` (${syncState.legacyPending})` : ""}
               </button>
               <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
+              <button onClick={() => { toggleFocus(); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <Maximize2 size={14}/> {sidebarMode === "hidden" ? "Leave focus mode" : "Focus mode · hide sidebar"}
+              </button>
               <button onClick={() => { setShortcutsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Keyboard size={14} /> Keyboard shortcuts</button>
               <button onClick={() => { setSettingsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Settings2 size={14} /> Settings & appearance</button>
               <div className="desktop-account-divider" />
