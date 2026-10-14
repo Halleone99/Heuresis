@@ -1562,3 +1562,32 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .nb-save-state.is-local { color: var(--ws-warn); }
 .nb-save-state.is-local svg { color: var(--ws-warn); }
 .qc-foot .ws-button.is-primary .ws-spinner { width: 13px; height: 13px; }
+
+
+/* #56: clearer Hanzi without enlarging accompanying English/German/Russian. */
+.nb-prose .nb-hanzi {
+  font-family: "Noto Serif", "Noto Serif SC", "Source Han Serif SC", "Songti SC", "Microsoft YaHei", serif;
+  font-size: 1.15em;
+  font-weight: 450;
+  line-height: 1.95;
+  font-variant-east-asian: normal;
+}
+/* #57: ruby is opt-in and only used where an explicit pinyin line is present.
+   Native ruby fallback keeps the entire phrase annotated, without inventing
+   character-level syllable alignments. */
+.nb-ruby-phrase { ruby-position: over; ruby-align: center; }
+.nb-ruby-phrase rt {
+  color: var(--ws-accent); font: 500 .62em/1.35 "Segoe UI", "Noto Sans", Arial, sans-serif;
+  letter-spacing: .01em; text-align: center;
+}
+.nb-example:has(.nb-ruby-phrase) { padding-top: 1em; }
+.nb-reading-controls { display: flex; justify-content: flex-end; padding: 6px 0 12px; }
+.nb-reading-controls button {
+  display: flex; align-items: center; gap: 7px; min-height: 34px;
+  border: 1px solid var(--ws-line); border-radius: 8px; padding: 6px 10px;
+  background: var(--ws-surface); color: var(--ws-muted); font: 500 12px/1.3 var(--ws-sans); cursor: pointer;
+}
+.nb-reading-controls button.is-active {
+  background: var(--ws-accent-soft); border-color: var(--ws-accent-line); color: var(--ws-accent);
+}
+.nb-reading-controls button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
