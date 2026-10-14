@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Folder, Layers, Search, X } from "lucide-react";
+import { ArrowRight, Command, Folder, Layers, Search, X } from "lucide-react";
 import { entryTitle, isLesson, normaliseSearch, plainLine, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { inlinePlain } from "../../lib/noteFormat";
 import { KindIcon, Kbd, entryKindLabel, relativeTime } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
+
+export type PaletteCommand = { id: string; label: string; detail: string; keywords?: string; run: () => void };
 
 type Result =
   | { type: "topic"; id: string; label: string; path: string; score: number }
@@ -42,7 +44,7 @@ function snippetFor(entry: KnowledgeEntry, words: string[]) {
   return first.length > 160 ? `${first.slice(0, 159)}…` : first;
 }
 
-export function WorkspaceSearch({ onClose, onSearchCards }: { onClose: () => void; onSearchCards: (query: string) => void }) {
+export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onClose: () => void; onSearchCards: (query: string) => void; commands?: PaletteCommand[] }) {
   const workspace = useWorkspace();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -76,12 +78,21 @@ export function WorkspaceSearch({ onClose, onSearchCards }: { onClose: () => voi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, workspace.snapshot, workspace.memory.recentDocs]);
 
+  const matchedCommands = commands.filter((command) => words.every((word) =>
+    normaliseSearch([command.label, command.detail, command.keywords ?? ""].join(" ")).includes(word))).slice(0, words.length ? 12 : 9);
+
   useEffect(() => { setActive(0); }, [query]);
   useEffect(() => { listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [active]);
 
-  const total = results.length + (query.trim() ? 1 : 0);
+  const commandCount = matchedCommands.length;
+  const total = commandCount + results.length + (query.trim() ? 1 : 0);
   function open(index: number) {
-    const result = results[index];
+    if (index < commandCount) {
+      matchedCommands[index].run();
+      onClose();
+      return;
+    }
+    const result = results[index - commandCount];
     if (!result) { if (query.trim()) { onSearchCards(query.trim()); onClose(); } return; }
     if (result.type === "topic") workspace.openTopic(result.id);
     else if (result.entry.kind === "mistake") workspace.openMistake(result.entry.id);
@@ -90,7 +101,7 @@ export function WorkspaceSearch({ onClose, onSearchCards }: { onClose: () => voi
   }
 
   return <div className="ws-dialog-backdrop is-top" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="ws-palette" role="dialog" aria-modal="true" aria-label="Search notes, lessons and mistakes"
+    <div className="ws-palette" role="dialog" aria-modal="true" aria-label="Search Heuresis and run commands"
       onKeyDown={(event) => {
         if (event.key === "Escape") { event.preventDefault(); onClose(); }
         if (event.key === "ArrowDown") { event.preventDefault(); setActive((value) => Math.min(total - 1, value + 1)); }
@@ -98,28 +109,36 @@ export function WorkspaceSearch({ onClose, onSearchCards }: { onClose: () => voi
         if (event.key === "Enter") { event.preventDefault(); open(active); }
       }}>
       <label className="ws-palette-input"><Search size={17} />
-        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notes, lessons, mistakes and topics…" aria-label="Search" />
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search or type a command…" aria-label="Search" />
         {query ? <button type="button" className="ws-icon-button" aria-label="Clear" onClick={() => setQuery("")}><X size={14} /></button> : <Kbd>Esc</Kbd>}
       </label>
       <div className="ws-palette-list" ref={listRef} role="listbox">
+        {matchedCommands.length ? <span className="ws-eyebrow ws-palette-group">Actions</span> : null}
+        {matchedCommands.map((command, index) => <button type="button" role="option" aria-selected={index === active}
+          key={command.id} data-index={index} className={`ws-palette-row is-command ${index === active ? "is-active" : ""}`}
+          onMouseMove={() => setActive(index)} onClick={() => open(index)}>
+          <span className="ws-palette-icon"><Command size={15} /></span>
+          <span className="ws-palette-text"><strong>{highlight(command.label, rawWords)}</strong><small>{command.detail}</small></span>
+          {index === active ? <ArrowRight size={14} className="ws-palette-go" /> : null}
+        </button>)}
         {!query.trim() && results.length ? <span className="ws-eyebrow ws-palette-group">Recently opened</span> : null}
-        {results.map((result, index) => <button type="button" role="option" aria-selected={index === active} key={result.type === "topic" ? `t-${result.id}` : result.entry.id}
-          data-index={index} className={`ws-palette-row ${index === active ? "is-active" : ""}`} onMouseMove={() => setActive(index)} onClick={() => open(index)}>
+        {results.map((result, index) => <button type="button" role="option" aria-selected={commandCount + index === active} key={result.type === "topic" ? `t-${result.id}` : result.entry.id}
+          data-index={commandCount + index} className={`ws-palette-row ${commandCount + index === active ? "is-active" : ""}`} onMouseMove={() => setActive(commandCount + index)} onClick={() => open(commandCount + index)}>
           <span className="ws-palette-icon">{result.type === "topic" ? <Folder size={15} /> : <KindIcon entry={result.entry} size={15} />}</span>
           <span className="ws-palette-text">
             <strong>{result.type === "topic" ? highlight(result.label, rawWords) : highlight(entryTitle(result.entry), rawWords)}</strong>
             {result.type === "entry" && result.snippet ? <span>{highlight(result.snippet, rawWords)}</span> : null}
             <small>{result.type === "topic" ? `Topic · ${result.path}` : `${entryKindLabel(result.entry)} · ${result.path} · ${relativeTime(result.entry.updated_at)}`}</small>
           </span>
-          {index === active ? <ArrowRight size={14} className="ws-palette-go" /> : null}
+          {commandCount + index === active ? <ArrowRight size={14} className="ws-palette-go" /> : null}
         </button>)}
-        {query.trim() ? <button type="button" role="option" aria-selected={active === results.length} data-index={results.length}
-          className={`ws-palette-row is-cards ${active === results.length ? "is-active" : ""}`} onMouseMove={() => setActive(results.length)} onClick={() => open(results.length)}>
+        {query.trim() ? <button type="button" role="option" aria-selected={active === commandCount + results.length} data-index={commandCount + results.length}
+          className={`ws-palette-row is-cards ${active === commandCount + results.length ? "is-active" : ""}`} onMouseMove={() => setActive(commandCount + results.length)} onClick={() => open(commandCount + results.length)}>
           <span className="ws-palette-icon"><Layers size={15} /></span>
           <span className="ws-palette-text"><strong>Search Study cards for “{query.trim()}”</strong><small>Flashcards and vocabulary in Study</small></span>
         </button> : null}
-        {query.trim() && !results.length ? <p className="ws-muted ws-palette-empty">Nothing in the Notebook or Mistake Log matches.</p> : null}
-        {!query.trim() && !results.length ? <p className="ws-muted ws-palette-empty">Type to search everything you have written. Pinyin without tone marks matches too.</p> : null}
+        {query.trim() && !results.length && !matchedCommands.length ? <p className="ws-muted ws-palette-empty">No notes or commands match. You can still search Study cards below.</p> : null}
+        {!query.trim() && !results.length && !matchedCommands.length ? <p className="ws-muted ws-palette-empty">Search Heuresis, or choose an action.</p> : null}
       </div>
       <div className="ws-palette-foot"><span><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span><span><Kbd>↵</Kbd> open</span><span><Kbd>Esc</Kbd> close</span></div>
     </div>
