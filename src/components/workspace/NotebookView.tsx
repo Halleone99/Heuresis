@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
 } from "../../lib/knowledgeWorkspace";
 import type { NotebookLocation } from "../../lib/workspaceMemory";
+import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
 import { EmptyState, InlineNameForm, KindIcon, Kbd, MOD_KEY, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
@@ -381,6 +382,10 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
         </p> : null}
       </div>
       {workspace.writable ? <div className="nb-scope-actions">
+        {topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
+          onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}>
+          <ListChecks size={15}/> Organise Inbox
+        </button> : null}
         <button type="button" className="ws-button" disabled={!fallbackTopic}
           onClick={() => workspace.openCapture({ mode: "lesson", topicId: fallbackTopic })}><GraduationCap size={15} /> New lesson</button>
         <button type="button" className="ws-button is-primary" disabled={!fallbackTopic} onClick={() => onNewNote(fallbackTopic)}><FilePlus2 size={15} /> New note</button>
