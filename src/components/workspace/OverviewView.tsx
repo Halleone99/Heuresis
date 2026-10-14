@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BookOpen, ChevronRight, CircleHelp, GraduationCap, NotebookPen, Pin, Radio, RotateCcw, Target, TriangleAlert } from "lucide-react";
+import { BookOpen, ChevronRight, CircleHelp, GraduationCap, NotebookPen, Pin, Radio, RotateCcw, Target, TriangleAlert } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, isRecallDue, mistakeStage, normaliseSearch,
   type KnowledgeEntry,
