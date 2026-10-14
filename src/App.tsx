@@ -28,13 +28,14 @@ import { KnowledgeTrashDialog } from "./components/workspace/KnowledgeTrashDialo
 import { LessonCleanupDialog } from "./components/workspace/LessonCleanupDialog";
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
-import { WorkspaceSearch } from "./components/workspace/WorkspaceSearch";
+import { WorkspaceSearch, type PaletteCommand } from "./components/workspace/WorkspaceSearch";
 import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
-import { entryTitle, isRecallDue } from "./lib/knowledgeWorkspace";
+import { entryTitle, friendlyError, isRecallDue } from "./lib/knowledgeWorkspace";
+import { exportKnowledgeJson } from "./lib/knowledgeBackup";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "./lib/sectionScroll";
 import { supabase } from "./lib/supabase";
@@ -272,6 +273,44 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     });
   }, [workspace]);
 
+  async function downloadKnowledge() {
+    try {
+      const contents = await exportKnowledgeJson(session.user.id);
+      const url = URL.createObjectURL(new Blob([contents], { type: "application/json;charset=utf-8" }));
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `heuresis-knowledge-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.append(anchor);
+        try { anchor.click(); } finally { anchor.remove(); }
+      } finally { window.setTimeout(() => URL.revokeObjectURL(url), 20_000); }
+      workspace.toast("Knowledge export requested. Check your downloads.");
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+  }
+
+  const paletteCommands: PaletteCommand[] = [
+    ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => setSection(item.id) })),
+    { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
+    { id: "capture-mistake", label: "Record a mistake", detail: "Quick correction · Ctrl+Shift+M", keywords: "mistake recall", run: () => openNotebookCapture("mistake") },
+    { id: "start-lesson", label: "Start a lesson", detail: "Attach notes and corrections · Ctrl+Shift+L", keywords: "new lesson", run: () => openNotebookCapture("lesson") },
+    { id: "practise-due", label: "Practise due mistakes", detail: "Start a recall session", keywords: "review test recall", run: () => {
+      const due = workspace.snapshot.entries.filter((entry) => entry.kind === "mistake" && isRecallDue(entry));
+      if (due.length) workspace.openMistake(due[0].id, { practise: true, ids: due.map((entry) => entry.id) });
+      else workspace.toast("No mistakes are due for recall.");
+    } },
+    { id: "organise-inbox", label: "Organise Inbox captures", detail: "Review captured notes and file them", keywords: "sort tidy cleanup", run: () => {
+      const topicId = workspace.snapshot.topics.find((topic) => topic.name.trim().toLowerCase() === "inbox")?.id;
+      if (topicId) workspace.openCleanup({ kind: "inbox", id: topicId });
+      else workspace.toast("No Notebook Inbox is available yet.");
+    } },
+    { id: "settings", label: "Open Settings", detail: "Appearance, sorting and Study directions", keywords: "preferences", run: () => setSettingsOpen(true) },
+    { id: "sidebar", label: "Toggle sidebar", detail: "Full sidebar or icon rail", keywords: "navigation collapse", run: toggleSidebar },
+    { id: "focus", label: "Toggle focus mode", detail: "Hide or restore navigation", keywords: "fullscreen distraction", run: toggleFocus },
+    { id: "sync", label: "Sync now", detail: "Synchronise your Study and Notebook data", keywords: "refresh offline", run: () => void runSync(false) },
+    { id: "trash", label: "Open Trash", detail: "Restore deleted notes, lessons and mistakes", keywords: "deleted recovery", run: () => setTrashOpen(true) },
+    { id: "export", label: "Export Notebook as JSON", detail: "Download your Notebook and recall history", keywords: "backup archive download", run: () => void downloadKnowledge() },
+  ];
+
   // Global shortcuts. Modifier combinations work even while typing (they never
   // produce text), and use physical key codes so they also work with Russian,
   // German or Chinese keyboard layouts active.
@@ -291,13 +330,13 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       }
       if (mod && !event.shiftKey && !event.altKey && event.code === "KeyK") {
         event.preventDefault();
-        if (section === "study") setSearchOpen(true); else openPalette();
+        openPalette();
         return;
       }
       if (isTypingTarget(event.target) || document.querySelector(".modal-backdrop, .ws-dialog-backdrop")) return;
       if (event.key === "/" && !mod && !event.altKey) {
         event.preventDefault();
-        if (section === "study") setSearchOpen(true); else openPalette();
+        openPalette();
         return;
       }
       if (event.altKey && !mod && /^Digit[1-5]$/.test(event.code)) {
@@ -515,7 +554,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         onSync={() => { void runSync(false); }} /> : null}
       {trashOpen ? <KnowledgeTrashDialog onClose={() => setTrashOpen(false)} /> : null}
       <Toaster />
-      {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
+      {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} commands={paletteCommands} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack) => { setSection("study"); openPack(pack); }} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
@@ -533,7 +572,7 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} ⇧ M`, "Record a mistake"],
     [`${MOD_KEY} ⇧ L`, "Start a lesson"],
     [`${MOD_KEY} ↵`, "Save the capture · finish editing"],
-    [`${MOD_KEY} K  or  /`, "Search notes (in Study: search cards)"],
+    [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
     ["Alt 1 – 5", "Overview · Study · Notebook · Mistake Log · Progress"],
