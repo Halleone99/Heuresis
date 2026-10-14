@@ -1,4 +1,4 @@
-import { BookOpen, Check, ChevronDown, ChevronUp, SkipForward, X } from "lucide-react";
+import { ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, Search, Shuffle, SkipForward, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, setCardRetention, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { cardHasCompletedSort, completeCardSort, setSortTags } from "../lib/sort";
@@ -22,12 +22,43 @@ const INTEREST_LABELS: Record<number, string> = {
 };
 
 export default function SortModal({ pack, cards, tags, startCardId = null, onClose, onChanged }: Props) {
-  const [queue] = useState(() => {
-    const unsorted = cards.filter((card) => !cardHasCompletedSort(card));
-    if (!startCardId) return unsorted;
-    const selected = unsorted.find((card) => card.id === startCardId);
-    return selected ? [selected, ...unsorted.filter((card) => card.id !== startCardId)] : unsorted;
+  const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
+  // An explicit card deep link starts immediately, preserving the older route.
+  // Normal Sort opens a single setup screen, then the existing rank/tag decisions.
+  const [queue, setQueue] = useState<CardWithStats[]>(() => {
+    if (!startCardId) return [];
+    const selected = unsorted.find((item) => item.id === startCardId);
+    return selected ? [selected, ...unsorted.filter((item) => item.id !== startCardId)] : unsorted;
   });
+  const [started, setStarted] = useState(Boolean(startCardId));
+  const [query, setQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [randomOrder, setRandomOrder] = useState(false);
+  const [count, setCount] = useState(Math.min(20, Math.max(1, unsorted.length)));
+  const scopeTags = useMemo(() => tags.filter((tag) => !tag.is_badge), [tags]);
+  const candidates = useMemo(() => {
+    const search = query.trim().toLocaleLowerCase();
+    return unsorted.filter((item) => {
+      if (selectedTags.length && !item.tags.some((tag) => selectedTags.includes(tag.id))) return false;
+      if (!search) return true;
+      return [item.note ?? "", ...item.tags.map((tag) => tag.name),
+        ...Object.values(item.data).flatMap((value) => Array.isArray(value) ? value : [value])
+          .filter((value): value is string => typeof value === "string")].join(" ").toLocaleLowerCase().includes(search);
+    });
+  }, [query, selectedTags, unsorted]);
+  function beginSort() {
+    if (!candidates.length) return;
+    const selection = [...candidates];
+    if (randomOrder) {
+      for (let i = selection.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [selection[i], selection[j]] = [selection[j], selection[i]];
+      }
+    }
+    setQueue(selection.slice(0, Math.min(count, selection.length)));
+    setStarted(true);
+    setIndex(0);
+  }
   const [index, setIndex] = useState(0);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [details, setDetails] = useState(false);
@@ -108,10 +139,43 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
 
   return <div className="sort-backdrop"><section className="sort-modal" role="dialog" aria-modal="true">
-    <header className="sort-topbar"><div><span className="eyebrow">SORT</span><strong>{pack.title}</strong></div><span>{card ? `${index + 1} / ${queue.length}` : `${saved + references} prepared`}</span><button onClick={onClose} aria-label="Close sort"><X size={18} /></button></header>
-    {!queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">SORT COMPLETE</p><h2>Nothing left to sort.</h2><p>Every loaded card has already been prepared.</p><button onClick={onClose}>Return to topic</button></div> : null}
-    {queue.length && !card ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p><h2>{saved + references} cards prepared.</h2><p>{saved ? `${saved} kept in review. ` : ""}{references ? `${references} kept as reference. ` : ""}Skipped cards remain unsorted and will return next time.</p><button onClick={onClose}>Return to topic</button></div> : null}
-    {card ? <div className="sort-body">
+    <header className="sort-topbar"><div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div><span>{!started ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${saved + references} prepared`}</span><button onClick={onClose} aria-label="Close sort"><X size={18} /></button></header>
+    {!started && unsorted.length ? <div className="sort-setup">
+      <p className="eyebrow">ONE SORT WORKFLOW</p>
+      <h2>Prepare your cards</h2>
+      <p>Select which cards to sort. You'll then set an interest score, choose tags, or keep each card as a reference.</p>
+      <div className="sort-setup-grid">
+        <label className="sort-setup-field"><span>Search unsorted cards</span>
+          <span className="sort-setup-search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Term, meaning or tag" /></span>
+        </label>
+        <label className="sort-setup-field"><span>Cards to prepare</span>
+          <input type="number" min={1} max={Math.max(1, candidates.length)} value={Math.min(count, Math.max(1, candidates.length))}
+            onChange={(event) => setCount(Math.max(1, Math.min(10000, Number(event.target.value) || 1)))} />
+          <button type="button" className="sort-setup-all" onClick={() => setCount(Math.max(1, candidates.length))}>All {candidates.length} matching</button>
+        </label>
+      </div>
+      {scopeTags.length ? <div className="sort-setup-tag-filter">
+        <span>Filter by tags <small>optional · matches any selected tag</small></span>
+        <div>
+          <button type="button" className={!selectedTags.length ? "selected" : ""} onClick={() => setSelectedTags([])}>Any tag</button>
+          {scopeTags.map((tag) => <button type="button" key={tag.id} className={selectedTags.includes(tag.id) ? "selected" : ""}
+            aria-pressed={selectedTags.includes(tag.id)}
+            onClick={() => setSelectedTags((current) => current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id])}>{tag.name}</button>)}
+        </div>
+      </div> : null}
+      <div className="sort-setup-order"><span>Card order</span>
+        <div><button type="button" className={!randomOrder ? "selected" : ""} onClick={() => setRandomOrder(false)}>Topic order</button>
+          <button type="button" className={randomOrder ? "selected" : ""} onClick={() => setRandomOrder(true)}><Shuffle size={14}/> Random</button></div>
+      </div>
+      <div className="sort-setup-bottom">
+        <span>{candidates.length} matching unsorted · {candidates.length ? Math.min(count, candidates.length) : 0} selected</span>
+        <button type="button" className="sort-setup-start" disabled={!candidates.length} onClick={beginSort}>
+          Start sorting <ArrowRight size={16}/></button>
+      </div>
+    </div> : null}
+    {!started && !unsorted.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">SORT COMPLETE</p><h2>Nothing left to sort.</h2><p>Every loaded card has already been prepared.</p><button onClick={onClose}>Return to topic</button></div> : null}
+    {started && queue.length && !card ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p><h2>{saved + references} cards prepared.</h2><p>{saved ? `${saved} kept in review. ` : ""}{references ? `${references} kept as reference. ` : ""}Skipped cards remain unsorted and will return next time.</p><button onClick={onClose}>Return to topic</button></div> : null}
+    {started && card ? <div className="sort-body">
       <div className="sort-card" onClick={() => setDetails((value) => !value)} role="button" tabIndex={0}>
         <span className="sort-card-hint">Click to show all fields</span>
         <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>

@@ -36,7 +36,7 @@ type Props = {
 };
 
 type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
-type StatusFilter = "unsorted" | "sorted" | "reviewed" | "favourite";
+type StatusFilter = "unsorted" | "sorted" | "reviewed";
 type InterestFilter = "all" | "none" | "1" | "2" | "3" | "4" | "5";
 type DetailFilter = "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
@@ -139,6 +139,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
+  const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
   const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
@@ -170,6 +171,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   useEffect(() => {
     setSelectedCardId(null);
     setStatusFilters([]);
+    setFavouriteOnly(false);
     setInterestFilter("all");
     setTagFilter("all");
     setDetailFilters([]);
@@ -201,10 +203,11 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     const filtered = cards.filter((card) => {
       const status = workflowStatus(card);
       if (statusFilters.length) {
-        const matchesStatus = statusFilters.some((filter) => filter === "favourite" ? card.favourite : status === filter);
+        const matchesStatus = statusFilters.some((filter) => status === filter);
         if (!matchesStatus) return false;
       }
 
+      if (favouriteOnly && !card.favourite) return false;
       if (interestFilter === "none" && card.interest_rank != null) return false;
       if (interestFilter !== "all" && interestFilter !== "none" && card.interest_rank !== Number(interestFilter)) return false;
 
@@ -236,9 +239,9 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       if (delta === 0) delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
       return delta * direction;
     });
-  }, [cards, detailFilters, directions, interestFilter, query, sortDirection, sortField, statusFilters, tagFilter, term?.key]);
+  }, [cards, detailFilters, directions, favouriteOnly, interestFilter, query, sortDirection, sortField, statusFilters, tagFilter, term?.key]);
 
-  const activeFilterCount = statusFilters.length + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0);
+  const activeFilterCount = statusFilters.length + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0);
   const selectedCard = selectedCardId ? cards.find((card) => card.id === selectedCardId) ?? null : null;
 
   async function refreshAll(closeEditor = false) {
@@ -262,16 +265,13 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     setSortDirection(field === "status" || field === "term" ? "asc" : "desc");
   }
 
-  function toggleStatus(status: StatusFilter) {
-    setStatusFilters((current) => current.includes(status) ? current.filter((item) => item !== status) : [...current, status]);
-  }
-
   function toggleDetail(detail: DetailFilter) {
     setDetailFilters((current) => current.includes(detail) ? current.filter((item) => item !== detail) : [...current, detail]);
   }
 
   function clearFilters() {
     setStatusFilters([]);
+    setFavouriteOnly(false);
     setInterestFilter("all");
     setTagFilter("all");
     setDetailFilters([]);
@@ -288,10 +288,10 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
         <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
       </header>
 
-      <section className="topic-workflow-overview" aria-label="Card workflow">
+      <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
-          <span>Card workflow</span>
-          <small>{cards.length.toLocaleString()} total</small>
+          <span>Card workflow · filter by stage</span>
+          <small>{statusFilters.length ? `${statusFilters.length} selected · click again to clear` : `${cards.length.toLocaleString()} total · choose a stage`}</small>
         </div>
         <div className="workflow-overview-stages">
           <button
@@ -348,18 +348,12 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       <div className="modern-topic-toolbar compact-filter-toolbar">
         <label className="modern-topic-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search term, meaning or tag" /></label>
         <div className="compact-filter-actions">
-          <details className="filter-menu">
-            <summary className={statusFilters.length ? "active" : ""}><span>Status</span>{statusFilters.length ? <b>{statusFilters.length}</b> : null}<ChevronDown size={14} /></summary>
-            <div className="filter-menu-popover status-menu-popover">
-              <p>Workflow</p>
-              <div className="filter-chip-grid">
-                <button className={statusFilters.includes("unsorted") ? "selected" : ""} onClick={() => toggleStatus("unsorted")}><i />Unsorted <b>{unsortedCards.length}</b></button>
-                <button className={statusFilters.includes("sorted") ? "selected" : ""} onClick={() => toggleStatus("sorted")}><i />Ready <b>{sortedCards.length}</b></button>
-                <button className={statusFilters.includes("reviewed") ? "selected" : ""} onClick={() => toggleStatus("reviewed")}><i />Reviewed <b>{reviewedCards.length}</b></button>
-                <button className={statusFilters.includes("favourite") ? "selected" : ""} onClick={() => toggleStatus("favourite")}><Star size={12} />Favourite <b>{favouriteCards.length}</b></button>
-              </div>
-            </div>
-          </details>
+          <button type="button" className={`compact-favourite-filter ${favouriteOnly ? "selected" : ""}`}
+            aria-pressed={favouriteOnly} title="Show only favourite cards; combines with the selected workflow stage"
+            onClick={() => setFavouriteOnly((current) => !current)}>
+            <Star size={14} fill={favouriteOnly ? "currentColor" : "none"} />
+            Favourites <small>{favouriteCards.length}</small>
+          </button>
 
           <details className="filter-menu">
             <summary className={interestFilter !== "all" ? "active" : ""}><span>Interest</span>{interestFilter !== "all" ? <b className={interestFilter === "none" ? "neutral" : `interest-dot interest-${interestFilter}`}>{interestFilter === "none" ? "—" : interestFilter}</b> : null}<ChevronDown size={14} /></summary>
