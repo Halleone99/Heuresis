@@ -1455,3 +1455,9 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .quick-floating-root .qc-head { flex-wrap: wrap; }
   .quick-floating-root .qc-foot { flex-wrap: wrap; }
 }
+
+
+/* Notebook breadcrumbs carry navigation on desktop; keep Back for touch devices. */
+@media (min-width: 901px) {
+  .nb-crumbs .nb-back { display: none; }
+}
