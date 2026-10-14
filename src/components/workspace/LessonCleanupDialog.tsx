@@ -115,6 +115,12 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
   async function createMergedNote() {
     if (!mergeBody.trim() || !mergeTopic || busy) return;
     if (!workspace.writable || !workspace.topicById.has(mergeTopic)) return;
+    const destination = workspace.topicById.get(mergeTopic);
+    const source = workspace.topicById.get(originTopicId);
+    if (!destination || !source || destination.subject_id !== source.subject_id) {
+      setError("Choose a destination in this language before combining notes.");
+      return;
+    }
     if (target.kind === "inbox" && mergeTopic === originTopicId) {
       setError("Choose another topic for the combined note, or it will stay in the Inbox.");
       return;
@@ -174,7 +180,7 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
           <h2 id="lc-title"><ListPlus size={20}/> Organise captures</h2>
           <p>{heading}</p>
         </div>
-        <button type="button" className="ws-icon-button" onClick={onClose} aria-label="Close clean-up" autoFocus><X size={17}/></button>
+        <button type="button" className="ws-icon-button" onClick={onClose} aria-label="Close clean-up" disabled={busy} autoFocus><X size={17}/></button>
       </header>
       <div className="lc-toolbar">
         <span>{items.length} to organise · {selected.length} selected</span>
@@ -213,7 +219,7 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
             onClick={() => { setError(""); setMoving(true); }}><FolderInput size={15}/> Move to topic <Kbd>T</Kbd></button>
           <button type="button" className="ws-button" disabled={!workspace.writable || busy || !actionable.length}
             onClick={() => setFlashcard(focused)}><Layers size={15}/> Flashcard <Kbd>F</Kbd></button>
-          <button type="button" className="ws-button" disabled={!workspace.writable || busy || actionable.filter((row) => row.kind === "note").length < 2}
+          <button type="button" className="ws-button" disabled={!workspace.writable || busy || actionable.length < 2 || actionable.some((row) => row.kind !== "note")}
             onClick={prepareMerge}><ListPlus size={15}/> Merge notes <Kbd>M</Kbd></button>
           <button type="button" className="ws-button is-quiet" disabled={!workspace.writable || busy || !actionable.length}
             onClick={() => void removeSelected()}><Trash2 size={15}/> Trash</button>
@@ -239,7 +245,7 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
           onClick={() => void createMergedNote()}><ListPlus size={15}/> Create combined note</button>
       </div> : null}
       <footer className="lc-footer"><span>Changes save directly to Notebook. You can organise the remaining entries later.</span>
-        <button type="button" className="ws-button" onClick={onClose}>Done</button></footer>
+        <button type="button" className="ws-button" onClick={onClose} disabled={busy}>Done</button></footer>
     </section>
   </div></Portal>;
 }
