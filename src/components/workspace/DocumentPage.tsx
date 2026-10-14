@@ -439,7 +439,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       </div> : null}
       {capturedNotes.length ? <div className="nb-extra-block">
         <h2 className="ws-section-title"><Layers size={15} /> Captured during the lesson</h2>
-        {capturedNotes.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })}
+        {capturedNotes.map((capture) => <CaptureRow key={capture.id} capture={capture} onOpen={() => navigate({ topicId: capture.topic_id, docId: capture.id })} onFlashcard={() => setFlashcardTarget(capture)}
           actions={workspace.writable && !editing ? [{ label: "Copy into lesson", run: () => void mergeCapture(capture) }] : []} />)}
       </div> : null}
       {capturedMistakes.length ? <div className="nb-extra-block">
