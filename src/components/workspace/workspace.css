@@ -1775,3 +1775,32 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
     transition: none !important;
   }
 }
+
+
+/* #31: language, stage and expandable search share one calm filter line.
+   The mode launch still has its own language switcher. */
+.ml-filter-row { gap: 8px 12px; }
+.ml-filters .ml-languages.is-inline {
+  display: flex; flex: 1 1 auto; min-width: 0; align-items: center;
+  margin: 0; padding: 0; gap: 6px; border: 0;
+}
+.ml-filters .ml-languages-label { display: none; }
+.ml-filters .ml-languages-tabs { gap: 4px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.ml-filters .ml-languages-tabs button { padding: 7px 9px; font-size: 11px; min-height: 34px; white-space: nowrap; }
+.ml-filters .ws-segmented { flex: 0 1 auto; min-width: 0; }
+.ml-search-toggle {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px;
+  border: 1px solid var(--ws-line); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-muted); cursor: pointer;
+}
+.ml-search-toggle:hover { color: var(--ws-accent); background: var(--ws-raised); }
+.ml-search-toggle:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ml-filters .ml-search { flex: 1 1 170px; min-width: 140px; max-width: 240px; }
+@media (max-width: 1000px) {
+  .ml-filters .ml-languages.is-inline { flex: 1 1 100%; }
+  .ml-filters .ws-segmented { flex: 1 1 auto; }
+}
+@media (max-width: 570px) {
+  .ml-filters .ml-languages-tabs { max-width: calc(100vw - 48px); }
+  .ml-filters .ml-search { max-width: none; flex: 1 1 100%; }
+}
