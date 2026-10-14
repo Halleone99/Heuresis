@@ -893,7 +893,14 @@
   .ws-shortcuts > div { grid-template-columns: 1fr; gap: 4px; }
   .nb-pager { grid-template-columns: 1fr; }
   .ov-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .nb-save-state { display: none; }
+  /* Never hide autosave errors or offline status on phones. */
+  .nb-doc-bar { flex-wrap: wrap; gap: 6px; }
+  .nb-doc-bar .nb-crumbs { flex: 1 1 100%; }
+  .nb-doc-actions { flex: 1 1 100%; width: 100%; justify-content: space-between; min-width: 0; }
+  .nb-save-state { display: inline-flex; min-width: 0; max-width: calc(100% - 96px);
+    white-space: normal; line-height: 1.35; overflow-wrap: anywhere; }
+  .nb-save-state.is-error, .nb-save-state.is-invalid { max-width: calc(100% - 96px); }
+  .nb-save-state button { white-space: nowrap; }
   .ws-toasts { bottom: 12px; }
 }
 @media (pointer: coarse) {
@@ -1550,3 +1557,8 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 @media (max-width: 900px) {
   .hw-notebook-tree { display: none !important; }
 }
+
+/* A local save means durable on this device, not confirmed on the server. */
+.nb-save-state.is-local { color: var(--ws-warn); }
+.nb-save-state.is-local svg { color: var(--ws-warn); }
+.qc-foot .ws-button.is-primary .ws-spinner { width: 13px; height: 13px; }
