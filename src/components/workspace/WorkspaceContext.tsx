@@ -12,7 +12,7 @@ import { signalWorkspaceChange, subscribeWorkspaceChanges } from "../../lib/work
 import { supabase } from "../../lib/supabase";
 import {
   pushRecent, readCaptureDraft, readMemory, readPendingCaptures, writeCaptureDraft, writeMemory, writePendingCaptures,
-  type WorkspaceMemory, type WorkspaceSection,
+  type CaptureDraftSurface, type WorkspaceMemory, type WorkspaceSection,
 } from "../../lib/workspaceMemory";
 
 export type CaptureMode = "note" | "mistake" | "lesson";
@@ -45,7 +45,7 @@ type WorkspaceValue = {
   ensureInbox: (subjectId: string) => Promise<KnowledgeTopic>;
   addEntry: (input: EntryInput) => Promise<KnowledgeEntry>;
   /** Quick-capture save: survives slow networks and restarts, never stores twice. */
-  submitCapture: (input: EntryInput, label: string) => Promise<KnowledgeEntry | null>;
+  submitCapture: (input: EntryInput, label: string, surface?: CaptureDraftSurface) => Promise<KnowledgeEntry | null>;
   patchEntry: (id: string, patch: EntryPatch) => Promise<KnowledgeEntry>;
   removeEntry: (id: string, options?: { undo?: boolean }) => Promise<void>;
   practise: (id: string, outcome: PracticeOutcome, answer: string) => Promise<KnowledgeEntry>;
@@ -287,7 +287,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     writePendingCaptures(userId, readPendingCaptures(userId).filter((item) => item.input.id !== id));
   }, [userId]);
 
-  const submitCapture = useCallback(async (input: EntryInput, label: string) => {
+  const submitCapture = useCallback(async (input: EntryInput, label: string, surface: CaptureDraftSurface = "inline") => {
     const id = input.id ?? crypto.randomUUID();
     const full = { ...input, id };
     writePendingCaptures(userId, [...readPendingCaptures(userId).filter((item) => item.input.id !== id), { input: full, label, submittedAt: new Date().toISOString() }]);
@@ -302,12 +302,12 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
         // The server rejected it (e.g. its topic was deleted elsewhere): retrying cannot help,
         // so hand the text back to the capture panel instead of losing it.
         dropPending(id);
-        if (!readCaptureDraft(userId)) writeCaptureDraft(userId, {
+        if (!readCaptureDraft(userId, surface)) writeCaptureDraft(userId, {
           mode: input.kind, text: input.body ?? "", category: input.category ?? "note", categoryTouched: true,
           attempt: input.attempt ?? "", correction: input.correction ?? "", explanation: input.explanation ?? "",
           lessonTitle: input.kind === "lesson" ? input.title ?? "" : "", updatedAt: new Date().toISOString(),
-        });
-        toast(`Could not save “${label}”: ${friendlyError(saveError)} Your text is back in Quick capture.`, { tone: "error" });
+        }, surface);
+        toast(`Could not save “${label}”: ${friendlyError(saveError)} Your draft remains in the original Capture window.`, { tone: "error" });
       } else {
         toast(`Could not reach the server — “${label}” is kept on this device and will be retried.`, { tone: "error" });
       }
