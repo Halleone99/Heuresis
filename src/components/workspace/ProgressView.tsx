@@ -59,11 +59,13 @@ function WeeklyBars({ title, unit, weeks, note, table }: { title: string; unit: 
   const slot = width / weeks.length;
   const barWidth = Math.min(24, Math.max(4, slot - 2));
   const thisWeek = weekStart(new Date()).getTime();
+  // Keep the tooltip centre inside the chart, including the first and last weeks.
+  const tooltipLeft = hover === null ? 50 : Math.max(17, Math.min(83, ((hover + 0.5) / weeks.length) * 100));
 
   return <figure className="pg-chart">
     <figcaption>
       <span className="pg-chart-title">{title}</span>
-      <strong className="pg-chart-total">{total.toLocaleString()}</strong>
+      <strong className="pg-chart-total">{total.toLocaleString()} <small className="pg-total-period">· {weeks.length} wk</small></strong>
       {note ? <small>{note}</small> : null}
     </figcaption>
     {table ? <table className="pg-table">
@@ -90,7 +92,7 @@ function WeeklyBars({ title, unit, weeks, note, table }: { title: string; unit: 
       </svg>
       <span className="pg-axis-label is-max">{max}</span>
       <div className="pg-xlabels"><span>{formatDay(weeks[0]?.start.toISOString())}</span><span>this week</span></div>
-      {hover !== null && weeks[hover] ? <div className="pg-tip" style={{ left: `${((hover + 0.5) / weeks.length) * 100}%` }}>
+      {hover !== null && weeks[hover] ? <div className="pg-tip" role="tooltip" style={{ left: `${tooltipLeft}%` }}>
         <strong>{weeks[hover].value.toLocaleString()} {unit}</strong>
         <span>{weeks[hover].start.getTime() === thisWeek ? "This week (so far)" : `Week of ${formatDay(weeks[hover].start.toISOString())}`}</span>
       </div> : null}
