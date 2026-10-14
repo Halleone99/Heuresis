@@ -139,8 +139,8 @@ export function NotebookView() {
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
   else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
-  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} onNewNote={startNewNote} onBack={goBack} />;
-  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} onBack={goBack} />;
+  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} onNewNote={startNewNote} />;
+  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} />;
   else main = <NotebookHome navigate={navigate} onNewNote={startNewNote} />;
 
   return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
@@ -309,7 +309,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
           </div> : null}
         </div>;
       })}
-      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Subjects hold your languages or fields — Chinese, German, Russian…</p> : null}
+      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Languages contain your topics — Chinese, German, Russian…</p> : null}
     </div>
   </aside>;
 }
@@ -332,9 +332,9 @@ export function RowMenu({ label, items, icon }: { label: string; items: MenuItem
 // ---------------------------------------------------------------------------
 // Topic or subject page: what lives here, newest first
 // ---------------------------------------------------------------------------
-function ScopePage({ scope, navigate, onNewNote, onBack }: {
+function ScopePage({ scope, navigate, onNewNote }: {
   scope: { topic: KnowledgeTopic } | { subjectId: string };
-  navigate: (location: NotebookLocation) => void; onNewNote: (topicId: string | null) => void; onBack: () => void;
+  navigate: (location: NotebookLocation) => void; onNewNote: (topicId: string | null) => void;
 }) {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory } = workspace;
@@ -366,7 +366,6 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
 
   return <div className="nb-scope">
     <nav className="nb-crumbs" aria-label="Location">
-      <button type="button" className="nb-back" onClick={onBack} aria-label="Back">←</button>
       <button type="button" onClick={() => navigate({ topicId: null, docId: null })}>Notebook</button>
       {path.subject ? <><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject!.id })}>{path.subject.name}</button></> : null}
       {path.chain.slice(0, -1).map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button></span>)}
@@ -441,10 +440,7 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
       })}
     </ul> : <EmptyState icon={filter === "questions" ? <CircleHelp size={22} /> : <FilePlus2 size={22} />}
       title={filter === "questions" ? "No open questions here" : filter === "lessons" ? "No lessons here yet" : docs.length ? "Nothing matches this filter" : "Nothing written here yet"}
-      action={workspace.writable && fallbackTopic ? <div className="ws-empty-actions">
-        <button type="button" className="ws-button is-primary" onClick={() => onNewNote(fallbackTopic)}><FilePlus2 size={15} /> Write a note</button>
-        <button type="button" className="ws-button" onClick={() => workspace.openCapture({ mode: "lesson", topicId: fallbackTopic })}><GraduationCap size={15} /> Start a lesson</button>
-      </div> : null}>
+>
       {filter === "questions" ? "Questions you capture (end a quick note with ?) collect here until you answer them." : `Quick notes land here instantly with ${MOD_KEY}+Shift+N from anywhere.`}
     </EmptyState>}
   </div>;

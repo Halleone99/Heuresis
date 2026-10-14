@@ -277,12 +277,24 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   async function moveTo(topicId: string) {
     setMoving(false);
     if (!liveEntry) { updateDraft({ topicId }); return; }
-    try {
-      await workspace.patchEntry(liveEntry.id, { topic_id: topicId });
-      draftRef.current = { ...draftRef.current, topicId };
-      savedRef.current = { ...savedRef.current, topicId };
+    const previousTopicId = liveEntry.topic_id;
+    if (topicId === previousTopicId) return;
+    const entryId = liveEntry.id;
+    const applyTopic = async (destination: string) => {
+      await workspace.patchEntry(entryId, { topic_id: destination });
+      draftRef.current = { ...draftRef.current, topicId: destination };
+      savedRef.current = { ...savedRef.current, topicId: destination };
       setDraft(draftRef.current);
-      workspace.toast(`Moved to ${workspace.pathLabel(topicId)}.`);
+    };
+    try {
+      await applyTopic(topicId);
+      workspace.toast(`Moved to ${workspace.pathLabel(topicId)}.`, {
+        action: { label: "Undo", run: () => {
+          void applyTopic(previousTopicId)
+            .then(() => workspace.toast("Move undone."))
+            .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+        } },
+      });
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
@@ -340,7 +352,6 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     {flashcardTarget ? <FlashcardDialog entry={flashcardTarget} onClose={() => setFlashcardTarget(null)} /> : null}
     <div className="nb-doc-bar">
       <nav className="nb-crumbs" aria-label="Location">
-        <button type="button" className="nb-back" onClick={() => { if (editing) void finishEditing().then((result) => { if (result === "done") onBack(); }); else onBack(); }} aria-label="Back"><ArrowLeft size={15} /></button>
         <button type="button" onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject?.id ?? null })}>{path.subject?.name ?? "Notebook"}</button>
         {path.chain.map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button></span>)}
       </nav>

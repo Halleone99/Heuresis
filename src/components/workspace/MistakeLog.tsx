@@ -133,7 +133,7 @@ export function MistakeLog() {
   return <div className="ml-page">
     <header className="ws-page-head">
       <div>
-        <span className="ws-eyebrow">Mistake → Correction → Practice → Progress</span>
+        <span className="ws-eyebrow">Corrections and recall</span>
         <h1>Mistake Log</h1>
       </div>
       <div className="ws-page-actions">
@@ -255,11 +255,20 @@ function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { ent
   const due = isRecallDue(entry);
 
   async function setUnderstood(understood: boolean) {
+    const previous = { status: entry.status, recall_due_at: entry.recall_due_at };
     try {
       await workspace.patchEntry(entry.id, understood
         ? { status: "understood", recall_due_at: entry.recall_due_at ?? addDays(new Date(), 3).toISOString() }
         : { status: "needs_practice" });
-      if (understood && !entry.recall_due_at) workspace.toast("Marked as understood. It will come back for a recall check in 3 days.");
+      workspace.toast(understood
+        ? "Marked as understood. Recall remains scheduled."
+        : "Returned to practice.", {
+        action: { label: "Undo", run: () => {
+          void workspace.patchEntry(entry.id, previous)
+            .then(() => workspace.toast("Mistake status restored."))
+            .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+        } },
+      });
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
   async function remove() {

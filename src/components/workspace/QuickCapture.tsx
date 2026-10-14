@@ -306,7 +306,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
 
     {noSubjects && workspace.writable ? <div className="qc-first-run">
       <strong>Where should your notes live?</strong>
-      <p>Pick a subject. Heuresis creates an Inbox topic inside it; you can organise later.</p>
+      <p>Choose a language. Heuresis creates an Inbox topic inside it; you can organise later.</p>
       {creatingSubject ? <InlineNameForm label="Language name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
         onSubmit={async (name) => { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: subject.id, topicId: inbox.id } })); setCreatingSubject(false); }} />
         : <div className="qc-chips">
@@ -378,7 +378,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           onClick={() => selectLanguage(subject.id)}>{subject.name}</button>)}
       </div> : null}
       <div className="qc-destination-row">
-        <span className="qc-label">{mode === "lesson" ? "In" : "To"}</span>
+        <span className="qc-label">Save in</span>
         <button type="button" className="qc-topic" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking((value) => !value)} disabled={noSubjects}>
           {stream && !attachToLesson ? (languageName ? `${languageName} › Inbox` : "Choose language") : destinationLabel || (languageName ? `${languageName} › Inbox` : "Choose language")} <ChevronDown size={13} />
         </button>

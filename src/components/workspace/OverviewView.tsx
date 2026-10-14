@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BookOpen, ChevronRight, CircleHelp, GraduationCap, NotebookPen, Pin, Radio, RotateCcw, Target, TriangleAlert } from "lucide-react";
+import { BookOpen, ChevronRight, CircleHelp, GraduationCap, NotebookPen, Pin, Radio, RotateCcw, Target, TriangleAlert } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, isRecallDue, mistakeStage, normaliseSearch,
   type KnowledgeEntry,
@@ -87,7 +87,6 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
             <span>{workspace.pathLabel(currentLesson.topic_id)} · {snapshot.entries.filter((row) => row.lesson_id === currentLesson.id).length} captured</span>
           </button>
           <div className="ov-continue-actions">
-            <button type="button" className="ws-button is-small is-primary" onClick={() => workspace.openDocument(currentLesson.id)}>Open lesson <ArrowRight size={13} /></button>
             <button type="button" className="ws-button is-small is-quiet" onClick={() => workspace.endLesson()}>End lesson</button>
           </div>
         </section> : lastDoc ? <section className="ov-continue">
@@ -176,7 +175,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
               <div className="ov-meter" role="meter" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={goal.title}><span style={{ width: `${share * 100}%` }} /></div>
               {goal.kind === "stepped" ? <small className="ws-muted">Next: {goal.steps.find((step) => !step.done)?.label ?? "all steps done"}</small> : null}
             </li>;
-          })}</ul> : <p className="ws-muted">{objectives ? "No active objectives for this selection." : "Objectives from Personal OS appear here when available."}</p>}
+          })}</ul> : <p className="ws-muted">{objectives ? "No active objectives for this selection." : "No objectives to display yet."}</p>}
         </section>
 
         <section className="ws-panel">
