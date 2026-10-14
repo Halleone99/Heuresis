@@ -10,6 +10,7 @@ import "@fontsource/noto-serif/400.css";
 import App from "./App";
 import { applyAppearance, watchAppearance } from "./lib/theme";
 import CaptureWindow from "./components/CaptureWindow";
+import FloatingQuickCapture from "./components/workspace/FloatingQuickCapture";
 import CosmosWindow from "./components/CosmosWindow";
 import ReviewScratchpad from "./components/ReviewScratchpad";
 import "./styles.css";
@@ -55,8 +56,10 @@ const params = new URLSearchParams(window.location.search);
 // Every window uses the same appearance; updates propagate across windows.
 applyAppearance();
 watchAppearance();
-const content = params.get("capture") === "1"
-  ? <CaptureWindow />
+const content = params.get("quick") === "1"
+  ? <FloatingQuickCapture />
+  : params.get("capture") === "1"
+    ? <CaptureWindow />
   : params.get("cosmos") === "1"
     ? <><CosmosWindow /><ReviewScratchpad /></>
     : <App />;

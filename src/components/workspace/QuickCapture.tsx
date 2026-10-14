@@ -17,7 +17,7 @@ function looksLikeQuestion(text: string) {
   return /\?\s*$/.test(text.trim());
 }
 
-export function QuickCapture() {
+export function QuickCapture({ floating = false }: { floating?: boolean } = {}) {
   const workspace = useWorkspace();
   const { capture: request, memory, updateMemory, currentLesson, userId } = workspace;
   const [draft, setDraft] = useState<CaptureDraft>(() => readCaptureDraft(userId) ?? EMPTY_DRAFT("note"));
@@ -261,7 +261,7 @@ export function QuickCapture() {
         title={stream ? "Switch to structured note capture" : "Rapid continuous capture: Enter saves"}
         onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, stream: !current.capture.stream } }))}>
         <ListPlus size={14} /> Stream</button> : null}
-      {mode !== "lesson" ? <button type="button" className={`ws-icon-button ${keepOpen ? "is-on" : ""}`} aria-pressed={keepOpen}
+      {mode !== "lesson" && !floating ? <button type="button" className={`ws-icon-button ${keepOpen ? "is-on" : ""}`} aria-pressed={keepOpen}
         title={keepOpen ? "Stays open after saving (for several notes in a row)" : "Keep open after saving"}
         onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, keepOpen: !current.capture.keepOpen } }))}>
         {keepOpen ? <Pin size={15} /> : <PinOff size={15} />}</button> : null}

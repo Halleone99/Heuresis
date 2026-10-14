@@ -31,6 +31,7 @@ import { WorkspaceSearch } from "./components/workspace/WorkspaceSearch";
 import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
+import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { entryTitle, isRecallDue } from "./lib/knowledgeWorkspace";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
@@ -233,6 +234,15 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
 
   const openPalette = useCallback(() => { setPaletteOpen(true); }, []);
 
+  const openNotebookCapture = useCallback((mode: FloatingCaptureMode) => {
+    void showFloatingQuickCapture(mode).then((opened) => {
+      if (!opened) workspace.openCapture({ mode });
+    }).catch((error) => {
+      workspace.openCapture({ mode });
+      setNotice(error instanceof Error ? error.message : "Could not open floating Capture; using inline capture.");
+    });
+  }, [workspace]);
+
   // Global shortcuts. Modifier combinations work even while typing (they never
   // produce text), and use physical key codes so they also work with Russian,
   // German or Chinese keyboard layouts active.
@@ -247,7 +257,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       }
       if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM", "KeyL"].includes(event.code)) {
         event.preventDefault();
-        workspace.openCapture({ mode: event.code === "KeyN" ? "note" : event.code === "KeyM" ? "mistake" : "lesson" });
+        openNotebookCapture(event.code === "KeyN" ? "note" : event.code === "KeyM" ? "mistake" : "lesson");
         return;
       }
       if (mod && !event.shiftKey && !event.altKey && event.code === "KeyK") {
@@ -270,7 +280,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openPalette, section, setSection, toggleFocus, toggleSidebar, workspace]);
+  }, [openNotebookCapture, openPalette, section, setSection, toggleFocus, toggleSidebar, workspace]);
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
@@ -394,7 +404,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
           {section === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
           {section === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
-          <button className="desktop-action hw-capture-button" onClick={() => workspace.openCapture({ mode: "note" })} title={`Quick capture (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
+          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Quick capture (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -483,6 +493,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
 
 function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   const rows: Array<[string, string]> = [
+    ["Ctrl Alt Space", "Floating Notebook Capture (system-wide, desktop)"],
     [`${MOD_KEY} ⇧ N`, "Quick note (from anywhere, even while typing)"],
     [`${MOD_KEY} ⇧ M`, "Record a mistake"],
     [`${MOD_KEY} ⇧ L`, "Start a lesson"],
