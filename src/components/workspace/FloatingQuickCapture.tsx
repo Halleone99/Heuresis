@@ -140,7 +140,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
         onClick={() => view === "bubble" ? openCapture() : setView("bubble")}>
         {view === "bubble" ? <Maximize2 size={14}/> : <Minimize2 size={14}/>}</button>
       <button type="button" className="quick-floating-icon" title="Hide quick capture" aria-label="Hide quick capture"
-        onClick={() => void hide().catch((error) => setNotice(String(error))}><X size={14}/></button>
+        onClick={() => void hide().catch((error) => setNotice(String(error)))}><X size={14}/></button>
     </header>
     {view === "bubble" ? <button type="button" className="quick-floating-bubble" onClick={() => openCapture()}>
       <NotebookPen size={15}/> Capture now · Ctrl+Alt+Space
@@ -168,7 +168,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
           {view === "expanded" ? "Compact" : "Expand history"}
         </button>
       </footer>
-    </>}
+    </> : null}
     {notice ? <p className="quick-floating-notice" role="alert">{notice}</p> : null}
     <Toaster/>
   </div>;
