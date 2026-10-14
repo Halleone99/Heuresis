@@ -115,6 +115,10 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
   async function createMergedNote() {
     if (!mergeBody.trim() || !mergeTopic || busy) return;
     if (!workspace.writable || !workspace.topicById.has(mergeTopic)) return;
+    if (target.kind === "inbox" && mergeTopic === originTopicId) {
+      setError("Choose another topic for the combined note, or it will stay in the Inbox.");
+      return;
+    }
     await perform(async () => {
       const created = await workspace.addEntry({
         kind: "note", topicId: mergeTopic, title: mergeTitle.trim(), body: mergeBody,
@@ -217,11 +221,11 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
         <p className="lc-help">↑ ↓ focus · Space select · 1–5 type · T move · F flashcard · M merge · Del trash</p>
       </div> : null}
       {moving ? <div className="lc-picker-panel"><div className="lc-picker-head">
-        <strong>File {actionable.length} ${actionable.length === 1 ? "capture" : "captures"}</strong>
+        <strong>File {actionable.length} {actionable.length === 1 ? "capture" : "captures"}</strong>
         <button type="button" className="ws-icon-button" aria-label="Cancel move" onClick={() => setMoving(false)}><X size={15}/></button>
       </div>
       <p>Choose another topic in this language. The original lesson link is preserved.</p>
-      <TopicPicker value={originTopicId} onChange={(id) => void moveTo(id)} onClose={() => setMoving(false)} allowCreate/>
+      <TopicPicker value={originTopicId} onChange={(id) => void moveTo(id)} onClose={() => setMoving(false)} allowCreate={false}/>
       </div> : null}
       {merging ? <div className="lc-merge-panel">
         <div className="lc-picker-head"><strong>New combined note</strong>
@@ -230,7 +234,7 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
         <label className="ws-field"><span>Title</span><input value={mergeTitle} onChange={(event) => setMergeTitle(event.target.value)} maxLength={200}/></label>
         <label className="ws-field"><span>Content</span><textarea value={mergeBody} onChange={(event) => setMergeBody(event.target.value)} rows={6}/></label>
         <span className="lc-destination">Destination: {workspace.pathLabel(mergeTopic)}</span>
-        <TopicPicker value={mergeTopic} onChange={setMergeTopic} onClose={() => undefined} allowCreate/>
+        <TopicPicker value={mergeTopic} onChange={setMergeTopic} onClose={() => undefined} allowCreate={false}/>
         <button type="button" className="ws-button is-primary" disabled={!mergeBody.trim() || !workspace.writable || busy}
           onClick={() => void createMergedNote()}><ListPlus size={15}/> Create combined note</button>
       </div> : null}
