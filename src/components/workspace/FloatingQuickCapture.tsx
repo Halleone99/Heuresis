@@ -3,7 +3,6 @@ import type { Session } from "@supabase/supabase-js";
 import { CircleDot, Maximize2, Minimize2, NotebookPen, Pin, PinOff, X } from "lucide-react";
 import AuthGate from "../AuthGate";
 import { entryTitle } from "../../lib/knowledgeWorkspace";
-import { readMemory } from "../../lib/workspaceMemory";
 import { QuickCapture } from "./QuickCapture";
 import { Toaster } from "./ui";
 import { WorkspaceProvider, useWorkspace, type CaptureMode } from "./WorkspaceContext";
@@ -56,17 +55,6 @@ function FloatingCaptureBody({ session }: { session: Session }) {
     // Initialisation must run once per authenticated floating window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Main app and native floating webviews share the same account-local context.
-  // React to changes in the active lesson or last language without reloading.
-  useEffect(() => {
-    const key = `heuresis.workspace.memory.v2:${session.user.id}`;
-    const handle = (event: StorageEvent) => {
-      if (event.key === key) workspace.updateMemory(() => readMemory(session.user.id));
-    };
-    window.addEventListener("storage", handle);
-    return () => window.removeEventListener("storage", handle);
-  }, [session.user.id, workspace.updateMemory]);
 
   useEffect(() => {
     savePref(viewKey(session.user.id), view);
