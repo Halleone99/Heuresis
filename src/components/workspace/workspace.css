@@ -1828,3 +1828,14 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
     outline: 2px solid Highlight;
   }
 }
+
+/* #74: one-click capture → flashcard, without forcing a note open. */
+.nb-mistake-with-card { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.nb-mistake-with-card > .nb-mistake-row { flex: 1; min-width: 0; }
+.nb-mistake-with-card > .ws-button { flex: none; }
+.nb-capture-actions .ws-button { display: inline-flex; gap: 5px; align-items: center; }
+@media (max-width: 570px) {
+  .nb-mistake-with-card { flex-wrap: wrap; }
+  .nb-mistake-with-card > .nb-mistake-row { flex-basis: 100%; }
+  .nb-mistake-with-card > .ws-button { margin-left: auto; }
+}
