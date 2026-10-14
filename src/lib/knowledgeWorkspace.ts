@@ -56,7 +56,7 @@ export type EntryPatch = Partial<Pick<KnowledgeEntry,
 export const EMPTY_SNAPSHOT: KnowledgeSnapshot = { subjects: [], topics: [], entries: [], practice: [] };
 export const LEGACY_LESSON_PREFIX = "Lesson · ";
 export const CATEGORY_LABELS: Record<NoteCategory, string> = {
-  note: "Note", question: "Question", grammar: "Grammar", vocabulary: "Vocabulary", phrase: "Block of meaning",
+  note: "Note", question: "Question", grammar: "Grammar", vocabulary: "Vocabulary", phrase: "Expression",
 };
 export const LIMITS = { name: 120, title: 200, body: 50000, attempt: 5000, correction: 5000, explanation: 10000, answer: 5000 };
 
