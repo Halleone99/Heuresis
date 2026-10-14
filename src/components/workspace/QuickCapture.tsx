@@ -307,7 +307,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     {noSubjects && workspace.writable ? <div className="qc-first-run">
       <strong>Where should your notes live?</strong>
       <p>Pick a subject. Heuresis creates an Inbox topic inside it; you can organise later.</p>
-      {creatingSubject ? <InlineNameForm label="Subject name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
+      {creatingSubject ? <InlineNameForm label="Language name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
         onSubmit={async (name) => { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: subject.id, topicId: inbox.id } })); setCreatingSubject(false); }} />
         : <div className="qc-chips">
           {suggestions.map((name) => <button type="button" key={name} className="ws-button is-small" onClick={async () => {
