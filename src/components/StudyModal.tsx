@@ -92,6 +92,8 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError("");
+    setTemplates([]);
     void loadStudySetup(pack.id, pack.card_type_id)
       .then(({ templates: next, defaultTemplateId }) => {
         if (cancelled) return;
@@ -137,7 +139,7 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
         <div className="compact-study-heading"><div><p className="eyebrow">REVIEW</p><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> first</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
 
         {loading ? <div className="study-state">Loading…</div> : null}
-        {!loading && !templates.length ? <div className="study-state">No review direction is configured.</div> : null}
+        {!loading && !error && !templates.length ? <div className="study-state">No review direction is configured.</div> : null}
         {!loading && templates.length ? <div className="compact-study-controls review-controls">
           <section className="compact-direction-picker">
             <span>Direction</span>
