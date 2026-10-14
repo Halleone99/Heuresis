@@ -1181,9 +1181,9 @@
 .heuresis-desktop[data-sidebar] .hw-sections button:hover { background: rgba(255,255,255,.1); color: var(--ws-chrome-text); }
 .heuresis-desktop[data-sidebar] .hw-sections button.active {
   color: var(--ws-chrome-text); background: rgba(255,255,255,.09);
-  box-shadow: inset 3px 0 0 var(--ws-chrome-text); border-radius: 5px;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ws-chrome-accent) 72%, var(--ws-chrome-text)); border-radius: 5px;
 }
-.heuresis-desktop[data-sidebar] .hw-sections button.active svg { color: var(--ws-chrome-text); }
+.heuresis-desktop[data-sidebar] .hw-sections button.active svg { color: color-mix(in srgb, var(--ws-chrome-accent) 72%, var(--ws-chrome-text)); }
 .heuresis-desktop[data-sidebar] .hw-lesson { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.13); }
 .heuresis-desktop[data-sidebar] .hw-lesson-label { color: var(--ws-chrome-muted); }
 .heuresis-desktop[data-sidebar] .hw-lesson-title { color: var(--ws-chrome-text); }
@@ -1522,7 +1522,7 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .hw-nb-home,.hw-nb-row { display: flex; align-items: center; min-height: 31px; gap: 3px; min-width: 0; border-radius: 7px; }
 .hw-nb-home { width: 100%; border: 0; padding: 0 9px; gap: 8px; cursor: pointer; background: transparent; color: var(--ws-chrome-muted); font: 500 12px/1.4 var(--ws-sans); text-align: left; }
 .hw-nb-home:hover,.hw-nb-row:hover { background: rgba(255,255,255,.08); }
-.hw-nb-home.is-active,.hw-nb-row.is-active { background: rgba(255,255,255,.12); color: var(--ws-chrome-text); }
+.hw-nb-home.is-active,.hw-nb-row.is-active { background: rgba(255,255,255,.12); color: var(--ws-chrome-text); box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ws-chrome-accent) 72%, var(--ws-chrome-text)); }
 .hw-nb-twist,.hw-nb-leaf { width: 18px; height: 27px; flex: none; display: grid; place-items: center; }
 .hw-nb-twist { padding: 0; background: transparent; border: 0; color: var(--ws-chrome-muted); cursor: pointer; }
 .hw-nb-leaf::after { content:""; width: 3px; height: 3px; border-radius: 50%; background: var(--ws-chrome-muted); opacity:.65; }
@@ -1591,3 +1591,22 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   background: var(--ws-accent-soft); border-color: var(--ws-accent-line); color: var(--ws-accent);
 }
 .nb-reading-controls button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+
+/* #67: consistent caret and selected-text colour across all four palettes.
+   Scoping prevents coloured selections leaking into external dialogs. */
+.heuresis-desktop :is(input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]),
+.quick-floating-root :is(input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]) {
+  caret-color: var(--ws-accent);
+}
+.heuresis-desktop .desktop-content ::selection,
+.heuresis-desktop .qc-panel ::selection,
+.quick-floating-root ::selection {
+  background: color-mix(in srgb, var(--ws-accent) 32%, var(--ws-surface));
+  color: var(--ws-ink);
+}
+.heuresis-desktop .desktop-content ::-moz-selection,
+.heuresis-desktop .qc-panel ::-moz-selection,
+.quick-floating-root ::-moz-selection {
+  background: color-mix(in srgb, var(--ws-accent) 32%, var(--ws-surface));
+  color: var(--ws-ink);
+}
