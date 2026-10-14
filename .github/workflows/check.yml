@@ -20,6 +20,7 @@ jobs:
       - run: node scripts/check-pinyin-unicode.mjs
       - run: node scripts/check-study-session-counts.mjs
       - run: node scripts/check-progress-tooltips.mjs
+      - run: node scripts/check-progress-layout.mjs
       - run: node scripts/check-lesson-cleanup.mjs
       - run: node scripts/check-sort-review-flow.mjs
       - run: node scripts/check-workspace-noise.mjs
