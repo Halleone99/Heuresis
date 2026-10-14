@@ -533,10 +533,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <span>{workspace.error}</span>
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
-          {section === "overview" ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} /> : null}
-          {section === "notebook" ? <NotebookView /> : null}
-          {section === "mistakes" ? <MistakeLog /> : null}
-          {section === "progress" ? <ProgressView /> : null}
+          {section !== "study" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
+          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} /> : null}
+          {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
+          {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
+          {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
