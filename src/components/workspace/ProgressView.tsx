@@ -115,7 +115,7 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [] }: {
         <strong>{weeks[hover].value.toLocaleString()} {unit}</strong>
         <span>{weeks[hover].start.getTime() === thisWeek ? "This week (so far)" : `Week of ${formatDay(weeks[hover].start.toISOString())}`}</span>
         {series.length ? <div className="pg-tip-languages">
-          {series.filter((item) => (weeks[hover].segments?.[item.id] ?? 0) > 0).map((item, index) =>
+          {series.filter((item) => (weeks[hover].segments?.[item.id] ?? 0) > 0).map((item) =>
             <span key={item.id}>{item.name}: <strong>{weeks[hover].segments?.[item.id] ?? 0}</strong></span>)}
         </div> : null}
       </div> : null}
@@ -144,8 +144,6 @@ export function ProgressView() {
   const reviews = activity?.reviews ?? [];
   const activeSessions = useMemo(() => meaningfulStudySessions(activity?.sessions ?? [], reviews), [activity, reviews]);
   const goodShare = reviews.length ? Math.round(reviews.filter((event) => event.event_type === "good" || event.event_type === "easy").length / reviews.length * 100) : null;
-  const lessons = snapshot.entries.filter(isLesson);
-  const notes = snapshot.entries.filter((entry) => entry.kind === "note" && !isLesson(entry));
   const since = weeks[0]?.start.toISOString() ?? "";
   const practice = snapshot.practice.filter((event) => event.created_at >= since);
   const recallShare = practice.length ? Math.round(practice.filter((event) => event.outcome === "correct").length / practice.length * 100) : null;
