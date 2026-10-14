@@ -191,7 +191,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
     {legacyInScope.length ? <details className="ov-legacy">
       <summary title="Read-only earlier captures from Personal OS. These are not unsynchronised Heuresis changes.">
         <span>{legacyInScope.length} earlier {legacyInScope.length === 1 ? "capture" : "captures"} in Personal OS</span>
-        <ChevronRight size={14} aria-hidden="true"/>
+        <ChevronRight size={13} className="ov-legacy-chevron" aria-hidden="true"/>
       </summary>
       <ul>{legacyInScope.slice(0, 30).map((item) => <li key={item.id}>
         <span className="ws-muted ws-tiny">{item.subject ?? "Language"} · {formatDay(item.created_at)} · {item.entry_type}</span>
