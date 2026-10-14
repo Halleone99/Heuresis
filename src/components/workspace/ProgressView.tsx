@@ -68,16 +68,16 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel 
   // Keep the tooltip centre inside the chart, including the first and last weeks.
   const tooltipLeft = hover === null ? 50 : Math.max(17, Math.min(83, ((hover + 0.5) / weeks.length) * 100));
 
-  return <figure className="pg-chart">
+  return <figure className={`pg-chart ${total === 0 ? "is-empty" : ""}`}>
     <figcaption>
       <span className="pg-chart-title">{title}</span>
-      <strong className="pg-chart-total">{total.toLocaleString()} <small className="pg-total-period">· {weeks.length} wk</small></strong>
+      <strong className={`pg-chart-total ${total === 0 ? "is-zero" : ""}`}>{total.toLocaleString()} <small className="pg-total-period">· {weeks.length} wk</small></strong>
       {note ? <small>{note}</small> : null}
     </figcaption>
     {series.length ? <div className="pg-language-legend" aria-label={`${title} ${seriesLabel} legend`}>
       {series.map((item, index) => <span key={item.id}><i style={{ backgroundColor: seriesColor(index) }} aria-hidden="true"/>{item.name}</span>)}
     </div> : null}
-    {table ? <table className="pg-table">
+    {total === 0 ? <div className="pg-empty-chart" role="status">No activity in this period</div> : table ? <table className="pg-table">
       <thead><tr><th scope="col">Week of</th><th scope="col">{unit}</th>
         {series.map((item) => <th key={item.id} scope="col">{item.name}</th>)}</tr></thead>
       <tbody>{weeks.map((week) => <tr key={week.key}><td>{formatDay(week.start.toISOString())}</td><td>{week.value}</td>
@@ -260,14 +260,14 @@ export function ProgressView() {
           A missed recall resets the current streak, but does not erase a historical milestone.</p>
       </section>
       <section className="ws-panel">
-        <div className="ws-panel-head"><h2>By subject</h2></div>
+        <div className="ws-panel-head"><h2>By language</h2></div>
         {bySubject.length ? <table className="pg-subjects">
-          <thead><tr><th scope="col">Subject</th><th scope="col">Lessons</th><th scope="col">Notes</th><th scope="col">Mistakes</th><th scope="col">Recalls ({range} wk)</th></tr></thead>
+          <thead><tr><th scope="col">Language</th><th scope="col">Lessons</th><th scope="col">Notes</th><th scope="col">Mistakes</th><th scope="col">Recalls ({range} wk)</th></tr></thead>
           <tbody>{bySubject.map((row) => <tr key={row.subject.id}>
             <th scope="row">{row.subject.name}</th><td>{row.lessons}{row.lessonsInRange ? <small> · {row.lessonsInRange} recent</small> : null}</td><td>{row.notes}</td><td>{row.mistakes}</td>
             <td>{row.recalls ? `${row.correct}/${row.recalls} correct` : "—"}</td>
           </tr>)}</tbody>
-        </table> : <p className="ws-muted">Subjects appear here once you create them in the Notebook.</p>}
+        </table> : <p className="ws-muted">Languages appear here once you create them in Notebook.</p>}
       </section>
     </div>
   </div>;
