@@ -373,12 +373,12 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
     <header className="nb-scope-head">
       <div>
         <h1>{title}</h1>
-        <p className="nb-scope-meta">
-          {mistakes.length ? <button type="button" className="nb-link-button" onClick={() => {
+        {mistakes.length ? <p className="nb-scope-meta">
+          <button type="button" className="nb-link-button" onClick={() => {
             updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, subjectId } }));
             workspace.goTo("mistakes");
-          }}>{mistakes.length} {mistakes.length === 1 ? "mistake" : "mistakes"} →</button> : null}
-        </p>
+          }}>{mistakes.length} {mistakes.length === 1 ? "mistake" : "mistakes"} →</button>
+        </p> : null}
       </div>
       {workspace.writable ? <div className="nb-scope-actions">
         <button type="button" className="ws-button" disabled={!fallbackTopic}
