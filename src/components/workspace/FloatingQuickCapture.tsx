@@ -61,10 +61,8 @@ function FloatingCaptureBody({ session }: { session: Session }) {
   // The capture pane is the exact same durable, idempotent save path as
   // Notebook. Only its containing window and controls differ.
   useEffect(() => {
-    workspace.updateMemory((memory) => ({
-      ...memory,
-      capture: { ...memory.capture, keepOpen: true, stream: true },
-    }));
+    // Floating Capture streams continuously without changing the settings
+    // of the inline Capture window in the main app.
     if (view !== "bubble") workspace.openCapture({ mode: "note" });
     // Initialisation must run once per authenticated floating window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
