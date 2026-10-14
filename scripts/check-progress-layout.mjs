@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const css = readFileSync("src/components/workspace/workspace.css", "utf8");
+const page = readFileSync("src/components/workspace/ProgressView.tsx", "utf8");
+const count = (page.match(/<WeeklyBars title=/g) || []).length;
+assert.equal(count, 5, "Expected five Progress tiles; review layout rules if count changes");
+assert.match(css, /\.pg-grid \{ display: grid; grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+assert.match(css, /\.pg-grid > \.pg-chart:nth-child\(4\):nth-last-child\(2\)/);
+assert.match(css, /\.pg-grid > \.pg-chart:nth-child\(5\):last-child \{ grid-column: span 3; \}/);
+assert.match(css, /@media \(max-width: 1100px\) \{\s*\.pg-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+assert.match(css, /@media \(max-width: 700px\) \{\s*\.pg-grid \{ grid-template-columns: minmax\(0, 1fr\)/);
+console.log("Balanced Progress layout checks passed.");
