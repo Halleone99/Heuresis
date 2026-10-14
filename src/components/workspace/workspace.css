@@ -155,6 +155,7 @@
 .ws-button:disabled { opacity: 1; cursor: not-allowed; color: var(--ws-muted); background: var(--ws-sunken); }
 .ws-button.is-primary { background: var(--ws-accent-strong); border-color: var(--ws-accent-strong); color: var(--ws-on-primary); font-weight: 600; }
 .ws-button.is-primary:hover:not(:disabled) { background: var(--ws-accent); border-color: var(--ws-accent); }
+.ws-button.is-primary:disabled { background: var(--ws-sunken); border-color: var(--ws-line); color: var(--ws-muted); }
 .ws-button.is-danger { background: var(--ws-bad); border-color: var(--ws-bad); color: var(--ws-on-primary); font-weight: 600; }
 
 .ws-button.is-quiet { border-color: transparent; background: transparent; color: var(--ws-muted); }
