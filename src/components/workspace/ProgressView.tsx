@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Table2 } from "lucide-react";
-import { loadStudyActivity, weekStart, type StudyActivity } from "../../lib/activity";
+import { loadStudyActivity, meaningfulStudySessions, weekStart, type StudyActivity } from "../../lib/activity";
 import { isLesson, mistakeStage, RETAINED_STREAK, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { formatDay } from "./ui";
@@ -117,6 +117,7 @@ export function ProgressView() {
 
   const weeks = useMemo(() => emptyWeeks(range), [range]);
   const reviews = activity?.reviews ?? [];
+  const activeSessions = useMemo(() => meaningfulStudySessions(activity?.sessions ?? [], reviews), [activity, reviews]);
   const goodShare = reviews.length ? Math.round(reviews.filter((event) => event.event_type === "good" || event.event_type === "easy").length / reviews.length * 100) : null;
   const lessons = snapshot.entries.filter(isLesson);
   const notes = snapshot.entries.filter((entry) => entry.kind === "note" && !isLesson(entry));
@@ -163,8 +164,8 @@ export function ProgressView() {
     <div className="pg-grid">
       <WeeklyBars title="Card reviews in Study" unit="reviews" table={table} weeks={bucket(weeks, reviews.map((event) => event.created_at))}
         note={studyError ? "Study activity could not be loaded." : offline && !activity ? "Needs a connection." : goodShare !== null ? `${goodShare}% answered good or easy` : "Graded answers in flashcard review"} />
-      <WeeklyBars title="Study sessions" unit="sessions" table={table} weeks={bucket(weeks, (activity?.sessions ?? []).map((session) => session.started_at))}
-        note="Review, browse, sort and connections sessions" />
+      <WeeklyBars title="Study sessions" unit="sessions" table={table} weeks={bucket(weeks, activeSessions.map((session) => session.started_at))}
+        note={studyError ? "Study session data could not be loaded." : "Sessions with a card encounter or a graded review; empty launches excluded"} />
       <WeeklyBars title="Lessons recorded" unit="lessons" table={table} weeks={bucket(weeks, lessons.map((entry) => entry.lesson_date ?? entry.created_at))}
         note="By lesson date" />
       <WeeklyBars title="Mistake recalls" unit="recalls" table={table} weeks={bucket(weeks, practice.map((event) => event.created_at))}
