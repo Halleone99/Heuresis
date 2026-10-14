@@ -519,7 +519,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
               {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
             </button>)}
           </nav>
-          {section === "notebook" ? <NotebookSidebarTree /> : null}
+          {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookSidebarTree /> : null}
           {workspace.currentLesson ? <div className="hw-lesson">
             <span className="hw-lesson-label"><Radio size={12} /> In lesson</span>
             <button type="button" className="hw-lesson-title" onClick={() => workspace.openDocument(workspace.currentLesson!.id)} title="Open the lesson page">{entryTitle(workspace.currentLesson)}</button>
