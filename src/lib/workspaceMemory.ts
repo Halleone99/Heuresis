@@ -24,7 +24,7 @@ export type WorkspaceMemory = {
   notebook: NotebookLocation & { railCollapsed: boolean; expanded: string[]; filter: "all" | "lessons" | "notes" | "questions" };
   recentDocs: string[];
   currentLesson: CurrentLesson | null;
-  capture: { topicId: string | null; keepOpen: boolean; attachToLesson: boolean };
+  capture: { topicId: string | null; keepOpen: boolean; attachToLesson: boolean; stream?: boolean };
   mistakes: { subjectId: string | null; stage: "all" | "to_correct" | "practising" | "due" | "understood" };
   study: { view: string | null; packId: string | null };
 };
@@ -40,7 +40,7 @@ const DEFAULT_MEMORY: WorkspaceMemory = {
   notebook: { topicId: null, docId: null, subjectId: null, railCollapsed: false, expanded: [], filter: "all" },
   recentDocs: [],
   currentLesson: null,
-  capture: { topicId: null, keepOpen: false, attachToLesson: true },
+  capture: { topicId: null, keepOpen: false, attachToLesson: true, stream: false },
   mistakes: { subjectId: null, stage: "all" },
   study: { view: null, packId: null },
 };
