@@ -597,21 +597,6 @@ export default function CosmosWindow() {
     setIndex((value) => value + 1);
   }
 
-  async function switchMode(next: StudyMode) {
-    if (relatedReview || next === mode || unsavedDraft) return;
-    await closeSession();
-    const params = new URLSearchParams(window.location.search);
-    params.delete("related");
-    params.set("mode", next);
-    params.set("source", next === "sort" ? "unsorted" : "all");
-    params.set("order", "pack");
-    params.set("count", "all");
-    params.delete("tag");
-    params.delete("templates");
-    params.delete("q");
-    window.location.search = params.toString();
-  }
-
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -716,7 +701,7 @@ export default function CosmosWindow() {
   };
 
   return <main className="cosmos-shell">
-    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes">{relatedReview ? <span>Related review</span> : <><button aria-pressed={mode === "review"} onClick={() => void switchMode("review")}>Review</button><button aria-pressed={mode === "sort"} onClick={() => void switchMode("sort")}>Sort</button></>}</div><span className="cosmos-mode-note">{relatedReview ? "related vocabulary · reveal · grade" : mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
+    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div><div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div><span className="cosmos-mode-note">{relatedReview ? "related vocabulary · reveal · grade" : mode === "review" ? "memory · reveal · grade" : "organisation · priority · badges"}</span><span className="cosmos-spacer" /><span className="cosmos-count">{index + 1} / {order.length}</span><button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button></header>
     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / order.length) * 100)}%` }} /></div>
     <section className="cosmos-stage"><div className="cosmos-work" data-l={openLeaf.l ? "open" : "closed"} data-r={openLeaf.r ? "open" : "closed"}>
       {renderLeaf("l")}
