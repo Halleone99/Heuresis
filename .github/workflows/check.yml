@@ -29,6 +29,7 @@ jobs:
       - run: node scripts/check-capture-to-flashcard.mjs
       - run: node scripts/check-study-flashcard-integration.mjs
       - run: node scripts/check-redesign-batch-a.mjs
+      - run: node scripts/check-command-palette.mjs
       - run: node scripts/check-shell-accessibility.mjs
       - run: node scripts/check-navigation-polish.mjs
       - run: node scripts/check-lesson-cleanup.mjs
