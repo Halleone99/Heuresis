@@ -37,7 +37,7 @@ assert.deepEqual(cleanupCandidates({kind:"inbox",id:"de-child-inbox"},entries,to
 assert.deepEqual(cleanupCandidates({kind:"lesson",id:"missing"},entries,topics),[]);
 assert.equal(isInboxTopic(topics[0]),true);
 assert.equal(isInboxTopic(topics[3]),false);
-assert.equal(mergedCaptureText([entries[0],entries[1]]),"Ich habe der\n\nder Mann → den Mann");
+assert.equal(mergedCaptureText([entries[1],entries[2]]),"Ich habe der\n\nder Mann → den Mann");
 assert.equal(mergedCaptureText([entry("x","note","de-inbox",null,"Test")]),"Test");
 
 const dialog = readFileSync("src/components/workspace/LessonCleanupDialog.tsx","utf8");
