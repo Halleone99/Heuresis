@@ -87,7 +87,6 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
             <span>{workspace.pathLabel(currentLesson.topic_id)} · {snapshot.entries.filter((row) => row.lesson_id === currentLesson.id).length} captured</span>
           </button>
           <div className="ov-continue-actions">
-            <button type="button" className="ws-button is-small is-primary" onClick={() => workspace.openDocument(currentLesson.id)}>Open lesson <ArrowRight size={13} /></button>
             <button type="button" className="ws-button is-small is-quiet" onClick={() => workspace.endLesson()}>End lesson</button>
           </div>
         </section> : lastDoc ? <section className="ov-continue">
