@@ -17,6 +17,8 @@ assert.match(launcher, /aria-label="Number of cards to review"/);
 assert.match(launcher, /aria-pressed=\{directionMode === "both"\}/);
 assert.match(launcher, /aria-pressed=\{randomOrder\}/);
 assert.match(launcher, /mode: "review"/, "Study launches only a Review popup");
+assert.match(launcher, /onComplete\(\);/, "A successful review launch notifies the parent");
+assert.match(topic, /window.addEventListener\("focus", refreshAfterReview\)/, "Refocus refreshes review statistics");
 assert.doesNotMatch(cosmos, /switchMode\("sort"\)/, "The Review window must not expose a second Sort workflow");
 assert.doesNotMatch(cosmos, /<button aria-pressed=\{mode === "sort"\}/, "No old Sort tab in flashcard Review");
 assert.match(cosmos, /recordStudyEvent\(\{ cardId: card\.id/, "Review records per-card events");
