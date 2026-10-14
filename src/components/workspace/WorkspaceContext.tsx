@@ -8,6 +8,7 @@ import {
 } from "../../lib/knowledgeWorkspace";
 import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
 import type { CleanupTarget } from "../../lib/lessonCleanup";
+import { signalWorkspaceChange, subscribeWorkspaceChanges } from "../../lib/workspaceSignal";
 import { supabase } from "../../lib/supabase";
 import {
   pushRecent, readCaptureDraft, readMemory, readPendingCaptures, writeCaptureDraft, writeMemory, writePendingCaptures,
@@ -103,6 +104,11 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     snapshotRef.current = typeof next === "function" ? next(snapshotRef.current) : next;
     setSnapshotState(snapshotRef.current);
   }, []);
+  // Publish only local mutations, never full reloads: no cross-view loops.
+  const setSnapshotLocal = useCallback((update: (current: KnowledgeSnapshot) => KnowledgeSnapshot) => {
+    setSnapshot(update);
+    signalWorkspaceChange(userId);
+  }, [setSnapshot, userId]);
   const [schema, setSchema] = useState<SchemaLevel>("v2");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -155,20 +161,37 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       loadingRef.current = false;
       if (!silent) setLoading(false);
     }
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
     const refresh = () => { if (Date.now() - lastLoad.current > 60_000) void reload(true); };
     window.addEventListener("focus", refresh);
     // After Heuresis has replayed queued offline writes, pick up the server's view.
+    // Debounce writes from the other Heuresis window. Wait for an in-flight
+    // refresh rather than dropping its change event.
+    let refreshTimer: number | null = null;
+    const scheduleCrossWindowReload = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        if (loadingRef.current) { scheduleCrossWindowReload(); return; }
+        void reload(true);
+      }, 250);
+    };
+    const stopCrossWindow = subscribeWorkspaceChanges(userId, scheduleCrossWindowReload);
     let wasSyncing = getOfflineSyncState().syncing;
     const unsubscribe = subscribeOfflineSync((state) => {
       if (wasSyncing && !state.syncing && !state.error) void reload(true);
       wasSyncing = state.syncing;
     });
-    return () => { window.removeEventListener("focus", refresh); unsubscribe(); };
-  }, [reload]);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      unsubscribe();
+      stopCrossWindow();
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+    };
+  }, [reload, userId]);
 
   const subjectById = useMemo(() => new Map(snapshot.subjects.map((row) => [row.id, row])), [snapshot.subjects]);
   const topicById = useMemo(() => new Map(snapshot.topics.map((row) => [row.id, row])), [snapshot.topics]);
@@ -216,16 +239,16 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
 
   const addSubject = useCallback(async (name: string) => {
     const created = await createSubject(userId, name);
-    setSnapshot((current) => ({ ...current, subjects: [...current.subjects, created] }));
+    setSnapshotLocal((current) => ({ ...current, subjects: [...current.subjects, created] }));
     return created;
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
   const renameSubjectById = useCallback(async (id: string, name: string) => {
     const clean = await renameSubject(userId, id, name);
-    setSnapshot((current) => ({ ...current, subjects: current.subjects.map((row) => row.id === id ? { ...row, name: clean } : row) }));
-  }, [setSnapshot, userId]);
+    setSnapshotLocal((current) => ({ ...current, subjects: current.subjects.map((row) => row.id === id ? { ...row, name: clean } : row) }));
+  }, [setSnapshotLocal, userId]);
   const removeSubject = useCallback(async (id: string) => {
     await deleteSubject(userId, id);
-    setSnapshot((current) => {
+    setSnapshotLocal((current) => {
       const topicIds = new Set(current.topics.filter((topic) => topic.subject_id === id).map((topic) => topic.id));
       return {
         ...current,
@@ -234,20 +257,20 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
         entries: current.entries.filter((row) => !topicIds.has(row.topic_id)),
       };
     });
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
   const addTopic = useCallback(async (subjectId: string, name: string, parentId: string | null = null) => {
     const created = await createTopic(userId, subjectId, name, parentId);
-    setSnapshot((current) => ({ ...current, topics: [...current.topics, created] }));
+    setSnapshotLocal((current) => ({ ...current, topics: [...current.topics, created] }));
     return created;
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
   const changeTopic = useCallback(async (id: string, patch: { name?: string; parent_id?: string | null }) => {
     const clean = await updateTopic(userId, id, patch);
-    setSnapshot((current) => ({ ...current, topics: current.topics.map((row) => row.id === id ? { ...row, ...clean } : row) }));
-  }, [setSnapshot, userId]);
+    setSnapshotLocal((current) => ({ ...current, topics: current.topics.map((row) => row.id === id ? { ...row, ...clean } : row) }));
+  }, [setSnapshotLocal, userId]);
   const removeTopic = useCallback(async (id: string) => {
     await deleteTopic(userId, id);
-    setSnapshot((current) => ({ ...current, topics: current.topics.filter((row) => row.id !== id) }));
-  }, [setSnapshot, userId]);
+    setSnapshotLocal((current) => ({ ...current, topics: current.topics.filter((row) => row.id !== id) }));
+  }, [setSnapshotLocal, userId]);
   const ensureInbox = useCallback(async (subjectId: string) => {
     const existing = snapshotRef.current.topics.find((topic) => topic.subject_id === subjectId && !topic.parent_id && topic.name.toLowerCase() === "inbox");
     if (existing) return existing;
@@ -256,9 +279,9 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
 
   const addEntry = useCallback(async (input: EntryInput) => {
     const created = await createEntry(userId, input);
-    setSnapshot((current) => ({ ...current, entries: [created, ...current.entries.filter((row) => row.id !== created.id)] }));
+    setSnapshotLocal((current) => ({ ...current, entries: [created, ...current.entries.filter((row) => row.id !== created.id)] }));
     return created;
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
 
   const dropPending = useCallback((id: string) => {
     writePendingCaptures(userId, readPendingCaptures(userId).filter((item) => item.input.id !== id));
@@ -316,13 +339,13 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     if (!current) throw new Error("This entry no longer exists. It may have been deleted on another device.");
     const next = await updateEntry(userId, current, patch);
     const changed = Object.fromEntries(Object.keys(patch).map((key) => [key, next[key as keyof KnowledgeEntry]]));
-    setSnapshot((value) => ({ ...value, entries: value.entries.map((row) => row.id === id ? { ...row, ...changed, updated_at: next.updated_at } : row) }));
+    setSnapshotLocal((value) => ({ ...value, entries: value.entries.map((row) => row.id === id ? { ...row, ...changed, updated_at: next.updated_at } : row) }));
     return snapshotRef.current.entries.find((row) => row.id === id) ?? next;
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
   const removeEntry = useCallback(async (id: string, options: { undo?: boolean } = {}) => {
     const existing = snapshotRef.current.entries.find((row) => row.id === id);
     await deleteEntry(userId, id);
-    setSnapshot((current) => ({
+    setSnapshotLocal((current) => ({
       ...current,
       // The database uses a reversible archive; do not discard attached
       // captures or recall history from memory while Undo is still possible.
@@ -335,25 +358,25 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
           label: "Undo",
           run: () => {
             void restoreEntry(existing).then(() => {
-              setSnapshot((current) => ({ ...current, entries: [existing, ...current.entries.filter((row) => row.id !== existing.id)] }));
+              setSnapshotLocal((current) => ({ ...current, entries: [existing, ...current.entries.filter((row) => row.id !== existing.id)] }));
               toast("Restored.");
             }).catch((restoreError) => toast(friendlyError(restoreError), { tone: "error" }));
           },
         },
       });
     }
-  }, [setSnapshot, toast, userId]);
+  }, [setSnapshotLocal, toast, userId]);
   const practise = useCallback(async (id: string, outcome: PracticeOutcome, answer: string) => {
     const current = snapshotRef.current.entries.find((row) => row.id === id);
     if (!current) throw new Error("This mistake no longer exists.");
     const result = await recordPractice(userId, current, outcome, answer);
-    setSnapshot((value) => ({
+    setSnapshotLocal((value) => ({
       ...value,
       entries: value.entries.map((row) => row.id === id ? result.entry : row),
       practice: [result.event, ...value.practice],
     }));
     return result.entry;
-  }, [setSnapshot, userId]);
+  }, [setSnapshotLocal, userId]);
 
   const goTo = useCallback((next: WorkspaceSection) => onSection(next), [onSection]);
   const openDocument = useCallback((id: string, options: { edit?: boolean } = {}) => {
