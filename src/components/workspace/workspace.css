@@ -1129,3 +1129,96 @@
 .legacy-recovery-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 15px; }
 .legacy-recovery-actions .ws-button:last-child { margin-left: auto; }
 .legacy-recovery-note { font-size: 11.5px; line-height: 1.5; color: var(--ws-muted); }
+
+
+/* Three-state navigation: full / icon rail with hover peek / hidden focus. */
+.heuresis-desktop[data-sidebar="full"] { --ws-sidebar: 240px; }
+.heuresis-desktop[data-sidebar="rail"] { --ws-sidebar: 60px; }
+.heuresis-desktop[data-sidebar="hidden"] { --ws-sidebar: 0px; }
+.heuresis-desktop[data-sidebar] .heuresis-workspace-layout { grid-template-columns: var(--ws-sidebar) minmax(0,1fr); }
+.heuresis-desktop[data-sidebar] .heuresis-section-sidebar {
+  min-width: 0; overflow: visible; box-sizing: border-box;
+  background: var(--ws-chrome); color: var(--ws-chrome-text);
+  backdrop-filter: none; border-color: rgba(255,255,255,.12);
+  transition: width .17s ease;
+}
+.hw-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; }
+.hw-sidebar-heading { font: 650 11px/1.2 var(--ws-sans); text-transform: uppercase; letter-spacing: .07em; color: var(--ws-chrome-muted); }
+.hw-sidebar-collapse {
+  display: grid; place-items: center; border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05); border-radius: 8px; width: 30px; height: 30px;
+  color: var(--ws-chrome-muted); cursor: pointer;
+}
+.hw-sidebar-collapse:hover { background: rgba(255,255,255,.12); color: var(--ws-chrome-text); }
+.hw-sidebar-collapse:focus-visible { outline: 2px solid var(--ws-chrome-text); outline-offset: 2px; }
+.heuresis-desktop[data-sidebar] .hw-sections button {
+  color: var(--ws-chrome-muted); min-height: 40px; flex-shrink: 0;
+}
+.heuresis-desktop[data-sidebar] .hw-sections button:hover { background: rgba(255,255,255,.1); color: var(--ws-chrome-text); }
+.heuresis-desktop[data-sidebar] .hw-sections button.active {
+  color: var(--ws-chrome-text); background: rgba(255,255,255,.09);
+  box-shadow: inset 3px 0 0 var(--ws-chrome-text); border-radius: 5px;
+}
+.heuresis-desktop[data-sidebar] .hw-sections button.active svg { color: var(--ws-chrome-text); }
+.heuresis-desktop[data-sidebar] .hw-lesson { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.13); }
+.heuresis-desktop[data-sidebar] .hw-lesson-label { color: var(--ws-chrome-muted); }
+.heuresis-desktop[data-sidebar] .hw-lesson-title { color: var(--ws-chrome-text); }
+.heuresis-desktop[data-sidebar] .hw-lesson-end { color: var(--ws-chrome-muted); }
+.heuresis-desktop[data-sidebar] .hw-lesson-end:hover { background: rgba(255,255,255,.11); color: var(--ws-chrome-text); }
+.heuresis-desktop[data-sidebar] .hw-capture-hint { border-color: rgba(255,255,255,.27); color: var(--ws-chrome-muted); }
+.heuresis-desktop[data-sidebar] .hw-capture-hint:hover { background: rgba(255,255,255,.1); color: var(--ws-chrome-text); }
+.heuresis-desktop[data-sidebar="full"] .heuresis-section-sidebar { width: 240px; }
+.heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar {
+  width: 60px; padding: 14px 8px;
+}
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-header { justify-content: center; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-heading { display: none; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sections button { justify-content: center; padding: 0; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sections button span { display: none; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sections .hw-badge { position: absolute; top: 1px; right: 0; }
+.heuresis-desktop[data-sidebar="rail"] .hw-lesson { grid-template-columns: 1fr; padding: 8px 4px; justify-items: center; }
+.heuresis-desktop[data-sidebar="rail"] .hw-lesson-label { font-size: 0; gap: 0; }
+.heuresis-desktop[data-sidebar="rail"] .hw-lesson-title,
+.heuresis-desktop[data-sidebar="rail"] .hw-capture-hint span { display: none; }
+.heuresis-desktop[data-sidebar="rail"] .hw-capture-hint { padding: 9px 4px; justify-content: center; }
+.heuresis-desktop[data-sidebar="rail"] .hw-capture-hint .ws-kbd { font-size: 9px; }
+@media (hover: hover) and (pointer: fine) {
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) {
+    width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
+  }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-header { justify-content: space-between; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-heading { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sections button { justify-content: flex-start; padding: 0 11px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sections button span { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; padding: 10px 8px 10px 12px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-lesson-label { font-size: 10px; gap: 6px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-lesson-title { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-capture-hint { padding: 10px 11px; justify-content: space-between; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-capture-hint span { display: block; }
+}
+.heuresis-desktop[data-sidebar="hidden"] .heuresis-section-sidebar { display: none; }
+.heuresis-desktop[data-sidebar="hidden"] .desktop-content { grid-column: 1 / -1; }
+.hw-sidebar-header-toggle { flex: none; }
+@media (max-width: 1100px) {
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar { padding: 14px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .heuresis-desktop[data-sidebar] .heuresis-section-sidebar { transition: none; }
+}
+
+
+/* Explicit expansion on compact/tablet widths overlays the workspace. */
+@media (max-width: 1100px) {
+  .heuresis-desktop[data-sidebar="full"] { --ws-sidebar: 60px; }
+  .heuresis-desktop[data-sidebar="full"] .heuresis-section-sidebar {
+    position: fixed; top: 58px; left: 0; bottom: 0; height: calc(100dvh - 58px);
+    width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
+  }
+  .heuresis-desktop[data-sidebar="full"] .hw-sections button { justify-content: flex-start; padding: 0 11px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-sections button span { display: block; }
+  .heuresis-desktop[data-sidebar="full"] .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; }
+  .heuresis-desktop[data-sidebar="full"] .hw-lesson-label { font-size: 10px; gap: 6px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-lesson-title { display: block; }
+  .heuresis-desktop[data-sidebar="full"] .hw-capture-hint { justify-content: space-between; padding: 10px 11px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-capture-hint span { display: block; }
+}
