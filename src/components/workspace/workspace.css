@@ -778,13 +778,19 @@
 .ov-goal-line span { display: grid; gap: 2px; min-width: 0; }
 .ov-goal-line small { color: var(--ws-muted); font: 500 10.5px/1 var(--ws-mono); letter-spacing: .08em; text-transform: uppercase; }
 .ov-goal-line b { flex: none; color: var(--ws-text); font: 500 12px/1 var(--ws-sans); }
-.ov-meter { height: 6px; margin: 7px 0 4px; border-radius: 99px; background: var(--ws-accent-soft); overflow: hidden; }
+.ov-meter { height: 8px; margin: 7px 0 4px; border-radius: 99px; background: var(--ws-sunken); box-shadow: inset 0 0 0 1px var(--ws-line-strong); overflow: hidden; }
 .ov-meter span { display: block; height: 100%; border-radius: 99px; background: var(--ws-bar); }
 .ov-goals small.ws-muted { font-size: 11.5px; }
 .ov-study-line { margin: 0 0 4px; color: var(--ws-ink); font-size: 14px; }
-.ov-legacy { margin-top: 22px; padding: 12px 16px; border: 1px solid var(--ws-line); border-radius: 12px; background: var(--ws-surface-2); }
-.ov-legacy summary { cursor: pointer; color: var(--ws-text); font-size: 13px; font-weight: 500; }
-.ov-legacy ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; }
+.ov-legacy { margin-top: 22px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.ov-legacy summary { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; color: var(--ws-muted); font-size: 12px; font-weight: 500; list-style: none; }
+.ov-legacy summary::-webkit-details-marker { display: none; }
+.ov-legacy summary:hover { color: var(--ws-accent); }
+.ov-legacy summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 4px; border-radius: 4px; }
+.ov-legacy-chevron { transition: transform .16s ease; }
+.ov-legacy[open] .ov-legacy-chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .ov-legacy-chevron { transition: none; } }
+.ov-legacy ul { list-style: none; margin: 10px 0 0; padding: 0 12px; display: grid; border-left: 2px solid var(--ws-line-strong); }
 .ov-legacy li { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--ws-line); }
 .ov-legacy li strong { color: var(--ws-ink); font: 400 16px/1.4 var(--ws-serif); }
 .ov-legacy li span:not(.ws-muted), .ov-legacy li small { color: var(--ws-text); font-size: 13px; }
