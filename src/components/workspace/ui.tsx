@@ -9,7 +9,6 @@ import { useWorkspace } from "./WorkspaceContext";
 // ---------------------------------------------------------------------------
 const DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 const DAY_YEAR = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
-const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" });
 const TIME = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 export function parseDay(value: string | null | undefined) {
@@ -24,7 +23,7 @@ export function formatDay(value: string | null | undefined) {
 }
 export function formatLongDay(value: string | null | undefined) {
   const date = parseDay(value);
-  return date ? WEEKDAY.format(date) : "";
+  return date ? formatDay(value) : "";
 }
 export function formatTime(value: string | null | undefined) {
   const date = parseDay(value);
