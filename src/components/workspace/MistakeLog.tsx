@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, GraduationCap, History, Layers, MessageSquareText, Pencil, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, History, Layers, Pencil, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   addDays, entryTitle, friendlyError, isRecallDue, mistakeStage, normaliseSearch, RETAINED_STREAK,
   type KnowledgeEntry, type MistakeStage, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
+import { FALLBACK_MODES, loadMistakeModes, moveMistakeMode, resolveMistakeMode, type MistakeMode } from "../../lib/mistakeModes";
+import { MistakeModeDialog, ModeSymbol } from "./MistakeModeDialog";
 import { FlashcardDialog } from "./FlashcardDialog";
 import { RowMenu } from "./NotebookView";
 import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, dueLabel, formatDay, relativeTime, useConfirm } from "./ui";
@@ -13,30 +15,27 @@ type StageFilter = "all" | MistakeStage | "due";
 const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "Practising", understood: "Understood" };
 
 
-type MistakeMode = "grammar" | "vocabulary" | "phrase" | "other";
-type MistakeView = "home" | "history" | MistakeMode;
-
-const MODE_CARDS = [
-  { id: "grammar", title: "Grammar", detail: "Cases, tenses, sentence structure and rules.", icon: GraduationCap },
-  { id: "vocabulary", title: "Vocabulary", detail: "Words, meanings, forms and usage.", icon: BookOpen },
-  { id: "phrase", title: "Expressions", detail: "Natural phrasing, idioms and blocks of meaning.", icon: MessageSquareText },
-  { id: "other", title: "Other mistakes", detail: "Unclassified mistakes and anything else to revisit.", icon: TriangleAlert },
-] as const;
-
-function mistakeMode(entry: KnowledgeEntry): MistakeMode {
-  if (entry.category === "grammar" || entry.category === "vocabulary" || entry.category === "phrase") return entry.category;
-  return "other";
-}
-
-function categoryFor(view: MistakeView): NoteCategory {
-  return view === "grammar" || view === "vocabulary" || view === "phrase" ? view : "note";
-}
+type MistakeView = "home" | "history" | string;
 
 export function MistakeLog() {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory, focusMistake, clearFocusMistake } = workspace;
   const [query, setQuery] = useState("");
   const [view, setView] = useState<MistakeView>("home");
+  const [modes, setModes] = useState<MistakeMode[]>(FALLBACK_MODES);
+  const [modesReady, setModesReady] = useState(false);
+  const [modesError, setModesError] = useState("");
+  const [modeDialogId, setModeDialogId] = useState<string | null | undefined>(undefined);
+  const refreshModes = useCallback(async () => {
+    const rows = await loadMistakeModes(workspace.userId);
+    setModes(rows);
+    setModesReady(true);
+    setModesError("");
+  }, [workspace.userId]);
+  useEffect(() => { void refreshModes().catch((error) => {
+    setModesReady(false);
+    setModesError(friendlyError(error));
+  }); }, [refreshModes]);
   const [language, setLanguage] = useState("All");
   const [session, setSession] = useState<string[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,7 +55,7 @@ export function MistakeLog() {
     : mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === activeSubject?.id),
     [activeSubject?.id, language, mistakes, workspace.topicById]);
   const inMode = useMemo(() => view === "home" || view === "history" ? inSubject
-    : inSubject.filter((entry) => mistakeMode(entry) === view), [inSubject, view]);
+    : inSubject.filter((entry) => resolveMistakeMode(entry, modes) === view), [inSubject, modes, view]);
   const counts = useMemo(() => ({
     all: inMode.length,
     to_correct: inMode.filter((entry) => mistakeStage(entry) === "to_correct").length,
@@ -111,10 +110,23 @@ export function MistakeLog() {
         topicId = snapshot.topics.find((topic) => topic.subject_id === subject.id)?.id
           ?? (await workspace.ensureInbox(subject.id)).id;
       }
-      workspace.openCapture({ mode: "mistake", topicId, category: categoryFor(view) });
+      const currentMode = modes.find((mode) => mode.id === view) ?? null;
+      workspace.openCapture({
+        mode: "mistake", topicId,
+        category: currentMode?.legacy_category ?? "note",
+        mistakeModeId: currentMode && !currentMode.id.startsWith("fallback-") ? currentMode.id : null,
+      });
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
-  const title = view === "history" ? "History" : MODE_CARDS.find((item) => item.id === view)?.title ?? "Choose a mode";
+  const title = view === "history" ? "History" : modes.find((mode) => mode.id === view)?.name ?? "Choose a mode";
+  const editingMode = modes.find((mode) => mode.id === modeDialogId) ?? null;
+  const editingPosition = modes.findIndex((mode) => mode.id === modeDialogId);
+  async function reorderMode(direction: -1 | 1) {
+    const second = modes[editingPosition + direction];
+    if (!editingMode || !second) return;
+    await moveMistakeMode(workspace.userId, editingMode, second);
+    await refreshModes();
+  }
 
   return <div className="ml-page">
     <header className="ws-page-head">
@@ -147,17 +159,26 @@ export function MistakeLog() {
       <div className="ml-launch-intro">
         <div><h2 id="ml-modes-title">What would you like to work on?</h2>
           <p>Select a subject area to practise and review your actual mistakes.</p></div>
-        <span>{language === "All" ? "All languages" : language}</span>
+        <div className="ml-launch-tools">
+          <span>{language === "All" ? "All languages" : language}</span>
+          <button type="button" className="ws-button is-primary" disabled={!modesReady || !workspace.writable}
+            onClick={() => setModeDialogId(null)}><Plus size={15}/> New mode</button>
+        </div>
       </div>
+      {modesError ? <p className="ws-field-error" role="alert">Mode customisation is unavailable: {modesError}. Existing default categories remain visible.</p> : null}
       <div className="ml-mode-grid">
-        {MODE_CARDS.map(({ id, title: modeTitle, detail, icon: Icon }) => {
-          const entries = inSubject.filter((entry) => mistakeMode(entry) === id);
+        {modes.map((mode) => {
+          const entries = inSubject.filter((entry) => resolveMistakeMode(entry, modes) === mode.id);
           const dueCount = entries.filter((entry) => isRecallDue(entry)).length;
-          return <button type="button" key={id} className="ml-mode-card" onClick={() => openMode(id)}>
-            <span className="ml-mode-icon"><Icon size={21} /></span>
-            <span className="ml-mode-body"><strong>{modeTitle}</strong><span>{detail}</span></span>
-            <span className="ml-mode-foot"><span>{entries.length} logged</span><span>{dueCount ? `${dueCount} due` : "View mistakes"}</span><ArrowRight size={17} /></span>
-          </button>;
+          return <div className="ml-mode-shell" key={mode.id}>
+            <button type="button" className="ml-mode-card" onClick={() => openMode(mode.id)}>
+              <span className="ml-mode-icon"><ModeSymbol symbol={mode.symbol} size={21}/></span>
+              <span className="ml-mode-body"><strong>{mode.name}</strong><span>{mode.description}</span></span>
+              <span className="ml-mode-foot"><span>{entries.length} logged</span><span>{dueCount ? `${dueCount} due` : "View mistakes"}</span><ArrowRight size={17} /></span>
+            </button>
+            {modesReady && workspace.writable ? <button type="button" className="ml-mode-edit" title={`Edit ${mode.name}`}
+              aria-label={`Edit ${mode.name}`} onClick={() => setModeDialogId(mode.id)}><Pencil size={15}/></button> : null}
+          </div>;
         })}
         <button type="button" className="ml-history-launch" onClick={() => openMode("history")}>
           <History size={20} /><span><strong>Complete history</strong><small>All mistakes, original answers and every recall attempt</small></span>
@@ -165,8 +186,7 @@ export function MistakeLog() {
         </button>
       </div>
       {language !== "All" && !activeSubject ? <p className="ml-language-empty">No {language} subject exists in Notebook yet. Create one there, then record mistakes here.</p> : null}
-      {inSubject.length > 0 && inSubject.some((entry) => mistakeMode(entry) === "other") ?
-        <p className="ml-legacy-note">Older mistakes without a category appear in Other mistakes. You can assign them a type when editing.</p> : null}
+      {inSubject.length > 0 ? <p className="ml-legacy-note">Removing a mode never deletes mistakes. Records remain accessible through Complete history.</p> : null}
     </main> : <>
       <nav className="ml-breadcrumb" aria-label="Mistake Log location">
         <button type="button" onClick={() => openMode("home")}><ArrowLeft size={15} /> Modes</button>
@@ -187,8 +207,8 @@ export function MistakeLog() {
       </section>
       <div className="ml-list" ref={listRef}>
         {shown.map((entry) => editingId === entry.id
-          ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
-          : <MistakeCard key={entry.id} entry={entry} highlighted={highlightId === entry.id}
+          ? <MistakeEditor key={entry.id} entry={entry} modes={modes} onDone={() => setEditingId(null)} />
+          : <MistakeCard key={entry.id} entry={entry} modeName={modes.find((mode) => mode.id === resolveMistakeMode(entry, modes))?.name ?? "Unassigned"} highlighted={highlightId === entry.id}
             onEdit={() => setEditingId(entry.id)} onPractise={() => setSession([entry.id])} />)}
         {!shown.length ? <EmptyState icon={<TriangleAlert size={22} />}
           title={stage === "due" ? "Nothing due in this mode" : query ? "No matching mistakes" : "No mistakes here yet"}
@@ -200,11 +220,14 @@ export function MistakeLog() {
         </EmptyState> : null}
       </div>
     </>}
+    {modeDialogId !== undefined && modesReady ? <MistakeModeDialog key={modeDialogId ?? "new"} mode={editingMode}
+      maxOrder={Math.max(0, ...modes.map((mode) => mode.sort_order))} position={editingPosition} total={modes.length}
+      onClose={() => setModeDialogId(undefined)} onChanged={refreshModes} onMove={reorderMode} /> : null}
     {session ? <RecallSession ids={session} onClose={() => setSession(null)} /> : null}
   </div>;
 }
 
-function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: KnowledgeEntry; highlighted: boolean; onEdit: () => void; onPractise: () => void }) {
+function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { entry: KnowledgeEntry; modeName: string; highlighted: boolean; onEdit: () => void; onPractise: () => void }) {
   const workspace = useWorkspace();
   const [confirmElement, confirm] = useConfirm();
   const [flashcard, setFlashcard] = useState(false);
@@ -235,7 +258,7 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
         {lesson ? <> · <button type="button" className="nb-link-button" onClick={() => workspace.openDocument(lesson.id)}>{entryTitle(lesson)}</button></> : null}
         <span> · {formatDay(entry.created_at)}</span>
       </span>
-      <span className="ml-kind">{MODE_CARDS.find((item) => item.id === mistakeMode(entry))?.title}</span>
+      <span className="ml-kind">{modeName}</span>
       <span className={`ml-stage is-${stage}`}>{STAGE_LABEL[stage]}</span>
       {workspace.writable ? <RowMenu label="mistake" items={[
         { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
@@ -281,9 +304,10 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
   </article>;
 }
 
-function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () => void }) {
+function MistakeEditor({ entry, modes, onDone }: { entry: KnowledgeEntry; modes: MistakeMode[]; onDone: () => void }) {
   const workspace = useWorkspace();
-  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction, explanation: entry.explanation, topicId: entry.topic_id, category: categoryFor(mistakeMode(entry)) });
+  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction,
+    explanation: entry.explanation, topicId: entry.topic_id, modeId: resolveMistakeMode(entry, modes) ?? "" });
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -293,7 +317,11 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
     if (busy) return;
     setBusy(true); setError("");
     try {
-      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(), correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId, category: values.category });
+      const selected = modes.find((mode) => mode.id === values.modeId);
+      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(),
+        correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId,
+        category: selected?.legacy_category ?? "note",
+        mistake_mode_id: selected && !selected.id.startsWith("fallback-") ? selected.id : null });
       onDone();
     } catch (saveError) { setError(friendlyError(saveError)); }
     finally { setBusy(false); }
@@ -311,9 +339,9 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
     <label className="ws-field"><span>Why it was wrong</span><textarea rows={2} value={values.explanation} placeholder="The rule, or what you misunderstood" onChange={(event) => setValues({ ...values, explanation: event.target.value })} /></label>
     <div className="ml-edit-kind" role="group" aria-label="Mistake category">
       <span>Type of mistake</span>
-      {MODE_CARDS.map((item) => <button type="button" key={item.id} className={mistakeMode({ ...entry, category: values.category }) === item.id ? "is-active" : ""}
-        aria-pressed={mistakeMode({ ...entry, category: values.category }) === item.id}
-        onClick={() => setValues((current) => ({ ...current, category: categoryFor(item.id) }))}>{item.title}</button>)}
+      {modes.map((mode) => <button type="button" key={mode.id} className={values.modeId === mode.id ? "is-active" : ""}
+        aria-pressed={values.modeId === mode.id}
+        onClick={() => setValues((current) => ({ ...current, modeId: mode.id }))}>{mode.name}</button>)}
     </div>
     <div className="ml-edit-grid">
       <label className="ws-field"><span>Short label <small>optional</small></span><input value={values.title} maxLength={200} placeholder="e.g. 了 inside a 的时候 clause" onChange={(event) => setValues({ ...values, title: event.target.value })} /></label>
