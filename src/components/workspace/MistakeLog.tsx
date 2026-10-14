@@ -6,13 +6,14 @@ import {
 } from "../../lib/knowledgeWorkspace";
 import { FALLBACK_MODES, loadMistakeModes, moveMistakeMode, resolveMistakeMode, type MistakeMode } from "../../lib/mistakeModes";
 import { MistakeModeDialog, ModeSymbol } from "./MistakeModeDialog";
+import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
 import { FlashcardDialog } from "./FlashcardDialog";
 import { RowMenu } from "./NotebookView";
 import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, dueLabel, formatDay, relativeTime, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
 type StageFilter = "all" | MistakeStage | "due";
-const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "Practising", understood: "Understood" };
+const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "In review", understood: "Understood" };
 
 
 type MistakeView = "home" | "history" | string;
@@ -139,10 +140,10 @@ export function MistakeLog() {
         </p>
       </div>
       <div className="ws-page-actions">
-        <button type="button" className="ws-button" disabled={!(view === "home" ? allDue.length : due.length)}
+        <button type="button" className="ws-button is-primary" disabled={!(view === "home" ? allDue.length : due.length)}
           onClick={() => setSession((view === "home" ? allDue : due).map((entry) => entry.id))}>
           <GraduationCap size={15} /> Practise due ({view === "home" ? allDue.length : due.length})</button>
-        {workspace.writable ? <button type="button" className="ws-button is-primary" onClick={recordMistake} title={`${MOD_KEY}+Shift+M`}>
+        {workspace.writable ? <button type="button" className="ws-button" onClick={recordMistake} title={`${MOD_KEY}+Shift+M`}>
           <Plus size={15} /> Record mistake</button> : null}
       </div>
     </header>
@@ -227,14 +228,24 @@ export function MistakeLog() {
   </div>;
 }
 
+
+function DifferenceText({ parts, fallback }: { parts: DifferencePart[]; fallback: string }) {
+  if (!parts.some((part) => part.text)) return <em className="ws-muted">{fallback}</em>;
+  return <>{parts.map((part, index) =>
+    <span key={index} className={part.kind === "wrong" ? "ml-diff-wrong" : part.kind === "corrected" ? "ml-diff-right" : undefined}>{part.text}</span>)}</>;
+}
+
 function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { entry: KnowledgeEntry; modeName: string; highlighted: boolean; onEdit: () => void; onPractise: () => void }) {
   const workspace = useWorkspace();
   const [confirmElement, confirm] = useConfirm();
   const [flashcard, setFlashcard] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const stage = mistakeStage(entry);
   const lesson = entry.lesson_id ? workspace.entryById.get(entry.lesson_id) : null;
   const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const lastAttempt = attempts[0];
+  const difference = useMemo(() => mistakeDifference(entry.attempt, entry.correction), [entry.attempt, entry.correction]);
+  const due = isRecallDue(entry);
 
   async function setUnderstood(understood: boolean) {
     try {
@@ -249,58 +260,65 @@ function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { ent
     try { await workspace.removeEntry(entry.id); } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
-  return <article className={`ml-card is-${stage} ${highlighted ? "is-highlighted" : ""}`} data-mistake={entry.id}>
+  return <article className={`ml-card is-compact is-${stage} ${highlighted ? "is-highlighted" : ""} ${expanded ? "is-expanded" : ""}`} data-mistake={entry.id}>
     {confirmElement}
     {flashcard ? <FlashcardDialog entry={entry} onClose={() => setFlashcard(false)} /> : null}
-    <div className="ml-card-top">
-      <span className="ml-card-context">
+    <button type="button" className="ml-summary" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}
+      aria-label={`${expanded ? "Collapse" : "Expand"} mistake: ${entry.attempt || entry.title || modeName}`}>
+      <span className="ml-summary-top">
+        <span className="ml-summary-context">{modeName} · {workspace.pathLabel(entry.topic_id)} · {formatDay(entry.created_at)}</span>
+        <span className="ml-summary-status">
+          {due ? <span className="ml-due-dot" title="Due for recall"><span className="ml-visually-hidden">Due for recall</span></span> : null}
+          <span className={`ml-stage is-${stage}`}>{STAGE_LABEL[stage]}</span>
+          <ChevronDown size={16} className="ml-summary-chevron" aria-hidden="true" />
+        </span>
+      </span>
+      <span className="ml-summary-comparison">
+        <span className="ml-summary-part ml-attempt" lang="und"><DifferenceText parts={difference.before} fallback="Attempt not written down" /></span>
+        <ArrowRight size={15} className="ml-summary-arrow" aria-hidden="true" />
+        <span className="ml-summary-part ml-correct" lang="und"><DifferenceText parts={difference.after} fallback="Correction needed" /></span>
+      </span>
+    </button>
+    {expanded ? <div className="ml-expanded-content">
+      {entry.title.trim() ? <h3 className="ml-card-title">{entry.title}</h3> : null}
+      <div className="ml-expanded-context">
         <button type="button" className="nb-link-button" onClick={() => workspace.openTopic(entry.topic_id)}>{workspace.pathLabel(entry.topic_id)}</button>
         {lesson ? <> · <button type="button" className="nb-link-button" onClick={() => workspace.openDocument(lesson.id)}>{entryTitle(lesson)}</button></> : null}
         <span> · {formatDay(entry.created_at)}</span>
-      </span>
-      <span className="ml-kind">{modeName}</span>
-      <span className={`ml-stage is-${stage}`}>{STAGE_LABEL[stage]}</span>
-      {workspace.writable ? <RowMenu label="mistake" items={[
-        { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
-        ...(entry.correction ? [{ label: "Make a flashcard…", icon: <Layers size={14} />, run: () => setFlashcard(true) }] : []),
-        { label: "Delete", icon: <Trash2 size={14} />, danger: true, run: () => void remove() },
-      ]} /> : null}
-    </div>
-    {entry.title.trim() ? <h3 className="ml-card-title">{entry.title}</h3> : null}
-    <div className="ml-pair">
-      <div className="ml-attempt"><span className="ml-label">My attempt</span><p lang="und">{entry.attempt || <em className="ws-muted">not written down</em>}</p></div>
-      <div className="ml-arrow" aria-hidden="true"><ArrowRight size={16} /></div>
-      <div className="ml-correct"><span className="ml-label">Correct form</span>
-        {entry.correction ? <p>{entry.correction}</p> : workspace.writable ? <button type="button" className="ml-add-correction" onClick={onEdit}><Plus size={13} /> Add the correction</button> : <p className="ws-muted">—</p>}
       </div>
-    </div>
-    {entry.explanation ? <div className="ml-why"><span className="ml-label">Why</span><p>{entry.explanation}</p></div> : null}
-    <div className="ml-card-foot">
-      <span className="ml-evidence">
-        {attempts.length
-          ? <>{attempts.filter((event) => event.outcome === "correct").length}/{attempts.length} recalls correct · last {relativeTime(lastAttempt.created_at)}
-            {entry.recall_streak >= RETAINED_STREAK ? <b> · recalled on {entry.recall_streak} separate days</b> : null}
-            {entry.recall_due_at && entry.correction ? <> · {dueLabel(entry.recall_due_at)}</> : null}</>
-          : entry.correction ? (entry.recall_due_at ? <>Not practised yet · {dueLabel(entry.recall_due_at)}</> : "Not practised yet") : "Add the correct form to practise it"}
-      </span>
-      <span className="ml-card-actions">
-        {entry.correction ? <button type="button" className="ws-button is-small" onClick={onPractise}><RotateCcw size={13} /> Test recall</button> : null}
-        {workspace.writable && entry.correction ? (entry.status === "understood"
-          ? <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(false)}>Practise again</button>
-          : <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(true)} title="Self-assessed — recall checks continue"><Check size={13} /> I understand it</button>) : null}
-        {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="Edit mistake" onClick={onEdit}><Pencil size={14} /></button> : null}
-      </span>
-    </div>
-    {attempts.length ? <details className="ml-attempt-history">
-      <summary><History size={13} /> Previous attempts ({attempts.length})</summary>
-      <ol>
-        {attempts.map((event) => <li key={event.id}>
-          <span>{formatDay(event.created_at)}</span>
-          <strong className={event.outcome === "correct" ? "is-correct" : "is-incorrect"}>{event.outcome === "correct" ? "Correct" : "Needs work"}</strong>
-          <p>{event.answer || "No written answer recorded"}</p>
-        </li>)}
-      </ol>
-    </details> : null}
+      {entry.explanation ? <div className="ml-why"><span className="ml-label">Why</span><p>{entry.explanation}</p></div> : null}
+      {!entry.correction && workspace.writable ? <button type="button" className="ml-add-correction" onClick={onEdit}><Plus size={13} /> Add the correction</button> : null}
+      <div className="ml-card-foot">
+        <span className="ml-evidence">
+          {attempts.length
+            ? <>{attempts.filter((event) => event.outcome === "correct").length}/{attempts.length} recalls correct · last {relativeTime(lastAttempt.created_at)}
+              {entry.recall_streak >= RETAINED_STREAK ? <b> · recalled on {entry.recall_streak} separate days</b> : null}
+              {entry.recall_due_at && entry.correction ? <> · {dueLabel(entry.recall_due_at)}</> : null}</>
+            : entry.correction ? (entry.recall_due_at ? <>Not recalled yet · {dueLabel(entry.recall_due_at)}</> : "Not recalled yet") : "Add the correct form to practise it"}
+        </span>
+        <span className="ml-card-actions">
+          {entry.correction ? <button type="button" className="ws-button is-small" onClick={onPractise}><RotateCcw size={13} /> Test recall</button> : null}
+          {workspace.writable && entry.correction ? (entry.status === "understood"
+            ? <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(false)}>Practise again</button>
+            : <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(true)} title="Self-assessed — recall checks continue"><Check size={13} /> I understand it</button>) : null}
+          {workspace.writable ? <RowMenu label="mistake" items={[
+            { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
+            ...(entry.correction ? [{ label: "Make a flashcard…", icon: <Layers size={14} />, run: () => setFlashcard(true) }] : []),
+            { label: "Delete", icon: <Trash2 size={14} />, danger: true, run: () => void remove() },
+          ]} /> : null}
+        </span>
+      </div>
+      {attempts.length ? <details className="ml-attempt-history">
+        <summary><History size={13} /> Previous attempts ({attempts.length})</summary>
+        <ol>
+          {attempts.map((event) => <li key={event.id}>
+            <span>{formatDay(event.created_at)}</span>
+            <strong className={event.outcome === "correct" ? "is-correct" : "is-incorrect"}>{event.outcome === "correct" ? "Correct" : "Needs work"}</strong>
+            <p>{event.answer || "No written answer recorded"}</p>
+          </li>)}
+        </ol>
+      </details> : null}
+    </div> : null}
   </article>;
 }
 
