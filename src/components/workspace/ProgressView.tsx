@@ -128,7 +128,10 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel 
 export function ProgressView() {
   const workspace = useWorkspace();
   const { snapshot } = workspace;
-  const [range, setRange] = useState<Range>(12);
+  const range: Range = workspace.memory.progress.range;
+  const setRange = (next: Range) => workspace.updateMemory((current) => ({
+    ...current, progress: { ...current.progress, range: next },
+  }));
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [studyError, setStudyError] = useState("");
   const [studyLoading, setStudyLoading] = useState(true);
