@@ -144,9 +144,9 @@ export function ProgressView() {
   return <div className="pg-page">
     <header className="ws-page-head">
       <div>
-        <span className="ws-eyebrow">Heuresis activity · Anki Tracker stays in Personal OS</span>
+        <span className="ws-eyebrow">Learning activity</span>
         <h1>Progress</h1>
-        <p className="ws-page-sub">What you actually did here, week by week — practice and recall, not a mastery score.</p>
+        <p className="ws-page-sub">Your lessons, reviews and recall over time.</p>
       </div>
       <div className="ws-page-actions">
         <div className="ws-segmented" role="tablist" aria-label="Period">
@@ -178,11 +178,10 @@ export function ProgressView() {
         <div className="ws-panel-head"><h2>Mistakes — what the evidence says</h2></div>
         <dl className="pg-evidence">
           <div><dt>Need a correction</dt><dd>{stageCount("to_correct")}</dd></div>
-          <div><dt>Practising</dt><dd>{stageCount("practising")}</dd></div>
+          <div><dt>In review</dt><dd>{stageCount("practising")}</dd></div>
           <div><dt>Marked “I understand” <small>self-assessed</small></dt><dd>{stageCount("understood")}</dd></div>
           <div><dt>Recalled correctly on {RETAINED_STREAK}+ separate days</dt><dd>{retained}</dd></div>
         </dl>
-        <p className="ws-muted">Understanding is your own judgement; retention only shows when you produce the correct form again after a delay. Several correct answers on the same day count once.</p>
       </section>
       <section className="ws-panel">
         <div className="ws-panel-head"><h2>By subject</h2></div>
