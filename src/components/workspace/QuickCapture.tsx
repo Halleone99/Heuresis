@@ -142,6 +142,32 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
 
   const destinationLabel = topicId ? workspace.pathLabel(topicId) : "";
   const subjects = workspace.snapshot.subjects;
+  const lessonSubjectId = currentLesson ? workspace.topicById.get(currentLesson.topic_id)?.subject_id ?? null : null;
+  const selectedSubjectId = (attachToLesson ? lessonSubjectId : null)
+    ?? (topicId ? workspace.topicById.get(topicId)?.subject_id ?? null : null)
+    ?? (memory.capture.subjectId && workspace.subjectById.has(memory.capture.subjectId) ? memory.capture.subjectId : null)
+    ?? resolveCaptureContext({
+      subjects, topics: workspace.snapshot.topics,
+      savedSubjectId: memory.capture.subjectId, savedTopicId: memory.capture.topicId,
+      notebookSubjectId: memory.notebook.subjectId, notebookTopicId: memory.notebook.topicId,
+      documentTopicId: memory.notebook.docId ? workspace.entryById.get(memory.notebook.docId)?.topic_id : null,
+    }).subjectId;
+  const languageName = subjects.find((subject) => subject.id === selectedSubjectId)?.name ?? null;
+  function selectLanguage(subjectId: string) {
+    if (saving) return;
+    if (attachToLesson && lessonSubjectId && subjectId !== lessonSubjectId) {
+      setError("This capture is attached to an active lesson. Detach it before switching language.");
+      return;
+    }
+    const inbox = workspace.snapshot.topics.find((row) => row.subject_id === subjectId &&
+      !row.parent_id && row.name.trim().toLocaleLowerCase() === "inbox");
+    const nextTopic = inbox?.id ?? null;
+    setTopicId(nextTopic);
+    setError("");
+    updateMemory((current) => ({ ...current,
+      capture: { ...current.capture, subjectId, topicId: nextTopic },
+    }));
+  }
   const suggestions = useMemo(() => (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
     .filter((name) => !subjects.some((subject) => subject.name.toLowerCase() === name.toLowerCase())).slice(0, 4), [objectives, subjects]);
 
@@ -151,14 +177,14 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     setError("");
     try {
     if (!workspace.writable) { setError("Apply the Notebook database update before capturing (see the notice in Notebook)."); return; }
-    let destination = topicId;
+    if (!selectedSubjectId) {
+      setError("Choose a language before saving. No notes will be sent to an arbitrary Inbox.");
+      return;
+    }
+    let destination = topicId && workspace.topicById.get(topicId)?.subject_id === selectedSubjectId
+      ? topicId : null;
     if (!destination || (stream && !attachToLesson)) {
-      const contextTopic = topicId ? workspace.topicById.get(topicId) : null;
-      const subjectId = contextTopic?.subject_id
-        ?? (memory.notebook.subjectId && workspace.subjectById.has(memory.notebook.subjectId) ? memory.notebook.subjectId : null)
-        ?? workspace.snapshot.subjects[0]?.id
-        ?? (await workspace.addSubject("General")).id;
-      destination = (await workspace.ensureInbox(subjectId)).id;
+      destination = (await workspace.ensureInbox(selectedSubjectId)).id;
     }
     const lessonId = attachToLesson ? currentLesson?.id ?? null : null;
     if (lessonId && currentLesson) destination = currentLesson.topic_id;
@@ -199,7 +225,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         const created = await workspace.addEntry({ kind: "lesson", topicId: destination, title, body: "", lessonDate });
         writeCaptureDraft(userId, null, draftSurface);
         setDraft(EMPTY_DRAFT("note"));
-        updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: destination } }));
+        updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: destination, subjectId: selectedSubjectId } }));
         workspace.startLesson(created.id);
         workspace.closeCapture();
         workspace.toast(`Lesson started. Quick captures now attach to “${entryTitle(created)}”.`);
@@ -212,7 +238,10 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   }
 
   function reset(savedTopicId: string) {
-    updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: savedTopicId } }));
+    const savedSubjectId = workspace.topicById.get(savedTopicId)?.subject_id ?? selectedSubjectId;
+    updateMemory((current) => ({ ...current, capture: { ...current.capture,
+      topicId: savedTopicId, subjectId: savedSubjectId,
+    } }));
     // Clear only what was just saved; text typed in another mode stays as a draft.
     setDraft((current) => {
       const next = current.mode === "note"
@@ -264,7 +293,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         <button type="button" role="tab" aria-selected={mode === "lesson"} className={mode === "lesson" ? "is-active" : ""} onClick={() => setMode("lesson")} title={`${MOD_KEY}+Shift+L`}><GraduationCap size={13} /> Lesson</button>
       </div>
       <span className="qc-head-spacer" />
-      {mode === "note" ? <button type="button" className={`qc-stream-toggle ${stream ? "is-active" : ""}`} aria-pressed={stream}
+      {mode === "note" && !floating ? <button type="button" className={`qc-stream-toggle ${stream ? "is-active" : ""}`} aria-pressed={stream}
         title={stream ? "Switch to structured note capture" : "Rapid continuous capture: Enter saves"}
         onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, stream: !current.capture.stream } }))}>
         <ListPlus size={14} /> Stream</button> : null}
@@ -275,14 +304,14 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
     </div>
 
-    {noSubjects && workspace.writable && !stream ? <div className="qc-first-run">
+    {noSubjects && workspace.writable ? <div className="qc-first-run">
       <strong>Where should your notes live?</strong>
       <p>Pick a subject. Heuresis creates an Inbox topic inside it; you can organise later.</p>
       {creatingSubject ? <InlineNameForm label="Subject name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
-        onSubmit={async (name) => { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); setCreatingSubject(false); }} />
+        onSubmit={async (name) => { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: subject.id, topicId: inbox.id } })); setCreatingSubject(false); }} />
         : <div className="qc-chips">
           {suggestions.map((name) => <button type="button" key={name} className="ws-button is-small" onClick={async () => {
-            try { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); }
+            try { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: subject.id, topicId: inbox.id } })); }
             catch (createError) { setError(friendlyError(createError)); }
           }}>{name}</button>)}
           <button type="button" className="ws-button is-small is-quiet" onClick={() => setCreatingSubject(true)}>Other…</button>
@@ -302,7 +331,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
             }
           }} />
         {stream ? <div className="qc-stream-meta">
-          <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : "Language Inbox"}</span>
+          <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : languageName ? `${languageName} › Inbox` : "Choose language"}</span>
           <span><Kbd>Enter</Kbd> save · <Kbd>⇧ Enter</Kbd> newline</span>
           <small>Use a → b for mistakes, // for why, #g grammar, #v vocabulary, #e expressions; ? for questions.</small>
         </div> : <div className="qc-categories" role="radiogroup" aria-label="Kind of note">
@@ -340,10 +369,18 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     </div>
 
     <div className="qc-destination">
+      {subjects.length > 1 ? <div className="qc-language-choices" role="group" aria-label="Capture language">
+        <span className="qc-language-caption">Language</span>
+        {subjects.map((subject) => <button type="button" key={subject.id}
+          className={selectedSubjectId === subject.id ? "is-active" : ""}
+          aria-pressed={selectedSubjectId === subject.id} disabled={saving}
+          title={attachToLesson && lessonSubjectId !== subject.id ? "Detach from the active lesson to change language" : `Save captures in ${subject.name}`}
+          onClick={() => selectLanguage(subject.id)}>{subject.name}</button>)}
+      </div> : null}
       <div className="qc-destination-row">
         <span className="qc-label">{mode === "lesson" ? "In" : "To"}</span>
         <button type="button" className="qc-topic" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking((value) => !value)} disabled={noSubjects}>
-          {stream && !attachToLesson ? (topicId && workspace.topicById.get(topicId) ? `${workspace.topicPath(topicId).subject?.name ?? "Current language"} › Inbox` : "Current language › Inbox") : destinationLabel || "Automatic Inbox"} <ChevronDown size={13} />
+          {stream && !attachToLesson ? (languageName ? `${languageName} › Inbox` : "Choose language") : destinationLabel || (languageName ? `${languageName} › Inbox` : "Choose language")} <ChevronDown size={13} />
         </button>
         {currentLesson && mode !== "lesson" ? <button type="button" className={`qc-lesson-chip ${attachToLesson ? "is-on" : ""}`} aria-pressed={attachToLesson}
           title={attachToLesson ? "Attached to the current lesson — click to file it on its own" : "Attach to the current lesson"}
@@ -355,7 +392,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           <Radio size={12} /> {attachToLesson ? entryTitle(currentLesson) : "Not in lesson"}
         </button> : null}
       </div>
-      {picking ? <div className="qc-picker"><TopicPicker value={topicId} onChange={(id) => { setTopicId(id); setPicking(false); firstFieldRef.current?.focus(); }} onClose={() => setPicking(false)} /></div> : null}
+      {picking ? <div className="qc-picker"><TopicPicker value={topicId} onChange={(id) => { setTopicId(id); const subjectId = workspace.topicById.get(id)?.subject_id ?? null; updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: id, subjectId } })); setPicking(false); firstFieldRef.current?.focus(); }} onClose={() => setPicking(false)} /></div> : null}
     </div>
 
     {error ? <p className="ws-field-error qc-error" role="alert">{error}</p> : null}
@@ -364,7 +401,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     <div className="qc-foot">
       <span className="qc-hint">{stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}<Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
       {hasContent ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
-      <button type="button" className="ws-button is-primary" disabled={saving} onClick={() => void submit()}>
+      <button type="button" className="ws-button is-primary" disabled={saving || (subjects.length > 1 && !selectedSubjectId)} onClick={() => void submit()}>
         {mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
       </button>
     </div>
