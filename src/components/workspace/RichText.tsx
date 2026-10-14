@@ -8,8 +8,8 @@ export type LinkResolver = (target: string) => { exists: boolean; open: () => vo
  * keeping the notebook's serif typography for Hanzi and English prose. */
 /** Preserve the source text while giving Hanzi a legible reading size. */
 function HanziAware({ text }: { text: string }) {
-  return <>{text.split(/(\\p{Script=Han}+)/u).map((part, index) =>
-    /\\p{Script=Han}/u.test(part) ? <span key={index} className="nb-hanzi" lang="zh">{part}</span>
+  return <>{text.split(/(\p{Script=Han}+)/gu).map((part, index) =>
+    /\p{Script=Han}/u.test(part) ? <span key={index} className="nb-hanzi" lang="zh">{part}</span>
       : <span key={index}>{part}</span>)}</>;
 }
 function PinyinAware({ text }: { text: string }) {
@@ -81,8 +81,8 @@ function exampleGroups(lines: string[]) {
 
 function rubyEligible(lines: string[]) {
   // An explicit three-line Chinese example: original, pinyin, translation.
-  return lines.length >= 3 && /\\p{Script=Han}/u.test(lines[0])
-    && !/\\p{Script=Han}/u.test(lines[1]) && /[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/iu.test(lines[1]);
+  return lines.length >= 3 && /\p{Script=Han}/u.test(lines[0])
+    && !/\p{Script=Han}/u.test(lines[1]) && /[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/iu.test(lines[1]);
 }
 function BlockView({ block, resolve, rubyPinyin = false }: {
   block: Block; resolve?: LinkResolver; rubyPinyin?: boolean;
