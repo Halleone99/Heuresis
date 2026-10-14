@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, History, Layers, Pencil, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   addDays, entryTitle, friendlyError, isRecallDue, mistakeStage, normaliseSearch, RETAINED_STREAK,
-  type KnowledgeEntry, type MistakeStage, type NoteCategory,
+  type KnowledgeEntry, type MistakeStage,
 } from "../../lib/knowledgeWorkspace";
 import { FALLBACK_MODES, loadMistakeModes, moveMistakeMode, resolveMistakeMode, type MistakeMode } from "../../lib/mistakeModes";
 import { MistakeModeDialog, ModeSymbol } from "./MistakeModeDialog";
