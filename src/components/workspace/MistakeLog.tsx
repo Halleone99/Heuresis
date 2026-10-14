@@ -133,7 +133,7 @@ export function MistakeLog() {
   return <div className="ml-page">
     <header className="ws-page-head">
       <div>
-        <span className="ws-eyebrow">Mistake → Correction → Practice → Progress</span>
+        <span className="ws-eyebrow">Corrections and recall</span>
         <h1>Mistake Log</h1>
       </div>
       <div className="ws-page-actions">
