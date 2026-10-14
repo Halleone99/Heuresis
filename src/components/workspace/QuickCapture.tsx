@@ -205,7 +205,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           : { id, kind: "note" as const, topicId: destination, body: parsed?.kind === "note" ? parsed.body : sent.text,
               category: parsed?.kind === "note" ? parsed.category : category, lessonId };
         const label = (input.kind === "mistake" ? input.attempt || input.correction : input.body).trim().slice(0, 40);
-        const created = await workspace.submitCapture(input, label);
+        const created = await workspace.submitCapture(input, label, draftSurface);
         if (!created) { setError("The capture is kept for retry. It has not been discarded."); return; }
         reset(destination);
         confirmSaved(created.id, created.topic_id, input.kind === "mistake" ? "the Mistake Log" : lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
@@ -216,7 +216,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() }, draftSurface);
         setDraft((current) => ({ ...current, pendingId: id }));
-        const created = await workspace.submitCapture({ id, kind: "mistake", topicId: destination, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, mistakeModeId: sent.mistakeModeId ?? null, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
+        const created = await workspace.submitCapture({ id, kind: "mistake", topicId: destination, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, mistakeModeId: sent.mistakeModeId ?? null, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label, draftSurface);
         if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
         reset(destination);
         confirmSaved(created.id, created.topic_id, "the Mistake Log");
