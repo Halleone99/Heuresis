@@ -20,12 +20,17 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
   const legacy = usePersonalOsCaptures(workspace.userId);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [lastSession, setLastSession] = useState<StudySession | null>(null);
+  const [studyHistoryState, setStudyHistoryState] = useState<"loading" | "ready" | "error">("loading");
+  const [retryStudyHistory, setRetryStudyHistory] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    void loadLastStudySession(workspace.userId).then((row) => { if (alive) setLastSession(row); }).catch(() => undefined);
+    setStudyHistoryState("loading");
+    void loadLastStudySession(workspace.userId)
+      .then((row) => { if (alive) { setLastSession(row); setStudyHistoryState("ready"); } })
+      .catch(() => { if (alive) setStudyHistoryState("error"); });
     return () => { alive = false; };
-  }, [workspace.userId]);
+  }, [workspace.userId, retryStudyHistory]);
 
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
   const filterId = subjectFilter && workspace.subjectById.has(subjectFilter) ? subjectFilter : null;
@@ -182,7 +187,8 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
           <div className="ws-panel-head"><h2><BookOpen size={16} /> Study</h2>
             <button type="button" className="nb-link-button" onClick={onOpenStudy}>Open Study →</button></div>
           <p className="ov-study-line">{study.cards.toLocaleString()} cards in {study.topics} {study.topics === 1 ? "topic" : "topics"} across {study.collections} {study.collections === 1 ? "collection" : "collections"}.</p>
-          <p className="ws-muted">{lastSession ? `Last studied ${relativeTime(lastSession.started_at)} · ${SESSION_MODE_LABELS[lastSession.mode] ?? lastSession.mode}${lastSession.cards_encountered ? `, ${lastSession.cards_encountered} cards` : ""}.` : "No study session recorded yet."}</p>
+          {studyHistoryState === "error" ? <p className="ws-muted" role="alert">Study history could not be loaded. <button type="button" className="nb-link-button" onClick={() => setRetryStudyHistory((count) => count + 1)}>Retry</button></p>
+            : <p className="ws-muted" role="status">{studyHistoryState === "loading" ? "Loading study history…" : lastSession ? `Last studied ${relativeTime(lastSession.started_at)} · ${SESSION_MODE_LABELS[lastSession.mode] ?? lastSession.mode}${lastSession.cards_encountered ? `, ${lastSession.cards_encountered} cards` : ""}.` : "No study session recorded yet."}</p>}
         </section>
       </div>
     </div>
