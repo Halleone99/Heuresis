@@ -96,8 +96,8 @@ function FloatingCaptureBody({ session }: { session: Session }) {
     let offMove: (() => void) | undefined;
     let offOpen: (() => void) | undefined;
     void (async () => {
-      const [{ getCurrentWindow, PhysicalPosition }, { listen }] = await Promise.all([
-        import("@tauri-apps/api/window"), import("@tauri-apps/api/event"),
+      const [{ getCurrentWindow }, { PhysicalPosition }, { listen }] = await Promise.all([
+        import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi"), import("@tauri-apps/api/event"),
       ]);
       const appWindow = getCurrentWindow();
       const raw = localStorage.getItem(positionKey);
@@ -156,12 +156,14 @@ function FloatingCaptureBody({ session }: { session: Session }) {
     </header>
     {view === "bubble" ? <button type="button" className="quick-floating-bubble" onClick={() => openCapture()}>
       <NotebookPen size={15}/> Capture now · Ctrl+Alt+Space
-    </button> : <>
-      <div className="quick-floating-stage">
-        <QuickCapture floating/>
-        {!workspace.capture ? <button type="button" className="quick-floating-reopen" onClick={() => openCapture()}>
-          <NotebookPen size={15}/> New capture</button> : null}
-      </div>
+    </button> : null}
+    {/* Remains mounted in bubble mode so drafts are never lost on collapse. */}
+    <div className="quick-floating-stage">
+      <QuickCapture floating/>
+      {!workspace.capture ? <button type="button" className="quick-floating-reopen" onClick={() => openCapture()}>
+        <NotebookPen size={15}/> New capture</button> : null}
+    </div>
+    {view !== "bubble" ? <>
       {view === "expanded" ? <section className="quick-floating-recent" aria-label="Captured during this lesson">
         <div className="quick-floating-recent-head">
           <strong>Running captures</strong><small>{lesson ? "Current lesson" : "Since window opened"}</small>
