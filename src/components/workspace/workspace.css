@@ -1374,3 +1374,9 @@
   .lc-footer { flex-wrap: wrap; }
   .lc-action-row .ws-button { min-width: 0; }
 }
+
+
+/* Notebook breadcrumbs carry navigation on desktop; keep Back for touch devices. */
+@media (min-width: 901px) {
+  .nb-crumbs .nb-back { display: none; }
+}
