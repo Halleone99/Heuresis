@@ -4,19 +4,23 @@ use tauri::{Emitter, Manager};
 /// The quick Notebook capture window stays alive, hidden at launch, so the
 /// global shortcut can raise it without constructing another WebView.
 #[cfg(desktop)]
-fn show_quick_capture_handle(app: &tauri::AppHandle) -> Result<(), String> {
+fn show_quick_capture_handle(app: &tauri::AppHandle, mode: &str) -> Result<(), String> {
     let window = app.get_webview_window("quick-capture")
         .ok_or_else(|| "Quick Capture has not been initialised.".to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
-    let _ = window.emit("heuresis:quick-open", ());
+    let _ = window.emit("heuresis:quick-open", mode);
     Ok(())
 }
 
 #[cfg(desktop)]
 #[tauri::command]
-fn show_quick_capture(app: tauri::AppHandle) -> Result<(), String> {
-    show_quick_capture_handle(&app)
+fn show_quick_capture(app: tauri::AppHandle, mode: Option<String>) -> Result<(), String> {
+    let mode = mode.as_deref().unwrap_or("note");
+    if !matches!(mode, "note" | "mistake" | "lesson") {
+        return Err("Unsupported quick capture mode.".into());
+    }
+    show_quick_capture_handle(&app, mode)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -60,7 +64,7 @@ pub fn run() {
                             if event.state() == ShortcutState::Pressed
                                 && shortcut.matches(Modifiers::CONTROL | Modifiers::ALT, Code::Space)
                             {
-                                let _ = show_quick_capture_handle(app);
+                                let _ = show_quick_capture_handle(app, "note");
                             }
                         })
                         .build(),
