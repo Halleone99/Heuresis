@@ -1637,3 +1637,61 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 @media (max-width: 700px) {
   .pg-language-legend { gap: 7px 10px; }
 }
+
+
+/* #48–50: one dim control, readable live card preview and clickable focal area.
+   Existing opacity/veil data remains compatible with Personal OS. */
+.settings-modal .background-preview-live {
+  display: grid; gap: 7px; width: 100%; min-width: 0; padding: 0;
+  background: transparent; border: 0; border-radius: 0; overflow: visible;
+}
+.settings-modal .background-preview-canvas {
+  position: relative; isolation: isolate; display: grid; place-items: center;
+  height: clamp(180px, 25vw, 252px); width: 100%;
+  padding: 15px; overflow: hidden; border-radius: 12px;
+  background: var(--ws-page); border: 1px solid var(--ws-line-strong);
+  cursor: crosshair; text-align: left;
+}
+.settings-modal .background-preview-canvas:disabled { cursor: default; }
+.settings-modal .background-preview-canvas:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
+.settings-modal .background-preview-canvas > img {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-width: none;
+  display: block; object-fit: cover; pointer-events: none; border: 0; border-radius: 0;
+}
+.settings-modal .background-preview-canvas > .background-empty {
+  position: absolute; inset: 0; display: block; background: var(--ws-page);
+}
+.settings-modal .background-preview-veil {
+  position: absolute; inset: 0; display: block; z-index: 1;
+  background: var(--ws-page); pointer-events: none;
+}
+.settings-modal .background-preview-example {
+  position: relative; z-index: 2; display: grid; gap: 7px;
+  width: min(320px, 100%); padding: 19px 22px; border-radius: 11px;
+  border: 1px solid var(--ws-line-strong);
+  background: color-mix(in srgb, var(--ws-raised) 95%, transparent);
+  color: var(--ws-ink); box-shadow: var(--ws-shadow-2);
+  pointer-events: none; white-space: normal;
+}
+.settings-modal .background-preview-example small {
+  font: 600 10px/1.3 var(--ws-mono); letter-spacing: .055em;
+  color: var(--ws-accent);
+}
+.settings-modal .background-preview-example strong {
+  font: 500 clamp(17px, 2vw, 21px)/1.4 var(--ws-serif); color: var(--ws-ink);
+}
+.settings-modal .background-preview-example > span {
+  position: static; font: 12px/1.5 var(--ws-sans); color: var(--ws-text);
+}
+.settings-modal .background-preview-example em {
+  font: 500 11px/1.4 var(--ws-sans); color: var(--ws-muted);
+}
+.settings-modal .background-preview-caption {
+  display: block; position: static; padding: 0;
+  font: 11px/1.5 var(--ws-sans); color: var(--ws-muted); text-align: left;
+}
+.settings-modal .background-focal-hint { margin: 0; color: var(--ws-muted); font: 11px/1.45 var(--ws-sans); }
+@media (max-width: 540px) {
+  .settings-modal .background-preview-canvas { height: 205px; }
+  .settings-modal .background-preview-example { padding: 14px 16px; }
+}
