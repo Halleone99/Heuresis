@@ -736,3 +736,111 @@ if (typeof window !== "undefined") {
   window.addEventListener("offline", () => emit({ online: false, syncing: false }));
   void refreshOfflinePendingCount();
 }
+
+
+/* Recovery of unowned queue entries from the original offline implementation.
+   Deliberate opt-in only: never automatically assign legacy writes to a user. */
+export type LegacyOfflineWrite = {
+  id: string;
+  createdAt: string;
+  method: string;
+  target: string;
+  attempts: number;
+  preview: string;
+  canReplay: boolean;
+  reason: string;
+};
+
+function legacyReplayCheck(row: QueueRecord, owner: string): string | null {
+  // Only idempotent-ish, ID-addressed INSERTs can be adopted automatically.
+  // PATCH, DELETE and RPC calls could overwrite or delete unrelated records.
+  const table = tableName(row.url);
+  if (row.method !== "POST" || !table || !/^https?:\/\//.test(row.url)) return "Only new records can be safely restored automatically.";
+  const url = new URL(row.url);
+  if (url.searchParams.has("on_conflict")) return "Upsert behaviour needs manual review.";
+  if (/resolution=merge-duplicates/i.test(row.headers.prefer ?? "")) return "Updates to existing records need manual review.";
+  const payload = parseJson(row.body);
+  const records = Array.isArray(payload) ? payload : [payload];
+  if (!records.length || records.some((r) => !r || typeof r !== "object" || Array.isArray(r)
+    || typeof (r as Record<string, unknown>).id !== "string")) return "The original records have no stable IDs.";
+  const ownerFields = ["user_id", "owner_id", "profile_id"];
+  for (const record of records) {
+    const data = record as Record<string, unknown>;
+    for (const field of ownerFields) if (typeof data[field] === "string" && data[field] !== owner) {
+      return "This record refers to another account; it cannot be assigned here.";
+    }
+  }
+  for (const [key, value] of url.searchParams) {
+    if (ownerFields.includes(key) && value.startsWith("eq.") && value.slice(3) !== owner) {
+      return "The request targets another account.";
+    }
+  }
+  return null;
+}
+
+function legacyTarget(row: QueueRecord): string {
+  return tableName(row.url) ?? (rpcName(row.url) ? `RPC: ${rpcName(row.url)}` : "Unknown action");
+}
+
+export async function listLegacyOfflineWrites(): Promise<LegacyOfflineWrite[]> {
+  const rows = (await getAllRecords<QueueRecord>(QUEUE_STORE))
+    .filter((row) => !row.ownerId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const owner = cacheOwner();
+  return rows.map((row) => {
+    const reason = owner ? legacyReplayCheck(row, owner) : "Sign in before restoring.";
+    const raw = typeof row.body === "string" ? row.body : "";
+    return {
+      id: row.id, createdAt: row.createdAt, method: row.method, target: legacyTarget(row),
+      attempts: row.attempts ?? 0, preview: raw.slice(0, 3000),
+      canReplay: !reason, reason: reason ?? "Eligible for a manual retry with the current account.",
+    };
+  });
+}
+
+/** Export the full original request bodies for backup, without old credentials. */
+export async function exportLegacyOfflineWrites() {
+  const rows = (await getAllRecords<QueueRecord>(QUEUE_STORE))
+    .filter((row) => !row.ownerId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return JSON.stringify({
+    format: "heuresis-legacy-offline-recovery-v1",
+    exportedAt: new Date().toISOString(),
+    warning: "May contain private notes and unsent changes. Keep securely. Not an automatic import.",
+    entries: rows.map((row) => ({
+      id: row.id, url: row.url, method: row.method, body: row.body,
+      createdAt: row.createdAt, attempts: row.attempts,
+      headers: Object.fromEntries(Object.entries(row.headers).filter(([key]) =>
+        !["authorization", "apikey", "cookie", "x-api-key"].includes(key.toLowerCase()))),
+    })),
+  }, null, 2);
+}
+
+/** Explicitly adopt safe original inserts for the active user; replay still uses normal RLS. */
+export async function adoptLegacyOfflineWrites(ids: string[], userId: string): Promise<number> {
+  if (!userId || userId !== cacheOwner()) throw new Error("Sign in to the account that owns these records.");
+  if (activeFlush) throw new Error("Wait for the current synchronisation to finish.");
+  const wanted = new Set(ids);
+  if (!wanted.size) return 0;
+  const rows = (await getAllRecords<QueueRecord>(QUEUE_STORE)).filter((row) => wanted.has(row.id));
+  if (rows.length !== wanted.size || rows.some((row) => row.ownerId)) throw new Error("Some legacy records changed. Refresh the recovery list.");
+  for (const row of rows) {
+    const reason = legacyReplayCheck(row, userId);
+    if (reason) throw new Error(`Cannot restore ${legacyTarget(row)}: ${reason}`);
+  }
+  // Each row is an independent IndexedDB transaction; any completed adoption
+  // remains visible as an owned pending write on partial failure.
+  for (const row of rows) await putRecord(QUEUE_STORE, { ...row, ownerId: userId, attempts: 0 });
+  await refreshOfflinePendingCount();
+  return rows.length;
+}
+
+/** Only selected unowned entries may be discarded; export must happen first in the UI. */
+export async function discardLegacyOfflineWrites(ids: string[]): Promise<number> {
+  if (!cacheOwner()) throw new Error("Sign in before using the recovery tools.");
+  if (activeFlush) throw new Error("Wait for the current synchronisation to finish.");
+  const wanted = new Set(ids);
+  const rows = (await getAllRecords<QueueRecord>(QUEUE_STORE)).filter((row) => wanted.has(row.id) && !row.ownerId);
+  if (rows.length !== wanted.size) throw new Error("Some entries have changed. Refresh before discarding.");
+  for (const row of rows) await deleteRecord(QUEUE_STORE, row.id);
+  await refreshOfflinePendingCount();
+  return rows.length;
+}

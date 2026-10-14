@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut,
+  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut,
   NotebookPen, Plus, Radio, RefreshCw, Search, Settings2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
@@ -21,6 +21,7 @@ import { NotebookView } from "./components/workspace/NotebookView";
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
+import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch } from "./components/workspace/WorkspaceSearch";
@@ -114,6 +115,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [topicModalPack, setTopicModalPack] = useState<PackWithType | null>(null);
   const [topicPreferredCollectionId, setTopicPreferredCollectionId] = useState<string | null>(null);
   const [syncState, setSyncState] = useState(getOfflineSyncState());
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
   const background = useHeuresisBackground();
@@ -321,7 +323,10 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </nav> : null}
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
-          <button className="desktop-action" title={syncTitle} disabled={syncState.syncing} onClick={() => void runSync(false)}><RefreshCw size={14} /> <span>{syncLabel}</span></button>
+          <button className="desktop-action" title={syncTitle}
+            onClick={() => syncState.legacyPending ? setRecoveryOpen(true) : void runSync(false)}>
+            {syncState.legacyPending ? <TriangleAlert size={14}/> : <RefreshCw size={14}/>}
+            <span>{syncLabel}</span></button>
           {section === "study"
             ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>{MOD_KEY} K</kbd></button>
             : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
@@ -333,6 +338,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
               <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Synchronise offline copy</button>
+              <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending ? ` (${syncState.legacyPending})` : ""}
+              </button>
               <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
               <button onClick={() => { setShortcutsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Keyboard size={14} /> Keyboard shortcuts</button>
               <button onClick={() => { setSettingsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Settings2 size={14} /> Settings & appearance</button>
@@ -382,6 +390,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </main>
       </div>
       <QuickCapture />
+      {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
       <Toaster />
       {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
