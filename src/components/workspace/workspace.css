@@ -1478,3 +1478,75 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .qc-language-choices > button:disabled { cursor: wait; opacity: .65; }
 .quick-floating-root .qc-language-choices { padding-bottom: 5px; }
 .quick-floating-root .qc-language-choices > button { min-height: 27px; padding: 4px 7px; font-size: 10px; }
+
+
+/* #24: Notebook navigation now belongs to the global charcoal sidebar.
+   Its original Notebook drawer remains available only on compact layouts. */
+@media (min-width: 901px) {
+  .heuresis-desktop[data-section="notebook"] .nb-layout,
+  .heuresis-desktop[data-section="notebook"] .nb-layout.is-rail-collapsed {
+    display: block; min-height: calc(100dvh - 58px);
+  }
+  .heuresis-desktop[data-section="notebook"] .nb-rail,
+  .heuresis-desktop[data-section="notebook"] .nb-rail-scrim,
+  .heuresis-desktop[data-section="notebook"] .nb-main-tools {
+    display: none !important;
+  }
+  .heuresis-desktop[data-section="notebook"] .nb-main { width: 100%; }
+}
+.hw-notebook-tree {
+  display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; min-width: 0;
+  gap: 7px; padding: 11px 0 4px; border-top: 1px solid rgba(255,255,255,.13);
+  color: var(--ws-chrome-muted);
+}
+.hw-nb-heading {
+  display: flex; align-items: center; justify-content: space-between; gap: 7px;
+  padding: 0 5px 0 8px; color: var(--ws-chrome-muted);
+  font: 600 10px/1.4 var(--ws-sans); text-transform: uppercase; letter-spacing: .07em;
+}
+.hw-nb-heading button {
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 6px;
+  background: transparent; color: var(--ws-chrome-muted); cursor: pointer;
+}
+.hw-nb-heading button:hover { background: rgba(255,255,255,.11); color: var(--ws-chrome-text); }
+.hw-nb-tree-nav { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.hw-nb-group { min-width: 0; }
+.hw-nb-home,.hw-nb-row { display: flex; align-items: center; min-height: 31px; gap: 3px; min-width: 0; border-radius: 7px; }
+.hw-nb-home { width: 100%; border: 0; padding: 0 9px; gap: 8px; cursor: pointer; background: transparent; color: var(--ws-chrome-muted); font: 500 12px/1.4 var(--ws-sans); text-align: left; }
+.hw-nb-home:hover,.hw-nb-row:hover { background: rgba(255,255,255,.08); }
+.hw-nb-home.is-active,.hw-nb-row.is-active { background: rgba(255,255,255,.12); color: var(--ws-chrome-text); }
+.hw-nb-twist,.hw-nb-leaf { width: 18px; height: 27px; flex: none; display: grid; place-items: center; }
+.hw-nb-twist { padding: 0; background: transparent; border: 0; color: var(--ws-chrome-muted); cursor: pointer; }
+.hw-nb-leaf::after { content:""; width: 3px; height: 3px; border-radius: 50%; background: var(--ws-chrome-muted); opacity:.65; }
+.hw-nb-link { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; min-height: 29px; border: 0; background: transparent; color: var(--ws-chrome-muted); font: 450 12px/1.4 var(--ws-sans); text-align: left; cursor: pointer; padding: 0 2px; }
+.hw-nb-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.hw-nb-link small { color: #efbe88; font: 600 10px/1 var(--ws-sans); padding-right: 3px; }
+.hw-nb-subject .hw-nb-link { color: var(--ws-chrome-text); font-weight: 600; }
+.hw-nb-row.is-active .hw-nb-link { color: var(--ws-chrome-text); font-weight: 650; }
+.hw-notebook-tree .ws-menu { flex: none; }
+.hw-notebook-tree .ws-menu-trigger { color: var(--ws-chrome-muted); width: 23px; height: 26px; }
+.hw-notebook-tree .ws-menu-list { right: 0; left: auto; min-width: 173px; }
+.hw-notebook-tree .ws-menu-list button { color: var(--ws-text); }
+.hw-notebook-tree .hw-nb-row:not(:hover):not(:focus-within) .ws-menu-trigger { opacity: .65; }
+.hw-nb-link:focus-visible,.hw-nb-twist:focus-visible,.hw-nb-home:focus-visible,
+.hw-nb-heading button:focus-visible { outline: 2px solid var(--ws-chrome-text); outline-offset: -2px; }
+.hw-nb-editor { display:grid; gap: 7px; padding: 8px; background: rgba(255,255,255,.07); border-radius: 8px; margin: 4px 0 7px; }
+.hw-nb-editor input { width: 100%; min-width: 0; min-height: 34px; padding: 5px 7px; border: 1px solid rgba(255,255,255,.28); border-radius: 6px; background: var(--ws-page); color: var(--ws-ink); font: 12px var(--ws-sans); }
+.hw-nb-editor > div { display:flex; gap: 6px; }
+.hw-nb-editor button { min-height: 28px; border-radius: 6px; padding: 4px 8px; cursor: pointer; border:1px solid rgba(255,255,255,.22); color: var(--ws-chrome-text); background: rgba(255,255,255,.1); }
+.hw-nb-editor button:disabled { opacity: .5; cursor: not-allowed; }
+.hw-nb-error { color: #ffaaa6; padding: 6px 8px; font: 11px/1.5 var(--ws-sans); overflow-wrap: anywhere; }
+.hw-nb-empty { margin: 8px; color: var(--ws-chrome-muted); font: 11px/1.55 var(--ws-sans); }
+/* The icon rail never shows truncated topic labels. Desktop hover-peek and
+   explicit tablet expansion reveal the full tree. */
+.heuresis-desktop[data-sidebar="rail"] .hw-notebook-tree { display: none; }
+@media (hover: hover) and (pointer: fine) and (min-width: 901px) {
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-notebook-tree { display: flex; }
+}
+@media (max-width: 1100px) and (min-width: 901px) {
+  .heuresis-desktop[data-sidebar="full"] .hw-notebook-tree { display: flex; }
+}
+@media (max-width: 900px) {
+  .hw-notebook-tree { display: none !important; }
+}

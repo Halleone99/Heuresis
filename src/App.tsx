@@ -18,6 +18,7 @@ import SettingsModal from "./components/SettingsModal";
 import TopicModal from "./components/TopicModal";
 import { MistakeLog } from "./components/workspace/MistakeLog";
 import { NotebookView } from "./components/workspace/NotebookView";
+import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree";
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
@@ -446,6 +447,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
               {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
             </button>)}
           </nav>
+          {section === "notebook" ? <NotebookSidebarTree /> : null}
           {workspace.currentLesson ? <div className="hw-lesson">
             <span className="hw-lesson-label"><Radio size={12} /> In lesson</span>
             <button type="button" className="hw-lesson-title" onClick={() => workspace.openDocument(workspace.currentLesson!.id)} title="Open the lesson page">{entryTitle(workspace.currentLesson)}</button>
