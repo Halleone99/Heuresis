@@ -1742,3 +1742,36 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 @media (prefers-reduced-motion: reduce) {
   .pg-chart *, .ws-segmented button { transition: none !important; }
 }
+
+/* #53: one restrained movement language for workspace navigation and rows.
+   Text never sits over a blurred/translucent layer during the transition. */
+@keyframes ws-page-enter {
+  from { opacity: .72; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.heuresis-desktop .desktop-content.is-workspace :is(.ov-page, .ml-page, .pg-page, .nb-scope) {
+  animation: ws-page-enter .18s ease-out both;
+}
+:is(.ml-details, .ml-summary-details, .nb-subtopic-form, .qc-first-run, .hw-nb-editor) {
+  animation: ws-page-enter .16s ease-out both;
+}
+/* #60: explicit keyboard focus across every major workspace action, including
+   zero-count tabs and icon-only controls. Pointer clicks do not show rings. */
+.heuresis-desktop .desktop-content :is(.ws-button, .ws-icon-button, .ws-chips button,
+  .ws-segmented button, .nb-doc-row, .nb-subtopic, .nb-link-button):focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 3px;
+  opacity: 1;
+}
+.heuresis-desktop .heuresis-section-sidebar .hw-sections button:focus-visible,
+.heuresis-desktop .desktop-chrome :is(.desktop-action, .desktop-wordmark):focus-visible {
+  outline: 2px solid var(--ws-chrome-text);
+  outline-offset: -3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .heuresis-desktop .desktop-content.is-workspace :is(.ov-page, .ml-page, .pg-page, .nb-scope),
+  :is(.ml-details, .ml-summary-details, .nb-subtopic-form, .qc-first-run, .hw-nb-editor) {
+    animation: none !important;
+    transition: none !important;
+  }
+}
