@@ -1245,3 +1245,45 @@
  .knowledge-trash-row { flex-wrap: wrap; }
  .knowledge-trash-row-main { flex-basis: 100%; }
 }
+
+
+/* Quiet empty Overview sections, objective tracks, and Personal OS legacy footer. */
+.ov-empty-line {
+  min-height: 38px; display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-bottom: 1px solid var(--ws-line);
+  color: var(--ws-muted); font: 500 12px/1.5 var(--ws-sans);
+}
+.ov-empty-line > svg { color: var(--ws-muted); flex: none; }
+.ov-empty-line > span { color: var(--ws-text); }
+.ov-empty-line small { font: 400 11px/1.4 var(--ws-sans); color: var(--ws-muted); margin-left: auto; }
+.ov-empty-line button { flex: none; }
+.ov-meter {
+  background: color-mix(in srgb, var(--ws-accent) 24%, var(--ws-sunken));
+  min-height: 6px;
+}
+.ov-legacy { background: transparent; border: 0; padding: 0; margin-top: 18px; border-radius: 0; }
+.ov-legacy summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--ws-muted); font: 400 11.5px/1.5 var(--ws-sans);
+  padding: 4px 0; list-style: none;
+}
+.ov-legacy summary::-webkit-details-marker { display: none; }
+.ov-legacy summary:hover { color: var(--ws-accent); }
+.ov-legacy summary svg { transition: transform .16s ease; }
+.ov-legacy[open] summary svg { transform: rotate(90deg); }
+.ov-legacy li { padding: 9px 0; }
+.hw-sync-dialog { width: min(480px, calc(100vw - 30px)); }
+.hw-sync-dialog-status { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--ws-text); }
+.hw-sync-dialog-status > svg { color: var(--ws-accent); flex: none; }
+.hw-sync-dialog-status strong { font: 600 15px var(--ws-sans); color: var(--ws-ink); }
+.hw-sync-details { display: grid; gap: 0; margin: 0 0 15px; border: 1px solid var(--ws-line); border-radius: 9px; overflow: hidden; }
+.hw-sync-details > div { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 9px 11px; background: var(--ws-surface); }
+.hw-sync-details > div + div { border-top: 1px solid var(--ws-line); }
+.hw-sync-details dt { font: 400 12px var(--ws-sans); color: var(--ws-muted); }
+.hw-sync-details dd { margin: 0; font: 600 12px var(--ws-sans); color: var(--ws-ink); text-align: right; }
+.hw-sync-error { color: var(--ws-bad); font: 12px/1.55 var(--ws-sans); }
+.hw-sync-explainer { color: var(--ws-muted); font: 12px/1.55 var(--ws-sans); }
+.hw-sync-actions { gap: 8px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) {
+  .ov-legacy summary svg { transition: none; }
+}
