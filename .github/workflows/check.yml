@@ -28,6 +28,7 @@ jobs:
       - run: node scripts/check-workspace-noise.mjs
       - run: node scripts/check-workspace-signal.mjs
       - run: node scripts/check-notebook-controls.mjs
+      - run: node scripts/check-notebook-sidebar.mjs
       - run: node scripts/check-appearance.mjs
       - run: npm run build
       # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
