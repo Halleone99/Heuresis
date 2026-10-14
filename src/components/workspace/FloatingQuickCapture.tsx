@@ -34,10 +34,24 @@ function FloatingCaptureBody({ session }: { session: Session }) {
   const [notice, setNotice] = useState("");
   const started = useMemo(() => Date.now(), []);
   const lesson = workspace.currentLesson;
-  const captured = useMemo(() => workspace.snapshot.entries
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  useEffect(() => {
+    const update = () => {
+      const began = workspace.memory.currentLesson?.startedAt;
+      setElapsedMinutes(began ? Math.max(0, Math.floor((Date.now() - new Date(began).getTime()) / 60000)) : 0);
+    };
+    update();
+    const interval = window.setInterval(update, 30_000);
+    return () => window.clearInterval(interval);
+  }, [workspace.memory.currentLesson?.startedAt]);
+  const allCaptured = useMemo(() => workspace.snapshot.entries
     .filter((entry) => lesson ? entry.lesson_id === lesson.id : new Date(entry.created_at).getTime() >= started)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 18),
+    .sort((a, b) => b.created_at.localeCompare(a.created_at)),
   [lesson, started, workspace.snapshot.entries]);
+  const captured = allCaptured.slice(0, 18);
+  const elapsedText = elapsedMinutes >= 60
+    ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m`
+    : `${elapsedMinutes}m`;
 
   const openCapture = (mode: CaptureMode = "note") => {
     setView((current) => current === "bubble" ? "compact" : current);
@@ -129,7 +143,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
         <CircleDot size={12}/><span>{lesson ? entryTitle(lesson) : "Quick Capture"}</span>
       </button>
       <span className="quick-floating-count" title="Captures in this lesson or since opening">
-        {captured.length} captured
+        {lesson ? `${elapsedText} · ` : ""}{allCaptured.length} captured
       </span>
       <button type="button" className="quick-floating-icon" onClick={() => setPin((value) => !value)}
         title={pin ? "Unpin: allow other windows on top" : "Pin above other windows"}
@@ -143,7 +157,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
         onClick={() => void hide().catch((error) => setNotice(String(error)))}><X size={14}/></button>
     </header>
     {view === "bubble" ? <button type="button" className="quick-floating-bubble" onClick={() => openCapture()}>
-      <NotebookPen size={15}/> Capture now · Ctrl+Alt+Space
+      <NotebookPen size={15}/> {lesson ? `${elapsedText} · ` : ""}{allCaptured.length} captured · New
     </button> : null}
     {/* Remains mounted in bubble mode so drafts are never lost on collapse. */}
     <div className="quick-floating-stage">
