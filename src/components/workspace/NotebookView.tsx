@@ -382,6 +382,9 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
         </p> : null}
       </div>
       {workspace.writable ? <div className="nb-scope-actions">
+        {(topic ? workspace.topicPath(topic.id).chain.length < 4 : true) ? <RowMenu label={title} items={[
+          { label: topic ? "New sub-topic" : "New topic", icon: <FolderPlus size={14}/>, run: () => setCreatingChild(true) },
+        ]}/> : null}
         {topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
           onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}>
           <ListChecks size={15}/> Organise Inbox
@@ -392,17 +395,18 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
       </div> : null}
     </header>
 
-    {(children.length || (topic && workspace.writable)) ? <div className="nb-subtopics">
+    {(children.length || creatingChild) ? <div className="nb-subtopics">
       {children.map((child) => {
         const childDocs = snapshot.entries.filter((entry) => isDocument(entry) && workspace.subtreeIds(child.id).includes(entry.topic_id)).length;
         return <button type="button" key={child.id} className="nb-subtopic" onClick={() => navigate({ topicId: child.id, docId: null })}>
           <span>{child.name}</span><small>{childDocs}</small>
         </button>;
       })}
-      {workspace.writable && (topic ? workspace.topicPath(topic.id).chain.length < 4 : true) ? (creatingChild
-        ? <div className="nb-subtopic-form"><InlineNameForm label="Sub-topic name" placeholder={topic ? "Sub-topic" : "Topic"} onCancel={() => setCreatingChild(false)}
-          onSubmit={async (name) => { const created = await workspace.addTopic(subjectId, name, topic?.id ?? null); setCreatingChild(false); navigate({ topicId: created.id, docId: null }); }} /></div>
-        : <button type="button" className="nb-subtopic is-add" onClick={() => setCreatingChild(true)}><Plus size={13} /> {topic ? "Sub-topic" : "Topic"}</button>) : null}
+      {creatingChild && workspace.writable ? <div className="nb-subtopic-form">
+        <InlineNameForm label={topic ? "Sub-topic name" : "Topic name"} placeholder={topic ? "Sub-topic" : "Topic"}
+          onCancel={() => setCreatingChild(false)}
+          onSubmit={async (name) => { const created = await workspace.addTopic(subjectId, name, topic?.id ?? null); setCreatingChild(false); navigate({ topicId: created.id, docId: null }); }}/>
+      </div> : null}
     </div> : null}
 
     <div className="ws-segmented" role="tablist" aria-label="Show">
@@ -417,6 +421,10 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
         const inSubtopic = topic && entry.topic_id !== topic.id ? workspace.topicById.get(entry.topic_id)?.name : !topic ? workspace.topicById.get(entry.topic_id)?.name : null;
         const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
         const preview = entryPreview(entry, 200);
+        const kindLabel = entryKindLabel(entry);
+        const ownTopicName = workspace.topicById.get(entry.topic_id)?.name.trim().toLocaleLowerCase();
+        const showKind = !ownTopicName || ownTopicName !== kindLabel.toLocaleLowerCase();
+        const metadata = [inSubtopic, showKind ? kindLabel : null, captures ? `${captures} captured` : null].filter(Boolean).join(" · ");
         return <li key={entry.id}>
           <button type="button" className={`nb-doc-row ${isLesson(entry) ? "is-lesson" : ""}`} onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
             <span className="nb-doc-icon"><KindIcon entry={entry} size={16} /></span>
@@ -426,7 +434,7 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
             </span>
             <span className="nb-doc-meta">
               <span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
-              <small>{inSubtopic ? `${inSubtopic} · ` : ""}{entryKindLabel(entry)}{captures ? ` · ${captures} captured` : ""}</small>
+              {metadata ? <small>{metadata}</small> : null}
             </span>
           </button>
         </li>;
