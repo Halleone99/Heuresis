@@ -113,7 +113,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
         </section> : <div className="ov-empty-line">
           <GraduationCap size={15} aria-hidden="true"/>
           <span>Recent lessons</span><small>None yet</small>
-          <button type="button" className="nb-link-button" onClick={() => workspace.openCapture({ mode: "lesson" })}>Start →</button>
+          {workspace.writable ? <button type="button" className="nb-link-button" onClick={() => workspace.openCapture({ mode: "lesson" })}>Start →</button> : null}
         </div>}
 
         {questions.length ? <section className="ws-panel">
