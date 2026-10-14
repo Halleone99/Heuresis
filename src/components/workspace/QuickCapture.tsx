@@ -106,7 +106,7 @@ export function QuickCapture() {
       const length = field.value.length;
       try { field.setSelectionRange(length, length); } catch { /* date inputs */ }
     }
-  }, [request, mode, focusNonce]);
+  }, [request, mode, focusNonce, saving]);
 
   // Persist the draft so closing the panel (or the app) never loses a half-typed thought.
   useEffect(() => {
