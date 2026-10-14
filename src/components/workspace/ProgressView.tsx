@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Table2 } from "lucide-react";
+import { BarChart3, RefreshCw, Table2 } from "lucide-react";
 import { loadStudyActivity, meaningfulStudySessions, weekStart, type StudyActivity } from "../../lib/activity";
 import { isLesson, RETAINED_STREAK } from "../../lib/knowledgeWorkspace";
 import { mistakeJourney, MISTAKE_MILESTONES } from "../../lib/mistakeJourney";
@@ -131,16 +131,25 @@ export function ProgressView() {
   const [range, setRange] = useState<Range>(12);
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [studyError, setStudyError] = useState("");
+  const [studyLoading, setStudyLoading] = useState(true);
+  const [studyRetry, setStudyRetry] = useState(0);
   const [table, setTable] = useState(false);
   const offline = !getOfflineSyncState().online;
 
   useEffect(() => {
     let alive = true;
+    setActivity(null); // Never display results from a different date range.
     setStudyError("");
-    void loadStudyActivity(workspace.userId, range * 7).then((value) => { if (alive) setActivity(value); })
-      .catch((error) => { if (alive) setStudyError(error instanceof Error ? error.message : String(error)); });
+    setStudyLoading(true);
+    void loadStudyActivity(workspace.userId, range * 7, studyRetry ? 0 : 60_000)
+      .then((value) => {
+        if (alive) { setActivity(value); setStudyLoading(false); }
+      })
+      .catch((error) => {
+        if (alive) { setStudyError(error instanceof Error ? error.message : String(error)); setStudyLoading(false); }
+      });
     return () => { alive = false; };
-  }, [range, workspace.userId]);
+  }, [range, workspace.userId, studyRetry]);
 
   const weeks = useMemo(() => emptyWeeks(range), [range]);
   const reviews = activity?.reviews ?? [];
@@ -201,15 +210,29 @@ export function ProgressView() {
       </div>
     </header>
 
+    {!studyLoading && studyError ? <div role="alert" className="ws-inline-warning pg-study-load-state">
+      <strong>Study statistics unavailable.</strong>
+      <span>{offline ? "Check the connection or load the offline Study copy." : studyError}
+        {" "}Other Notebook and recall statistics remain available.</span>
+      <button type="button" className="ws-button is-small" onClick={() => setStudyRetry((value) => value + 1)}>
+        <RefreshCw size={14}/> Retry Study statistics</button>
+    </div> : studyLoading ? <div role="status" className="pg-study-load-state pg-study-loading">
+      <span className="ws-spinner is-small" aria-hidden="true"/>
+      Loading Study statistics for {range} weeks…
+    </div> : null}
     {snapshot.practiceError ? <div role="alert" className="ws-inline-warning">
       Mistake recall history is temporarily unavailable: {snapshot.practiceError}
       <button type="button" className="ws-button is-small" onClick={() => void workspace.reload()}>Retry</button>
     </div> : null}
     <div className="pg-grid">
-      <WeeklyBars title="Card reviews in Study" unit="reviews" table={table} weeks={bucket(weeks, reviews.map((event) => event.created_at))}
-        note={studyError ? "Study activity could not be loaded." : offline && !activity ? "Needs a connection." : goodShare !== null ? `${goodShare}% answered good or easy` : "Graded answers in flashcard review"} />
-      <WeeklyBars title="Study sessions" unit="sessions" table={table} weeks={bucket(weeks, activeSessions.map((session) => session.started_at))}
-        note={studyError ? "Study session data could not be loaded." : "Sessions with a card encounter or a graded review; empty launches excluded"} />
+      {activity && !studyLoading && !studyError ? <>
+        <WeeklyBars title="Card reviews in Study" unit="reviews" table={table}
+          weeks={bucket(weeks, reviews.map((event) => event.created_at))}
+          note={goodShare !== null ? `${goodShare}% answered good or easy` : "Graded answers in flashcard review"} />
+        <WeeklyBars title="Study sessions" unit="sessions" table={table}
+          weeks={bucket(weeks, activeSessions.map((session) => session.started_at))}
+          note="Sessions with a card encounter or a graded review; empty launches excluded" />
+      </> : null}
       <WeeklyBars title="Lessons recorded" unit="lessons" table={table} weeks={lessonStack.weeks} series={lessonStack.series}
         note="By lesson date" />
       <WeeklyBars title="Mistake recalls" unit="recalls" table={table} weeks={recallStack.weeks} series={recallStack.series}
