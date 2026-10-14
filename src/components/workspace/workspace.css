@@ -1720,3 +1720,25 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 @media (max-width: 600px) {
   .pg-study-load-state .ws-button { flex: 1 1 100%; justify-content: center; }
 }
+
+/* #19 — identical reading width and top alignment on every workspace page.
+   Notebook owns padding because its parent is edge-to-edge. */
+.heuresis-desktop[data-section="notebook"] .nb-scope {
+  box-sizing: border-box;
+  max-width: calc(1120px + 2 * clamp(20px, 3.2vw, 48px));
+  padding: 26px clamp(20px, 3.2vw, 48px) 80px;
+  margin-inline: auto;
+}
+/* #13 — zero filters are navigable, but no longer compete visually. */
+.ws-segmented button.is-zero:not(.is-active) { color: var(--ws-muted); opacity: .58; }
+.ws-segmented button.is-zero:not(.is-active) small { color: var(--ws-muted); }
+.ws-segmented button.is-zero:focus-visible { opacity: 1; }
+.pg-chart-total.is-zero { color: var(--ws-muted); }
+.pg-empty-chart {
+  display: flex; justify-content: center; align-items: center; min-height: 120px;
+  border-top: 1px solid var(--ws-line); color: var(--ws-muted);
+  font: 12px/1.4 var(--ws-sans); text-align: center; padding: 20px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-chart *, .ws-segmented button { transition: none !important; }
+}
