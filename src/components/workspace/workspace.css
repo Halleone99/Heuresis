@@ -1695,3 +1695,14 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .settings-modal .background-preview-canvas { height: 205px; }
   .settings-modal .background-preview-example { padding: 14px 16px; }
 }
+
+/* Evidence-based mistake journey: the retention note stays readable without
+   competing with the primary weekly charts. */
+.pg-evidence-footnote {
+  margin: 2px 0 0; color: var(--ws-muted); font: 11.5px/1.6 var(--ws-sans);
+  max-width: 62ch;
+}
+@media (max-width: 700px) {
+  .pg-evidence dt { max-width: 75%; line-height: 1.4; }
+  .pg-evidence dt small { display: block; margin: 3px 0 0; }
+}
