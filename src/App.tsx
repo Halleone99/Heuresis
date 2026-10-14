@@ -24,6 +24,7 @@ import { QuickCapture } from "./components/workspace/QuickCapture";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
 import { SyncStatusDialog } from "./components/workspace/SyncStatusDialog";
 import { KnowledgeTrashDialog } from "./components/workspace/KnowledgeTrashDialog";
+import { LessonCleanupDialog } from "./components/workspace/LessonCleanupDialog";
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch } from "./components/workspace/WorkspaceSearch";
@@ -462,6 +463,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </main>
       </div>
       <QuickCapture />
+      {workspace.cleanupTarget ? <LessonCleanupDialog target={workspace.cleanupTarget} onClose={workspace.closeCleanup} /> : null}
       {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
       {syncOpen ? <SyncStatusDialog state={syncState} onClose={() => setSyncOpen(false)}
         onRecovery={() => { setSyncOpen(false); setRecoveryOpen(true); }}
