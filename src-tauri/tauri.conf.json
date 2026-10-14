@@ -16,8 +16,9 @@
         "label": "main",
         "width": 1440,
         "height": 900,
-        "minWidth": 980,
-        "minHeight": 680,
+        "minWidth": 760,
+        "minHeight": 540,
+        "center": true,
         "decorations": true,
         "resizable": true,
         "maximized": false
