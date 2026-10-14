@@ -5,7 +5,7 @@ const sidebar=readFileSync("src/components/workspace/NotebookSidebarTree.tsx","u
 const app=readFileSync("src/App.tsx","utf8");
 const css=readFileSync("src/components/workspace/workspace.css","utf8");
 const notebook=readFileSync("src/components/workspace/NotebookView.tsx","utf8");
-assert.match(app, /section === "notebook" \? <NotebookSidebarTree \/>/,
+assert.match(app, /section === "notebook" && !workspace\.loading && !workspace\.error \? <NotebookSidebarTree \/>/,
   "Global sidebar should show language/topic navigation only in Notebook");
 assert.match(app, /SECTIONS\.map/,
   "Existing five-section navigation stays intact");
