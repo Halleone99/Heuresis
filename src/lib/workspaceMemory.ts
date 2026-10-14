@@ -27,6 +27,7 @@ export type WorkspaceMemory = {
   capture: { topicId: string | null; subjectId?: string | null; keepOpen: boolean; attachToLesson: boolean; stream?: boolean };
   mistakes: { subjectId: string | null; stage: "all" | "to_correct" | "practising" | "due" | "understood" };
   study: { view: string | null; packId: string | null };
+  progress: { range: 8 | 12 | 26 };
 };
 
 const SECTION_KEY = "heuresis.workspace.section.v1";
@@ -45,6 +46,7 @@ const DEFAULT_MEMORY: WorkspaceMemory = {
   capture: { topicId: null, subjectId: null, keepOpen: false, attachToLesson: true, stream: false },
   mistakes: { subjectId: null, stage: "all" },
   study: { view: null, packId: null },
+  progress: { range: 12 },
 };
 
 function read<T>(key: string): T | null {
@@ -97,6 +99,7 @@ export function readMemory(userId: string): WorkspaceMemory {
     capture: { ...DEFAULT_MEMORY.capture, ...(stored.capture ?? {}) },
     mistakes: { ...DEFAULT_MEMORY.mistakes, ...(stored.mistakes ?? {}) },
     study: { ...DEFAULT_MEMORY.study, ...(stored.study ?? {}) },
+    progress: { range: stored.progress?.range === 8 || stored.progress?.range === 26 ? stored.progress.range : 12 },
   };
   if (memory.currentLesson && Date.now() - new Date(memory.currentLesson.startedAt).getTime() > LESSON_TTL_MS) memory.currentLesson = null;
   return memory;

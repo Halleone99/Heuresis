@@ -36,6 +36,7 @@ import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickC
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { entryTitle, isRecallDue } from "./lib/knowledgeWorkspace";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
+import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "./lib/sectionScroll";
 import { supabase } from "./lib/supabase";
 import { synchroniseHeuresis } from "./lib/sync";
 import { readSection, writeSection, type WorkspaceSection } from "./lib/workspaceMemory";
@@ -77,20 +78,47 @@ function isTypingTarget(target: EventTarget | null) {
  * first time, or showing a different page than when it was left (e.g. a note opened from
  * search), starts at the top.
  */
-function useSectionScroll(section: WorkspaceSection, page: string) {
-  const positions = useRef(new Map<WorkspaceSection, { page: string; y: number }>());
+function useSectionScroll(section: WorkspaceSection, page: string, userId: string) {
+  const positions = useRef<SectionScrollState>(readSectionScroll(userId));
   const shown = useRef({ section, page });
+  const restored = useRef(false);
+
   useEffect(() => {
-    const record = () => { positions.current.set(shown.current.section, { page: shown.current.page, y: window.scrollY }); };
+    let pending: number | null = null;
+    const persist = () => {
+      if (pending !== null) window.clearTimeout(pending);
+      pending = null;
+      writeSectionScroll(userId, positions.current);
+    };
+    const record = () => {
+      positions.current[shown.current.section] = {
+        page: shown.current.page, y: Math.max(0, window.scrollY),
+      };
+      if (pending === null) pending = window.setTimeout(persist, 200);
+    };
     window.addEventListener("scroll", record, { passive: true });
-    return () => window.removeEventListener("scroll", record);
-  }, []);
+    // Save on page departure as well as every debounced scroll.
+    window.addEventListener("pagehide", persist);
+    return () => {
+      window.removeEventListener("scroll", record);
+      window.removeEventListener("pagehide", persist);
+      record(); persist();
+    };
+  }, [userId]);
+
   useLayoutEffect(() => {
-    const sectionChanged = shown.current.section !== section;
+    if (!restored.current) {
+      restored.current = true;
+      const saved = positions.current[section];
+      window.scrollTo(0, saved?.page === page ? saved.y : 0);
+      return;
+    }
+    const previous = shown.current;
+    if (previous.section === section && previous.page === page) return;
+    positions.current[previous.section] = { page: previous.page, y: Math.max(0, window.scrollY) };
     shown.current = { section, page };
-    if (!sectionChanged) return;
-    const saved = positions.current.get(section);
-    window.scrollTo(0, saved && saved.page === page ? saved.y : 0);
+    const saved = positions.current[section];
+    window.scrollTo(0, saved?.page === page ? saved.y : 0);
   }, [page, section]);
 }
 
@@ -105,7 +133,7 @@ function HeuresisApp({ session }: { session: Session }) {
 function HeuresisShell({ session, section, setSection }: { session: Session; section: WorkspaceSection; setSection: (section: WorkspaceSection) => void }) {
   const workspace = useWorkspace();
   const notebookPage = workspace.memory.notebook;
-  useSectionScroll(section, section === "notebook" ? `${notebookPage.docId ?? ""}|${notebookPage.topicId ?? ""}|${notebookPage.subjectId ?? ""}` : "");
+  useSectionScroll(section, section === "notebook" ? `${notebookPage.docId ?? ""}|${notebookPage.topicId ?? ""}|${notebookPage.subjectId ?? ""}` : "", session.user.id);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cardQuery, setCardQuery] = useState("");
