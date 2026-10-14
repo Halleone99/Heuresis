@@ -1706,3 +1706,17 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .pg-evidence dt { max-width: 75%; line-height: 1.4; }
   .pg-evidence dt small { display: block; margin: 3px 0 0; }
 }
+
+
+/* An unavailable Study report is not a week of zero reviews. */
+.pg-study-load-state {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 11px;
+  margin: 0 0 14px; color: var(--ws-text); line-height: 1.5;
+}
+.pg-study-load-state strong { color: var(--ws-ink); }
+.pg-study-load-state > span:not(.ws-spinner) { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+.pg-study-loading { color: var(--ws-muted); font: 500 12.5px/1.5 var(--ws-sans); }
+.pg-study-loading .ws-spinner { flex: none; }
+@media (max-width: 600px) {
+  .pg-study-load-state .ws-button { flex: 1 1 100%; justify-content: center; }
+}

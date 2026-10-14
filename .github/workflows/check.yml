@@ -23,6 +23,7 @@ jobs:
       - run: node scripts/check-progress-layout.mjs
       - run: node scripts/check-progress-languages.mjs
       - run: node scripts/check-mistake-journey.mjs
+      - run: node scripts/check-progress-study-error.mjs
       - run: node scripts/check-lesson-cleanup.mjs
       - run: node scripts/check-native-quick-capture.mjs
       - run: node scripts/check-capture-context.mjs
