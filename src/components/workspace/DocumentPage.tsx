@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, Trash2, X,
+  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, ListChecks, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
@@ -379,6 +379,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         <input type="date" value={draft.lessonDate} onChange={(event) => updateDraft({ lessonDate: event.target.value })} /></label> : null}
       {lessonId && !editing ? <div className="nb-lesson-strip">
         <span>{capturedNotes.length + capturedQuestions.length} captured · {capturedMistakes.length} {capturedMistakes.length === 1 ? "mistake" : "mistakes"}</span>
+        {workspace.writable && captures.length ? <button type="button" className="ws-button is-small"
+          onClick={() => workspace.openCleanup({ kind: "lesson", id: lessonId })}><ListChecks size={14}/> Organise captures</button> : null}
         {workspace.writable ? (capturing
           ? <button type="button" className="nb-live-pill" onClick={() => workspace.endLesson()} title="Quick captures are being attached to this lesson. Click to stop."><Radio size={13} /> Capturing into this lesson · End</button>
           : <button type="button" className="ws-button is-small" onClick={() => { workspace.startLesson(lessonId); workspace.toast("Quick captures will now be attached to this lesson."); }}><Radio size={13} /> Capture into this lesson</button>) : null}

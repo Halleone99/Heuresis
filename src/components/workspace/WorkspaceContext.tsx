@@ -7,6 +7,7 @@ import {
   type KnowledgeTopic, type PracticeOutcome, type SchemaLevel,
 } from "../../lib/knowledgeWorkspace";
 import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
+import type { CleanupTarget } from "../../lib/lessonCleanup";
 import { supabase } from "../../lib/supabase";
 import {
   pushRecent, readCaptureDraft, readMemory, readPendingCaptures, writeCaptureDraft, writeMemory, writePendingCaptures,
@@ -67,6 +68,9 @@ type WorkspaceValue = {
   startLesson: (lessonId: string) => void;
   endLesson: () => void;
   currentLesson: KnowledgeEntry | null;
+  cleanupTarget: CleanupTarget | null;
+  openCleanup: (target: CleanupTarget) => void;
+  closeCleanup: () => void;
   toasts: Toast[];
   toast: (message: string, options?: Omit<Toast, "id" | "message">) => void;
   dismissToast: (id: number) => void;
@@ -372,7 +376,16 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const startLesson = useCallback((lessonId: string) => {
     setMemory((current) => ({ ...current, currentLesson: { id: lessonId, startedAt: new Date().toISOString() }, capture: { ...current.capture, attachToLesson: true } }));
   }, []);
-  const endLesson = useCallback(() => setMemory((current) => ({ ...current, currentLesson: null })), []);
+  const [cleanupTarget, setCleanupTarget] = useState<CleanupTarget | null>(null);
+  const openCleanup = useCallback((target: CleanupTarget) => setCleanupTarget({ ...target }), []);
+  const closeCleanup = useCallback(() => setCleanupTarget(null), []);
+  const endLesson = useCallback(() => {
+    const lessonId = memory.currentLesson?.id;
+    setMemory((current) => ({ ...current, currentLesson: null }));
+    if (lessonId && snapshotRef.current.entries.some((row) => row.lesson_id === lessonId)) {
+      setCleanupTarget({ kind: "lesson", id: lessonId });
+    }
+  }, [memory.currentLesson?.id]);
   // Recheck expiry whenever the capture panel or another workspace state renders.
   // A desktop app left open overnight must not attach notes to yesterday's lesson.
   const started = memory.currentLesson?.startedAt;
@@ -388,6 +401,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     memory, updateMemory,
     section, goTo, openDocument, openTopic, openMistake, pendingEditId, consumePendingEdit, focusMistake, clearFocusMistake,
     capture, openCapture, closeCapture, startLesson, endLesson, currentLesson,
+    cleanupTarget, openCleanup, closeCleanup,
     toasts, toast, dismissToast,
   };
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
