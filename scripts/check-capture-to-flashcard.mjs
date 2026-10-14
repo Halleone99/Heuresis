@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const page=readFileSync("src/components/workspace/DocumentPage.tsx","utf8");
+const css=readFileSync("src/components/workspace/workspace.css","utf8");
+assert.match(page,/useState<KnowledgeEntry \| null>\(null\)/);
+assert.match(page,/<FlashcardDialog entry=\{flashcardTarget\}/);
+assert.match(page,/onFlashcard=\{\(\) => setFlashcardTarget\(capture\)\}/);
+assert.match(page,/onClick=\{\(\) => setFlashcardTarget\(mistake\)\}/);
+assert.match(page,/mistake\.correction \? <button/);
+assert.match(page,/function CaptureRow\(\{ capture, onOpen, onFlashcard, actions \}/);
+assert.match(page,/onClick=\{onFlashcard\}><Layers size=\{13\}\/> Flashcard/);
+assert.match(css,/\.nb-mistake-with-card/);
+console.log("Direct lesson note, question and corrected mistake flashcard access passed.");
