@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BookOpen, CircleHelp, GraduationCap, NotebookPen, Pin, Radio, RotateCcw, Target, TriangleAlert } from "lucide-react";
+import { ArrowRight, BookOpen, ChevronRight, CircleHelp, GraduationCap, NotebookPen, Pin, Radio, RotateCcw, Target, TriangleAlert } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, isRecallDue, mistakeStage, normaliseSearch,
   type KnowledgeEntry,
@@ -99,25 +99,35 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
           </button>
         </section> : null}
 
-        <section className="ws-panel">
+        {lessons.length ? <section className="ws-panel">
           <div className="ws-panel-head"><h2><GraduationCap size={16} /> Recent lessons</h2>
             <button type="button" className="nb-link-button" onClick={() => workspace.goTo("notebook")}>Notebook →</button></div>
-          {lessons.length ? <ul className="ov-list">{lessons.map((lesson) => {
+          <ul className="ov-list">{lessons.map((lesson) => {
             const captured = snapshot.entries.filter((row) => row.lesson_id === lesson.id);
             return <li key={lesson.id}><button type="button" onClick={() => workspace.openDocument(lesson.id)}>
               <span className="ov-date">{formatDay(lesson.lesson_date ?? lesson.created_at)}</span>
               <span className="ov-list-main"><strong>{entryTitle(lesson)}</strong><small>{workspace.pathLabel(lesson.topic_id)}</small></span>
               <span className="ov-list-meta">{captured.length ? `${captured.length} captured` : ""}</span>
             </button></li>;
-          })}</ul> : <p className="ws-muted">No lessons yet. Start one with <Kbd>{MOD_KEY} ⇧ L</Kbd> when your next class begins.</p>}
-        </section>
+          })}</ul>
+        </section> : <div className="ov-empty-line">
+          <GraduationCap size={15} aria-hidden="true"/>
+          <span>Recent lessons</span><small>None yet</small>
+          {workspace.writable ? <button type="button" className="nb-link-button" onClick={() => workspace.openCapture({ mode: "lesson" })}>Start →</button> : null}
+        </div>}
 
-        <section className="ws-panel">
-          <div className="ws-panel-head"><h2><CircleHelp size={16} /> Questions to clarify</h2>{questions.length ? <span className="ws-count">{questions.length}</span> : null}</div>
-          {questions.length ? <ul className="ov-list">{questions.slice(0, 5).map((entry) => <li key={entry.id}><button type="button" onClick={() => workspace.openDocument(entry.id)}>
-            <span className="ov-list-main"><strong>{entryTitle(entry)}</strong><small>{workspace.pathLabel(entry.topic_id)} · {relativeTime(entry.created_at)}</small></span>
-          </button></li>)}</ul> : <p className="ws-muted">Notes that end in a question mark collect here until you mark them answered.</p>}
-        </section>
+        {questions.length ? <section className="ws-panel">
+          <div className="ws-panel-head"><h2><CircleHelp size={16} /> Questions to clarify</h2>
+            <span className="ws-count">{questions.length}</span></div>
+          <ul className="ov-list">{questions.slice(0, 5).map((entry) => <li key={entry.id}>
+            <button type="button" onClick={() => workspace.openDocument(entry.id)}>
+              <span className="ov-list-main"><strong>{entryTitle(entry)}</strong><small>{workspace.pathLabel(entry.topic_id)} · {relativeTime(entry.created_at)}</small></span>
+            </button>
+          </li>)}</ul>
+        </section> : <div className="ov-empty-line">
+          <CircleHelp size={15} aria-hidden="true"/>
+          <span>Questions to clarify</span><small>Nothing pending</small>
+        </div>}
 
         {recentEdits.length ? <section className="ws-panel">
           <div className="ws-panel-head"><h2><NotebookPen size={16} /> Recently edited</h2></div>
@@ -179,7 +189,10 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
     </div>
 
     {legacyInScope.length ? <details className="ov-legacy">
-      <summary>{legacyInScope.length} earlier {legacyInScope.length === 1 ? "capture" : "captures"} in Personal OS <span className="ws-muted">— read-only, not imported</span></summary>
+      <summary title="Read-only earlier captures from Personal OS. These are not unsynchronised Heuresis changes.">
+        <span>{legacyInScope.length} earlier {legacyInScope.length === 1 ? "capture" : "captures"} in Personal OS</span>
+        <ChevronRight size={14} aria-hidden="true"/>
+      </summary>
       <ul>{legacyInScope.slice(0, 30).map((item) => <li key={item.id}>
         <span className="ws-muted ws-tiny">{item.subject ?? "Language"} · {formatDay(item.created_at)} · {item.entry_type}</span>
         <strong>{item.front}</strong>{item.back ? <span>{item.back}</span> : null}{item.third_side ? <small>{item.third_side}</small> : null}
