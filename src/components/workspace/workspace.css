@@ -1205,3 +1205,20 @@
 @media (prefers-reduced-motion: reduce) {
  .heuresis-desktop[data-sidebar] .heuresis-section-sidebar { transition: none; }
 }
+
+
+/* Explicit expansion on compact/tablet widths overlays the workspace. */
+@media (max-width: 1100px) {
+  .heuresis-desktop[data-sidebar="full"] { --ws-sidebar: 60px; }
+  .heuresis-desktop[data-sidebar="full"] .heuresis-section-sidebar {
+    position: fixed; top: 58px; left: 0; bottom: 0; height: calc(100dvh - 58px);
+    width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
+  }
+  .heuresis-desktop[data-sidebar="full"] .hw-sections button { justify-content: flex-start; padding: 0 11px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-sections button span { display: block; }
+  .heuresis-desktop[data-sidebar="full"] .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; }
+  .heuresis-desktop[data-sidebar="full"] .hw-lesson-label { font-size: 10px; gap: 6px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-lesson-title { display: block; }
+  .heuresis-desktop[data-sidebar="full"] .hw-capture-hint { justify-content: space-between; padding: 10px 11px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-capture-hint span { display: block; }
+}
