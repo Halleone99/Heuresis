@@ -28,7 +28,7 @@ export type KnowledgeTopic = {
 export type KnowledgeEntry = {
   id: string; user_id: string; topic_id: string; kind: KnowledgeKind;
   title: string; body: string; attempt: string; correction: string; explanation: string;
-  status: MistakeStatus | null; category: NoteCategory | null;
+  status: MistakeStatus | null; category: NoteCategory | null; mistake_mode_id: string | null;
   lesson_id: string | null; lesson_date: string | null; pinned: boolean;
   recall_streak: number; last_recalled_at: string | null; recall_due_at: string | null;
   created_at: string; updated_at: string;
@@ -46,10 +46,10 @@ export type EntryInput = {
   id?: string;
   kind: KnowledgeKind; topicId: string; title?: string; body?: string;
   attempt?: string; correction?: string; explanation?: string;
-  category?: NoteCategory | null; lessonId?: string | null; lessonDate?: string | null;
+  category?: NoteCategory | null; mistakeModeId?: string | null; lessonId?: string | null; lessonDate?: string | null;
 };
 export type EntryPatch = Partial<Pick<KnowledgeEntry,
-  "topic_id" | "title" | "body" | "attempt" | "correction" | "explanation" | "status" | "category"
+  "topic_id" | "title" | "body" | "attempt" | "correction" | "explanation" | "status" | "category" | "mistake_mode_id"
   | "lesson_id" | "lesson_date" | "pinned" | "recall_streak" | "last_recalled_at" | "recall_due_at">>;
 
 export const EMPTY_SNAPSHOT: KnowledgeSnapshot = { subjects: [], topics: [], entries: [], practice: [] };
@@ -61,7 +61,7 @@ export const LIMITS = { name: 120, title: 200, body: 50000, attempt: 5000, corre
 
 const PAGE_SIZE = 1000;
 const SCHEMA_KEY = "heuresis.knowledge.schema.v2";
-const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "status", "category", "lesson_id", "lesson_date"];
+const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
 
 let schemaLevel: SchemaLevel = readStoredSchema();
 
@@ -171,7 +171,7 @@ export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
     title: str(row.title), body: str(row.body), attempt: str(row.attempt), correction: str(row.correction),
     explanation: str(row.explanation),
     status: kind === "mistake" ? (row.status === "understood" ? "understood" : "needs_practice") : null,
-    category, lesson_id: nullableStr(row.lesson_id), lesson_date: nullableStr(row.lesson_date),
+    category, mistake_mode_id: nullableStr(row.mistake_mode_id), lesson_id: nullableStr(row.lesson_id), lesson_date: nullableStr(row.lesson_date),
     pinned: row.pinned === true, recall_streak: typeof row.recall_streak === "number" ? row.recall_streak : 0,
     last_recalled_at: nullableStr(row.last_recalled_at), recall_due_at: nullableStr(row.recall_due_at),
     created_at: created, updated_at: str(row.updated_at, created),
@@ -296,6 +296,7 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
     explanation: kind === "mistake" ? (input.explanation ?? "").trim() : "",
     status: kind === "mistake" ? "needs_practice" : null,
     category: kind === "note" ? (input.category ?? "note") : kind === "mistake" ? (input.category ?? null) : null,
+    mistake_mode_id: kind === "mistake" ? (input.mistakeModeId ?? null) : null,
     lesson_id: kind === "lesson" ? null : (input.lessonId ?? null),
     lesson_date: kind === "lesson" ? (input.lessonDate ?? localDateKey(new Date())) : null,
     pinned: false, recall_streak: 0, last_recalled_at: null, recall_due_at: null,
