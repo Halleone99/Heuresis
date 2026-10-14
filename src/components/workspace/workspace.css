@@ -979,3 +979,40 @@
   .ml-attempt-history li { grid-template-columns: 1fr 1fr; }
   .ml-attempt-history li p { grid-column: 1 / -1; }
 }
+
+
+/* Customisable Mistake Log practice modes. */
+.ml-launch-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ml-launch-tools > span { padding: 5px 9px; border-radius: 6px; color: var(--ws-accent); background: var(--ws-accent-soft); font: 11px var(--ws-mono); white-space: nowrap; }
+.ml-launch-tools > .ws-button { white-space: nowrap; }
+.ml-mode-shell { min-width: 0; position: relative; }
+.ml-mode-shell .ml-mode-card { width: 100%; height: 100%; }
+.ml-mode-edit {
+  position: absolute; top: 13px; right: 14px; z-index: 1; display: grid; place-items: center;
+  width: 34px; height: 34px; cursor: pointer; border-radius: 8px;
+  border: 1px solid var(--ws-line); background: var(--ws-raised); color: var(--ws-muted);
+}
+.ml-mode-edit:hover { background: var(--ws-accent-soft); color: var(--ws-accent); border-color: var(--ws-accent-line); }
+.ml-mode-edit:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.ml-mode-card .ml-mode-body { padding-right: 24px; }
+.ml-mode-icon .ml-emoji { font-size: 25px; line-height: 1; display: block; }
+.ml-mode-dialog { width: min(600px, calc(100vw - 30px)); max-height: min(90vh, 790px); overflow-y: auto; }
+.ml-mode-editor { display: grid; gap: 13px; padding: 15px 0; }
+.ml-mode-editor .ws-field { margin: 0; }
+.ml-symbol-picker { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; }
+.ml-symbol-picker button {
+  width: 100%; min-width: 0; height: 45px; border: 1px solid var(--ws-line); background: var(--ws-surface-2);
+  color: var(--ws-text); border-radius: 9px; cursor: pointer; display: grid; place-items: center;
+}
+.ml-symbol-picker button:hover { border-color: var(--ws-accent); }
+.ml-symbol-picker button.is-active { background: var(--ws-accent-soft); border-color: var(--ws-accent); color: var(--ws-accent); }
+.ml-symbol-picker .ml-emoji { font-size: 23px; }
+.ml-mode-editor-hint { color: var(--ws-muted); font-size: 12px; line-height: 1.5; margin: 0; }
+.ml-mode-management { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; border-top: 1px solid var(--ws-line); padding-top: 14px; }
+.ml-mode-management > span { color: var(--ws-muted); font-size: 12px; margin-right: auto; }
+.ml-mode-management .ml-remove-mode { color: var(--ws-bad); }
+@media (max-width: 720px) {
+ .ml-launch-tools { width: 100%; }
+ .ml-symbol-picker { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+ .ml-mode-management > span { flex-basis: 100%; }
+}
