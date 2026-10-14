@@ -107,6 +107,16 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [memory, setMemory] = useState<WorkspaceMemory>(() => readMemory(userId));
+  // Both the main app and native floating Capture webviews use one account-scoped
+  // lesson/topic context. A cross-window change must not remain stale here.
+  useEffect(() => {
+    const key = `heuresis.workspace.memory.v2:${userId}`;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key) setMemory(readMemory(userId));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [userId]);
   const [capture, setCapture] = useState<CaptureRequest | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pendingEditId, setPendingEditId] = useState<string | null>(null);
