@@ -12,8 +12,8 @@ export type BackgroundSettings = {
 
 export const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
   enabled: true,
-  opacity: 0.32,
-  veil: 0.55,
+  opacity: Math.sqrt(0.6),
+  veil: 1 - Math.sqrt(0.6),
   blur: 0,
   position: "center",
   fit: "cover",
@@ -29,7 +29,7 @@ const DB_VERSION = 1;
 
 function clamp(settings: BackgroundSettings): BackgroundSettings {
   const number = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
-  return { ...settings, opacity: number(settings.opacity, 0, 1), veil: number(settings.veil, 0, 1), blur: number(settings.blur, 0, 20) };
+  return { ...settings, opacity: number(settings.opacity, 0, 1), veil: number(settings.veil, 0, 1), blur: number(settings.blur, 0, 20), fit: "cover" };
 }
 
 function readSettings() {
@@ -97,7 +97,7 @@ function cloudSettings(value: unknown): BackgroundSettings {
     veil: typeof row.veil === "number" ? row.veil : DEFAULT_BACKGROUND_SETTINGS.veil,
     blur: typeof row.blur === "number" ? row.blur : DEFAULT_BACKGROUND_SETTINGS.blur,
     position: row.position === "top" || row.position === "bottom" ? row.position : "center",
-    fit: row.fit === "contain" ? "contain" : "cover",
+    fit: "cover",
   });
 }
 
