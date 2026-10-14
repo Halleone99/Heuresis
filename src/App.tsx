@@ -408,7 +408,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}><span className="desktop-mark-wrap"><HeuresisMark /></span><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
+        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
         {section === "study" ? <nav className="desktop-nav-group" aria-label="Study navigation">
           <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
           <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
@@ -461,7 +461,12 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
           <div className="hw-sidebar-header">
-            <span className="hw-sidebar-heading">Navigation</span>
+            <button type="button" className="hw-sidebar-brand"
+              onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }}
+              title="Heuresis — open home" aria-label="Heuresis — open home">
+              <span className="hw-sidebar-mark"><HeuresisMark/></span>
+              <span className="hw-sidebar-heading">Heuresis</span>
+            </button>
             <button type="button" className="hw-sidebar-collapse" onClick={toggleSidebar}
               title={actualSidebarMode === "full" ? "Collapse sidebar (Ctrl+\\)" : "Expand sidebar (Ctrl+\\)"}
               aria-label={actualSidebarMode === "full" ? "Collapse sidebar" : "Expand sidebar"}>
