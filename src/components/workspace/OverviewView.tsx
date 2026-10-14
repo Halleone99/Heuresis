@@ -5,7 +5,7 @@ import {
   type KnowledgeEntry,
 } from "../../lib/knowledgeWorkspace";
 import { loadLastStudySession, type StudySession } from "../../lib/activity";
-import { KindIcon, Kbd, MOD_KEY, formatDay, formatLongDay, relativeTime } from "./ui";
+import { KindIcon, Kbd, MOD_KEY, formatDay, relativeTime } from "./ui";
 import { usePersonalOsCaptures, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -54,7 +54,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
   return <div className="ov-page">
     <header className="ws-page-head">
       <div>
-        <span className="ws-eyebrow">{formatLongDay(new Date().toISOString())}</span>
+        <span className="ws-eyebrow">{formatDay(new Date().toISOString())}</span>
         <h1>Overview</h1>
       </div>
       <div className="ws-page-actions">
@@ -64,7 +64,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
       </div>
     </header>
 
-    {subjects.length > 1 ? <div className="ws-chips ov-subjects" role="group" aria-label="Subject">
+    {subjects.length > 1 ? <div className="ws-chips ov-subjects" role="group" aria-label="Language">
       <button type="button" className={!filterId ? "is-active" : ""} onClick={() => setSubjectFilter(null)}>All</button>
       {subjects.map((subject) => <button type="button" key={subject.id} className={filterId === subject.id ? "is-active" : ""} onClick={() => setSubjectFilter(subject.id)}>{subject.name}</button>)}
     </div> : null}

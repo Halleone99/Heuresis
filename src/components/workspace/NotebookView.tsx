@@ -267,12 +267,12 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
     <div className="nb-rail-head">
       <button type="button" className="ws-icon-button nb-rail-collapse" aria-label="Hide topics" title="Hide topics" onClick={onCollapse}><PanelLeftClose size={15} /></button>
     </div>
-    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Subjects and topics">
+    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Languages and topics">
       <div className="nb-rail-section-head">
-        <span className="ws-eyebrow">Subjects</span>
-        {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="New subject" title="New subject" onClick={() => setCreating({ subjectId: null, parentId: null })}><Plus size={14} /></button> : null}
+        <span className="ws-eyebrow">Languages</span>
+        {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="New language" title="New language" onClick={() => setCreating({ subjectId: null, parentId: null })}><Plus size={14} /></button> : null}
       </div>
-      {creating && !creating.subjectId ? <InlineNameForm label="Subject name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
+      {creating && !creating.subjectId ? <InlineNameForm label="Language name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
         onCancel={() => setCreating(null)}
         onSubmit={async (name) => {
           const created = await workspace.addSubject(name);
@@ -285,7 +285,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
         const isOpen = expanded.has(subject.id);
         return <div key={subject.id} className="nb-tree-subject" role="treeitem" aria-expanded={isOpen}>
           {renaming?.kind === "subject" && renaming.id === subject.id
-            ? <InlineNameForm label="Subject name" initial={subject.name} submitLabel="Rename" onCancel={() => setRenaming(null)}
+            ? <InlineNameForm label="Language name" initial={subject.name} submitLabel="Rename" onCancel={() => setRenaming(null)}
               onSubmit={async (name) => { await workspace.renameSubjectById(subject.id, name); setRenaming(null); }} />
             : <div className={`nb-tree-row is-subject ${location.subjectId === subject.id && !location.topicId && !location.docId ? "is-active" : ""}`}>
               <button type="button" className="nb-tree-twisty" aria-label={isOpen ? `Collapse ${subject.name}` : `Expand ${subject.name}`} onClick={() => toggle(subject.id)}>
@@ -411,7 +411,7 @@ function ScopePage({ scope, navigate, onNewNote, onBack }: {
 
     <div className="ws-segmented" role="tablist" aria-label="Show">
       {(["all", "lessons", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
-        aria-selected={filter === key} className={filter === key ? "is-active" : ""} onClick={() => setFilter(key)}>
+        aria-selected={filter === key} className={`${filter === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`} onClick={() => setFilter(key)}>
         {key === "all" ? "All" : key === "lessons" ? "Lessons" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
       </button>)}
     </div>
@@ -469,9 +469,9 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
     return <div className="nb-welcome">
       <span className="ws-eyebrow">Notebook</span>
       <h1>Where what you learn is kept, and found again.</h1>
-      <p>Start with a subject — usually a language. Heuresis adds an <em>Inbox</em> topic so quick notes always have somewhere to land; organise them into topics whenever you like.</p>
+      <p>Start with a language. Heuresis adds an <em>Inbox</em> topic so quick notes always have somewhere to land; organise them into topics whenever you like.</p>
       {workspace.writable ? (creating
-        ? <div className="nb-welcome-form"><InlineNameForm label="Subject name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
+        ? <div className="nb-welcome-form"><InlineNameForm label="Language name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
           onCancel={() => setCreating(false)}
           onSubmit={async (name) => {
             const created = await workspace.addSubject(name);
@@ -489,7 +489,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
               navigate({ topicId: inbox.id, docId: null });
             } catch (error) { workspace.toast(error instanceof Error ? error.message : String(error), { tone: "error" }); }
           }}><Plus size={14} /> {name}</button>)}
-          <button type="button" className="ws-button is-primary" onClick={() => setCreating(true)}><Plus size={14} /> Other subject…</button>
+          <button type="button" className="ws-button is-primary" onClick={() => setCreating(true)}><Plus size={14} /> Other language…</button>
         </div>) : null}
     </div>;
   }

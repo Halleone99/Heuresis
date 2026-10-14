@@ -161,7 +161,7 @@ export function MistakeLog() {
         <div><h2 id="ml-modes-title">What would you like to work on?</h2>
           <p>Select a subject area to practise and review your actual mistakes.</p></div>
         <div className="ml-launch-tools">
-          <span>{language === "All" ? "All languages" : language}</span>
+          <span>{language === "All" ? "All" : language}</span>
           <button type="button" className="ws-button is-primary" disabled={!modesReady || !workspace.writable}
             onClick={() => setModeDialogId(null)}><Plus size={15}/> New mode</button>
         </div>
@@ -198,7 +198,7 @@ export function MistakeLog() {
         <div className="ml-filter-row">
           <div className="ws-segmented" role="tablist" aria-label="Stage">
             {(["all", "to_correct", "practising", "due", "understood"] as StageFilter[]).map((key) => <button type="button" role="tab" key={key}
-              aria-selected={stage === key} className={stage === key ? "is-active" : ""} onClick={() => setStage(key)}>
+              aria-selected={stage === key} className={`${stage === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`} onClick={() => setStage(key)}>
               {key === "all" ? "All" : key === "due" ? "Due" : STAGE_LABEL[key]}<small>{counts[key]}</small></button>)}
           </div>
           <label className="ws-search-field"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)}
@@ -215,7 +215,7 @@ export function MistakeLog() {
           title={stage === "due" ? "Nothing due in this mode" : query ? "No matching mistakes" : "No mistakes here yet"}
           action={workspace.writable && stage !== "due" && !query ? <button type="button" className="ws-button is-primary" onClick={recordMistake}><Plus size={15} /> Record a mistake</button> : null}>
           {stage === "due" ? "Completed recalls will return when the next interval is due."
-            : language !== "All" && !activeSubject ? `Create a ${language} subject in Notebook to start recording mistakes.`
+            : language !== "All" && !activeSubject ? `Create a ${language} language in Notebook to start recording mistakes.`
             : !inMode.length ? "Mistakes saved in this category will appear here. Older uncategorised records remain under Other mistakes."
             : "Try another filter or search."}
         </EmptyState> : null}
