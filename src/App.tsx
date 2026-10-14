@@ -369,7 +369,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
           {section === "overview" ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} /> : null}
-          {section === "notebook" ? <NotebookView onSearch={openPalette} /> : null}
+          {section === "notebook" ? <NotebookView /> : null}
           {section === "mistakes" ? <MistakeLog /> : null}
           {section === "progress" ? <ProgressView /> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
