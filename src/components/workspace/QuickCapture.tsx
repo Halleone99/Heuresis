@@ -82,6 +82,7 @@ export function QuickCapture() {
       const base = captureDraftHasContent(stored) ? stored : EMPTY_DRAFT(request.mode);
       const next = { ...base, mode: request.mode };
       if (request.text) next.text = request.text;
+      if (request.category) { next.category = request.category; next.categoryTouched = true; }
       return next;
     });
     const valid = (id: string | null | undefined) => (id && workspace.topicById.has(id) ? id : null);
@@ -127,6 +128,7 @@ export function QuickCapture() {
   const patch = (value: Partial<CaptureDraft>) => setDraft((current) => ({ ...current, ...value }));
   const setMode = (next: CaptureMode) => { patch({ mode: next, pendingId: undefined }); setError(""); };
   const category: NoteCategory = draft.categoryTouched ? (draft.category ?? "note") : looksLikeQuestion(draft.text) ? "question" : (draft.category ?? "note");
+  const mistakeCategory: NoteCategory = draft.category === "grammar" || draft.category === "vocabulary" || draft.category === "phrase" ? draft.category : "note";
 
   const destinationLabel = topicId ? workspace.pathLabel(topicId) : "";
   const subjects = workspace.snapshot.subjects;
@@ -161,7 +163,7 @@ export function QuickCapture() {
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() });
         setDraft((current) => ({ ...current, pendingId: id }));
-        const created = await workspace.submitCapture({ id, kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, lessonId }, label);
+        const created = await workspace.submitCapture({ id, kind: "mistake", topicId, attempt: sent.attempt, correction: sent.correction, explanation: sent.explanation, category: sent.category === "grammar" || sent.category === "vocabulary" || sent.category === "phrase" ? sent.category : "note", lessonId }, label);
         if (!created) { setError("The mistake is safely retained for retry. Keep this draft until its save is confirmed."); return; }
         reset();
         confirmSaved(created.id, created.topic_id, "the Mistake Log");
@@ -274,6 +276,13 @@ export function QuickCapture() {
         {showWhy || draft.explanation ? <label className="qc-field"><span>Why <small>— optional</small></span>
           <textarea rows={2} value={draft.explanation} placeholder="The rule or misunderstanding" onChange={(event) => patch({ explanation: event.target.value })} /></label>
           : <button type="button" className="qc-add-why" onClick={() => setShowWhy(true)}>+ Add why</button>}
+        <div className="qc-field"><span>Type of mistake</span>
+          <div className="qc-categories" role="group" aria-label="Type of mistake">
+            {([{ id: "grammar", label: "Grammar" }, { id: "vocabulary", label: "Vocabulary" }, { id: "phrase", label: "Expressions" }, { id: "note", label: "Other" }] as Array<{ id: NoteCategory; label: string }>).map((item) =>
+              <button key={item.id} type="button" aria-pressed={mistakeCategory === item.id}
+                className={mistakeCategory === item.id ? "is-active" : ""} onClick={() => patch({ category: item.id, categoryTouched: true })}>{item.label}</button>)}
+          </div>
+        </div>
       </> : <>
         <label className="qc-field"><span>Lesson</span>
           <input ref={(node) => { if (node) firstFieldRef.current = node; }} value={draft.lessonTitle} maxLength={200}

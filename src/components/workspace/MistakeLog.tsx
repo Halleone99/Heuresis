@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, GraduationCap, Layers, Pencil, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, GraduationCap, History, Layers, MessageSquareText, Pencil, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import {
   addDays, entryTitle, friendlyError, isRecallDue, mistakeStage, normaliseSearch, RETAINED_STREAK,
-  type KnowledgeEntry, type MistakeStage,
+  type KnowledgeEntry, type MistakeStage, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
 import { FlashcardDialog } from "./FlashcardDialog";
 import { RowMenu } from "./NotebookView";
@@ -12,32 +12,66 @@ import { useWorkspace } from "./WorkspaceContext";
 type StageFilter = "all" | MistakeStage | "due";
 const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "Practising", understood: "Understood" };
 
+
+type MistakeMode = "grammar" | "vocabulary" | "phrase" | "other";
+type MistakeView = "home" | "history" | MistakeMode;
+
+const MODE_CARDS = [
+  { id: "grammar", title: "Grammar", detail: "Cases, tenses, sentence structure and rules.", icon: GraduationCap },
+  { id: "vocabulary", title: "Vocabulary", detail: "Words, meanings, forms and usage.", icon: BookOpen },
+  { id: "phrase", title: "Expressions", detail: "Natural phrasing, idioms and blocks of meaning.", icon: MessageSquareText },
+  { id: "other", title: "Other mistakes", detail: "Unclassified mistakes and anything else to revisit.", icon: TriangleAlert },
+] as const;
+
+function mistakeMode(entry: KnowledgeEntry): MistakeMode {
+  if (entry.category === "grammar" || entry.category === "vocabulary" || entry.category === "phrase") return entry.category;
+  return "other";
+}
+
+function categoryFor(view: MistakeView): NoteCategory {
+  return view === "grammar" || view === "vocabulary" || view === "phrase" ? view : "note";
+}
+
 export function MistakeLog() {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory, focusMistake, clearFocusMistake } = workspace;
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<MistakeView>("home");
+  const [language, setLanguage] = useState("All");
   const [session, setSession] = useState<string[] | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const subjectId = memory.mistakes.subjectId && workspace.subjectById.has(memory.mistakes.subjectId) ? memory.mistakes.subjectId : null;
   const stage = memory.mistakes.stage as StageFilter;
 
+  const subjects = useMemo(() => [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name)), [snapshot.subjects]);
+  const languageNames = useMemo(() => {
+    const names = ["All", "German", "Russian", "Chinese"];
+    for (const subject of subjects) if (!names.some((name) => name.toLowerCase() === subject.name.toLowerCase())) names.push(subject.name);
+    return names;
+  }, [subjects]);
+  const activeSubject = subjects.find((subject) => subject.name.toLowerCase() === language.toLowerCase()) ?? null;
   const mistakes = useMemo(() => snapshot.entries.filter((entry) => entry.kind === "mistake"), [snapshot.entries]);
-  const inSubject = useMemo(() => subjectId ? mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === subjectId) : mistakes, [mistakes, subjectId, workspace.topicById]);
+  const inSubject = useMemo(() => language === "All" ? mistakes
+    : mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === activeSubject?.id),
+    [activeSubject?.id, language, mistakes, workspace.topicById]);
+  const inMode = useMemo(() => view === "home" || view === "history" ? inSubject
+    : inSubject.filter((entry) => mistakeMode(entry) === view), [inSubject, view]);
   const counts = useMemo(() => ({
-    all: inSubject.length,
-    to_correct: inSubject.filter((entry) => mistakeStage(entry) === "to_correct").length,
-    practising: inSubject.filter((entry) => mistakeStage(entry) === "practising").length,
-    understood: inSubject.filter((entry) => mistakeStage(entry) === "understood").length,
-    due: inSubject.filter((entry) => isRecallDue(entry)).length,
-  }), [inSubject]);
+    all: inMode.length,
+    to_correct: inMode.filter((entry) => mistakeStage(entry) === "to_correct").length,
+    practising: inMode.filter((entry) => mistakeStage(entry) === "practising").length,
+    understood: inMode.filter((entry) => mistakeStage(entry) === "understood").length,
+    due: inMode.filter((entry) => isRecallDue(entry)).length,
+  }), [inMode]);
   const q = normaliseSearch(query);
-  const shown = inSubject
+  const shown = inMode
     .filter((entry) => stage === "all" || (stage === "due" ? isRecallDue(entry) : mistakeStage(entry) === stage))
     .filter((entry) => !q || q.split(" ").every((word) => normaliseSearch([entry.attempt, entry.correction, entry.explanation, entry.title, workspace.pathLabel(entry.topic_id)].join(" ")).includes(word)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const due = inSubject.filter((entry) => isRecallDue(entry))
+  const due = inMode.filter((entry) => isRecallDue(entry))
+    .sort((a, b) => (a.recall_due_at ?? "").localeCompare(b.recall_due_at ?? ""));
+  const allDue = inSubject.filter((entry) => isRecallDue(entry))
     .sort((a, b) => (a.recall_due_at ?? "").localeCompare(b.recall_due_at ?? ""));
 
   useEffect(() => {
@@ -46,6 +80,8 @@ export function MistakeLog() {
     clearFocusMistake();
     if (!target) return;
     if (focusMistake.practise) { setSession(focusMistake.ids?.length ? focusMistake.ids : [target.id]); return; }
+    setView("history");
+    setLanguage("All");
     updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, stage: "all", subjectId: null } }));
     setHighlightId(target.id);
     window.setTimeout(() => listRef.current?.querySelector(`[data-mistake="${target.id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
@@ -53,54 +89,117 @@ export function MistakeLog() {
   }, [clearFocusMistake, focusMistake, snapshot.entries, updateMemory]);
 
   const setStage = (next: StageFilter) => updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, stage: next } }));
-  const setSubject = (next: string | null) => updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, subjectId: next } }));
-  const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
+  function selectLanguage(next: string) {
+    setLanguage(next);
+    const subject = subjects.find((item) => item.name.toLowerCase() === next.toLowerCase());
+    updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, subjectId: subject?.id ?? null, stage: "all" } }));
+    setEditingId(null);
+    setQuery("");
+  }
+  function openMode(next: MistakeView) {
+    setView(next);
+    setStage("all");
+    setQuery("");
+    setEditingId(null);
+  }
+  async function recordMistake() {
+    // A language choice must never silently file a mistake under another language.
+    try {
+      let topicId: string | null = null;
+      if (language !== "All") {
+        const subject = activeSubject ?? await workspace.addSubject(language);
+        topicId = snapshot.topics.find((topic) => topic.subject_id === subject.id)?.id
+          ?? (await workspace.ensureInbox(subject.id)).id;
+      }
+      workspace.openCapture({ mode: "mistake", topicId, category: categoryFor(view) });
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+  }
+  const title = view === "history" ? "History" : MODE_CARDS.find((item) => item.id === view)?.title ?? "Choose a mode";
 
   return <div className="ml-page">
     <header className="ws-page-head">
       <div>
-        <span className="ws-eyebrow">Attempt → Correction → Why → Practice</span>
+        <span className="ws-eyebrow">Mistake → Correction → Practice → Progress</span>
         <h1>Mistake Log</h1>
         <p className="ws-page-sub">
-          <span>{counts.to_correct} to correct</span><span>{counts.practising} practising</span>
-          <span className={counts.due ? "is-accent" : ""}>{counts.due} due for recall</span><span>{counts.understood} understood</span>
+          <span>{inSubject.length} mistakes</span><span>{allDue.length} due for recall</span>
+          <span>{inSubject.filter((entry) => mistakeStage(entry) === "understood").length} understood</span>
         </p>
       </div>
       <div className="ws-page-actions">
-        <button type="button" className="ws-button" disabled={!due.length} onClick={() => setSession(due.map((entry) => entry.id))}>
-          <GraduationCap size={15} /> Practise due{due.length ? ` (${due.length})` : ""}</button>
-        {workspace.writable ? <button type="button" className="ws-button is-primary" onClick={() => workspace.openCapture({ mode: "mistake" })} title={`${MOD_KEY}+Shift+M`}><Plus size={15} /> Record mistake</button> : null}
+        <button type="button" className="ws-button" disabled={!(view === "home" ? allDue.length : due.length)}
+          onClick={() => setSession((view === "home" ? allDue : due).map((entry) => entry.id))}>
+          <GraduationCap size={15} /> Practise due ({view === "home" ? allDue.length : due.length})</button>
+        {workspace.writable ? <button type="button" className="ws-button is-primary" onClick={recordMistake} title={`${MOD_KEY}+Shift+M`}>
+          <Plus size={15} /> Record mistake</button> : null}
       </div>
     </header>
 
-    <div className="ml-filters">
-      {subjects.length > 1 ? <div className="ws-chips" role="group" aria-label="Subject">
-        <button type="button" className={!subjectId ? "is-active" : ""} onClick={() => setSubject(null)}>All subjects</button>
-        {subjects.map((subject) => <button type="button" key={subject.id} className={subjectId === subject.id ? "is-active" : ""} onClick={() => setSubject(subject.id)}>{subject.name}</button>)}
-      </div> : null}
-      <div className="ml-filter-row">
-        <div className="ws-segmented" role="tablist" aria-label="Stage">
-          {(["all", "to_correct", "practising", "due", "understood"] as StageFilter[]).map((key) => <button type="button" role="tab" key={key}
-            aria-selected={stage === key} className={stage === key ? "is-active" : ""} onClick={() => setStage(key)}>
-            {key === "all" ? "All" : key === "due" ? "Due" : STAGE_LABEL[key]}<small>{counts[key]}</small></button>)}
-        </div>
-        <label className="ws-search-field"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mistakes…" aria-label="Search mistakes" />
-          {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={13} /></button> : null}</label>
+    <nav className="ml-languages" aria-label="Mistake Log languages">
+      <span className="ml-languages-label">Language</span>
+      <div className="ml-languages-tabs">
+        {languageNames.map((name) => <button key={name} type="button" className={language === name ? "is-active" : ""}
+          aria-current={language === name ? "page" : undefined} onClick={() => selectLanguage(name)}>{name}</button>)}
       </div>
-    </div>
+    </nav>
 
-    <div className="ml-list" ref={listRef}>
-      {shown.map((entry) => editingId === entry.id
-        ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
-        : <MistakeCard key={entry.id} entry={entry} highlighted={highlightId === entry.id}
-          onEdit={() => setEditingId(entry.id)} onPractise={() => setSession([entry.id])} />)}
-      {!shown.length ? <EmptyState icon={<TriangleAlert size={22} />}
-        title={mistakes.length ? (stage === "due" ? "Nothing is due for recall" : "No mistakes match") : "No mistakes recorded yet"}
-        action={!mistakes.length && workspace.writable ? <button type="button" className="ws-button is-primary" onClick={() => workspace.openCapture({ mode: "mistake" })}><Plus size={15} /> Record a mistake</button> : null}>
-        {mistakes.length ? (stage === "due" ? "Mistakes come back for recall after 1, 3, 7, 21 and 60 days of correct answers." : "Try another filter or search.")
-          : <>During a lesson press <Kbd>{MOD_KEY} ⇧ M</Kbd>: write what you said, and add the correction now or later.</>}
-      </EmptyState> : null}
-    </div>
+    {view === "home" ? <main className="ml-launch" aria-labelledby="ml-modes-title">
+      <div className="ml-launch-intro">
+        <div><h2 id="ml-modes-title">What would you like to work on?</h2>
+          <p>Select a subject area to practise and review your actual mistakes.</p></div>
+        <span>{language === "All" ? "All languages" : language}</span>
+      </div>
+      <div className="ml-mode-grid">
+        {MODE_CARDS.map(({ id, title: modeTitle, detail, icon: Icon }) => {
+          const entries = inSubject.filter((entry) => mistakeMode(entry) === id);
+          const dueCount = entries.filter((entry) => isRecallDue(entry)).length;
+          return <button type="button" key={id} className="ml-mode-card" onClick={() => openMode(id)}>
+            <span className="ml-mode-icon"><Icon size={21} /></span>
+            <span className="ml-mode-body"><strong>{modeTitle}</strong><span>{detail}</span></span>
+            <span className="ml-mode-foot"><span>{entries.length} logged</span><span>{dueCount ? `${dueCount} due` : "View mistakes"}</span><ArrowRight size={17} /></span>
+          </button>;
+        })}
+        <button type="button" className="ml-history-launch" onClick={() => openMode("history")}>
+          <History size={20} /><span><strong>Complete history</strong><small>All mistakes, original answers and every recall attempt</small></span>
+          <span className="ml-history-total">{inSubject.length} records</span><ArrowRight size={17} />
+        </button>
+      </div>
+      {language !== "All" && !activeSubject ? <p className="ml-language-empty">No {language} subject exists in Notebook yet. Create one there, then record mistakes here.</p> : null}
+      {inSubject.length > 0 && inSubject.some((entry) => mistakeMode(entry) === "other") ?
+        <p className="ml-legacy-note">Older mistakes without a category appear in Other mistakes. You can assign them a type when editing.</p> : null}
+    </main> : <>
+      <nav className="ml-breadcrumb" aria-label="Mistake Log location">
+        <button type="button" onClick={() => openMode("home")}><ArrowLeft size={15} /> Modes</button>
+        <span aria-hidden="true">/</span><strong>{title}</strong>
+        <span className="ml-breadcrumb-total">{inMode.length} {inMode.length === 1 ? "mistake" : "mistakes"}</span>
+      </nav>
+      <section className="ml-filters" aria-label={`${title} filters`}>
+        <div className="ml-filter-row">
+          <div className="ws-segmented" role="tablist" aria-label="Stage">
+            {(["all", "to_correct", "practising", "due", "understood"] as StageFilter[]).map((key) => <button type="button" role="tab" key={key}
+              aria-selected={stage === key} className={stage === key ? "is-active" : ""} onClick={() => setStage(key)}>
+              {key === "all" ? "All" : key === "due" ? "Due" : STAGE_LABEL[key]}<small>{counts[key]}</small></button>)}
+          </div>
+          <label className="ws-search-field"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search mistakes…" aria-label="Search mistakes" />
+            {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={13} /></button> : null}</label>
+        </div>
+      </section>
+      <div className="ml-list" ref={listRef}>
+        {shown.map((entry) => editingId === entry.id
+          ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
+          : <MistakeCard key={entry.id} entry={entry} highlighted={highlightId === entry.id}
+            onEdit={() => setEditingId(entry.id)} onPractise={() => setSession([entry.id])} />)}
+        {!shown.length ? <EmptyState icon={<TriangleAlert size={22} />}
+          title={stage === "due" ? "Nothing due in this mode" : query ? "No matching mistakes" : "No mistakes here yet"}
+          action={workspace.writable && stage !== "due" && !query ? <button type="button" className="ws-button is-primary" onClick={recordMistake}><Plus size={15} /> Record a mistake</button> : null}>
+          {stage === "due" ? "Completed recalls will return when the next interval is due."
+            : language !== "All" && !activeSubject ? `Create a ${language} subject in Notebook to start recording mistakes.`
+            : !inMode.length ? "Mistakes saved in this category will appear here. Older uncategorised records remain under Other mistakes."
+            : "Try another filter or search."}
+        </EmptyState> : null}
+      </div>
+    </>}
     {session ? <RecallSession ids={session} onClose={() => setSession(null)} /> : null}
   </div>;
 }
@@ -111,7 +210,7 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
   const [flashcard, setFlashcard] = useState(false);
   const stage = mistakeStage(entry);
   const lesson = entry.lesson_id ? workspace.entryById.get(entry.lesson_id) : null;
-  const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id);
+  const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const lastAttempt = attempts[0];
 
   async function setUnderstood(understood: boolean) {
@@ -136,6 +235,7 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
         {lesson ? <> · <button type="button" className="nb-link-button" onClick={() => workspace.openDocument(lesson.id)}>{entryTitle(lesson)}</button></> : null}
         <span> · {formatDay(entry.created_at)}</span>
       </span>
+      <span className="ml-kind">{MODE_CARDS.find((item) => item.id === mistakeMode(entry))?.title}</span>
       <span className={`ml-stage is-${stage}`}>{STAGE_LABEL[stage]}</span>
       {workspace.writable ? <RowMenu label="mistake" items={[
         { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
@@ -168,12 +268,22 @@ function MistakeCard({ entry, highlighted, onEdit, onPractise }: { entry: Knowle
         {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="Edit mistake" onClick={onEdit}><Pencil size={14} /></button> : null}
       </span>
     </div>
+    {attempts.length ? <details className="ml-attempt-history">
+      <summary><History size={13} /> Previous attempts ({attempts.length})</summary>
+      <ol>
+        {attempts.map((event) => <li key={event.id}>
+          <span>{formatDay(event.created_at)}</span>
+          <strong className={event.outcome === "correct" ? "is-correct" : "is-incorrect"}>{event.outcome === "correct" ? "Correct" : "Needs work"}</strong>
+          <p>{event.answer || "No written answer recorded"}</p>
+        </li>)}
+      </ol>
+    </details> : null}
   </article>;
 }
 
 function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () => void }) {
   const workspace = useWorkspace();
-  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction, explanation: entry.explanation, topicId: entry.topic_id });
+  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction, explanation: entry.explanation, topicId: entry.topic_id, category: categoryFor(mistakeMode(entry)) });
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -183,7 +293,7 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
     if (busy) return;
     setBusy(true); setError("");
     try {
-      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(), correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId });
+      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(), correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId, category: values.category });
       onDone();
     } catch (saveError) { setError(friendlyError(saveError)); }
     finally { setBusy(false); }
@@ -199,6 +309,12 @@ function MistakeEditor({ entry, onDone }: { entry: KnowledgeEntry; onDone: () =>
       <label className="ws-field"><span>Correct form</span><textarea rows={2} autoFocus={firstEmpty === "correction"} value={values.correction} onChange={(event) => setValues({ ...values, correction: event.target.value })} /></label>
     </div>
     <label className="ws-field"><span>Why it was wrong</span><textarea rows={2} value={values.explanation} placeholder="The rule, or what you misunderstood" onChange={(event) => setValues({ ...values, explanation: event.target.value })} /></label>
+    <div className="ml-edit-kind" role="group" aria-label="Mistake category">
+      <span>Type of mistake</span>
+      {MODE_CARDS.map((item) => <button type="button" key={item.id} className={mistakeMode({ ...entry, category: values.category }) === item.id ? "is-active" : ""}
+        aria-pressed={mistakeMode({ ...entry, category: values.category }) === item.id}
+        onClick={() => setValues((current) => ({ ...current, category: categoryFor(item.id) }))}>{item.title}</button>)}
+    </div>
     <div className="ml-edit-grid">
       <label className="ws-field"><span>Short label <small>optional</small></span><input value={values.title} maxLength={200} placeholder="e.g. 了 inside a 的时候 clause" onChange={(event) => setValues({ ...values, title: event.target.value })} /></label>
       <div className="ws-field"><span>Topic</span>

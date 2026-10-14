@@ -295,7 +295,7 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
     correction: kind === "mistake" ? (input.correction ?? "").trim() : "",
     explanation: kind === "mistake" ? (input.explanation ?? "").trim() : "",
     status: kind === "mistake" ? "needs_practice" : null,
-    category: kind === "note" ? (input.category ?? "note") : null,
+    category: kind === "note" ? (input.category ?? "note") : kind === "mistake" ? (input.category ?? null) : null,
     lesson_id: kind === "lesson" ? null : (input.lessonId ?? null),
     lesson_date: kind === "lesson" ? (input.lessonDate ?? localDateKey(new Date())) : null,
     pinned: false, recall_streak: 0, last_recalled_at: null, recall_due_at: null,

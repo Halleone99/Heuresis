@@ -3,7 +3,7 @@ import {
   createEntry, createSubject, createTopic, deleteEntry, deleteSubject, deleteTopic, EMPTY_SNAPSHOT,
   entryTitle, friendlyError, isLesson, loadKnowledge, recordPractice, renameSubject, restoreEntry,
   updateEntry, updateTopic,
-  type EntryInput, type EntryPatch, type KnowledgeEntry, type KnowledgeSnapshot, type KnowledgeSubject,
+  type EntryInput, type EntryPatch, type KnowledgeEntry, type KnowledgeSnapshot, type KnowledgeSubject, type NoteCategory,
   type KnowledgeTopic, type PracticeOutcome, type SchemaLevel,
 } from "../../lib/knowledgeWorkspace";
 import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
@@ -14,7 +14,7 @@ import {
 } from "../../lib/workspaceMemory";
 
 export type CaptureMode = "note" | "mistake" | "lesson";
-export type CaptureRequest = { mode: CaptureMode; topicId?: string | null; lessonId?: string | null; text?: string };
+export type CaptureRequest = { mode: CaptureMode; topicId?: string | null; lessonId?: string | null; text?: string; category?: NoteCategory };
 export type Toast = { id: number; message: string; tone?: "default" | "error"; action?: { label: string; run: () => void } };
 export type TopicPath = { subject: KnowledgeSubject | null; chain: KnowledgeTopic[] };
 
