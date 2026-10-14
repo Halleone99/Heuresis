@@ -68,7 +68,7 @@ function CountControl({ value, available, onChange }: { value: number; available
   </div>;
 }
 
-export default function StudyModal({ pack, cards, onClose }: Props) {
+export default function StudyModal({ pack, cards, onClose, onComplete }: Props) {
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [directionMode, setDirectionMode] = useState<DirectionMode>("one");
@@ -117,6 +117,7 @@ export default function StudyModal({ pack, cards, onClose }: Props) {
     setBusy(true); setError("");
     try {
       await openCosmosWindow({ mode: "review", packId: pack.id, templateIds: selectedTemplateIds, source, order: randomOrder ? "random" : "pack", count: clampCount(reviewCount, pool.length) });
+      onComplete();
       onClose();
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : "Could not open Review.");
