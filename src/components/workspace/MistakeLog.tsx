@@ -22,6 +22,7 @@ export function MistakeLog() {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory, focusMistake, clearFocusMistake } = workspace;
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [view, setView] = useState<MistakeView>("home");
   const [modes, setModes] = useState<MistakeMode[]>(FALLBACK_MODES);
   const [modesReady, setModesReady] = useState(false);
@@ -134,10 +135,6 @@ export function MistakeLog() {
       <div>
         <span className="ws-eyebrow">Mistake → Correction → Practice → Progress</span>
         <h1>Mistake Log</h1>
-        <p className="ws-page-sub">
-          <span>{inSubject.length} mistakes</span><span>{allDue.length} due for recall</span>
-          <span>{inSubject.filter((entry) => mistakeStage(entry) === "understood").length} understood</span>
-        </p>
       </div>
       <div className="ws-page-actions">
         <button type="button" className="ws-button is-primary" disabled={!(view === "home" ? allDue.length : due.length)}
@@ -148,13 +145,13 @@ export function MistakeLog() {
       </div>
     </header>
 
-    <nav className="ml-languages" aria-label="Mistake Log languages">
+    {view === "home" ? <nav className="ml-languages" aria-label="Mistake Log languages">
       <span className="ml-languages-label">Language</span>
       <div className="ml-languages-tabs">
         {languageNames.map((name) => <button key={name} type="button" className={language === name ? "is-active" : ""}
           aria-current={language === name ? "page" : undefined} onClick={() => selectLanguage(name)}>{name}</button>)}
       </div>
-    </nav>
+    </nav> : null}
 
     {view === "home" ? <main className="ml-launch" aria-labelledby="ml-modes-title">
       <div className="ml-launch-intro">
@@ -196,14 +193,24 @@ export function MistakeLog() {
       </nav>
       <section className="ml-filters" aria-label={`${title} filters`}>
         <div className="ml-filter-row">
+          <nav className="ml-languages is-inline" aria-label="Mistake Log languages">
+      <span className="ml-languages-label">Language</span>
+      <div className="ml-languages-tabs">
+        {languageNames.map((name) => <button key={name} type="button" className={language === name ? "is-active" : ""}
+          aria-current={language === name ? "page" : undefined} onClick={() => selectLanguage(name)}>{name}</button>)}
+      </div>
+    </nav>
           <div className="ws-segmented" role="tablist" aria-label="Stage">
             {(["all", "to_correct", "practising", "due", "understood"] as StageFilter[]).map((key) => <button type="button" role="tab" key={key}
               aria-selected={stage === key} className={`${stage === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`} onClick={() => setStage(key)}>
               {key === "all" ? "All" : key === "due" ? "Due" : STAGE_LABEL[key]}<small>{counts[key]}</small></button>)}
           </div>
-          <label className="ws-search-field"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search mistakes…" aria-label="Search mistakes" />
-            {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={13} /></button> : null}</label>
+          {searchOpen || query ? <label className="ws-search-field ml-search">
+            <Search size={14}/><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search mistakes…" aria-label="Search mistakes"/>
+            <button type="button" aria-label="Close search" onClick={() => { setQuery(""); setSearchOpen(false); }}><X size={13}/></button>
+          </label> : <button type="button" className="ml-search-toggle" onClick={() => setSearchOpen(true)}
+            aria-label="Search mistakes" title="Search mistakes"><Search size={16}/></button>}
         </div>
       </section>
       <div className="ml-list" ref={listRef}>
