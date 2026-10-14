@@ -22,6 +22,7 @@ import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
+import { SyncStatusDialog } from "./components/workspace/SyncStatusDialog";
 import { KnowledgeTrashDialog } from "./components/workspace/KnowledgeTrashDialog";
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
@@ -158,6 +159,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     });
   }, []);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
@@ -286,6 +288,10 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       : syncState.pending
         ? `Sync · ${syncState.pending}`
         : syncState.lastSyncedAt ? "Synced" : "Sync";
+  const syncTone = syncState.legacyPending || (syncState.pending && !syncState.online)
+    ? "attention" : syncState.error ? "error" : syncState.syncing ? "syncing"
+    : !syncState.online ? "offline" : syncState.pending ? "attention"
+    : syncState.lastSyncedAt ? "synced" : "unknown";
   const syncTitle = syncState.legacyPending
     ? `${syncState.legacyPending} unowned offline changes from an older Heuresis version were kept safely but cannot be replayed automatically across accounts. Do not clear this app's local storage.`
     : syncState.error && syncState.pending
@@ -377,10 +383,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             aria-expanded={actualSidebarMode === "full"}>
             <PanelLeftOpen size={16}/>
           </button>
-          <button className="desktop-action" title={syncTitle}
-            onClick={() => syncState.legacyPending ? setRecoveryOpen(true) : void runSync(false)}>
-            {syncState.legacyPending ? <TriangleAlert size={14}/> : <RefreshCw size={14}/>}
-            <span>{syncLabel}</span></button>
+          <button type="button" className="desktop-action hw-sync-indicator" data-sync-tone={syncTone}
+            title={syncTitle} aria-label={`Synchronisation: ${syncLabel}. Show details.`}
+            onClick={() => setSyncOpen(true)}>
+            <span className="hw-sync-dot" aria-hidden="true"/>
+          </button>
           {section === "study"
             ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>{MOD_KEY} K</kbd></button>
             : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
@@ -433,9 +440,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="hw-lesson-title" onClick={() => workspace.openDocument(workspace.currentLesson!.id)} title="Open the lesson page">{entryTitle(workspace.currentLesson)}</button>
             <button type="button" className="hw-lesson-end" onClick={() => workspace.endLesson()} aria-label="End lesson" title="End lesson — captures stop attaching to it"><X size={13} /></button>
           </div> : null}
-          <button type="button" className="hw-capture-hint" onClick={() => workspace.openCapture({ mode: "note" })}>
-            <span>Quick capture</span><Kbd>{MOD_KEY} ⇧ N</Kbd>
-          </button>
         </aside>
         <main className={`desktop-content ${section === "study" ? "is-study" : "is-workspace"}`}>
           {workspaceNotice}
@@ -459,6 +463,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       </div>
       <QuickCapture />
       {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
+      {syncOpen ? <SyncStatusDialog state={syncState} onClose={() => setSyncOpen(false)}
+        onRecovery={() => { setSyncOpen(false); setRecoveryOpen(true); }}
+        onSync={() => { void runSync(false); }} /> : null}
       {trashOpen ? <KnowledgeTrashDialog onClose={() => setTrashOpen(false)} /> : null}
       <Toaster />
       {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
