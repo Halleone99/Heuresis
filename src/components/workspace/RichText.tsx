@@ -6,10 +6,16 @@ export type LinkResolver = (target: string) => { exists: boolean; open: () => vo
 
 /** Render romanized Mandarin with a known Unicode-complete typeface, while
  * keeping the notebook's serif typography for Hanzi and English prose. */
+/** Preserve the source text while giving Hanzi a legible reading size. */
+function HanziAware({ text }: { text: string }) {
+  return <>{text.split(/(\p{Script=Han}+)/gu).map((part, index) =>
+    /\p{Script=Han}/u.test(part) ? <span key={index} className="nb-hanzi" lang="zh">{part}</span>
+      : <span key={index}>{part}</span>)}</>;
+}
 function PinyinAware({ text }: { text: string }) {
   return <>{pinyinSegments(text).map(({ text: segment, pinyin }, index) =>
     pinyin ? <span key={index} className="nb-pinyin" lang="zh-Latn">{segment}</span>
-      : <span key={index}>{segment}</span>
+      : <HanziAware key={index} text={segment}/>
   )}</>;
 }
 
@@ -73,22 +79,36 @@ function exampleGroups(lines: string[]) {
   return groups;
 }
 
-function BlockView({ block, resolve }: { block: Block; resolve?: LinkResolver }) {
+function rubyEligible(lines: string[]) {
+  // An explicit three-line Chinese example: original, pinyin, translation.
+  return lines.length >= 3 && /\p{Script=Han}/u.test(lines[0])
+    && !/\p{Script=Han}/u.test(lines[1]) && /[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/iu.test(lines[1]);
+}
+function BlockView({ block, resolve, rubyPinyin = false }: {
+  block: Block; resolve?: LinkResolver; rubyPinyin?: boolean;
+}) {
   switch (block.type) {
     case "h2": return <h2><InlineText text={block.text} resolve={resolve} /></h2>;
     case "h3": return <h3><InlineText text={block.text} resolve={resolve} /></h3>;
     case "hr": return <hr />;
     case "ul": case "ol": return <>{renderList(block.items, resolve)}</>;
-    case "quote": return <blockquote>{parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} />)}</blockquote>;
+    case "quote": return <blockquote>{parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} rubyPinyin={rubyPinyin} />)}</blockquote>;
     case "callout": {
       if (block.variant === "example") {
         return <aside className="nb-callout" data-callout="example">
           <span className="nb-callout-label">{CALLOUTS.example}</span>
-          {exampleGroups(block.lines).map((group, index) => <div className="nb-example" key={index}>
-            <p className="nb-example-main"><InlineText text={group[0]} resolve={resolve} /></p>
-            {group.slice(1).map((line, lineIndex) => <p key={lineIndex} className={lineIndex === 0 && group.length > 2 ? "nb-example-reading" : "nb-example-meaning"}><InlineText text={line} resolve={resolve} /></p>)}
-            <CopyButton text={group.join("\n")} />
-          </div>)}
+          {exampleGroups(block.lines).map((group, index) => {
+            const showRuby = rubyPinyin && rubyEligible(group);
+            return <div className="nb-example" key={index}>
+              <p className="nb-example-main">{showRuby
+                ? <ruby className="nb-ruby-phrase"><span lang="zh"><InlineText text={group[0]} resolve={resolve}/></span><rt lang="zh-Latn">{group[1]}</rt></ruby>
+                : <InlineText text={group[0]} resolve={resolve} />}</p>
+              {group.slice(showRuby ? 2 : 1).map((line, lineIndex) =>
+                <p key={lineIndex} className={!showRuby && lineIndex === 0 && group.length > 2 ? "nb-example-reading" : "nb-example-meaning"}>
+                  <InlineText text={line} resolve={resolve} /></p>)}
+              <CopyButton text={group.join("\n")}/>
+            </div>;
+          })}
         </aside>;
       }
       return <aside className="nb-callout" data-callout={block.variant}>
@@ -100,10 +120,10 @@ function BlockView({ block, resolve }: { block: Block; resolve?: LinkResolver })
   }
 }
 
-export function RichText({ text, resolve, className = "" }: { text: string; resolve?: LinkResolver; className?: string }) {
+export function RichText({ text, resolve, className = "", rubyPinyin = false }: { text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean }) {
   const blocks = parseBlocks(text);
   return <div className={`nb-prose ${className}`}>
-    {blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} />)}
+    {blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin} />)}
   </div>;
 }
 

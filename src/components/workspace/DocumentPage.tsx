@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, ListChecks, Trash2, X,
+  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, ListChecks, Languages, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
@@ -45,6 +45,14 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const [restore, setRestore] = useState<{ title: string; body: string; savedAt: string } | null>(null);
   const [moving, setMoving] = useState(false);
   const [flashcard, setFlashcard] = useState(false);
+  const [rubyPinyin, setRubyPinyin] = useState(() => {
+    try { return localStorage.getItem(`heuresis.notebook.ruby.v1:${userId}`) === "true"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(`heuresis.notebook.ruby.v1:${userId}`, String(rubyPinyin)); }
+    catch { /* Optional reading preference. */ }
+  }, [rubyPinyin, userId]);
   const [confirmElement, confirm] = useConfirm();
   const editorRef = useRef<RichEditorHandle>(null);
   const entryIdRef = useRef<string | null>(entry?.id ?? null);
@@ -412,7 +420,13 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         onEscape={() => void closeNote()} onDone={() => void finishEditing()} onSave={() => void persist()} />
       <p className="nb-editor-hints"><Kbd>{MOD_KEY} B</Kbd> bold · <Kbd>{MOD_KEY} I</Kbd> italic · <Kbd>{MOD_KEY} ⇧ H</Kbd> highlight · <code>[[Title]]</code> links another note · <Kbd>{MOD_KEY} ↵</Kbd> done</p>
     </div> : <div className="nb-doc-body">
-      {draft.body.trim() ? <RichText text={draft.body} resolve={resolveLink} className="nb-reading" />
+      {!editing && /\p{Script=Han}/u.test(draft.body) && draft.body.toLowerCase().includes("[!example]") ? <div className="nb-reading-controls">
+        <button type="button" className={rubyPinyin ? "is-active" : ""} aria-pressed={rubyPinyin}
+          onClick={() => setRubyPinyin((value) => !value)} title="Show or hide pinyin above Chinese example sentences">
+          <Languages size={14}/> Pinyin above Hanzi
+        </button>
+      </div> : null}
+      {draft.body.trim() ? <RichText text={draft.body} resolve={resolveLink} className="nb-reading" rubyPinyin={rubyPinyin} />
         : <p className="ws-muted nb-doc-empty">{lesson ? "No lesson notes written yet." : "This note is empty."}</p>}
       {workspace.writable ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}
     </div>}

@@ -31,6 +31,7 @@ jobs:
       - run: node scripts/check-notebook-sidebar.mjs
       - run: node scripts/check-save-feedback.mjs
       - run: node scripts/check-rejected-capture-recovery.mjs
+      - run: node scripts/check-chinese-reading.mjs
       - run: node scripts/check-appearance.mjs
       - run: npm run build
       # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
