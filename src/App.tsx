@@ -525,6 +525,15 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </details>
         </div>
       </header>
+      {section === "study" ? <nav className="mobile-study-subnav" aria-label="Study pages">
+        <button type="button" aria-current={view === "library" || view === "pack" || view === "capture-inbox" ? "page" : undefined}
+          onClick={openLibrary}><Home size={15} /> Library</button>
+        <button type="button" aria-current={view === "catalogue" ? "page" : undefined}
+          onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={15} /> Catalogue</button>
+        <button type="button" aria-current={view === "related" ? "page" : undefined}
+          onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={15} /> Connections</button>
+        <button type="button" onClick={() => openCollections(false)}><FolderTree size={15} /> Collections</button>
+      </nav> : null}
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
