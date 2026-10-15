@@ -100,7 +100,7 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
         <h2 id="fc-title"><Layers size={17} /> Make a flashcard</h2>
         <button type="button" className="ws-icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
       </div>
-      <p className="ws-muted">Adds one card to a Study topic through the normal card path. The note stays in the Notebook.</p>
+      <p className="ws-muted">Create a Study card from this note. The original note stays unchanged.</p>
       {loading ? <div className="ws-loading"><span className="ws-spinner" /> Loading Study topics…</div> : !packs.length
         ? <p className="ws-field-error">There are no Study topics yet. Create one in Study first.</p>
         : <>
