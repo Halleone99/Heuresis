@@ -378,6 +378,7 @@ function MistakeEditor({ entry, modes, onDone }: { entry: KnowledgeEntry; modes:
 
   return <form className="ml-card is-editing" data-mistake={entry.id} onSubmit={(event) => { event.preventDefault(); void save(); }}
     onKeyDown={(event) => {
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       if (event.key === "Escape" && !picking) { event.preventDefault(); onDone(); }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void save(); }
     }}>
@@ -457,7 +458,7 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
   return <Portal><div className="ws-dialog-backdrop" role="presentation">
     <div className="ws-dialog is-recall" role="dialog" aria-modal="true" aria-labelledby="recall-title"
       onKeyDown={(event) => {
-        if (event.nativeEvent.isComposing) return;
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
         if (event.key === "Escape") { event.preventDefault(); onClose(); }
         if (!finished && (event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!revealed) setRevealed(true); }
       }}>
