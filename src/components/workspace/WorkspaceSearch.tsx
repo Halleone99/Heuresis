@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Command, Folder, Layers, Search, X } from "lucide-react";
 import { entryTitle, isLesson, normaliseSearch, plainLine, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { inlinePlain } from "../../lib/noteFormat";
+import { commandScore, resultsFirst } from "../../lib/paletteRanking";
 import { KindIcon, Kbd, entryKindLabel, relativeTime } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -52,59 +53,108 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
   const words = normaliseSearch(query).split(" ").filter(Boolean);
   const rawWords = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
 
+  // Normalised text is computed once per Notebook snapshot, not on every keystroke:
+  // with a few thousand notes, re-normalising every body made typing visibly lag.
+  const index = useMemo(() => ({
+    topics: workspace.snapshot.topics.map((topic) => {
+      const path = workspace.pathLabel(topic.id);
+      return { topic, path, hay: normaliseSearch(path), name: normaliseSearch(topic.name) };
+    }),
+    entries: workspace.snapshot.entries.map((entry) => {
+      const path = workspace.pathLabel(entry.topic_id);
+      return { entry, path, title: normaliseSearch(entryTitle(entry)),
+        hay: normaliseSearch([entry.title, entry.body, entry.attempt, entry.correction, entry.explanation, path].join(" ")) };
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [workspace.snapshot]);
+
   const results = useMemo<Result[]>(() => {
     if (!words.length) {
       return workspace.memory.recentDocs.map((id) => workspace.entryById.get(id)).filter((entry): entry is KnowledgeEntry => Boolean(entry))
         .slice(0, 8).map((entry) => ({ type: "entry" as const, entry, snippet: "", path: workspace.pathLabel(entry.topic_id), score: 0 }));
     }
     const list: Result[] = [];
-    for (const topic of workspace.snapshot.topics) {
-      const path = workspace.pathLabel(topic.id);
-      const hay = normaliseSearch(path);
-      if (words.every((word) => hay.includes(word))) list.push({ type: "topic", id: topic.id, label: topic.name, path, score: normaliseSearch(topic.name).startsWith(words[0]) ? 30 : 20 });
+    for (const { topic, path, hay, name } of index.topics) {
+      // A topic named exactly what was typed is what was meant ("Inbox", "Grammar").
+      if (words.every((word) => hay.includes(word))) list.push({ type: "topic", id: topic.id, label: topic.name, path, score: name === words.join(" ") ? 46 : name.startsWith(words[0]) ? 30 : 20 });
     }
-    for (const entry of workspace.snapshot.entries) {
-      const path = workspace.pathLabel(entry.topic_id);
-      const title = normaliseSearch(entryTitle(entry));
-      const hay = normaliseSearch([entry.title, entry.body, entry.attempt, entry.correction, entry.explanation, path].join(" "));
+    for (const { entry, path, title, hay } of index.entries) {
       if (!words.every((word) => hay.includes(word))) continue;
       let score = 10;
       if (words.every((word) => title.includes(word))) score += 25;
       if (title.startsWith(words[0])) score += 10;
       if (isLesson(entry)) score += 3;
-      list.push({ type: "entry", entry, snippet: snippetFor(entry, words), path, score });
+      list.push({ type: "entry", entry, snippet: "", path, score });
     }
-    return list.sort((a, b) => b.score - a.score || (b.type === "entry" && a.type === "entry" ? b.entry.updated_at.localeCompare(a.entry.updated_at) : 0)).slice(0, 40);
+    // Snippets only for what is shown.
+    return list.sort((a, b) => b.score - a.score || (b.type === "entry" && a.type === "entry" ? b.entry.updated_at.localeCompare(a.entry.updated_at) : 0)).slice(0, 40)
+      .map((result) => result.type === "entry" ? { ...result, snippet: snippetFor(result.entry, words) } : result);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, workspace.snapshot, workspace.memory.recentDocs]);
+  }, [query, index, workspace.memory.recentDocs]);
 
-  const matchedCommands = commands.filter((command) => words.every((word) =>
-    normaliseSearch([command.label, command.detail, command.keywords ?? ""].join(" ")).includes(word))).slice(0, words.length ? 12 : 9);
+  const matchedCommands = commands.map((command) => ({ command, score: commandScore(command, words) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, words.length ? 12 : 9);
+
+  // One ordered list drives the keyboard index, the highlight and Enter, so they
+  // can never disagree about which row is selected.
+  type Row = { kind: "command"; command: PaletteCommand } | { kind: "result"; result: Result } | { kind: "cards" };
+  const commandRows: Row[] = matchedCommands.map(({ command }) => ({ kind: "command", command }));
+  const resultRows: Row[] = results.map((result) => ({ kind: "result", result }));
+  const notesFirst = resultsFirst(matchedCommands[0]?.score ?? 0, results[0]?.score ?? 0, words.length > 0);
+  const rows: Row[] = [...(notesFirst ? [...resultRows, ...commandRows] : [...commandRows, ...resultRows]),
+    ...(query.trim() ? [{ kind: "cards" } as Row] : [])];
 
   useEffect(() => { setActive(0); }, [query]);
   useEffect(() => { listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [active]);
 
-  const commandCount = matchedCommands.length;
-  const total = commandCount + results.length + (query.trim() ? 1 : 0);
   function open(index: number) {
-    if (index < commandCount) {
-      matchedCommands[index].run();
-      onClose();
-      return;
-    }
-    const result = results[index - commandCount];
-    if (!result) { if (query.trim()) { onSearchCards(query.trim()); onClose(); } return; }
+    const row = rows[index];
+    if (!row) return;
+    if (row.kind === "command") { row.command.run(); onClose(); return; }
+    if (row.kind === "cards") { onSearchCards(query.trim()); onClose(); return; }
+    const { result } = row;
     if (result.type === "topic") workspace.openTopic(result.id);
     else if (result.entry.kind === "mistake") workspace.openMistake(result.entry.id);
     else workspace.openDocument(result.entry.id);
     onClose();
   }
 
+  const renderRow = (row: Row, index: number) => {
+    const selected = index === active;
+    const common = { type: "button" as const, role: "option", "aria-selected": selected, "data-index": index,
+      onMouseMove: () => setActive(index), onClick: () => open(index) };
+    if (row.kind === "command") return <button {...common} key={`c-${row.command.id}`} className={`ws-palette-row is-command ${selected ? "is-active" : ""}`}>
+      <span className="ws-palette-icon"><Command size={15} /></span>
+      <span className="ws-palette-text"><strong>{highlight(row.command.label, rawWords)}</strong><small>{row.command.detail}</small></span>
+      {selected ? <ArrowRight size={14} className="ws-palette-go" /> : null}
+    </button>;
+    if (row.kind === "cards") return <button {...common} key="cards" className={`ws-palette-row is-cards ${selected ? "is-active" : ""}`}>
+      <span className="ws-palette-icon"><Layers size={15} /></span>
+      <span className="ws-palette-text"><strong>Search Study cards for “{query.trim()}”</strong><small>Flashcards and vocabulary in Study</small></span>
+    </button>;
+    const { result } = row;
+    return <button {...common} key={result.type === "topic" ? `t-${result.id}` : result.entry.id} className={`ws-palette-row ${selected ? "is-active" : ""}`}>
+      <span className="ws-palette-icon">{result.type === "topic" ? <Folder size={15} /> : <KindIcon entry={result.entry} size={15} />}</span>
+      <span className="ws-palette-text">
+        <strong>{result.type === "topic" ? highlight(result.label, rawWords) : highlight(entryTitle(result.entry), rawWords)}</strong>
+        {result.type === "entry" && result.snippet ? <span>{highlight(result.snippet, rawWords)}</span> : null}
+        <small>{result.type === "topic" ? `Topic · ${result.path}` : `${entryKindLabel(result.entry)} · ${result.path} · ${relativeTime(result.entry.updated_at)}`}</small>
+      </span>
+      {selected ? <ArrowRight size={14} className="ws-palette-go" /> : null}
+    </button>;
+  };
+  const groupLabel = (row: Row) => row.kind === "command" ? "Actions" : row.kind === "cards" ? null : query.trim() ? "Notes and topics" : "Recently opened";
+
   return <div className="ws-dialog-backdrop is-top" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="ws-palette" role="dialog" aria-modal="true" aria-label="Search Heuresis and run commands"
       onKeyDown={(event) => {
+        // Arrow and Enter keys also drive Chinese/Japanese input methods; while a
+        // composition is open they belong to the IME, not to the result list.
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
         if (event.key === "Escape") { event.preventDefault(); onClose(); }
-        if (event.key === "ArrowDown") { event.preventDefault(); setActive((value) => Math.min(total - 1, value + 1)); }
+        if (event.key === "ArrowDown") { event.preventDefault(); setActive((value) => Math.min(rows.length - 1, value + 1)); }
         if (event.key === "ArrowUp") { event.preventDefault(); setActive((value) => Math.max(0, value - 1)); }
         if (event.key === "Enter") { event.preventDefault(); open(active); }
       }}>
@@ -113,30 +163,14 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
         {query ? <button type="button" className="ws-icon-button" aria-label="Clear" onClick={() => setQuery("")}><X size={14} /></button> : <Kbd>Esc</Kbd>}
       </label>
       <div className="ws-palette-list" ref={listRef} role="listbox">
-        {matchedCommands.length ? <span className="ws-eyebrow ws-palette-group">Actions</span> : null}
-        {matchedCommands.map((command, index) => <button type="button" role="option" aria-selected={index === active}
-          key={command.id} data-index={index} className={`ws-palette-row is-command ${index === active ? "is-active" : ""}`}
-          onMouseMove={() => setActive(index)} onClick={() => open(index)}>
-          <span className="ws-palette-icon"><Command size={15} /></span>
-          <span className="ws-palette-text"><strong>{highlight(command.label, rawWords)}</strong><small>{command.detail}</small></span>
-          {index === active ? <ArrowRight size={14} className="ws-palette-go" /> : null}
-        </button>)}
-        {!query.trim() && results.length ? <span className="ws-eyebrow ws-palette-group">Recently opened</span> : null}
-        {results.map((result, index) => <button type="button" role="option" aria-selected={commandCount + index === active} key={result.type === "topic" ? `t-${result.id}` : result.entry.id}
-          data-index={commandCount + index} className={`ws-palette-row ${commandCount + index === active ? "is-active" : ""}`} onMouseMove={() => setActive(commandCount + index)} onClick={() => open(commandCount + index)}>
-          <span className="ws-palette-icon">{result.type === "topic" ? <Folder size={15} /> : <KindIcon entry={result.entry} size={15} />}</span>
-          <span className="ws-palette-text">
-            <strong>{result.type === "topic" ? highlight(result.label, rawWords) : highlight(entryTitle(result.entry), rawWords)}</strong>
-            {result.type === "entry" && result.snippet ? <span>{highlight(result.snippet, rawWords)}</span> : null}
-            <small>{result.type === "topic" ? `Topic · ${result.path}` : `${entryKindLabel(result.entry)} · ${result.path} · ${relativeTime(result.entry.updated_at)}`}</small>
-          </span>
-          {commandCount + index === active ? <ArrowRight size={14} className="ws-palette-go" /> : null}
-        </button>)}
-        {query.trim() ? <button type="button" role="option" aria-selected={active === commandCount + results.length} data-index={commandCount + results.length}
-          className={`ws-palette-row is-cards ${active === commandCount + results.length ? "is-active" : ""}`} onMouseMove={() => setActive(commandCount + results.length)} onClick={() => open(commandCount + results.length)}>
-          <span className="ws-palette-icon"><Layers size={15} /></span>
-          <span className="ws-palette-text"><strong>Search Study cards for “{query.trim()}”</strong><small>Flashcards and vocabulary in Study</small></span>
-        </button> : null}
+        {rows.map((row, index) => {
+          const label = groupLabel(row);
+          const previous = index > 0 ? groupLabel(rows[index - 1]) : undefined;
+          return <Fragment key={index}>
+            {label && label !== previous ? <span className="ws-eyebrow ws-palette-group">{label}</span> : null}
+            {renderRow(row, index)}
+          </Fragment>;
+        })}
         {query.trim() && !results.length && !matchedCommands.length ? <p className="ws-muted ws-palette-empty">No notes or commands match. You can still search Study cards below.</p> : null}
         {!query.trim() && !results.length && !matchedCommands.length ? <p className="ws-muted ws-palette-empty">Search Heuresis, or choose an action.</p> : null}
       </div>

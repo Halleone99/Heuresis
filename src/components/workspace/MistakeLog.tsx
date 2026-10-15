@@ -9,7 +9,7 @@ import { MistakeModeDialog, ModeSymbol } from "./MistakeModeDialog";
 import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
 import { FlashcardDialog } from "./FlashcardDialog";
 import { RowMenu } from "./NotebookView";
-import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, dueLabel, formatDay, relativeTime, useConfirm } from "./ui";
+import { EmptyState, Kbd, MOD_KEY, Portal, ShowMore, TopicPicker, dueLabel, formatDay, relativeTime, useConfirm, useProgressiveList } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
 type StageFilter = "all" | MistakeStage | "due";
@@ -70,6 +70,7 @@ export function MistakeLog() {
     .filter((entry) => stage === "all" || (stage === "due" ? isRecallDue(entry) : mistakeStage(entry) === stage))
     .filter((entry) => !q || q.split(" ").every((word) => normaliseSearch([entry.attempt, entry.correction, entry.explanation, entry.title, workspace.pathLabel(entry.topic_id)].join(" ")).includes(word)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const page = useProgressiveList(shown, `${view}|${language}|${stage}|${q}`);
   const due = inMode.filter((entry) => isRecallDue(entry))
     .sort((a, b) => (a.recall_due_at ?? "").localeCompare(b.recall_due_at ?? ""));
   const allDue = inSubject.filter((entry) => isRecallDue(entry))
@@ -85,10 +86,14 @@ export function MistakeLog() {
     setLanguage("All");
     updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, stage: "all", subjectId: null } }));
     setHighlightId(target.id);
+    revealRef.current(target.id);
     window.setTimeout(() => listRef.current?.querySelector(`[data-mistake="${target.id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
     window.setTimeout(() => setHighlightId(null), 2600);
   }, [clearFocusMistake, focusMistake, snapshot.entries, updateMemory]);
 
+  // The focused mistake must be rendered before it can be scrolled to.
+  const revealRef = useRef<(id: string) => void>(() => undefined);
+  revealRef.current = (id: string) => page.reveal(shown.findIndex((entry) => entry.id === id));
   const setStage = (next: StageFilter) => updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, stage: next } }));
   function selectLanguage(next: string) {
     setLanguage(next);
@@ -109,8 +114,10 @@ export function MistakeLog() {
       let topicId: string | null = null;
       if (language !== "All") {
         const subject = activeSubject ?? await workspace.addSubject(language);
-        topicId = snapshot.topics.find((topic) => topic.subject_id === subject.id)?.id
-          ?? (await workspace.ensureInbox(subject.id)).id;
+        // The last capture topic in this language, otherwise its Inbox — never
+        // whichever topic of the language happens to be first in the list.
+        const remembered = memory.capture.topicId ? workspace.topicById.get(memory.capture.topicId) : null;
+        topicId = remembered?.subject_id === subject.id ? remembered.id : (await workspace.ensureInbox(subject.id)).id;
       }
       const currentMode = modes.find((mode) => mode.id === view) ?? null;
       workspace.openCapture({
@@ -214,10 +221,11 @@ export function MistakeLog() {
         </div>
       </section>
       <div className="ml-list" ref={listRef}>
-        {shown.map((entry) => editingId === entry.id
+        {page.visible.map((entry) => editingId === entry.id
           ? <MistakeEditor key={entry.id} entry={entry} modes={modes} onDone={() => setEditingId(null)} />
           : <MistakeCard key={entry.id} entry={entry} modeName={modes.find((mode) => mode.id === resolveMistakeMode(entry, modes))?.name ?? "Unassigned"} highlighted={highlightId === entry.id}
             onEdit={() => setEditingId(entry.id)} onPractise={() => setSession([entry.id])} />)}
+        <ShowMore remaining={page.remaining} onMore={page.showMore} label="mistakes" />
         {!shown.length ? <EmptyState icon={<TriangleAlert size={22} />}
           title={stage === "due" ? "Nothing due in this mode" : query ? "No matching mistakes" : "No mistakes here yet"}
           action={workspace.writable && stage !== "due" && !query ? <button type="button" className="ws-button is-primary" onClick={recordMistake}><Plus size={15} /> Record a mistake</button> : null}>

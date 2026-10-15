@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Layers, X } from "lucide-react";
 import { createCard, listCollections, listPacks, type Collection, type PackWithType } from "../../lib/heuresis";
 import { entryTitle, friendlyError, plainLine, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { inlinePlain } from "../../lib/noteFormat";
+import { chooseFlashcardDestination, languageFromCollection, languageName, type LanguageKey } from "../../lib/languages";
 import { Portal } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -42,6 +43,10 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
   const [saving, setSaving] = useState(false);
 
   const subjectName = workspace.topicPath(entry.topic_id).subject?.name ?? "";
+  const [noteLanguage, setNoteLanguage] = useState<LanguageKey | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Take focus so Escape, Tab and Ctrl+Enter act on this dialog straight away.
+  useEffect(() => { formRef.current?.focus({ preventScroll: true }); }, []);
   useEffect(() => {
     let alive = true;
     void Promise.all([listPacks(), listCollections()]).then(([nextPacks, nextCollections]) => {
@@ -49,16 +54,14 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
       setPacks(nextPacks); setCollections(nextCollections);
       let remembered = "";
       try { remembered = localStorage.getItem(LAST_PACK_KEY) ?? ""; } catch { /* optional */ }
-      const subject = subjectName.toLowerCase();
-      const collectionMatch = nextCollections.find((collection) => collection.title.toLowerCase() === subject);
-      // Keep a note in its own language by default. Only reuse the last topic
-      // when it belongs to the same collection, or no subject match exists.
-      const rememberedPack = nextPacks.find((pack) => pack.id === remembered);
-      const initial = (collectionMatch
-        ? nextPacks.find((pack) => pack.collection_id === collectionMatch.id && pack.id === remembered)
-          ?? nextPacks.find((pack) => pack.collection_id === collectionMatch.id)
-        : null) ?? rememberedPack ?? nextPacks[0];
-      if (initial) { setPackId(initial.id); setValues(suggestedValues(entry, initial)); }
+      // Keep a note in its own language. The last-used topic is reused only when it
+      // is in that language; with no same-language collection, the user chooses.
+      const choice = chooseFlashcardDestination({
+        subjectName, packs: nextPacks, collections: nextCollections, rememberedPackId: remembered,
+        text: [entry.title, entry.body, entry.attempt, entry.correction].join(" "),
+      });
+      setNoteLanguage(choice.language);
+      if (choice.pack) { setPackId(choice.pack.id); setValues(suggestedValues(entry, choice.pack)); }
     }).catch((loadError) => { if (alive) setError(friendlyError(loadError)); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -67,6 +70,9 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
   }, [entry.id]);
 
   const pack = packs.find((item) => item.id === packId) ?? null;
+  const packCollection = pack ? collections.find((collection) => collection.id === pack.collection_id) ?? null : null;
+  const packLanguage = packCollection ? languageFromCollection(packCollection) : null;
+  const languageMismatch = Boolean(noteLanguage && packLanguage && noteLanguage !== packLanguage);
   const grouped = useMemo(() => collections.map((collection) => ({ collection, packs: packs.filter((item) => item.collection_id === collection.id) }))
     .filter((group) => group.packs.length), [collections, packs]);
 
@@ -84,7 +90,7 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
   }
 
   return <Portal><div className="ws-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <form className="ws-dialog is-wide" role="dialog" aria-modal="true" aria-labelledby="fc-title"
+    <form ref={formRef} tabIndex={-1} className="ws-dialog is-wide" role="dialog" aria-modal="true" aria-labelledby="fc-title"
       onSubmit={(event) => { event.preventDefault(); void save(); }}
       onKeyDown={(event) => {
         if (event.key === "Escape") { event.preventDefault(); onClose(); }
@@ -99,16 +105,20 @@ export function FlashcardDialog({ entry, onClose }: { entry: KnowledgeEntry; onC
         ? <p className="ws-field-error">There are no Study topics yet. Create one in Study first.</p>
         : <>
           <label className="ws-field">Study topic
-            <select value={packId} onChange={(event) => {
+            <select value={packId} required onChange={(event) => {
               const next = packs.find((item) => item.id === event.target.value) ?? null;
               setPackId(event.target.value);
               setValues(suggestedValues(entry, next));
             }}>
+              {!packId ? <option value="" disabled>Choose a Study topic…</option> : null}
               {grouped.map((group) => <optgroup key={group.collection.id} label={group.collection.title}>
                 {group.packs.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
               </optgroup>)}
             </select>
           </label>
+          {!packId && noteLanguage ? <p className="ws-field-hint" role="status">No Study collection is in {languageName(noteLanguage)} yet. Choose a topic deliberately, or create a {languageName(noteLanguage)} collection in Study first.</p> : null}
+          {!packId && !noteLanguage ? <p className="ws-field-hint" role="status">Choose the Study topic for this card.</p> : null}
+          {languageMismatch ? <p className="ws-field-error" role="alert">This note is {languageName(noteLanguage)}, but “{pack?.title}” is in a {languageName(packLanguage)} collection.</p> : null}
           <div className="ws-field-grid">
             {(pack?.cardType?.field_schema ?? []).map((field) => <label key={field.key} className="ws-field">
               <span>{field.label}{field.required ? <b aria-hidden="true"> *</b> : null}</span>

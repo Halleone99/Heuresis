@@ -35,6 +35,7 @@ import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { entryTitle, friendlyError, isRecallDue } from "./lib/knowledgeWorkspace";
+import { isInboxTopic } from "./lib/lessonCleanup";
 import { exportKnowledgeJson } from "./lib/knowledgeBackup";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "./lib/sectionScroll";
@@ -68,6 +69,11 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
   { id: "progress", label: "Progress", icon: BarChart3, key: "5" },
 ];
+
+/** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
+function modalOpen() {
+  return Boolean(document.querySelector('[aria-modal="true"], .modal-backdrop'));
+}
 
 function isTypingTarget(target: EventTarget | null) {
   const element = target instanceof HTMLElement ? target : null;
@@ -288,6 +294,26 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
+  /** The Inbox of the language being worked in, not simply the first one in the list. */
+  function inboxForContext() {
+    const { snapshot, memory, topicById, entryById } = workspace;
+    const inboxes = snapshot.topics.filter(isInboxTopic);
+    if (!inboxes.length) return null;
+    const docTopic = memory.notebook.docId ? entryById.get(memory.notebook.docId)?.topic_id : null;
+    const contextSubjects = [
+      section === "notebook" ? topicById.get(docTopic ?? memory.notebook.topicId ?? "")?.subject_id ?? memory.notebook.subjectId : null,
+      workspace.currentLesson ? topicById.get(workspace.currentLesson.topic_id)?.subject_id : null,
+      memory.capture.subjectId,
+    ].filter((id): id is string => Boolean(id));
+    for (const subjectId of contextSubjects) {
+      const inbox = inboxes.find((topic) => topic.subject_id === subjectId);
+      if (inbox) return inbox.id;
+    }
+    // Otherwise the Inbox with the most waiting captures.
+    const waiting = (id: string) => snapshot.entries.filter((entry) => entry.topic_id === id && entry.kind !== "lesson").length;
+    return [...inboxes].sort((a, b) => waiting(b.id) - waiting(a.id))[0].id;
+  }
+
   const paletteCommands: PaletteCommand[] = [
     ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => setSection(item.id) })),
     { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
@@ -299,7 +325,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       else workspace.toast("No mistakes are due for recall.");
     } },
     { id: "organise-inbox", label: "Organise Inbox captures", detail: "Review captured notes and file them", keywords: "sort tidy cleanup", run: () => {
-      const topicId = workspace.snapshot.topics.find((topic) => topic.name.trim().toLowerCase() === "inbox")?.id;
+      const topicId = inboxForContext();
       if (topicId) workspace.openCleanup({ kind: "inbox", id: topicId });
       else workspace.toast("No Notebook Inbox is available yet.");
     } },
@@ -330,10 +356,12 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       }
       if (mod && !event.shiftKey && !event.altKey && event.code === "KeyK") {
         event.preventDefault();
-        openPalette();
+        // Opening the palette over another dialog put it underneath that dialog's
+        // backdrop: visible, typed into, but impossible to click.
+        if (!modalOpen()) openPalette();
         return;
       }
-      if (isTypingTarget(event.target) || document.querySelector(".modal-backdrop, .ws-dialog-backdrop")) return;
+      if (isTypingTarget(event.target) || modalOpen() || document.querySelector(".ws-dialog-backdrop")) return;
       if (event.key === "/" && !mod && !event.altKey) {
         event.preventDefault();
         openPalette();
@@ -468,7 +496,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <span className="hw-sync-dot" aria-hidden="true"/>
           </button>
           {section === "study"
-            ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)}><Search size={14} /><span>Search cards</span><kbd>{MOD_KEY} K</kbd></button>
+            ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)} title={`Search Study cards · ${MOD_KEY}+K searches everything`}><Search size={14} /><span>Search cards</span></button>
             : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
           {section === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
           {section === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
@@ -479,7 +507,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
               <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Synchronise offline copy</button>
               <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
-                <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending ? ` (${syncState.legacyPending})` : ""}
+                <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending + syncState.held ? ` (${syncState.legacyPending + syncState.held})` : ""}
               </button>
               <button onClick={() => { setTrashOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <Trash2 size={14}/> Trash & knowledge export

@@ -134,9 +134,11 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       }
       savedRef.current = current;
       const stillDirty = isDirty(draftRef.current);
-      if (!stillDirty && entryIdRef.current) writeDocumentDraft(userId, entryIdRef.current, null);
       const sync = getOfflineSyncState();
       const needsSync = !sync.online || sync.pending > 0;
+      // An offline save exists only in the upload queue. Keep the device draft as
+      // a second copy until that queue has reached the server.
+      if (!stillDirty && !needsSync && entryIdRef.current) writeDocumentDraft(userId, entryIdRef.current, null);
       setSave({ kind: stillDirty ? "dirty" : needsSync ? "local" : "saved",
         at: new Date().toISOString(),
         message: needsSync ? "On device · waiting to sync" : undefined });
@@ -157,11 +159,13 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   // has actually drained successfully.
   useEffect(() => subscribeOfflineSync((state) => {
     if (state.online && !state.pending && !state.syncing && !state.error) {
-      setSave((current) => current.kind === "local"
-        ? { kind: "saved", at: new Date().toISOString(), message: "Synced" }
-        : current);
+      setSave((current) => {
+        if (current.kind !== "local") return current;
+        if (entryIdRef.current && !isDirty(draftRef.current)) writeDocumentDraft(userId, entryIdRef.current, null);
+        return { kind: "saved", at: new Date().toISOString(), message: "Synced" };
+      });
     }
-  }), []);
+  }), [isDirty, userId]);
 
   const scheduleSave = useCallback(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current);

@@ -9,10 +9,7 @@ import "@fontsource/libre-caslon-display/400.css";
 import "@fontsource/noto-serif/400.css";
 import App from "./App";
 import { applyAppearance, watchAppearance } from "./lib/theme";
-import CaptureWindow from "./components/CaptureWindow";
 import FloatingQuickCapture from "./components/workspace/FloatingQuickCapture";
-import CosmosWindow from "./components/CosmosWindow";
-import ReviewScratchpad from "./components/ReviewScratchpad";
 import "./styles.css";
 import "./standalone-v2.css";
 import "./settings-v2.css";
@@ -52,6 +49,12 @@ import "./components/workspace/workspace.css";
 import "./theme/palettes.css";
 import "./theme/chrome.css";
 
+// Secondary windows load their own code only when opened, so the main window
+// does not parse the Review and card-capture screens at start-up.
+const CaptureWindow = React.lazy(() => import("./components/CaptureWindow"));
+const CosmosWindow = React.lazy(() => import("./components/CosmosWindow"));
+const ReviewScratchpad = React.lazy(() => import("./components/ReviewScratchpad"));
+
 const params = new URLSearchParams(window.location.search);
 // Every window uses the same appearance; updates propagate across windows.
 applyAppearance();
@@ -59,9 +62,9 @@ watchAppearance();
 const content = params.get("quick") === "1"
   ? <FloatingQuickCapture />
   : params.get("capture") === "1"
-    ? <CaptureWindow />
+    ? <React.Suspense fallback={null}><CaptureWindow /></React.Suspense>
   : params.get("cosmos") === "1"
-    ? <><CosmosWindow /><ReviewScratchpad /></>
+    ? <React.Suspense fallback={null}><CosmosWindow /><ReviewScratchpad /></React.Suspense>
     : <App />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

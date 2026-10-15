@@ -5,6 +5,7 @@ import { captureDraftHasContent, readCaptureDraft, writeCaptureDraft, type Captu
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { parseCaptureLine } from "../../lib/captureParse";
 import { resolveCaptureContext } from "../../lib/captureContext";
+import { loadMistakeModes, type MistakeMode } from "../../lib/mistakeModes";
 import { InlineNameForm, Kbd, MOD_KEY, TopicPicker, formatDay } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
@@ -36,6 +37,13 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   const firstFieldRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const draftTimer = useRef<number | null>(null);
   const { objectives } = usePersonalOsObjectives(userId);
+  const [customModes, setCustomModes] = useState<MistakeMode[]>([]);
+  useEffect(() => {
+    if (!draft.mistakeModeId) return;
+    let alive = true;
+    void loadMistakeModes(userId).then((rows) => { if (alive) setCustomModes(rows); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [draft.mistakeModeId, userId]);
 
   const mode = draft.mode as CaptureMode;
   const attachToLesson = Boolean(currentLesson && memory.capture.attachToLesson && mode !== "lesson");
@@ -138,6 +146,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   const patch = (value: Partial<CaptureDraft>) => setDraft((current) => ({ ...current, ...value }));
   const setMode = (next: CaptureMode) => { patch({ mode: next, pendingId: undefined }); setError(""); };
   const category: NoteCategory = draft.categoryTouched ? (draft.category ?? "note") : looksLikeQuestion(draft.text) ? "question" : (draft.category ?? "note");
+  const customModeName = mode === "mistake" && draft.mistakeModeId ? customModes.find((item) => item.id === draft.mistakeModeId)?.name ?? "Selected mode" : null;
   const mistakeCategory: NoteCategory = draft.category === "grammar" || draft.category === "vocabulary" || draft.category === "phrase" ? draft.category : "note";
 
   const destinationLabel = topicId ? workspace.pathLabel(topicId) : "";
@@ -260,8 +269,11 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   }
 
   function confirmSaved(id: string, savedTopicId: string, where: string) {
-    const offline = !getOfflineSyncState().online;
-    const message = offline ? `Saved on this device — will sync to ${where}.` : `Saved to ${where}.`;
+    // "Online" only means a network exists. If the write was queued (server
+    // unreachable, captive portal), say so instead of claiming it is stored.
+    const sync = getOfflineSyncState();
+    const local = !sync.online || sync.pending > 0;
+    const message = local ? `Saved on this device — will sync to ${where}.` : `Saved to ${where}.`;
     if ((keepOpen || stream) && workspace.capture) setFlash(message);
     workspace.toast(message, {
       action: {
@@ -304,7 +316,8 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
     </div>
 
-    {noSubjects && workspace.writable ? <div className="qc-first-run">
+    {noSubjects && workspace.loading ? <p className="qc-help qc-loading" role="status"><span className="ws-spinner is-small" aria-hidden="true" /> Loading your languages… keep typing, the draft is kept.</p> : null}
+    {noSubjects && workspace.writable && !workspace.loading ? <div className="qc-first-run">
       <strong>Where should your notes live?</strong>
       <p>Choose a language. Heuresis creates an Inbox topic inside it; you can organise later.</p>
       {creatingSubject ? <InlineNameForm label="Language name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
@@ -349,9 +362,13 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           : <button type="button" className="qc-add-why" onClick={() => setShowWhy(true)}>+ Add why</button>}
         <div className="qc-field"><span>Type of mistake</span>
           <div className="qc-categories" role="group" aria-label="Type of mistake">
+            {customModeName ? <button type="button" aria-pressed className="is-active" title="The Mistake Log mode this capture was opened from"
+              onClick={() => undefined}>{customModeName}</button> : null}
             {([{ id: "grammar", label: "Grammar" }, { id: "vocabulary", label: "Vocabulary" }, { id: "phrase", label: "Expressions" }, { id: "note", label: "Other" }] as Array<{ id: NoteCategory; label: string }>).map((item) =>
-              <button key={item.id} type="button" aria-pressed={mistakeCategory === item.id}
-                className={mistakeCategory === item.id ? "is-active" : ""} onClick={() => patch({ category: item.id, categoryTouched: true })}>{item.label}</button>)}
+              <button key={item.id} type="button" aria-pressed={!customModeName && mistakeCategory === item.id}
+                className={!customModeName && mistakeCategory === item.id ? "is-active" : ""}
+                // Choosing a type replaces a custom mode; before, the hidden mode silently won.
+                onClick={() => patch({ category: item.id, categoryTouched: true, mistakeModeId: null })}>{item.label}</button>)}
           </div>
         </div>
       </> : <>

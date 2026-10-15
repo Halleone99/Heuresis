@@ -31,5 +31,6 @@ assert.match(notebook, /<NotebookRail location=\{location\}/,
 assert.match(css, /@media \(min-width: 901px\) \{[\s\S]*?\.heuresis-desktop\[data-section="notebook"\] \.nb-rail,[\s\S]*?display: none !important;/);
 assert.match(css, /@media \(max-width: 900px\) \{\s*\.hw-notebook-tree \{ display: none !important; \}/);
 assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.hw-notebook-tree \{ display: none; \}/);
-assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.heuresis-section-sidebar:is\(:hover,:focus-within\) \.hw-notebook-tree \{ display: flex; \}/);
+// Peek on hover or keyboard focus only; :focus-within kept the overlay open after a click.
+assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.heuresis-section-sidebar:is\(:hover,:has\(:focus-visible\)\) \.hw-notebook-tree \{ display: flex; \}/);
 console.log("Notebook main sidebar integration and single-tree guards passed.");

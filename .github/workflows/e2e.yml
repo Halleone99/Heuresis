@@ -1,0 +1,48 @@
+name: Heuresis browser regressions
+
+# Drives the real app in Chromium against PostgreSQL + PostgREST built from
+# supabase/migrations (no Supabase project, no credentials). See verification/README.md.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PGBIN: /usr/lib/postgresql/16/bin
+      PGHOST: /tmp
+      PGPORT: "54329"
+      VITE_SUPABASE_URL: http://localhost:54321
+      VITE_SUPABASE_PUBLISHABLE_KEY: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install app and harness dependencies
+        run: |
+          npm install --ignore-scripts
+          cd verification && npm install --ignore-scripts && npx playwright install --with-deps chromium
+      - name: PostgREST 12
+        run: |
+          curl -sSL -o /tmp/postgrest.tar.xz https://github.com/PostgREST/postgrest/releases/download/v12.2.3/postgrest-v12.2.3-linux-static-x64.tar.xz
+          tar -xf /tmp/postgrest.tar.xz -C verification
+          verification/postgrest --version
+      - name: Build the test database from the migrations
+        run: |
+          ls "$PGBIN/initdb"
+          verification/setup.sh
+      - name: Start the auth gateway and the app
+        run: |
+          (cd verification && nohup node gateway.mjs > gateway.log 2>&1 &)
+          nohup npx vite --port 1421 --strictPort > vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:1421/ >/dev/null && curl -sf http://localhost:54321/rest/v1/ >/dev/null && break; sleep 1; done
+      - name: Regression scenarios
+        working-directory: verification
+        run: node tests/regressions.mjs
+      - name: Logs
+        if: failure()
+        run: tail -n 60 verification/gateway.log verification/postgrest.log vite.log || true

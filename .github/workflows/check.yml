@@ -48,6 +48,9 @@ jobs:
       - run: node scripts/check-overview-compact.mjs
       - run: node scripts/check-background-controls.mjs
       - run: node scripts/check-appearance.mjs
+      - run: node scripts/check-languages.mjs
+      - run: node scripts/check-palette-ranking.mjs
+      - run: node scripts/check-offline-revision-chain.mjs
       - run: npm run build
       # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
       # Test-only dependencies: no Playwright package added to the application.

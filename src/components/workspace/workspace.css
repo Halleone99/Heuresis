@@ -251,6 +251,9 @@
 }
 .ws-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .ws-field-error { margin: 6px 0 0; color: var(--ws-bad); font-size: 12.5px; line-height: 1.5; }
+.ws-field-hint { margin: 6px 0 0; color: var(--ws-muted); font-size: 12.5px; line-height: 1.5; }
+.ws-show-more { display: flex; margin: 14px auto 4px; }
+.ws-dialog:focus { outline: none; }
 
 .ws-search-field { display: flex; align-items: center; gap: 8px; min-width: 220px; height: 36px; padding: 0 10px; border: 1px solid var(--ws-line-strong); border-radius: 9px; background: var(--ws-raised); color: var(--ws-muted); }
 .ws-search-field:focus-within { border-color: var(--ws-accent); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
@@ -667,6 +670,7 @@
 .qc-check { display: inline-flex; align-items: center; gap: 7px; color: var(--ws-text); font-size: 12.5px; cursor: pointer; }
 .qc-check input { accent-color: var(--ws-accent); width: 15px; height: 15px; }
 .qc-help { margin: 0; color: var(--ws-muted); font-size: 12px; line-height: 1.55; }
+.qc-loading { display: flex; align-items: center; gap: 7px; padding: 8px 14px 0; }
 .qc-destination { position: relative; margin: 0 10px; padding: 8px 4px; border-top: 1px solid var(--ws-line); }
 .qc-destination-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .qc-label { color: var(--ws-muted); font: 500 11px/1 var(--ws-mono); letter-spacing: .08em; text-transform: uppercase; }
@@ -880,6 +884,10 @@
   .nb-layout, .nb-layout.is-rail-collapsed { grid-template-columns: minmax(0, 1fr); }
   .nb-rail { position: fixed; top: 48px; bottom: 0; left: var(--ws-sidebar); width: min(300px, 82vw); height: auto; z-index: 90; transform: translateX(-110%); transition: transform .2s ease; box-shadow: var(--ws-shadow-2); visibility: visible !important; padding: 16px 12px 24px !important; border-right: 1px solid var(--ws-line) !important; }
   .nb-layout.is-rail-open .nb-rail { transform: none; }
+  /* Closed drawer: fully off-screen and out of the tab order. -110% of its own
+     width did not clear the 60px icon rail, leaving a 30px strip (with buttons)
+     over the page in tablet portrait. */
+  .nb-layout:not(.is-rail-open) .nb-rail { transform: translateX(calc(-100% - var(--ws-sidebar) - 24px)); visibility: hidden !important; transition: transform .2s ease, visibility 0s linear .2s; }
   .nb-layout.is-rail-open .nb-rail-scrim { display: block; position: fixed; inset: 58px 0 0 var(--ws-sidebar); z-index: 80; border: 0; background: rgba(20, 16, 12, .3); }
   .nb-main-tools, .nb-layout:not(.is-rail-collapsed) .nb-main-tools { display: block; }
   .nb-doc-bar { padding-left: 52px !important; }
@@ -1160,6 +1168,11 @@
 .legacy-recovery-entry details summary { color: var(--ws-accent); font-size: 11.5px; cursor: pointer; }
 .legacy-recovery-entry pre { max-width: 100%; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 180px; border-radius: 7px; padding: 9px; background: var(--ws-sunken); color: var(--ws-text); font: 11px/1.6 var(--ws-mono); }
 .legacy-recovery-empty { display: flex; gap: 8px; align-items: center; color: var(--ws-good); font-size: 13px; }
+/* Current-account edits the server refused (a newer edit existed elsewhere). */
+.held-recovery { display: grid; gap: 9px; margin: 4px 0 18px; padding: 13px; border: 1px solid var(--ws-warn); border-radius: 10px; background: var(--ws-surface); }
+.held-recovery h3 { margin: 0; color: var(--ws-ink); font: 600 14px var(--ws-sans); }
+.held-recovery > p { margin: 0; color: var(--ws-text); font-size: 12.5px; line-height: 1.6; }
+.held-recovery .legacy-recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .legacy-recovery-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 15px; }
 .legacy-recovery-actions .ws-button:last-child { margin-left: auto; }
 .legacy-recovery-note { font-size: 11.5px; line-height: 1.5; color: var(--ws-muted); }
@@ -1216,19 +1229,21 @@
 .heuresis-desktop[data-sidebar="rail"] .hw-capture-hint span { display: none; }
 .heuresis-desktop[data-sidebar="rail"] .hw-capture-hint { padding: 9px 4px; justify-content: center; }
 .heuresis-desktop[data-sidebar="rail"] .hw-capture-hint .ws-kbd { font-size: 9px; }
+/* Peek on hover, or while the keyboard is in the rail. Not after a click:
+   :focus-within kept the 240px overlay open over the page until focus moved. */
 @media (hover: hover) and (pointer: fine) {
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) {
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) {
     width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
   }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-header { justify-content: space-between; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-heading { display: block; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sections button { justify-content: flex-start; padding: 0 11px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sections button span { display: block; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; padding: 10px 8px 10px 12px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-lesson-label { font-size: 10px; gap: 6px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-lesson-title { display: block; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-capture-hint { padding: 10px 11px; justify-content: space-between; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-capture-hint span { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-sidebar-header { justify-content: space-between; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-sidebar-heading { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-sections button { justify-content: flex-start; padding: 0 11px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-sections button span { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; padding: 10px 8px 10px 12px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-lesson-label { font-size: 10px; gap: 6px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-lesson-title { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-capture-hint { padding: 10px 11px; justify-content: space-between; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-capture-hint span { display: block; }
 }
 .heuresis-desktop[data-sidebar="hidden"] .heuresis-section-sidebar { display: none; }
 .heuresis-desktop[data-sidebar="hidden"] .desktop-content { grid-column: 1 / -1; }
@@ -1559,7 +1574,7 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
    explicit tablet expansion reveal the full tree. */
 .heuresis-desktop[data-sidebar="rail"] .hw-notebook-tree { display: none; }
 @media (hover: hover) and (pointer: fine) and (min-width: 901px) {
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-notebook-tree { display: flex; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-notebook-tree { display: flex; }
 }
 @media (max-width: 1100px) and (min-width: 901px) {
   .heuresis-desktop[data-sidebar="full"] .hw-notebook-tree { display: flex; }
@@ -1754,10 +1769,10 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   to   { opacity: 1; transform: translateY(0); }
 }
 .heuresis-desktop .desktop-content.is-workspace :is(.ov-page, .ml-page, .pg-page, .nb-scope) {
-  animation: ws-page-enter .18s ease-out both;
+  animation: ws-page-enter .18s ease-out backwards;
 }
 :is(.ml-details, .ml-summary-details, .nb-subtopic-form, .qc-first-run, .hw-nb-editor) {
-  animation: ws-page-enter .16s ease-out both;
+  animation: ws-page-enter .16s ease-out backwards;
 }
 /* #60: explicit keyboard focus across every major workspace action, including
    zero-count tabs and icon-only controls. Pointer clicks do not show rings. */
@@ -1795,17 +1810,20 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .heuresis-desktop[data-sidebar="rail"] .hw-sidebar-brand { flex: none; padding: 0; }
 .heuresis-desktop[data-sidebar="rail"] .hw-sidebar-collapse { display: none; }
 @media (hover: hover) and (pointer: fine) {
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-collapse { display: grid; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:focus-within) .hw-sidebar-brand { flex: 1; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-sidebar-collapse { display: grid; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover,:has(:focus-visible)) .hw-sidebar-brand { flex: 1; }
 }
 
 /* #53 – subtle transitions that tell the eye what changed. Never animate a
    large content surface or force compositing on thousands of document rows. */
 @media (prefers-reduced-motion: no-preference) {
+  /* "backwards", not "both": a transform left on the page after the animation
+     makes it the containing block of every position:fixed descendant, which
+     displaced the Notebook drawer and its scrim on tablets. */
   .heuresis-desktop .desktop-content > :is(.ov-page,.ml-page,.pg-page,.nb-layout) {
-    animation: ws-page-enter .17s ease-out both;
+    animation: ws-page-enter .17s ease-out backwards;
   }
-  .ml-expanded-content, .lc-picker-panel, .lc-merge-panel { animation: ws-page-enter .17s ease-out both; }
+  .ml-expanded-content, .lc-picker-panel, .lc-merge-panel { animation: ws-page-enter .17s ease-out backwards; }
   .heuresis-desktop .hw-nb-row, .ws-segmented button {
     transition: background-color .17s ease, color .17s ease;
   }

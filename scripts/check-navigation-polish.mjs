@@ -50,7 +50,9 @@ assert.match(app,/window\.addEventListener\("pagehide", persist\)/);
 assert.match(progress,/const range: Range = workspace\.memory\.progress\.range/);
 assert.match(progress,/progress: \{ \.\.\.current\.progress, range: next \}/);
 assert.match(css,/@keyframes ws-page-enter/);
-assert.match(css,/animation: ws-page-enter \.18s ease-out both/);
+// "backwards": a transform kept after the animation would trap position:fixed children (Notebook drawer).
+assert.match(css,/animation: ws-page-enter \.18s ease-out backwards/);
+assert.doesNotMatch(css,/ws-page-enter [.0-9]+s ease-out both/);
 assert.match(css,/\.nb-doc-row, \.nb-subtopic, \.nb-link-button\):focus-visible/);
 assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?animation: none !important/);
 console.log("Account-scoped navigation, Progress range, keyboard focus and restrained motion regressions passed.");

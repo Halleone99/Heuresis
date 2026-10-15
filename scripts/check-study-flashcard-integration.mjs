@@ -9,8 +9,9 @@ const popup = read("src/lib/cosmosWindow.ts");
 const topic = read("src/components/PackView.tsx");
 const sort = read("src/components/SortModal.tsx");
 
-assert.match(flashcard, /const initial = \(collectionMatch/, "Match the source language before a remembered destination");
-assert.match(flashcard, /pack\.collection_id === collectionMatch\.id/, "Select a topic from the source language");
+// Routing behaviour itself is tested in check-languages.mjs.
+assert.match(flashcard, /chooseFlashcardDestination\(\{/, "Match the source language before a remembered destination");
+assert.match(flashcard, /if \(choice\.pack\) \{ setPackId\(choice\.pack\.id\)/, "Preselect only a same-language topic");
 assert.match(flashcard, /await createCard\(pack, values/, "Flashcards must use the normal card persistence path");
 assert.match(launcher, /!loading && !error && !templates\.length/, "Failed loading must not look like missing templates");
 assert.match(launcher, /aria-label="Number of cards to review"/);

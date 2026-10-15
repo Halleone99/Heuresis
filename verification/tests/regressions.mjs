@@ -1,0 +1,367 @@
+// Browser regression suite for the audit of 15 October 2026. Each scenario starts
+// from a fresh copy of the showcase database and drives the real app.
+//   node tests/regressions.mjs            (all scenarios)
+//   node tests/regressions.mjs offline    (scenarios whose name contains "offline")
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { check, launch, signIn, sql } from "./lib.mjs";
+
+const here = fileURLToPath(new URL("..", import.meta.url));
+const only = process.argv[2] ?? "";
+const NOTE_A2 = "e0000000-0000-4000-8000-0000000000a2"; // 以前 / 以后 (Chinese › Grammar › Time expressions)
+
+function restore() {
+  execFileSync("./db.sh", ["restore", "heuresis_showcase"], { cwd: here, stdio: "ignore" });
+}
+async function openPalette(page) {
+  await page.keyboard.press("Control+KeyK");
+  await page.waitForSelector(".ws-palette input");
+}
+async function openNote(page, query) {
+  await openPalette(page);
+  await page.keyboard.type(query);
+  await page.waitForTimeout(250);
+  await page.locator(".ws-palette-row:not(.is-command):not(.is-cards)").first().click();
+  await page.waitForSelector(".nb-doc-title");
+}
+async function queueSize(page) {
+  return page.evaluate(() => new Promise((resolve) => {
+    const request = indexedDB.open("heuresis-offline-network-v1");
+    request.onsuccess = () => {
+      const all = request.result.transaction("queue").objectStore("queue").getAll();
+      all.onsuccess = () => resolve(all.result.length);
+    };
+  }));
+}
+async function editNote(page) {
+  await page.keyboard.press("e");
+  const editor = page.locator(".nb-doc-editor [contenteditable=true]");
+  await editor.waitFor();
+  await editor.click();
+  await page.keyboard.press("Control+End");
+}
+
+const scenarios = {
+  async "offline edits all reach the server"(page, context) {
+    await openNote(page, "以前 / 以后");
+    await editNote(page);
+    await context.setOffline(true);
+    for (const word of ["OFF-1", "OFF-2", "OFF-3"]) { await page.keyboard.type(` ${word}`); await page.waitForTimeout(1600); }
+    check(await queueSize(page) >= 3, "three offline autosaves are queued");
+    await context.setOffline(false);
+    await page.waitForTimeout(200);
+    await page.keyboard.type(" AFTER");
+    await page.waitForTimeout(6000);
+    const body = await sql(`select body from knowledge_records where id='${NOTE_A2}'`);
+    check(/OFF-1 OFF-2 OFF-3 AFTER$/.test(body), "every offline edit and the edit typed on reconnecting are on the server");
+    check(await queueSize(page) === 0, "the offline queue is empty");
+    check(!/Sync problem/.test(await page.getAttribute(".hw-sync-indicator", "aria-label")), "no permanent sync problem");
+    check(!(await page.locator(".nb-save-state.is-error").count()), "no conflict error while typing during reconnection");
+  },
+
+  async "offline edit conflicting with another device is held, not overwritten"(page, context) {
+    await openNote(page, "以前 / 以后");
+    await editNote(page);
+    await context.setOffline(true);
+    await page.keyboard.type(" MINE-1");
+    await page.waitForTimeout(1600);
+    await page.keyboard.type(" MINE-2");
+    await page.waitForTimeout(1600);
+    await sql(`update knowledge_records set body = body || ' THEIRS' where id='${NOTE_A2}'`);
+    await context.setOffline(false);
+    await page.waitForTimeout(5000);
+    const body = await sql(`select body from knowledge_records where id='${NOTE_A2}'`);
+    check(body.endsWith("THEIRS") && !body.includes("MINE"), "the other device's edit is not overwritten");
+    await page.click(".hw-sync-indicator");
+    await page.waitForSelector(".hw-sync-dialog");
+    check(/refused/.test(await page.locator(".hw-sync-dialog").innerText()), "the sync dialog explains the refused edits");
+    await page.click('.hw-sync-dialog button:has-text("Review changes")');
+    await page.waitForSelector(".held-recovery");
+    const listed = await page.locator(".held-recovery .legacy-recovery-entry").count();
+    check(listed >= 2 && listed === await queueSize(page), `every refused edit is listed for review (${listed})`);
+    await page.keyboard.press("Escape");
+    // Reopening the note offers this device's version back.
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
+    await page.waitForTimeout(1500);
+    await page.keyboard.press("Escape");
+    await openNote(page, "以前 / 以后");
+    check(await page.locator(".nb-restore").count() === 1, "the note offers to restore the unsynced text from this device");
+  },
+
+  async "flashcards stay in the note's language"(page) {
+    await sql(`insert into knowledge_records(id,user_id,topic_id,kind,title,body,category)
+      values ('e0000000-0000-4000-8000-0000000000f2','11111111-1111-4111-8111-111111111111','70b00000-0000-4000-8000-0000000000e1','note','','с утра до вечера — from morning until evening','phrase')`);
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
+    await page.waitForTimeout(1200);
+    await openNote(page, "с утра до вечера");
+    await page.click('button[aria-label="More actions"]');
+    await page.click('button[role=menuitem]:has-text("Make a flashcard")');
+    await page.waitForSelector("#fc-title");
+    await page.waitForTimeout(800);
+    const selected = await page.locator(".ws-dialog select").inputValue();
+    check(selected === "", "a Russian note is not preselected into a Chinese or German topic");
+    check(/No Study collection is in Russian/.test(await page.locator(".ws-dialog").innerText()), "the dialog says why nothing is preselected");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    check(await page.locator("#fc-title").count() === 0, "Escape closes the flashcard dialog");
+
+    await openNote(page, "以前 / 以后");
+    await page.click('button[aria-label="More actions"]');
+    await page.click('button[role=menuitem]:has-text("Make a flashcard")');
+    await page.waitForSelector("#fc-title");
+    await page.waitForTimeout(800);
+    const label = await page.locator(".ws-dialog select").evaluate((select) => select.selectedOptions[0]?.parentElement?.getAttribute("label"));
+    check(label === "Chinese", "a Chinese note defaults to a Chinese topic");
+    await page.keyboard.press("Control+KeyK");
+    await page.waitForTimeout(250);
+    check(await page.locator(".ws-palette").count() === 0, "Ctrl+K does not open the palette underneath an open dialog");
+  },
+
+  async "palette: Enter opens what was typed"(page) {
+    await sql(`insert into knowledge_records(id,user_id,topic_id,kind,title,body,category)
+      values ('e0000000-0000-4000-8000-00000000c0de','11111111-1111-4111-8111-111111111111','70b00000-0000-4000-8000-0000000000d3','note','Note-taking phrases','mitschreiben — to take notes','phrase')`);
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
+    await page.waitForTimeout(1200);
+    await openPalette(page);
+    await page.keyboard.type("note");
+    await page.waitForTimeout(250);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(600);
+    check((await page.locator(".nb-doc-title").innerText().catch(() => "")) === "Note-taking phrases", "a note whose title matches opens instead of “Capture a note”");
+    await openPalette(page);
+    await page.keyboard.type("sync");
+    await page.waitForTimeout(250);
+    check(/Sync now/.test(await page.locator(".ws-palette-row").first().innerText()), "a command named by the query stays first");
+    await page.keyboard.press("Escape");
+  },
+
+  async "record mistake from a language tab files it in that language's Inbox"(page) {
+    await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.waitForTimeout(500);
+    await page.click('.ml-languages-tabs button:has-text("German")');
+    await page.click('button:has-text("Record mistake")');
+    await page.waitForSelector(".qc-panel");
+    const destination = (await page.locator(".qc-topic").innerText()).trim();
+    check(destination === "German › Inbox", `destination is German › Inbox (was “${destination}”)`);
+  },
+
+  async "capture: choosing a mistake type replaces the custom mode"(page) {
+    await sql(`insert into knowledge_mistake_modes(id,user_id,name,description,symbol,sort_order)
+      values ('a1a1a1a1-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Word order','Sentence order','🧩',9)`);
+    await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.waitForTimeout(800);
+    await page.click('.ml-mode-card:has-text("Word order")');
+    await page.click('button:has-text("Record mistake")');
+    await page.waitForSelector(".qc-panel");
+    await page.waitForTimeout(500);
+    check(/Word order/.test(await page.locator('.qc-categories[aria-label="Type of mistake"]').innerText()), "the custom mode is shown in Capture");
+    await page.click('.qc-categories[aria-label="Type of mistake"] button:has-text("Grammar")');
+    await page.click('.qc-language-choices button:has-text("German")');
+    await page.locator(".qc-field textarea").nth(0).fill("ich habe gegangen");
+    await page.locator(".qc-field textarea").nth(1).fill("ich bin gegangen");
+    await page.keyboard.press("Control+Enter");
+    await page.waitForTimeout(1200);
+    const row = await sql("select category, coalesce(mistake_mode_id::text,'none') from knowledge_records where attempt='ich habe gegangen'");
+    check(row === "grammar|none", `the visible choice (Grammar) is what is saved (got ${row})`);
+  },
+
+  async "organise inbox uses the language being worked in"(page) {
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForTimeout(500);
+    await openPalette(page);
+    await page.keyboard.type("Lesson 7");
+    await page.waitForTimeout(250);
+    await page.locator(".ws-palette-row:not(.is-command):not(.is-cards)").first().click();
+    await page.waitForTimeout(500);
+    await openPalette(page);
+    await page.keyboard.type("organise inbox");
+    await page.waitForTimeout(250);
+    await page.keyboard.press("Enter");
+    await page.waitForSelector(".lc-dialog");
+    const heading = await page.locator(".lc-heading p").innerText();
+    check(heading === "German › Inbox", `the German Inbox opens while working in German (got “${heading}”)`);
+  },
+
+  async "capture while the notebook is still loading does not offer to create languages"(page, context) {
+    await context.route("**/rest/v1/knowledge_*", async (route) => {
+      if (route.request().method() === "GET") await new Promise((resolve) => setTimeout(resolve, 2500));
+      await route.continue();
+    });
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
+    await page.keyboard.press("Control+Shift+KeyN");
+    await page.waitForSelector(".qc-panel");
+    check(await page.locator(".qc-first-run").count() === 0, "no “Where should your notes live?” prompt while languages are loading");
+    await page.waitForSelector(".qc-language-choices button", { timeout: 20000 }).catch(() => undefined);
+    check(await page.locator(".qc-language-choices button").count() === 3, "the three languages appear once loaded");
+  },
+
+  async "progress keeps one colour per language"(page) {
+    await page.click('.hw-sections button:has-text("Progress")');
+    await page.waitForTimeout(1200);
+    const swatches = await page.locator(".pg-language-legend span").evaluateAll((spans) => spans.map((span) => [span.textContent.trim(), span.querySelector("i")?.getAttribute("style") ?? ""]));
+    const chinese = new Set(swatches.filter(([name]) => name === "Chinese").map(([, style]) => style));
+    check(chinese.size === 1 && [...chinese][0].includes("--c-cinnabar"), "Chinese has the same colour in every chart");
+  },
+
+  async "tablet portrait: the Notebook drawer neither peeks out nor opens displaced"(page) {
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await page.click('.hw-sections button[title^="Notebook"]');
+    await page.mouse.move(600, 900);
+    await page.waitForTimeout(900);
+    const sidebar = await page.locator(".heuresis-section-sidebar").evaluate((el) => el.getBoundingClientRect().right);
+    const closed = await page.locator(".nb-rail").evaluate((el) => ({ right: el.getBoundingClientRect().right, visibility: getComputedStyle(el).visibility }));
+    check(closed.visibility === "hidden" && closed.right <= sidebar, `the closed drawer is hidden behind the sidebar (right edge ${closed.right}, sidebar ${sidebar})`);
+    await page.click(".nb-rail-toggle");
+    await page.waitForTimeout(500);
+    const open = await page.locator(".nb-rail").evaluate((el) => el.getBoundingClientRect().left);
+    check(Math.abs(open - sidebar) <= 1, `the open drawer starts at the sidebar edge (${open} vs ${sidebar})`);
+  },
+
+  async "narrow window: the icon rail closes again after choosing a section"(page) {
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.waitForTimeout(300);
+    await page.click('.hw-sections button[title^="Progress"]');
+    await page.mouse.move(700, 500);
+    await page.waitForTimeout(400);
+    const width = await page.locator(".heuresis-section-sidebar").evaluate((el) => el.getBoundingClientRect().width);
+    check(width <= 64, `the rail does not stay expanded over the page (${width}px)`);
+  },
+
+  async "long lists render in pages and still reach old records"(page) {
+    await sql(`insert into knowledge_records(user_id,topic_id,kind,attempt,correction,status,created_at,updated_at)
+      select '11111111-1111-4111-8111-111111111111','70b00000-0000-4000-8000-0000000000c1','mistake','错 ' || g,'对 ' || g,'needs_practice',
+        now() - (g || ' minutes')::interval, now() - (g || ' minutes')::interval from generate_series(1,300) g`);
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
+    await page.waitForTimeout(1200);
+    await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.click(".ml-history-launch");
+    await page.waitForSelector(".ml-card");
+    check(await page.locator(".ml-card").count() === 120, "the first 120 mistakes render at once");
+    await page.click(".ws-show-more");
+    await page.waitForTimeout(300);
+    check(await page.locator(".ml-card").count() >= 240, "Show more adds the next page");
+    await openPalette(page);
+    await page.keyboard.type("对 299");
+    await page.waitForTimeout(250);
+    await page.locator(".ws-palette-row:not(.is-command):not(.is-cards)").first().click();
+    await page.waitForTimeout(800);
+    check(await page.locator(".ml-card.is-highlighted").count() === 1, "a mistake opened from search is rendered and highlighted, even far down the list");
+  },
+
+  async "undo restores a move and a status change, even after leaving the page"(page) {
+    await openNote(page, "以前 / 以后");
+    await page.click('button[aria-label="More actions"]');
+    await page.click('button[role=menuitem]:has-text("Move to")');
+    await page.fill(".ws-picker-search input", "Blocks of meaning");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(800);
+    check(await sql(`select t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id where r.id='${NOTE_A2}'`) === "Blocks of meaning", "the note moved");
+    await page.click('.hw-sections button:has-text("Overview")');
+    await page.click('.ws-toast button:has-text("Undo")');
+    await page.waitForTimeout(800);
+    check(await sql(`select t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id where r.id='${NOTE_A2}'`) === "Time expressions", "Undo after leaving the note moves it back");
+
+    const RU = "e0000000-0000-4000-8000-0000000000d4";
+    const before = await sql(`select status||'|'||coalesce(recall_due_at::text,'none') from knowledge_records where id='${RU}'`);
+    await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.click(".ml-history-launch");
+    await page.click(`[data-mistake="${RU}"] .ml-summary`);
+    await page.click(`[data-mistake="${RU}"] button:has-text("I understand it")`);
+    await page.waitForTimeout(800);
+    check((await sql(`select status from knowledge_records where id='${RU}'`)) === "understood", "marked as understood");
+    await page.click('.hw-sections button:has-text("Progress")');
+    await page.click('.ws-toast button:has-text("Undo")');
+    await page.waitForTimeout(800);
+    check(await sql(`select status||'|'||coalesce(recall_due_at::text,'none') from knowledge_records where id='${RU}'`) === before, "Undo restores both the status and the recall date");
+  },
+
+  async "server unreachable: the device copy is shown and captures are not called stored"(page, context) {
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForTimeout(1200);
+    await context.route("http://localhost:54321/**", (route) => route.abort("connectionrefused"));
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar", { timeout: 20000 });
+    await page.waitForTimeout(9000);
+    check(/Chinese/.test(await page.locator("main").innerText()), "the Notebook opens from the device copy");
+    await page.keyboard.press("Control+Shift+KeyN");
+    await page.click('.qc-language-choices button:has-text("German")');
+    await page.fill(".qc-main-input", "Server down capture");
+    await page.keyboard.press("Control+Enter");
+    await page.waitForTimeout(1500);
+    const toast = (await page.locator(".ws-toast").allInnerTexts()).join(" ");
+    check(/on this device/.test(toast), `the capture is reported as kept on this device (“${toast.split("\n")[0]}”)`);
+    await context.unroute("http://localhost:54321/**");
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await page.waitForTimeout(5000);
+    check(await sql("select count(*) from knowledge_records where body='Server down capture'") === "1", "it reaches the server once the server is back");
+  },
+
+  async "learning loop: capture → flashcard → sort → review"(page, context) {
+    await page.keyboard.press("Control+Shift+KeyN");
+    await page.waitForSelector(".qc-panel");
+    await page.click('.qc-language-choices button:has-text("Chinese")');
+    await page.fill(".qc-main-input", "再见 — goodbye");
+    await page.keyboard.press("Control+Enter");
+    await page.waitForTimeout(1200);
+    await openNote(page, "再见");
+    await page.click('button[aria-label="More actions"]');
+    await page.click('button[role=menuitem]:has-text("Make a flashcard")');
+    await page.waitForSelector("#fc-title");
+    await page.waitForTimeout(800);
+    await page.click('.ws-dialog button[type=submit]');
+    await page.waitForTimeout(1200);
+    check(await sql("select p.title||'|'||(c.data->>'meaning') from heuresis_cards c join heuresis_packs p on p.id=c.pack_id where c.data->>'term'='再见'") === "HSK 2 — Time|goodbye",
+      "the card is in the Chinese topic with its meaning");
+    await page.click('.hw-sections button:has-text("Study")');
+    await page.waitForTimeout(1200);
+    await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.waitForTimeout(1200);
+    await page.click("button.sort-command");
+    await page.fill(".sort-setup-search input", "再见");
+    await page.click(".sort-setup-start");
+    await page.waitForTimeout(400);
+    await page.keyboard.press("4");
+    await page.waitForTimeout(1200);
+    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "4|true", "sorting stores interest and completion");
+    await page.click(".sort-finished button");
+    await page.getByRole("button", { name: "Review", exact: true }).click();
+    await page.waitForSelector(".study-start:not([disabled])");
+    const popupOpened = context.waitForEvent("page");
+    await page.click(".study-start");
+    const popup = await popupOpened;
+    await popup.waitForSelector(".cosmos-count", { timeout: 15000 });
+    await popup.keyboard.press(" ");
+    await popup.waitForTimeout(500);
+    await popup.keyboard.press("3");
+    await popup.waitForTimeout(1200);
+    const graded = Number(await sql("select count(*) from heuresis_card_events where event_type in ('again','hard','good','easy') and created_at > now() - interval '5 minutes'"));
+    check(graded >= 1, "the review grade is recorded");
+    await popup.close();
+  },
+};
+
+let failures = 0;
+for (const [name, run] of Object.entries(scenarios)) {
+  if (only && !name.includes(only)) continue;
+  restore();
+  console.log(`— ${name}`);
+  const { browser, context, page, errors } = await launch({ width: 1440, height: 900 });
+  try {
+    await signIn(page);
+    await run(page, context);
+    const unexpected = errors.filter((message) => !/status of 406|Failed to load resource|ERR_CONNECTION_REFUSED|Failed to fetch/.test(message));
+    check(!unexpected.length, `no page errors${unexpected.length ? `: ${unexpected.join(" | ")}` : ""}`);
+  } catch (error) {
+    failures += 1;
+    console.log(`  ✗ ${name}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    process.exitCode = 1;
+  } finally {
+    await browser.close();
+  }
+}
+if (failures) console.log(`${failures} scenario(s) stopped with an exception.`);

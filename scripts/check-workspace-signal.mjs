@@ -46,8 +46,14 @@ assert.match(context,/signalWorkspaceChange\(userId\)/);
 assert.match(context,/subscribeWorkspaceChanges\(userId, scheduleCrossWindowReload\)/);
 assert.match(context,/setSnapshot\(result\.snapshot\)/,
   "Server reload must not rebroadcast to avoid an infinite loop");
-assert.doesNotMatch(context,/setSnapshot\(\(current\) =>/,
-  "Every local change must signal another window");
+// Local mutations go through setSnapshotLocal (which signals the other window).
+// Only two server-derived updates use setSnapshot with an updater: adopting the
+// first load together with captures made during it, and adopting the revision of
+// an offline edit the server has just accepted.
+const updaters = context.match(/setSnapshot\(\(\w+\) =>/g) ?? [];
+assert.equal(updaters.length, 2, "Every local change must signal another window");
+assert.match(context, /setSnapshot\(\(local\) => mergeFirstLoad\(result\.snapshot, local\)\)/);
+assert.match(context, /subscribeReplayedRows\(/);
 assert.match(context,/if \(loadingRef\.current\) \{ scheduleCrossWindowReload\(\); return; \}/);
 assert.match(context,/window\.clearTimeout\(refreshTimer\)/);
 console.log("Cross-window knowledge isolation and reload regression checks passed.");

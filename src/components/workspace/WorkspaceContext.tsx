@@ -6,7 +6,7 @@ import {
   type EntryInput, type EntryPatch, type KnowledgeEntry, type KnowledgeSnapshot, type KnowledgeSubject, type NoteCategory,
   type KnowledgeTopic, type PracticeOutcome, type SchemaLevel,
 } from "../../lib/knowledgeWorkspace";
-import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
+import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync, subscribeReplayedRows } from "../../lib/offlineFetch";
 import type { CleanupTarget } from "../../lib/lessonCleanup";
 import { signalWorkspaceChange, subscribeWorkspaceChanges } from "../../lib/workspaceSignal";
 import { supabase } from "../../lib/supabase";
@@ -77,6 +77,25 @@ type WorkspaceValue = {
   dismissToast: (id: number) => void;
 };
 
+/**
+ * The first server load combined with rows created on this device while it was
+ * still downloading (for example a capture typed during start-up). Server rows
+ * win for every id they contain; local-only rows are kept.
+ */
+export function mergeFirstLoad(remote: KnowledgeSnapshot, local: KnowledgeSnapshot): KnowledgeSnapshot {
+  const keep = <T extends { id: string }>(server: T[], mine: T[]) => {
+    const ids = new Set(server.map((row) => row.id));
+    return [...mine.filter((row) => !ids.has(row.id)), ...server];
+  };
+  return {
+    ...remote,
+    subjects: keep(remote.subjects, local.subjects),
+    topics: keep(remote.topics, local.topics),
+    entries: keep(remote.entries, local.entries),
+    practice: keep(remote.practice, local.practice),
+  };
+}
+
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
 export function useWorkspace() {
@@ -130,17 +149,34 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const toastId = useRef(0);
   const lastLoad = useRef(0);
   const loadingRef = useRef(false);
+  // True once a complete snapshot has been shown. From then on a refresh never
+  // blanks the visible Notebook: it replaces it only with a newer copy.
+  const hasLoaded = useRef(false);
+  const followUp = useRef<number | null>(null);
+  useEffect(() => () => { if (followUp.current !== null) window.clearTimeout(followUp.current); }, []);
 
   useEffect(() => { writeMemory(userId, memory); }, [memory, userId]);
 
-  const reload = useCallback(async (silent = false) => {
+  const toast = useCallback((message: string, options: Omit<Toast, "id" | "message"> = {}) => {
+    toastId.current += 1;
+    const id = toastId.current;
+    setToasts((current) => [...current.slice(-2), { id, message, ...options }]);
+    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), options.action ? 7000 : 3800);
+  }, []);
+  const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((item) => item.id !== id)), []);
+
+  const reload = useCallback(async (silent = false): Promise<void> => {
     if (loadingRef.current) return;
     const sync = getOfflineSyncState();
     // While offline writes are still queued, the server copy is older than the
     // local one; a background refresh would make fresh captures vanish briefly.
-    if (silent && sync.online && sync.pending > 0) return;
+    // Writes the server has refused are not coming; they wait in Offline recovery
+    // and must not stop the Notebook from ever refreshing again.
+    if (silent && sync.online && sync.pending - sync.held > 0) return;
     loadingRef.current = true;
-    if (!silent) setLoading(true);
+    // A spinner replaces the page only while there is nothing to show yet.
+    const showSpinner = !silent && !hasLoaded.current;
+    if (showSpinner) setLoading(true);
     try {
       if (sync.online && sync.pending > 0 && supabase) {
         const { data } = await supabase.auth.getSession();
@@ -148,20 +184,34 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       }
       const revisionBeforeLoad = localWriteRevision.current;
       const result = await loadKnowledge(userId);
-      // A capture or edit saved during this download is newer than its result.
-      // Keep that local work, and allow the next focus refresh to retry.
-      if (localWriteRevision.current !== revisionBeforeLoad) return;
-      setSnapshot(result.snapshot);
+      if (localWriteRevision.current !== revisionBeforeLoad) {
+        // A capture or edit saved during this download is newer than its result.
+        if (hasLoaded.current) {
+          // Keep the local work on screen and fetch again shortly, instead of
+          // waiting for a focus change that may never come.
+          if (followUp.current !== null) window.clearTimeout(followUp.current);
+          followUp.current = window.setTimeout(() => { followUp.current = null; void reload(true); }, 1500);
+          return;
+        }
+        // The very first load must never be thrown away: that left the whole
+        // Notebook looking empty apart from the capture made during start-up.
+        // Before the first load, local rows can only be ones created here.
+        setSnapshot((local) => mergeFirstLoad(result.snapshot, local));
+      } else {
+        setSnapshot(result.snapshot);
+      }
+      hasLoaded.current = true;
       setSchema(result.schema);
       setError("");
       lastLoad.current = Date.now();
     } catch (loadError) {
-      if (!silent) setError(friendlyError(loadError));
+      if (!silent && hasLoaded.current) toast(`Could not refresh the Notebook: ${friendlyError(loadError)} The copy on screen is unchanged.`, { tone: "error" });
+      else if (!silent) setError(friendlyError(loadError));
     } finally {
       loadingRef.current = false;
-      if (!silent) setLoading(false);
+      if (showSpinner) setLoading(false);
     }
-  }, [setSnapshotLocal, userId]);
+  }, [setSnapshot, toast, userId]);
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -192,6 +242,19 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
     };
   }, [reload, userId]);
+
+  // When queued offline edits reach the server, adopt the revision it assigned,
+  // so the next edit of the same note is not rejected as a conflict.
+  useEffect(() => subscribeReplayedRows(({ table, row }) => {
+    if (table !== "knowledge_records" || typeof row.id !== "string" || typeof row.updated_at !== "string") return;
+    const id = row.id;
+    const revision = row.updated_at;
+    if (!snapshotRef.current.entries.some((entry) => entry.id === id && entry.updated_at !== revision)) return;
+    setSnapshot((current) => ({
+      ...current,
+      entries: current.entries.map((entry) => entry.id === id ? { ...entry, updated_at: revision } : entry),
+    }));
+  }), [setSnapshot]);
 
   const subjectById = useMemo(() => new Map(snapshot.subjects.map((row) => [row.id, row])), [snapshot.subjects]);
   const topicById = useMemo(() => new Map(snapshot.topics.map((row) => [row.id, row])), [snapshot.topics]);
@@ -227,13 +290,6 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     return result;
   }, [snapshot.topics]);
 
-  const toast = useCallback((message: string, options: Omit<Toast, "id" | "message"> = {}) => {
-    toastId.current += 1;
-    const id = toastId.current;
-    setToasts((current) => [...current.slice(-2), { id, message, ...options }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), options.action ? 7000 : 3800);
-  }, []);
-  const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((item) => item.id !== id)), []);
 
   const updateMemory = useCallback((update: (current: WorkspaceMemory) => WorkspaceMemory) => setMemory((current) => update(current)), []);
 

@@ -7,7 +7,7 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
-import { EmptyState, InlineNameForm, KindIcon, Kbd, MOD_KEY, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover } from "./ui";
+import { EmptyState, InlineNameForm, KindIcon, Kbd, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -360,6 +360,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
   const shown = docs.filter((entry) => filter === "all" || (filter === "lessons" ? isLesson(entry) : filter === "questions" ? isOpenQuestion(entry) : !isLesson(entry) && !isOpenQuestion(entry)))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || docSortKey(b).localeCompare(docSortKey(a)));
 
+  const page = useProgressiveList(shown, `${topic?.id ?? subjectId}|${filter}`);
   const setFilter = (next: ListFilter) => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, filter: next } }));
   const fallbackTopic = topic?.id ?? children[0]?.id ?? null;
   const title = topic?.name ?? subject?.name ?? "Notebook";
@@ -415,8 +416,8 @@ function ScopePage({ scope, navigate, onNewNote }: {
       </button>)}
     </div>
 
-    {shown.length ? <ul className="nb-doc-list">
-      {shown.map((entry) => {
+    {shown.length ? <><ul className="nb-doc-list">
+      {page.visible.map((entry) => {
         const inSubtopic = topic && entry.topic_id !== topic.id ? workspace.topicById.get(entry.topic_id)?.name : !topic ? workspace.topicById.get(entry.topic_id)?.name : null;
         const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
         const preview = entryPreview(entry, 200);
@@ -438,7 +439,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
           </button>
         </li>;
       })}
-    </ul> : <EmptyState icon={filter === "questions" ? <CircleHelp size={22} /> : <FilePlus2 size={22} />}
+    </ul><ShowMore remaining={page.remaining} onMore={page.showMore} label="notes" /></> : <EmptyState icon={filter === "questions" ? <CircleHelp size={22} /> : <FilePlus2 size={22} />}
       title={filter === "questions" ? "No open questions here" : filter === "lessons" ? "No lessons here yet" : docs.length ? "Nothing matches this filter" : "Nothing written here yet"}
 >
       {filter === "questions" ? "Questions you capture (end a quick note with ?) collect here until you answer them." : `Quick notes land here instantly with ${MOD_KEY}+Shift+N from anywhere.`}
