@@ -301,8 +301,8 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
 
       <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
-          <span>Card workflow · filter by stage</span>
-          <small>{statusFilters.length ? `${statusFilters.length} selected · click again to clear` : `${cards.length.toLocaleString()} total · choose a stage`}</small>
+          <span>Learning stages</span>
+          <small>{statusFilters.length ? `${statusFilters.length} selected · click again to clear` : `${cards.length.toLocaleString()} cards · choose a stage to filter`}</small>
         </div>
         <div className="workflow-overview-stages">
           <button
