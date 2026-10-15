@@ -593,3 +593,30 @@ html, body, #root {
 @media (prefers-reduced-motion: reduce) {
   .tablet-capture-fab { transition: none !important; }
 }
+
+
+/* Tablet Study has its own four destinations, but they live above the page
+   instead of competing with the five-section bottom navigation. */
+.mobile-study-subnav { display: none; }
+@media (pointer: coarse) and (max-width: 900px) {
+  .mobile-study-subnav {
+    position: relative; z-index: 3; display: flex; align-items: center; gap: 5px;
+    padding: 7px max(10px, env(safe-area-inset-left));
+    border-bottom: 1px solid var(--ws-line);
+    background: var(--ws-surface);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .mobile-study-subnav::-webkit-scrollbar { display: none; }
+  .mobile-study-subnav button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    flex: 0 0 auto; min-height: 44px; padding: 0 12px;
+    border: 1px solid transparent; border-radius: 9px;
+    background: transparent; color: var(--ws-muted);
+    font: 600 12px/1 var(--ws-sans);
+  }
+  .mobile-study-subnav button[aria-current="page"] {
+    background: var(--ws-accent-soft); color: var(--ws-accent-strong);
+    border-color: var(--ws-accent-line);
+  }
+  .mobile-study-subnav button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: -2px; }
+}
