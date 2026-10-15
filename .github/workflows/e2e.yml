@@ -42,7 +42,9 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:1421/ >/dev/null && curl -sf http://localhost:54321/rest/v1/ >/dev/null && break; sleep 1; done
       - name: Regression scenarios
         working-directory: verification
-        run: node tests/regressions.mjs
+        run: |
+          node tests/regressions.mjs
+          node tests/study-polish.mjs
       - name: Logs
         if: failure()
         run: tail -n 60 verification/gateway.log verification/postgrest.log vite.log || true
