@@ -1,6 +1,7 @@
 import { ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, Search, Shuffle, SkipForward, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, setCardRetention, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+import { SegmentedChoice } from "./SegmentedChoice";
 import { cardHasCompletedSort, completeCardSort, setSortTags } from "../lib/sort";
 import "./sort.css";
 
@@ -164,8 +165,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         </div>
       </div> : null}
       <div className="sort-setup-order"><span>Card order</span>
-        <div><button type="button" className={!randomOrder ? "selected" : ""} onClick={() => setRandomOrder(false)}>Topic order</button>
-          <button type="button" className={randomOrder ? "selected" : ""} onClick={() => setRandomOrder(true)}><Shuffle size={14}/> Random</button></div>
+        <SegmentedChoice label="Sort card order" value={randomOrder ? "random" : "topic"}
+          onChange={(choice) => setRandomOrder(choice === "random")}
+          options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={14} /> }]} />
       </div>
       <div className="sort-setup-bottom">
         <span>{candidates.length} matching unsorted · {candidates.length ? Math.min(count, candidates.length) : 0} selected</span>
