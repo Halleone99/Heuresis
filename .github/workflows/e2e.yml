@@ -34,7 +34,7 @@ jobs:
       - name: Build the test database from the migrations
         run: |
           ls "$PGBIN/initdb"
-          verification/setup.sh
+          bash verification/setup.sh
       - name: Start the auth gateway and the app
         run: |
           (cd verification && nohup node gateway.mjs > gateway.log 2>&1 &)
