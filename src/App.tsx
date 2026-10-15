@@ -150,6 +150,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
   const [activePackId, setActivePackId] = useState<string | null>(null);
+  // A card chosen in Search: its topic opens with that card selected and in view.
+  const [focusCardId, setFocusCardId] = useState<string | null>(null);
   const [relatedCollectionId, setRelatedCollectionId] = useState<string | null>(null);
   const [captureInboxCollectionId, setCaptureInboxCollectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -425,7 +427,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const dueCount = workspace.snapshot.entries.filter((entry) => isRecallDue(entry)).length;
 
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
-  function openPack(pack: PackWithType) { setActivePackId(pack.id); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
+  function openPack(pack: PackWithType, cardId: string | null = null) { setActivePackId(pack.id); setFocusCardId(cardId); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
   function openCapture(pack: PackWithType | null = null, collectionId: string | null = null) {
     void openCaptureWindow({ packId: pack?.id ?? null, collectionId: collectionId ?? pack?.collection_id ?? null })
       .catch((captureError) => setNotice(captureError instanceof Error ? captureError.message : "Could not open Capture."));
@@ -458,7 +460,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     const next = await reload(true);
     const created = next.packs.find((pack) => pack.id === packId);
     if (created) openPack(created);
-    setNotice("Topic created from Raw.");
+    setNotice("Topic created from Discoveries.");
   }
 
 
@@ -497,9 +499,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <span className="hw-sync-dot" aria-hidden="true"/>
           </button>
           <button type="button" className="desktop-action desktop-search-action" onClick={openPalette} title={`Search notes, Study cards and commands · ${MOD_KEY}+K`}><Search size={14} /><span>Search</span><kbd>{MOD_KEY} K</kbd></button>
-          {section === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
-          {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
-          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Quick capture (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
+          {section === "study" ? <button className="desktop-action desktop-topic-action" title="Create a Study topic" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
+          {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()} title="Add Study cards to a topic"><Plus size={14} /> New card</button> : null}
+          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Capture a note, mistake or lesson for the Notebook (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -580,7 +582,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
           {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
           {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
-          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
+          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
@@ -600,9 +602,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         onSync={() => { void runSync(false); }} /> : null}
       {trashOpen ? <KnowledgeTrashDialog onClose={() => setTrashOpen(false)} /> : null}
       <Toaster />
-      {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} commands={paletteCommands} onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
+      {paletteOpen ? <WorkspaceSearch onClose={() => setPaletteOpen(false)} commands={paletteCommands} packs={packs}
+        onOpenCard={(hit) => { const pack = packs.find((item) => item.id === hit.pack_id); if (!pack) return; setSection("study"); openPack(pack, hit.role === "main" ? hit.id : null); }}
+        onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
-      {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack) => { setSection("study"); openPack(pack); }} /> : null}
+      {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack, cardId) => { setSection("study"); openPack(pack, cardId ?? null); }} /> : null}
       {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}

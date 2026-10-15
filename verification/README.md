@@ -64,6 +64,33 @@ showcase database and drives the current interface:
 
 Run one scenario with `node tests/regressions.mjs <part of its name>`.
 
+`tests/clarity.mjs` (also in CI) covers the clarity pass of 15 October 2026: card
+stages (Unsorted → Learning · Reference) agree in Library, topic, Sort, Browse and
+Adjust; Study dialogs are never covered by the sidebar; the selected Review direction
+stays readable on hover; Sort's four outcomes and keyboard keys; card Capture adds each card at once, ignores Escape
+during IME composition and asks before closing with an unsaved card; Search opens a
+Study card in its topic; Review keeps the prompt visible after reveal; a calm empty
+Review state; Edit card keyboard (Esc / Ctrl+Enter); compact topic rows at tablet
+width. Screenshots go to `screenshots/clarity/`.
+
+`tests/review-v3.mjs` (also in CI) covers the Sort and Review evolution (learning
+model v3, see `docs/SORT_REVIEW_V3.md`):
+
+| Scenario | Proves |
+|---|---|
+| sort → review → grading | C / P store Core 5 / Peripheral 1; “Review now” opens a recommended session at once; “Why?” explains it; Missed / Partial / Recalled / Secure; the question stays above the answer; every result is recorded with its direction; no card+direction twice, opposite directions never adjacent; summary in words incl. recognition vs production; Retry missed; summary counts each card once after a retry |
+| ten more | “10 more” continues with new recommendations and never repeats the first round |
+| discard | D discards (kept in the database); Undo and Ctrl+Z restore; topic and Library counts leave it out; Trash restores it (and Escape still closes Trash); Delete permanently after confirmation |
+| typed Chinese answers | IME Enter (isComposing / keyCode 229) never reveals; IME-committed characters and numbered pinyin are suggested Recalled, toneless pinyin Partial, a wrong word Missed, an empty answer nothing; revealing records nothing; the learner's own choice is recorded |
+| offline recovery | Sort (Core) and Discard offline, shown offline, on the server after reconnecting; Review results offline wait on the device and arrive with their directions |
+| Adjust | remembers direction, cards and size; one-click Review stays recommended with the remembered direction |
+| topic states | Unsorted / Learning / Reference counts and Reference filter; per-direction states (results recorded before directions existed count for the default direction); importance badges; Move to Learning |
+| retry keeps practice | a retried card neither removes nor duplicates the practice recorded earlier in the session |
+| review window | answering method changeable and remembered; D opens the Details drawer; a pinned drawer stays open |
+
+Run one scenario with `node tests/review-v3.mjs <part of its name>`; screenshots go to
+`screenshots/review-v3/`.
+
 The older suites below were written for the first workspace version. Most of
 them now stop at selectors that no longer exist (e.g. the in-page topic tree);
 they are kept as a record and should be ported scenario by scenario.

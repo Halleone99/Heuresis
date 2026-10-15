@@ -232,7 +232,7 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
       <button className="text-button back-button vocabulary-back" onClick={onBack}><ArrowLeft size={15} /> {collection ? collection.title : "Library"}</button>
 
       <header className="vocabulary-heading">
-        <div><p className="eyebrow">{collection ? "RAW" : "CONNECTIONS"}</p><h1>{collection ? "Raw" : "Connections"}</h1><p>{collection ? `Uncatalogued knowledge connected to ${collection.title}.` : "Connected knowledge across Heuresis."}</p></div>
+        <div><p className="eyebrow">{collection ? "INBOX" : "CONNECTIONS"}</p><h1>{collection ? "Discoveries" : "Connections"}</h1><p>{collection ? `Words and expressions connected to ${collection.title} that are not flashcards yet.` : "Connected knowledge across Heuresis."}</p></div>
         {collection ? <div className="vocabulary-heading-side"><button className="primary-button" disabled={!selectedCardIds.length} onClick={() => setCreating(true)}><Plus size={14} /> New topic{selectedCardIds.length ? ` · ${selectedCardIds.length}` : ""}</button></div> : null}
       </header>
 
@@ -269,7 +269,7 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
         <details className="vocabulary-filter-menu">
           <summary className={statusFilters.length ? "active" : ""}>Status{statusFilters.length ? <b>{statusFilters.length}</b> : null}<ChevronDown size={13} /></summary>
           <div className="vocabulary-filter-popover">
-            <button className={statusFilters.includes("raw") ? "selected" : ""} onClick={(event) => { event.preventDefault(); setStatusFilters((current) => toggleValue(current, "raw")); }}><span>Raw only</span><small>{uniqueEntryCount(collectionRows.filter((row) => statusOf(row) === "raw"))}</small></button>
+            <button className={statusFilters.includes("raw") ? "selected" : ""} onClick={(event) => { event.preventDefault(); setStatusFilters((current) => toggleValue(current, "raw")); }}><span>Discoveries only</span><small>{uniqueEntryCount(collectionRows.filter((row) => statusOf(row) === "raw"))}</small></button>
             <button className={statusFilters.includes("flashcard") ? "selected" : ""} onClick={(event) => { event.preventDefault(); setStatusFilters((current) => toggleValue(current, "flashcard")); }}><span>Flashcard</span><small>{uniqueEntryCount(collectionRows.filter((row) => statusOf(row) === "flashcard"))}</small></button>
           </div>
         </details>
@@ -320,14 +320,14 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
             <div className="vocabulary-word"><strong>{row.term || "Untitled"}</strong>{row.reading ? <em>{row.reading}</em> : null}<p>{row.meaning}</p></div>
             <span className={`relation-badge relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>
             {pack ? <button className="vocabulary-source vocabulary-source-button" title={sourceTitle} onClick={(event) => { event.stopPropagation(); onOpenPack(pack); }}><small>{collectionMap.get(pack.collection_id)?.title ?? row.pack_title}</small><span>{row.pack_title}</span><em>{row.source_term || "Untitled"}{row.source_reading ? ` · ${row.source_reading}` : ""}</em></button> : <div className="vocabulary-source" title={sourceTitle}><small>{row.pack_title}</small><span>{row.source_term || "Untitled"}</span></div>}
-            <span className={`vocabulary-status ${statusOf(row)}`}>{statusOf(row) === "flashcard" ? "Flashcard" : "Raw"}</span>
+            <span className={`vocabulary-status ${statusOf(row)}`}>{statusOf(row) === "flashcard" ? "Flashcard" : "Discovery"}</span>
             <div className="vocabulary-actions">
               {row.target_role === "related" ? <button className="vocabulary-promote" title="Make this a flashcard" onClick={(event) => { event.stopPropagation(); void promote(row); }}><Plus size={12} /><span>Flashcard</span></button> : null}
               <button className="vocabulary-tree-action" title="Open connections" disabled={treeBusyId === row.relation_id} onClick={(event) => { event.stopPropagation(); void openConnections(row); }}><GitFork size={15} /></button>
             </div>
           </div>;
         })}
-        {!shown.length ? <div className="catalogue-empty">{collectionRows.length ? "No connections match these filters." : collection ? "No Raw entries here yet." : "No connections here yet."}</div> : null}
+        {!shown.length ? <div className="catalogue-empty">{collectionRows.length ? "No connections match these filters." : collection ? "No discoveries here yet." : "No connections here yet."}</div> : null}
       </div>}
     </section>
     {connections ? <ConnectionsPanel pack={connections.pack} card={connections.card} onClose={() => setConnections(null)} /> : null}

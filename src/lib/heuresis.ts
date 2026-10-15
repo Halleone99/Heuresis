@@ -2,6 +2,18 @@ import { supabase } from "./supabase";
 
 export const CARD_PAGE_SIZE = 200;
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
+/**
+ * A card discarded in Sort keeps its row, id and history; it is only marked in its
+ * data (like _sorted_at), hidden from Heuresis lists and listed in Trash until it is
+ * restored or deleted permanently. No schema change is needed, and the mark is written
+ * through heuresis_patch_card_data, which also works offline.
+ */
+export const DISCARDED_AT_KEY = "_discarded_at";
+
+export function isDiscarded(card: Pick<CardWithStats, "data">) {
+  const value = card.data[DISCARDED_AT_KEY];
+  return typeof value === "string" && Boolean(value.trim());
+}
 
 export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | "slate" | "ink";
 export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
@@ -207,8 +219,17 @@ export async function listCardTypes(): Promise<CardType[]> {
   return (data ?? []).map((row) => ({ id: row.id, name: row.name, field_schema: fieldSchema(row.field_schema) }));
 }
 
+/** Cards discarded in Sort, per topic (they stay in the database until deleted from Trash). */
+async function discardedCountsByPack(): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const { data, error } = await db().from("heuresis_cards").select("pack_id").eq("role", "main").not(`data->>${DISCARDED_AT_KEY}`, "is", null).limit(10000);
+  if (error) throw error;
+  for (const row of data ?? []) if (typeof row.pack_id === "string") counts.set(row.pack_id, (counts.get(row.pack_id) ?? 0) + 1);
+  return counts;
+}
+
 export async function listPacks(): Promise<PackWithType[]> {
-  const [packsResult, types] = await Promise.all([
+  const [packsResult, types, discarded] = await Promise.all([
     db()
       .from("heuresis_pack_overview")
       .select("id,collection_id,card_type_id,title,description,sort_order,card_count,encountered_cards,open_count,last_opened_at")
@@ -216,6 +237,8 @@ export async function listPacks(): Promise<PackWithType[]> {
       .order("sort_order")
       .order("created_at"),
     listCardTypes(),
+    // Counts are a convenience: if this read fails, topics still list (counts include discarded cards).
+    discardedCountsByPack().catch(() => new Map<string, number>()),
   ]);
 
   if (packsResult.error) throw packsResult.error;
@@ -229,7 +252,7 @@ export async function listPacks(): Promise<PackWithType[]> {
       title: row.title,
       description: row.description ?? null,
       sort_order: Number(row.sort_order ?? 0),
-      card_count: Number(row.card_count ?? 0),
+      card_count: Math.max(0, Number(row.card_count ?? 0) - (discarded.get(row.id) ?? 0)),
       encountered_cards: Number(row.encountered_cards ?? 0),
       open_count: Number(row.open_count ?? 0),
       last_opened_at: row.last_opened_at ?? null,
@@ -275,7 +298,7 @@ export async function listAllCards(packId: string, onProgress?: (loaded: number,
   let total = Number.POSITIVE_INFINITY;
   while (offset < total) {
     const page = await listCardsPage(packId, { offset, limit: CARD_PAGE_SIZE });
-    result.push(...page.items);
+    result.push(...page.items.filter((card) => !isDiscarded(card)));
     total = page.total;
     onProgress?.(result.length, total);
     if (page.nextOffset == null || page.nextOffset <= offset) break;
@@ -287,6 +310,28 @@ export async function listAllCards(packId: string, onProgress?: (loaded: number,
 /** Ordinary topic/review surfaces contain learning cards only. Catalogue reads use listAllCards. */
 export async function listCards(packId: string): Promise<CardWithStats[]> {
   return (await listAllCards(packId)).filter((card) => card.retention === "learning");
+}
+
+/** Learning and reference cards of a topic in one read (the topic page shows both). */
+export async function listTopicCards(packId: string): Promise<{ learning: CardWithStats[]; reference: CardWithStats[] }> {
+  const all = await listAllCards(packId);
+  return { learning: all.filter((card) => card.retention === "learning"), reference: all.filter((card) => card.retention === "reference") };
+}
+
+/** Discarded cards across the given topics, newest first (for Trash). */
+export async function listDiscardedCards(packIds?: string[]): Promise<CardWithStats[]> {
+  if (packIds && !packIds.length) return [];
+  // Only the discarded cards are read (JSON-path filter; the offline cache understands it too).
+  let query = db()
+    .from("heuresis_cards")
+    .select(CARD_SELECT)
+    .eq("role", "main")
+    .not(`data->>${DISCARDED_AT_KEY}`, "is", null);
+  if (packIds) query = query.in("pack_id", packIds);
+  const { data, error } = await query.order("updated_at", { ascending: false }).limit(2000);
+  if (error) throw error;
+  const at = (card: CardWithStats) => String(card.data[DISCARDED_AT_KEY] ?? "");
+  return (data ?? []).map(mapCardRow).filter(isDiscarded).sort((a, b) => at(b).localeCompare(at(a)));
 }
 
 export async function getCard(cardId: string): Promise<CardWithStats | null> {

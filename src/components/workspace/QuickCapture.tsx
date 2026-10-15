@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, CornerDownLeft, GraduationCap, ListPlus, NotebookPen, Pin, PinOff, Radio, TriangleAlert, X } from "lucide-react";
+import { ChevronDown, CornerDownLeft, GraduationCap, ListPlus, NotebookPen, Pin, Radio, TriangleAlert, X } from "lucide-react";
 import { CATEGORY_LABELS, entryTitle, friendlyError, localDateKey, LIMITS, type NoteCategory } from "../../lib/knowledgeWorkspace";
 import { captureDraftHasContent, readCaptureDraft, writeCaptureDraft, type CaptureDraft } from "../../lib/workspaceMemory";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
@@ -310,9 +310,11 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, stream: !current.capture.stream } }))}>
         <ListPlus size={14} /> Stream</button> : null}
       {mode !== "lesson" && !floating ? <button type="button" className={`ws-icon-button ${keepOpen ? "is-on" : ""}`} aria-pressed={keepOpen}
-        title={keepOpen ? "Stays open after saving (for several notes in a row)" : "Keep open after saving"}
+        aria-label="Keep open after saving"
+        title={keepOpen ? "Keeps open after saving (for several notes in a row) — click to close after each save" : "Keep open after saving"}
         onClick={() => updateMemory((current) => ({ ...current, capture: { ...current.capture, keepOpen: !current.capture.keepOpen } }))}>
-        {keepOpen ? <Pin size={15} /> : <PinOff size={15} />}</button> : null}
+        {/* One pin icon; filled means on. A crossed-out pin read as an "unpin" action. */}
+        <Pin size={15} fill={keepOpen ? "currentColor" : "none"} /></button> : null}
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
     </div>
 

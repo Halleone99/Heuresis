@@ -323,3 +323,13 @@
   .browse-setup-footer > span { display: none; }
   .modern-browse-card { padding: 28px 24px !important; }
 }
+
+/* Importance (Core / Useful / Peripheral) replaces the five interest numbers. */
+.browse-importance-row button,
+.compact-browse-sections .browse-importance-row button {
+  width: auto !important; min-width: 0; padding: 0 12px !important; height: 30px !important;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent) !important; border-radius: 9px !important;
+  background: transparent !important; color: var(--ws-text) !important; opacity: 1 !important; font-size: 11px;
+}
+.browse-importance-row button.selected,
+.compact-browse-sections .browse-importance-row button.selected { background: var(--ws-text) !important; color: var(--ws-on-primary) !important; border-color: var(--ws-text) !important; }

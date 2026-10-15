@@ -448,3 +448,15 @@
   .modern-card-cell { grid-column: 1 / -1; padding: 0; }
   .modern-meta-cell { grid-column: 1 / -1; }
 }
+
+/* Edit card: Save and Delete stay visible however many fields the card type has.
+   :where() keeps this below the phone bottom-sheet rules in tablet.css. */
+:where(.card-editor-modal) > .editor-actions {
+  position: sticky;
+  bottom: -25px;
+  z-index: 2;
+  margin: 23px -25px -25px;
+  padding: 14px 25px;
+  background: var(--ws-surface);
+}
+.editor-actions .editor-shortcut-hint { color: var(--ws-muted); font-size: 10px; text-align: right; }

@@ -29,7 +29,11 @@ export async function searchCards(query: string): Promise<SearchCardResult[]> {
     .order("updated_at", { ascending: false })
     .limit(40);
   if (error) throw error;
-  return (data ?? []).map((row) => ({
+  // Cards discarded in Sort stay out of search until restored from Trash.
+  return (data ?? []).filter((row) => {
+    const value = (row.data as Record<string, unknown> | null)?._discarded_at;
+    return !(typeof value === "string" && value.trim());
+  }).map((row) => ({
     id: row.id,
     pack_id: row.pack_id,
     role: row.role === "related" ? "related" : "main",

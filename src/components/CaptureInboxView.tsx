@@ -38,7 +38,7 @@ export default function CaptureInboxView({ packs, collection, onBack, onOpenPack
   }, [query, rows]);
 
   function remove(row: CaptureInboxItem) {
-    if (!window.confirm(`Remove ${row.front || "this capture"} from Capture?`)) return;
+    if (!window.confirm(`Discard the draft “${row.front || "Untitled"}”? It has not been added to a topic.`)) return;
     removeCaptureInboxItem(row.packId, row.id);
     reload();
   }
@@ -46,28 +46,28 @@ export default function CaptureInboxView({ packs, collection, onBack, onOpenPack
   return <section className="related-catalogue-page capture-inbox-page">
     <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> {collection?.title ?? "Library"}</button>
     <header className="catalogue-heading">
-      <div><p className="eyebrow">CAPTURE</p><h1>Captures</h1></div>
-      <span>{rows.length.toLocaleString()} raw</span>
+      <div><p className="eyebrow">INBOX</p><h1>Card drafts</h1><p>Cards started in Capture but not added to a topic yet.</p></div>
+      <span>{rows.length.toLocaleString()} not added</span>
     </header>
     <div className="related-toolbar">
-      <label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search captures" /></label>
+      <label className="pack-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search drafts" /></label>
     </div>
     <div className="related-table capture-inbox-table">
-      <div className="related-table-head capture-inbox-head"><span>Capture</span><span>Status</span><span>Topic</span><span>Actions</span></div>
+      <div className="related-table-head capture-inbox-head"><span>Card</span><span>Status</span><span>Topic</span><span>Actions</span></div>
       {shown.map((row) => {
         const pack = packMap.get(row.packId);
         return <div className="related-table-row capture-inbox-row" key={`${row.packId}-${row.id}`}>
           <div className="related-target capture-inbox-card"><strong>{row.front}</strong>{row.back ? <p>{row.back}</p> : null}{row.enrichmentCount ? <small>{row.enrichmentCount} enrichment{row.enrichmentCount === 1 ? "" : "s"}</small> : null}</div>
-          <span className={`capture-state-badge ${row.state}`}>{row.state === "waiting" ? "Raw" : "Draft"}</span>
+          <span className={`capture-state-badge ${row.state}`}>{row.state === "waiting" ? "Waiting" : "Draft"}</span>
           <div className="related-source-badge"><small>TOPIC</small><span>{row.packTitle}</span></div>
           <div className="related-actions">
-            {pack ? <button title="Open Capture" onClick={() => onOpenCapture(pack)}><PenLine size={14} /></button> : null}
-            {pack ? <button title="Open topic" onClick={() => onOpenPack(pack)}><ExternalLink size={14} /></button> : null}
-            <button title="Remove capture" onClick={() => remove(row)}><Trash2 size={14} /></button>
+            {pack ? <button title="Continue in Capture" aria-label="Continue in Capture" onClick={() => onOpenCapture(pack)}><PenLine size={14} /></button> : null}
+            {pack ? <button title="Open topic" aria-label="Open topic" onClick={() => onOpenPack(pack)}><ExternalLink size={14} /></button> : null}
+            <button title="Discard draft" aria-label="Discard draft" onClick={() => remove(row)}><Trash2 size={14} /></button>
           </div>
         </div>;
       })}
-      {!shown.length ? <div className="catalogue-empty">{rows.length ? "No captures match this search." : "Nothing in Raw yet."}</div> : null}
+      {!shown.length ? <div className="catalogue-empty">{rows.length ? "No captures match this search." : "No card drafts. Everything you captured has been added."}</div> : null}
     </div>
   </section>;
 }

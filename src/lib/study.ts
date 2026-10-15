@@ -88,6 +88,13 @@ function networkUnavailable(error?: unknown) {
   return /offline|failed to fetch|networkerror|network request failed|load failed/i.test(message);
 }
 
+/** Grades recorded on this device that have not reached the server yet (offline evidence). */
+export function pendingStudyGrades(packId: string): Array<{ card_id: string; template_id: string | null; event_type: StudyGrade; created_at: string }> {
+  return readQueue()
+    .filter((event) => event.pack_id === packId && (event.event_type === "again" || event.event_type === "hard" || event.event_type === "good" || event.event_type === "easy"))
+    .map((event) => ({ card_id: event.card_id, template_id: event.template_id, event_type: event.event_type as StudyGrade, created_at: event.created_at }));
+}
+
 export function getStudyQueueState(): StudyQueueState {
   const events = readQueue();
   return {

@@ -322,6 +322,9 @@ const scenarios = {
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.waitForTimeout(1200);
     await page.click("button.sort-command");
+    // Sort opens straight into the queue; narrowing it is behind Filter.
+    await page.waitForSelector(".sort-card");
+    await page.click(".sort-filter-toggle");
     await page.fill(".sort-setup-search input", "再见");
     check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
@@ -334,20 +337,19 @@ const scenarios = {
     check(await disclosure.getAttribute("aria-expanded") === "false", "Sort hides extra details with keyboard Space");
     await page.keyboard.press("4");
     await page.waitForTimeout(1200);
-    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "4|true", "sorting stores interest and completion");
-    await page.click(".sort-finished button");
-    await page.getByRole("button", { name: "Review", exact: true }).click();
-    await page.waitForSelector(".study-start:not([disabled])");
+    // Digit 4 is Core, stored on the existing 1–5 scale as 5.
+    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "5|true", "sorting stores importance (Core) and completion");
+    // Review is one click from the end of a Sort pass.
     const popupOpened = context.waitForEvent("page");
-    await page.click(".study-start");
+    await page.click('.sort-finished-actions button:has-text("Review now")');
     const popup = await popupOpened;
     await popup.waitForSelector(".cosmos-count", { timeout: 15000 });
     await popup.keyboard.press(" ");
     await popup.waitForTimeout(500);
     await popup.keyboard.press("3");
     await popup.waitForTimeout(1200);
-    const graded = Number(await sql("select count(*) from heuresis_card_events where event_type in ('again','hard','good','easy') and created_at > now() - interval '5 minutes'"));
-    check(graded >= 1, "the review grade is recorded");
+    const graded = Number(await sql("select count(*) from heuresis_card_events where event_type in ('again','hard','good','easy') and template_id is not null and created_at > now() - interval '5 minutes'"));
+    check(graded >= 1, "the review grade is recorded with its direction");
     await popup.close();
   },
 };

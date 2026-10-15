@@ -202,3 +202,95 @@
   .cosmos-sort-foot { align-items:flex-start; }
   .cosmos-sort-actions { width:100%; margin-left:0; justify-content:flex-end; }
 }
+/* After reveal: the prompt stays, quieter and smaller, above the answer. */
+.cosmos-card-copy.revealed .cosmos-core-field.is-recap { color:var(--muted); }
+.cosmos-card-copy.revealed .cosmos-core-field.is-recap.role-term { font-size:clamp(30px,3.2vw,44px); }
+.cosmos-card-copy.revealed .cosmos-core-field.is-recap.role-meaning { font-size:clamp(18px,1.8vw,23px); }
+.cosmos-card-copy.revealed .cosmos-core-field.is-recap.role-reading { margin-top:8px; }
+.cosmos-card-copy.revealed .cosmos-answer-rule { margin:22px auto 24px; }
+
+/* ---- Review v3: one Details drawer, session method, Why, results, summary ---- */
+.cosmos-card { width:min(930px,calc(100vw - 48px)); }
+.cosmos-work { gap:14px; }
+.cosmos-details-toggle {
+  position:absolute; top:14px; left:14px; z-index:4; display:inline-flex; align-items:center; gap:6px;
+  padding:7px 11px; border:1px solid var(--line-2); border-radius:999px; background:var(--paper); color:var(--ink-2); cursor:pointer; font:12px/1 var(--sans);
+}
+.cosmos-details-toggle b { min-width:18px; padding:2px 5px; border-radius:999px; background:var(--live-soft); color:var(--live); font:10px/1.2 var(--mono); }
+.cosmos-details-toggle:disabled { opacity:.45; cursor:default; }
+.cosmos-details-toggle[aria-expanded="true"] { border-color:var(--live); color:var(--live); }
+.cosmos-details {
+  width:min(360px,calc(100vw - 48px)); flex:0 0 auto; display:flex; flex-direction:column; max-height:min(720px,calc(100dvh - 135px));
+  border:1px solid var(--line); border-radius:7px; background:var(--paper-2); box-shadow:0 24px 60px -36px rgba(38,32,25,.4);
+}
+.cosmos-details-head { display:flex; align-items:center; gap:6px; padding:14px 14px 10px 20px; border-bottom:1px solid var(--line); }
+.cosmos-details-head strong { flex:1; font:400 19px/1.1 var(--serif); }
+.cosmos-details-head button { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; }
+.cosmos-details-head button:hover, .cosmos-details-head button[aria-pressed="true"] { color:var(--live); background:var(--live-soft); }
+.cosmos-details-body { flex:1; min-height:0; overflow:auto; padding:6px 20px 20px; }
+.cosmos-details-section { padding:12px 0 14px; border-bottom:1px solid var(--line); }
+.cosmos-details-section > header { display:flex; align-items:baseline; gap:8px; margin-bottom:4px; }
+.cosmos-details-section > header h3 { margin:0; font:400 16px/1.2 var(--serif); }
+.cosmos-details-section > header span { flex:1; color:var(--faint); font:11px/1.3 var(--sans); }
+.cosmos-details-section > header b { color:var(--muted); font:10px/1 var(--mono); }
+.cosmos-details-section .cosmos-add { margin-top:8px; }
+.cosmos-details-empty { display:flex; flex-wrap:wrap; align-items:center; gap:5px; padding-top:14px; }
+.cosmos-details-empty > span { margin-right:2px; color:var(--faint); font:9px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; }
+.cosmos-details-empty button { display:inline-flex; align-items:center; gap:4px; padding:6px 9px; border:1px dashed var(--line-2); border-radius:999px; background:transparent; color:var(--muted); cursor:pointer; font:11px/1 var(--sans); }
+.cosmos-details-empty button:hover { border-color:var(--muted); color:var(--ink); }
+.cosmos-image-block { margin:12px 0; padding-top:12px; border-top:1px solid var(--line); }
+.cosmos-image-block img { display:block; width:100%; max-height:260px; object-fit:contain; border-radius:4px; background:var(--paper); }
+.cosmos-image-block figcaption { margin-top:7px; color:var(--muted); font:12px/1.45 var(--serif); }
+.cosmos-image-loading { padding:18px 8px; color:var(--faint); font:11px/1.4 var(--sans); text-align:center; }
+
+.cosmos-method { display:inline-flex; align-items:center; gap:7px; color:var(--faint); font:10px/1 var(--mono); letter-spacing:.04em; }
+.cosmos-method select { padding:6px 26px 6px 9px; border:1px solid var(--line-2); border-radius:999px; background:var(--paper); color:var(--ink-2); font:12px/1 var(--sans); }
+.cosmos-why { display:inline-flex; align-items:center; gap:5px; padding:6px 10px; border:1px solid var(--line-2); border-radius:999px; background:transparent; color:var(--muted); cursor:pointer; font:12px/1 var(--sans); }
+.cosmos-why[aria-expanded="true"], .cosmos-why:hover { border-color:var(--live); color:var(--live); }
+.cosmos-why-panel {
+  position:absolute; top:72px; right:24px; z-index:40; width:min(380px,calc(100vw - 32px)); padding:14px 16px;
+  border:1px solid var(--line-2); border-radius:8px; background:var(--paper); box-shadow:0 18px 50px -20px rgba(38,32,25,.35); color:var(--ink-2);
+}
+.cosmos-why-panel strong { font:400 17px/1.2 var(--serif); }
+.cosmos-why-panel ul { margin:8px 0; padding-left:18px; font:13px/1.5 var(--sans); }
+.cosmos-why-panel small { color:var(--muted); font:11px/1.45 var(--sans); }
+.cosmos-shell { position:relative; }
+
+.cosmos-review-foot { flex-direction:column; gap:8px; }
+.cosmos-results { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; }
+.cosmos-results button.is-suggested { box-shadow:0 0 0 2px var(--live); }
+.cosmos-suggestion { margin:0; color:var(--muted); font:12px/1.4 var(--sans); text-align:center; }
+.cosmos-suggestion b { color:var(--live); font-weight:600; }
+.cosmos-typed-answer { margin-top:22px; display:grid; gap:4px; color:var(--muted); }
+.cosmos-typed-answer small { font:9px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; }
+.cosmos-typed-answer span { color:var(--ink-2); font:18px/1.4 var(--serif); }
+
+.cosmos-summary { max-width:640px; margin:0 auto; padding:0 24px; }
+.cosmos-summary-lines { display:grid; gap:8px; margin:6px 0 4px; text-align:left; }
+.cosmos-summary-lines p { color:var(--ws-text) !important; font:15px/1.55 var(--serif); }
+.cosmos-summary-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; }
+.cosmos-summary-actions button { margin-top:8px; background:transparent !important; color:var(--ws-ink) !important; border:1px solid var(--ws-line) !important; }
+.cosmos-summary-actions button.primary { background:var(--ws-primary) !important; color:var(--ws-on-primary) !important; border-color:var(--ws-primary) !important; }
+
+@media (max-width:1240px) {
+  .cosmos-details { position:fixed; top:66px; right:0; bottom:0; z-index:30; max-height:none; border-radius:0; }
+}
+@media (max-width:860px) {
+  .cosmos-card { width:calc(100vw - 32px); }
+  .cosmos-stage { padding:20px 16px 32px; }
+  .cosmos-method > span { display:none; }
+}
+
+/* Which direction is being asked, and how far along the session is, matter in every
+   window size (direction-specific Review); shorten them rather than hide them. */
+@media (max-width:1240px) {
+  .cosmos-topbar .cosmos-mode-note { display:inline-block; min-width:0; max-width:30vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+}
+@media (max-width:860px) {
+  .cosmos-topbar .cosmos-count { display:inline; white-space:nowrap; }
+  .cosmos-topbar .cosmos-modes { display:none; }
+  .cosmos-topbar .cosmos-mode-note { max-width:34vw; }
+}
+@media (max-width:560px) {
+  .cosmos-topbar .cosmos-mode-note { display:none; }
+}

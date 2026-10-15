@@ -67,3 +67,5 @@
   .structure-field > input { grid-column:1 / -1; }
   .direction-card > label { grid-template-columns:1fr; }
 }
+/* Importance levels are words, not numbered dots. */
+.interest-preview b { width: auto; min-width: 25px; padding: 0 9px; border-radius: 999px; font: 600 9px var(--ws-sans, Inter, sans-serif); }

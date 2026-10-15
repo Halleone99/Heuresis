@@ -188,7 +188,7 @@ export function OverviewView({ study, onOpenStudy }: { study: StudySummary; onOp
             <button type="button" className="nb-link-button" onClick={onOpenStudy}>Open Study →</button></div>
           <p className="ov-study-line">{study.cards.toLocaleString()} cards in {study.topics} {study.topics === 1 ? "topic" : "topics"} across {study.collections} {study.collections === 1 ? "collection" : "collections"}.</p>
           {studyHistoryState === "error" ? <p className="ws-muted" role="alert">Study history could not be loaded. <button type="button" className="nb-link-button" onClick={() => setRetryStudyHistory((count) => count + 1)}>Retry</button></p>
-            : <p className="ws-muted" role="status">{studyHistoryState === "loading" ? "Loading study history…" : lastSession ? `Last studied ${relativeTime(lastSession.started_at)} · ${SESSION_MODE_LABELS[lastSession.mode] ?? lastSession.mode}${lastSession.cards_encountered ? `, ${lastSession.cards_encountered} cards` : ""}.` : "No study session recorded yet."}</p>}
+            : <p className="ws-muted" role="status">{studyHistoryState === "loading" ? "Loading study history…" : lastSession ? `Last studied ${relativeTime(lastSession.started_at)} · ${SESSION_MODE_LABELS[lastSession.mode] ?? lastSession.mode}${lastSession.cards_encountered ? `, ${lastSession.cards_encountered} ${lastSession.cards_encountered === 1 ? "card" : "cards"}` : ""}.` : "No study session recorded yet."}</p>}
         </section>
       </div>
     </div>
