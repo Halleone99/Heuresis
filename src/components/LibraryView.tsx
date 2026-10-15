@@ -172,9 +172,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
                 <div className="topic-meta"><span>{plural(pack.card_count, "card")}</span><span>·</span><span>{pack.encountered_cards.toLocaleString()} seen</span></div>
                 <span className="topic-open">Open <ArrowRight size={14} /></span>
               </button>
-              <div className="topic-card-tools topic-card-footer-actions">
-                <button onClick={() => onOpen(pack)}><ArrowRight size={14} /> Open</button>
-                <button onClick={() => onEditPack(pack)} title={`Edit ${pack.title}`}><Pencil size={14} /> Settings</button>
+              <div className="topic-card-tools topic-card-footer-actions is-settings-only">
+                <button type="button" onClick={() => onEditPack(pack)} title={`Edit settings for ${pack.title}`}><Pencil size={14} /> Topic settings</button>
               </div>
             </article>
           ))}
