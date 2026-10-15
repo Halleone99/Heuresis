@@ -381,7 +381,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
           <details className="filter-menu tag-filter-menu">
             <summary className={tagFilter !== "all" ? "active" : ""}><span>{selectedTag ? selectedTag.name : tagFilter === "none" ? "No tags" : "Tags"}</span><ChevronDown size={14} /></summary>
             <div className="filter-menu-popover tag-menu-popover">
-              {lessonTags.length ? <section><p>HSK2 Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{lesson}</button>; })}</div></section> : null}
+              {lessonTags.length ? <section><p>Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{lesson}</button>; })}</div></section> : null}
               {otherTags.length ? <section><p>Other tags</p><div className="other-tag-list">{otherTags.map((tag) => <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{tag.name}</button>)}</div></section> : null}
               <div className="tag-menu-footer"><button className={tagFilter === "none" ? "selected" : ""} onClick={() => setTagFilter(tagFilter === "none" ? "all" : "none")}>No tags</button>{tagFilter !== "all" ? <button onClick={() => setTagFilter("all")}>Any tag</button> : null}</div>
             </div>

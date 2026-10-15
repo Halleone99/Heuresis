@@ -48,9 +48,10 @@ export function SyncStatusDialog({ state, onClose, onSync, onRecovery }: Props) 
       {state.error ? <p className="hw-sync-error" role="alert">{state.error}</p> : null}
       {state.legacyPending ? <p className="hw-sync-explainer">Older changes are kept on this device, separately from your current account. They cannot be uploaded automatically. Export a backup and review them before restoring anything.</p> : null}
       {!state.online && state.pending ? <p className="hw-sync-explainer">Your pending changes remain on this device. They can synchronise when you reconnect.</p> : null}
+      {state.held ? <p className="hw-sync-explainer">{state.held} of your offline {state.held === 1 ? "edit was" : "edits were"} refused because the same record changed elsewhere first. Nothing was overwritten; review {state.held === 1 ? "it" : "them"} in Offline recovery.</p> : null}
       <footer className="ws-dialog-actions hw-sync-actions">
-        {state.legacyPending ? <button type="button" className="ws-button" onClick={onRecovery}>
-          <ArchiveRestore size={14}/> Review older changes ({state.legacyPending})</button> : null}
+        {state.legacyPending || state.held ? <button type="button" className="ws-button" onClick={onRecovery}>
+          <ArchiveRestore size={14}/> Review changes ({state.legacyPending + state.held})</button> : null}
         <button type="button" className="ws-button is-primary" disabled={state.syncing || !state.online}
           onClick={onSync}><RefreshCw size={14}/>{state.syncing ? "Syncing…" : "Synchronise now"}</button>
       </footer>

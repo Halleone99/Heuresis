@@ -9,7 +9,7 @@ assert.match(doc,/kind: stillDirty \? "dirty" : needsSync \? "local" : "saved"/)
 assert.match(doc,/On device · waiting to sync/);
 assert.match(doc,/subscribeOfflineSync\(\(state\) =>/);
 assert.match(doc,/!state\.pending && !state\.syncing && !state\.error/);
-assert.match(doc,/current\.kind === "local"/);
+assert.match(doc,/current\.kind !== "local"/);
 assert.match(doc,/kind: "saved", at: new Date\(\)\.toISOString\(\), message: "Synced"/);
 assert.match(doc,/save\.kind === "local" \? save\.message/);
 assert.match(doc,/save\.kind === "error" \? <button type="button" onClick=\{\(\) => void persist\(\)\}/);

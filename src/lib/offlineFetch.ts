@@ -19,12 +19,16 @@ type QueueRecord = {
   body: string | null;
   createdAt: string;
   attempts: number;
+  /** Set when the server refused this write (for example a newer edit exists elsewhere). */
+  rejected?: { status: number; message: string; at: string };
 };
 
 export type OfflineSyncState = {
   online: boolean;
   syncing: boolean;
   pending: number;
+  /** Pending writes the server has refused; they wait for review instead of uploading. */
+  held: number;
   /** Old queued writes without an owner remain quarantined, not discarded. */
   legacyPending: number;
   lastSyncedAt: string | null;
@@ -61,7 +65,7 @@ export function setOfflineAccount(userId: string | null) {
   const next = userId || null;
   if (next === activeOfflineOwner) return;
   activeOfflineOwner = next;
-  emit({ lastSyncedAt: null, pending: 0, legacyPending: 0, error: "" });
+  emit({ lastSyncedAt: null, pending: 0, held: 0, legacyPending: 0, error: "" });
   void refreshOfflinePendingCount();
 }
 function cacheOwner() {
@@ -82,6 +86,7 @@ let state: OfflineSyncState = {
   online: typeof navigator === "undefined" ? true : navigator.onLine,
   syncing: false,
   pending: 0,
+  held: 0,
   legacyPending: 0,
   lastSyncedAt: typeof localStorage === "undefined" ? null : localStorage.getItem(LAST_SYNC_KEY),
   error: "",
@@ -589,11 +594,13 @@ export async function refreshOfflinePendingCount() {
   try {
     const owner = cacheOwner();
     const rows = await getAllRecords<QueueRecord>(QUEUE_STORE);
+    const owned = owner ? rows.filter((row) => row.ownerId === owner) : [];
     emit({
-      pending: owner ? rows.filter((row) => row.ownerId === owner).length : 0,
+      pending: owned.length,
+      held: owned.filter((row) => row.rejected).length,
       legacyPending: rows.filter((row) => !row.ownerId).length,
     });
-  } catch { emit({ pending: 0, legacyPending: 0 }); }
+  } catch { emit({ pending: 0, held: 0, legacyPending: 0 }); }
   return state.pending;
 }
 
@@ -624,6 +631,44 @@ function queuedRecordKey(item: QueueRecord): string | null {
   return id || bodyId ? `${table}:${id ?? bodyId}` : null;
 }
 
+/**
+ * Notebook edits are guarded by the record's revision (`updated_at=eq.<revision>`),
+ * so a write never silently replaces a newer edit made on another device.
+ * Offline, the app can only give each later edit a provisional local revision.
+ * Those later edits were made on this device on top of the earlier queued edit,
+ * so once the earlier edit has been accepted, the server's new revision is the
+ * correct base for them. Without this, only the first offline edit of a note
+ * could ever be replayed and every later one stayed blocked forever.
+ */
+export function revisionFilter(urlString: string): string | null {
+  try {
+    const value = new URL(urlString).searchParams.get("updated_at");
+    return value?.startsWith("eq.") ? value.slice(3) : null;
+  } catch { return null; }
+}
+
+export function withRevisionFilter(urlString: string, revision: string): string {
+  const url = new URL(urlString);
+  url.searchParams.set("updated_at", `eq.${revision}`);
+  return url.toString();
+}
+
+function serverRow(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    const row = Array.isArray(parsed) ? parsed[0] : parsed;
+    return row && typeof row === "object" && !Array.isArray(row) ? row as Record<string, unknown> : null;
+  } catch { return null; }
+}
+
+export type ReplayedRow = { table: string; row: Record<string, unknown> };
+const replayListeners = new Set<(replayed: ReplayedRow) => void>();
+/** Rows the server returned while queued offline writes were replayed. */
+export function subscribeReplayedRows(listener: (replayed: ReplayedRow) => void) {
+  replayListeners.add(listener);
+  return () => { replayListeners.delete(listener); };
+}
+
 let activeFlush: Promise<{ sent: number; pending: number }> | null = null;
 
 /** Replays queued writes in order. Concurrent callers share one run so nothing is sent twice. */
@@ -645,10 +690,16 @@ async function flushQueue(accessToken: string | null | undefined) {
   let sent = 0;
   let held = 0;
   const blockedRecords = new Set<string>();
-  for (const item of queued) {
+  for (const [position, item] of queued.entries()) {
     if (cacheOwner() !== owner) throw new Error("Offline sync paused because the signed-in account changed.");
     const key = queuedRecordKey(item);
-    if (key && blockedRecords.has(key)) { held += 1; continue; }
+    if (key && blockedRecords.has(key)) {
+      // Depends on an earlier edit of the same record that was refused: it waits
+      // for review with it, rather than counting as an upload still to come.
+      held += 1;
+      if (!item.rejected) await putRecord(QUEUE_STORE, { ...item, rejected: { status: 0, message: "Waits for an earlier refused edit of the same record.", at: new Date().toISOString() } });
+      continue;
+    }
     const headers = new Headers(item.headers);
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     try {
@@ -661,10 +712,26 @@ async function flushQueue(accessToken: string | null | undefined) {
           if (response.status >= 400 && response.status < 500 && response.status !== 401 && key) {
             blockedRecords.add(key);
             held += 1;
-            await putRecord(QUEUE_STORE, { ...item, attempts: item.attempts + 1 });
+            await putRecord(QUEUE_STORE, { ...item, attempts: item.attempts + 1,
+              rejected: { status: response.status, message: rejectionMessage(response.status, text), at: new Date().toISOString() } });
             continue;
           }
           throw new Error(text || `Sync failed with HTTP ${response.status}.`);
+        }
+      } else if (item.method === "PATCH" && key && revisionFilter(item.url)) {
+        const row = serverRow(await response.text().catch(() => ""));
+        const revision = typeof row?.updated_at === "string" ? row.updated_at : null;
+        if (revision) {
+          // Re-base this device's later edits of the same record on the revision
+          // the server has just accepted. Persist first: an interrupted flush
+          // must resume with the rewritten filter, not the provisional one.
+          for (const later of queued.slice(position + 1)) {
+            if (later.method !== "PATCH" || queuedRecordKey(later) !== key || !revisionFilter(later.url)) continue;
+            later.url = withRevisionFilter(later.url, revision);
+            await putRecord(QUEUE_STORE, later);
+          }
+          const table = tableName(item.url);
+          if (table && row) replayListeners.forEach((listener) => listener({ table, row }));
         }
       }
       await deleteRecord(QUEUE_STORE, item.id);
@@ -680,13 +747,35 @@ async function flushQueue(accessToken: string | null | undefined) {
   return { sent, pending };
 }
 
+function rejectionMessage(status: number, text: string) {
+  try {
+    const parsed = JSON.parse(text) as { code?: string; message?: string };
+    // A revision-guarded edit that matched no row: the record changed elsewhere.
+    if (status === 406 || parsed.code === "PGRST116") return "The record was changed or deleted on another device before this edit could be uploaded.";
+    return parsed.message || `The server refused this change (HTTP ${status}).`;
+  } catch {
+    return status === 406 ? "The record was changed or deleted on another device before this edit could be uploaded." : `The server refused this change (HTTP ${status}).`;
+  }
+}
+
 /** Number of writes made offline that have not reached the server yet. */
 export function pendingOfflineWrites() {
   return state.pending;
 }
 
+/**
+ * Requests carrying this header must reflect the server, never the device cache:
+ * a backup that silently fell back to a partial offline copy would look complete.
+ * The header is removed before the request leaves the app.
+ */
+export const NETWORK_ONLY_HEADER = "x-heuresis-network-only";
+
 export async function offlineFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const { method, headers, body, url } = await requestParts(input, init);
+  if (headers.get(NETWORK_ONLY_HEADER)) {
+    headers.delete(NETWORK_ONLY_HEADER);
+    return networkFetch(url, { ...init, method, headers, body: method === "GET" || method === "HEAD" ? undefined : body });
+  }
   const owner = requestOwner(headers);
   // Tokens are read only to identify the client-side cache partition.
   // Online RLS continues to decide whether the request is authorised.
@@ -839,6 +928,59 @@ export async function discardLegacyOfflineWrites(ids: string[]): Promise<number>
   if (activeFlush) throw new Error("Wait for the current synchronisation to finish.");
   const wanted = new Set(ids);
   const rows = (await getAllRecords<QueueRecord>(QUEUE_STORE)).filter((row) => wanted.has(row.id) && !row.ownerId);
+  if (rows.length !== wanted.size) throw new Error("Some entries have changed. Refresh before discarding.");
+  for (const row of rows) await deleteRecord(QUEUE_STORE, row.id);
+  await refreshOfflinePendingCount();
+  return rows.length;
+}
+
+
+/* Current-account writes the server refused. They are never dropped silently:
+   the user can export them and then discard them after review. */
+export type HeldOfflineWrite = {
+  id: string;
+  createdAt: string;
+  method: string;
+  target: string;
+  status: number;
+  message: string;
+  preview: string;
+};
+
+async function heldRows() {
+  const owner = cacheOwner();
+  if (!owner) return [];
+  return (await getAllRecords<QueueRecord>(QUEUE_STORE))
+    .filter((row) => row.ownerId === owner && row.rejected)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function listHeldOfflineWrites(): Promise<HeldOfflineWrite[]> {
+  return (await heldRows()).map((row) => ({
+    id: row.id, createdAt: row.createdAt, method: row.method, target: legacyTarget(row),
+    status: row.rejected?.status ?? 0, message: row.rejected?.message ?? "",
+    preview: (typeof row.body === "string" ? row.body : "").slice(0, 3000),
+  }));
+}
+
+export async function exportHeldOfflineWrites() {
+  const rows = await heldRows();
+  return JSON.stringify({
+    format: "heuresis-refused-offline-writes-v1",
+    exportedAt: new Date().toISOString(),
+    warning: "Contains your own unsent edits that the server refused. Keep securely. Not an automatic import.",
+    entries: rows.map((row) => ({
+      id: row.id, url: row.url, method: row.method, body: row.body, createdAt: row.createdAt,
+      rejected: row.rejected,
+    })),
+  }, null, 2);
+}
+
+export async function discardHeldOfflineWrites(ids: string[]): Promise<number> {
+  if (!cacheOwner()) throw new Error("Sign in before using the recovery tools.");
+  if (activeFlush) throw new Error("Wait for the current synchronisation to finish.");
+  const wanted = new Set(ids);
+  const rows = (await heldRows()).filter((row) => wanted.has(row.id));
   if (rows.length !== wanted.size) throw new Error("Some entries have changed. Refresh before discarding.");
   for (const row of rows) await deleteRecord(QUEUE_STORE, row.id);
   await refreshOfflinePendingCount();

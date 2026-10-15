@@ -186,7 +186,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       <div className="sort-panel">
         <div className="sort-interest-panel"><div className="sort-panel-heading"><p className="eyebrow">KEEP IN REVIEW</p><small>Set how important this is to you</small></div><div className="sort-ranks">{[1,2,3,4,5].map((value) => <button key={value} disabled={busy} onClick={() => void rank(value)} title={`Keyboard: ${value}`}><b>{value}</b><span>{INTEREST_LABELS[value]}</span></button>)}</div><small>Choosing a score keeps this card in Review, completes Sort and moves to the next card.</small></div>
         <div className="sort-tags"><div className="sort-panel-heading"><p className="eyebrow">TAGS</p><small>Optional</small></div>
-          {lessonTags.length ? <div className="sort-tag-group"><p>HSK2 Lessons</p><div className="sort-lesson-tags">{lessonTags.map((tag) => renderTag(tag, true))}</div></div> : null}
+          {lessonTags.length ? <div className="sort-tag-group"><p>Lessons</p><div className="sort-lesson-tags">{lessonTags.map((tag) => renderTag(tag, true))}</div></div> : null}
           {otherTags.length ? <div className="sort-tag-group"><p>Other tags</p><div>{otherTags.map((tag) => renderTag(tag))}</div></div> : null}
           {!tags.length ? <small>No tags created yet.</small> : null}
         </div>

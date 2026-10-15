@@ -278,3 +278,33 @@ export function usePopover(open: boolean, onClose: () => void) {
   }, [onClose, open]);
   return ref;
 }
+
+/**
+ * Long lists (an Inbox with a thousand captures, the complete Mistake Log) render
+ * in pages: the first page at once, the next when the end of the list scrolls
+ * into view, with a button as the keyboard/touch fallback. Rendering everything
+ * took seconds on a desktop and much longer on a tablet.
+ */
+export function useProgressiveList<T>(items: T[], resetKey: string, pageSize = 120) {
+  const [limit, setLimit] = useState(pageSize);
+  useEffect(() => { setLimit(pageSize); }, [resetKey, pageSize]);
+  const showMore = useCallback(() => setLimit((current) => current + pageSize), [pageSize]);
+  /** Make sure a given index is rendered (e.g. a mistake opened from search). */
+  const reveal = useCallback((index: number) => {
+    if (index >= 0) setLimit((current) => Math.max(current, Math.ceil((index + 1) / pageSize) * pageSize));
+  }, [pageSize]);
+  return { visible: items.slice(0, limit), remaining: Math.max(0, items.length - limit), showMore, reveal };
+}
+
+export function ShowMore({ remaining, onMore, label = "items" }: { remaining: number; onMore: () => void; label?: string }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || !remaining || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) onMore(); }, { rootMargin: "600px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onMore, remaining]);
+  if (!remaining) return null;
+  return <button ref={ref} type="button" className="ws-button ws-show-more" onClick={onMore}>Show more · {remaining.toLocaleString()} more {label}</button>;
+}

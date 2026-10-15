@@ -9,7 +9,7 @@ assert.match(css, /top: 48px/);
 assert.match(css, /100dvh - 48px/);
 assert.match(css,/data-sidebar="rail"\] \.hw-sidebar-collapse \{ display: none/);
 assert.match(css, /@media \(prefers-reduced-motion: no-preference\)/);
-assert.match(css, /animation: ws-page-enter \.17s ease-out both/);
+assert.match(css, /animation: ws-page-enter \.17s ease-out backwards/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /\.heuresis-desktop :is\(button, a, input, textarea, select, summary, \[role="tab"\]\):focus-visible/);
 assert.match(css, /@media \(forced-colors: active\)/);

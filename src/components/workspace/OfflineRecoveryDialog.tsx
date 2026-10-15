@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArchiveRestore, Check, Download, RefreshCw, Trash2, X } from "lucide-react";
 import {
-  adoptLegacyOfflineWrites, discardLegacyOfflineWrites, exportLegacyOfflineWrites,
-  listLegacyOfflineWrites, type LegacyOfflineWrite,
+  adoptLegacyOfflineWrites, discardHeldOfflineWrites, discardLegacyOfflineWrites, exportHeldOfflineWrites, exportLegacyOfflineWrites,
+  listHeldOfflineWrites, listLegacyOfflineWrites, type HeldOfflineWrite, type LegacyOfflineWrite,
 } from "../../lib/offlineFetch";
 import { Portal } from "./ui";
 
@@ -85,6 +85,7 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync }: Props) {
         <h2 id="legacy-recovery-title"><ArchiveRestore size={18} /> Offline recovery</h2>
         <button type="button" className="ws-icon-button" aria-label="Close recovery" disabled={busy} onClick={onClose}><X size={16}/></button>
       </header>
+      <HeldWrites />
       <div className="legacy-recovery-explain">
         <AlertTriangle size={17} />
         <p>These are writes from an older version of Heuresis, before offline data belonged to a known account. They were <strong>not automatically uploaded</strong> to protect your data. They might belong to a different account on this device.</p>
@@ -131,4 +132,64 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync }: Props) {
       <p className="legacy-recovery-note">Export contains your original unsent data. Keep the file private. Restore never bypasses account permissions, and requests that might overwrite or delete records require manual review.</p>
     </section>
   </div></Portal>;
+}
+
+function downloadText(contents: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([contents], { type: "application/json" }));
+  try {
+    const link = document.createElement("a");
+    link.href = url; link.download = filename;
+    document.body.append(link);
+    try { link.click(); } finally { link.remove(); }
+  } finally { window.setTimeout(() => URL.revokeObjectURL(url), 20_000); }
+}
+
+/** This account's own offline edits that the server refused (usually a newer edit elsewhere). */
+function HeldWrites() {
+  const [rows, setRows] = useState<HeldOfflineWrite[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [backedUp, setBackedUp] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const refresh = async () => {
+    const next = await listHeldOfflineWrites();
+    setRows(next);
+    setSelected((current) => current.filter((id) => next.some((row) => row.id === id)));
+  };
+  useEffect(() => { void refresh().catch(() => undefined); }, []);
+  if (!rows.length) return null;
+  async function run(action: () => Promise<void>) {
+    setBusy(true); setMessage("");
+    try { await action(); await refresh(); }
+    catch (err) { setMessage(err instanceof Error ? err.message : String(err)); }
+    finally { setBusy(false); }
+  }
+  return <section className="held-recovery" aria-labelledby="held-recovery-title">
+    <h3 id="held-recovery-title">Changes the server refused ({rows.length})</h3>
+    <p>These are your own offline edits. They were not uploaded because the record changed or was deleted on another device in the meantime, so nothing was overwritten. Open the note to restore your version from this device, or export these edits before discarding them.</p>
+    <div className="legacy-recovery-list">
+      {rows.map((row) => <label className="legacy-recovery-entry" key={row.id}>
+        <input type="checkbox" disabled={busy} checked={selected.includes(row.id)}
+          onChange={(event) => setSelected((current) => event.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))}/>
+        <div className="legacy-recovery-entry-body">
+          <div className="legacy-recovery-row"><strong>{row.target}</strong><span>{row.method} · {new Date(row.createdAt).toLocaleString()}</span></div>
+          <small>{row.message}</small>
+          <details onClick={(event) => event.stopPropagation()}><summary>Inspect the edit</summary><pre>{row.preview || "No request body"}</pre></details>
+        </div>
+      </label>)}
+    </div>
+    {message ? <p className="ws-field-error" role="alert">{message}</p> : null}
+    <div className="legacy-recovery-actions">
+      <button type="button" className="ws-button" disabled={busy} onClick={() => void run(async () => {
+        downloadText(await exportHeldOfflineWrites(), `heuresis-refused-edits-${new Date().toISOString().slice(0, 10)}.json`);
+        setBackedUp(true);
+      })}><Download size={14}/> Export refused edits</button>
+      <button type="button" className="ws-button is-quiet" disabled={busy || !backedUp || !selected.length}
+        title={!backedUp ? "Export the refused edits first." : undefined}
+        onClick={() => {
+          if (!window.confirm(`Remove ${selected.length} refused ${selected.length === 1 ? "edit" : "edits"} from this device? Keep the exported file if you may need the text.`)) return;
+          void run(async () => { await discardHeldOfflineWrites(selected); setSelected([]); });
+        }}><Trash2 size={14}/> Discard selected</button>
+    </div>
+  </section>;
 }

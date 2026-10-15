@@ -22,10 +22,11 @@ What it runs against:
 cd verification
 npm install                      # Playwright only
 # put a PostgREST 12 binary at ./postgrest
-PGBIN=/usr/lib/postgresql/16/bin ./setup.sh   # as a non-root user
+PGBIN=/usr/lib/postgresql/16/bin ./setup.sh   # as a non-root user; UTF8, migrations in order
 node gateway.mjs &               # http://localhost:54321
 (cd .. && VITE_SUPABASE_URL=http://localhost:54321 VITE_SUPABASE_PUBLISHABLE_KEY=local npx vite --port 1421) &
-./run-all.sh                     # sign-in: thomas@example.test / heuresis
+node tests/regressions.mjs       # maintained suite (sign-in: thomas@example.test / heuresis)
+./run-all.sh                     # older suites, see below
 ```
 
 Database snapshots created by `setup.sh`:
@@ -39,6 +40,33 @@ Database snapshots created by `setup.sh`:
 `./db.sh restore <snapshot>` resets the working database between suites.
 
 ## Suites
+
+`tests/regressions.mjs` is the maintained suite and runs in CI
+(`.github/workflows/e2e.yml`) on every pull request. Each scenario restores the
+showcase database and drives the current interface:
+
+| Scenario | Proves |
+| --- | --- |
+| offline edits all reach the server | several autosaves of one note made offline, plus typing during reconnection, all arrive; the queue drains |
+| offline edit conflicting with another device | a newer edit made elsewhere is never overwritten; the refused edits are explained, listed in Offline recovery, and the note offers the device copy back |
+| flashcards stay in the note's language | a Russian note is not filed in a Chinese topic; a Chinese note defaults to Chinese; Escape closes the dialog; Ctrl+K does not open underneath it |
+| palette: Enter opens what was typed | a matching note outranks a command that merely contains the word; a command named by the query stays first |
+| record mistake from a language tab | the mistake goes to that language's Inbox, not the first topic in the list |
+| capture: choosing a mistake type | the visible choice is what is saved, even when Capture was opened from a custom mode |
+| organise inbox | the Inbox of the language being worked in opens |
+| capture while the notebook is still loading | no offer to create languages that already exist |
+| progress keeps one colour per language | the same language has the same colour in every chart |
+| tablet portrait / narrow window | the Notebook drawer is hidden when closed and opens at the sidebar edge; the icon rail closes after a click |
+| long lists | lists render in pages; a mistake opened from search far down the list is still shown |
+| undo | moving a note and marking a mistake understood are both undone in the database, including after leaving the page |
+| server unreachable | the Notebook opens from the device copy; a capture is reported as kept on the device and uploads when the server returns |
+| learning loop | Capture → Notebook → flashcard → Sort → Review → recorded grade |
+
+Run one scenario with `node tests/regressions.mjs <part of its name>`.
+
+The older suites below were written for the first workspace version. Most of
+them now stop at selectors that no longer exist (e.g. the in-page topic tree);
+they are kept as a record and should be ported scenario by scenario.
 
 | File | Covers |
 | --- | --- |

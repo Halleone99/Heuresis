@@ -3,6 +3,7 @@ import { BarChart3, RefreshCw, Table2 } from "lucide-react";
 import { loadStudyActivity, meaningfulStudySessions, weekStart, type StudyActivity } from "../../lib/activity";
 import { isLesson, RETAINED_STREAK } from "../../lib/knowledgeWorkspace";
 import { mistakeJourney, MISTAKE_MILESTONES } from "../../lib/mistakeJourney";
+import { languageFromName, languageTone } from "../../lib/languages";
 import { languageStack, type LanguageSeries } from "../../lib/progressLanguage";
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { formatDay } from "./ui";
@@ -53,10 +54,13 @@ function useWidth(fallback: number) {
   return [ref, width] as const;
 }
 
-function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel = "language" }: {
+function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel = "language", colorFor }: {
   title: string; unit: string; weeks: Week[]; note?: string; table: boolean;
   series?: LanguageSeries[]; seriesLabel?: string;
+  /** A language keeps the same colour in every chart, whichever languages a chart contains. */
+  colorFor?: (id: string, index: number) => string;
 }) {
+  const colour = (id: string, index: number) => colorFor ? colorFor(id, index) : seriesColor(index);
   const [hover, setHover] = useState<number | null>(null);
   const total = weeks.reduce((sum, week) => sum + week.value, 0);
   const max = niceMax(Math.max(...weeks.map((week) => week.value), 0));
@@ -75,7 +79,7 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel 
       {note ? <small>{note}</small> : null}
     </figcaption>
     {series.length ? <div className="pg-language-legend" aria-label={`${title} ${seriesLabel} legend`}>
-      {series.map((item, index) => <span key={item.id}><i style={{ backgroundColor: seriesColor(index) }} aria-hidden="true"/>{item.name}</span>)}
+      {series.map((item, index) => <span key={item.id}><i style={{ backgroundColor: colour(item.id, index) }} aria-hidden="true"/>{item.name}</span>)}
     </div> : null}
     {total === 0 ? <div className="pg-empty-chart" role="status">No activity in this period</div> : table ? <table className="pg-table">
       <thead><tr><th scope="col">Week of</th><th scope="col">{unit}</th>
@@ -101,7 +105,7 @@ function WeeklyBars({ title, unit, weeks, note, table, series = [], seriesLabel 
             segmentTop -= segmentHeight;
             return <rect key={item.id} className="pg-stack-segment" x={x}
               y={segmentTop} width={barWidth} height={segmentHeight}
-              fill={seriesColor(seriesIndex)} rx={1}/>;
+              fill={colour(item.id, seriesIndex)} rx={1}/>;
           }) : null;
           return <g key={week.key} className={`pg-bar ${hover === index ? "is-hover" : ""}`} tabIndex={0}
             aria-label={`Week of ${formatDay(week.start.toISOString())}: ${week.value} ${unit}`}
@@ -178,6 +182,17 @@ export function ProgressView() {
       at: event.created_at,
       subjectId: subjectFor(workspace.entryById.get(event.record_id)?.topic_id),
     })), snapshot.subjects), [weeks, practice, snapshot.subjects, byTopic, workspace.entryById]);
+  // One colour per language across all charts (Chinese stays Chinese-red even in a
+  // chart where it has no data), from the shared language identity when known.
+  const languageColour = useMemo(() => {
+    const ordered = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
+    const map = new Map<string, string>();
+    ordered.forEach((subject, index) => {
+      const tone = languageTone(languageFromName(subject.name));
+      map.set(subject.id, tone ? `var(--c-${tone})` : `var(--ws-chart-series-${index % 5 + 1})`);
+    });
+    return (id: string) => map.get(id) ?? "var(--ws-muted)";
+  }, [snapshot.subjects]);
   const retained = mistakes.filter((entry) => entry.recall_streak >= RETAINED_STREAK).length;
   // Build milestone history from every loaded recall (including before the
   // selected interval), otherwise the 3rd-day count would be inaccurate.
@@ -236,11 +251,11 @@ export function ProgressView() {
           weeks={bucket(weeks, activeSessions.map((session) => session.started_at))}
           note="Sessions with a card encounter or a graded review; empty launches excluded" />
       </> : null}
-      <WeeklyBars title="Lessons recorded" unit="lessons" table={table} weeks={lessonStack.weeks} series={lessonStack.series}
+      <WeeklyBars title="Lessons recorded" colorFor={languageColour} unit="lessons" table={table} weeks={lessonStack.weeks} series={lessonStack.series}
         note="By lesson date" />
-      <WeeklyBars title="Mistake recalls" unit="recalls" table={table} weeks={recallStack.weeks} series={recallStack.series}
+      <WeeklyBars title="Mistake recalls" colorFor={languageColour} unit="recalls" table={table} weeks={recallStack.weeks} series={recallStack.series}
         note={snapshot.practiceError ? "Recall history unavailable — not a zero count." : recallShare !== null ? `${recallShare}% produced correctly from memory` : "Produce the correction before seeing it"} />
-      <WeeklyBars title="Notes captured" unit="notes" table={table} weeks={noteStack.weeks} series={noteStack.series}
+      <WeeklyBars title="Notes captured" colorFor={languageColour} unit="notes" table={table} weeks={noteStack.weeks} series={noteStack.series}
         note="Quick notes and written notes" />
       {!snapshot.practiceError ? <WeeklyBars title="Mistake learning milestones" unit="events"
         table={table} weeks={journey.weeks} series={MISTAKE_MILESTONES} seriesLabel="milestone"

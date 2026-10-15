@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { NETWORK_ONLY_HEADER } from "./offlineFetch";
 import type { KnowledgeEntry } from "./knowledgeWorkspace";
 
 export type ArchivedKnowledgeRow = KnowledgeEntry & { deleted_at: string };
@@ -19,7 +20,8 @@ export async function listArchivedKnowledge(userId: string): Promise<ArchivedKno
     const { data, error } = await db.from("knowledge_records")
       .select("*").eq("user_id", userId).not("deleted_at", "is", null)
       .order("deleted_at", { ascending: false }).order("id", { ascending: true })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+      .setHeader(NETWORK_ONLY_HEADER, "1");
     if (error) throw error;
     result.push(...(data ?? []) as ArchivedKnowledgeRow[]);
     if ((data?.length ?? 0) < PAGE_SIZE) return result;
@@ -28,9 +30,10 @@ export async function listArchivedKnowledge(userId: string): Promise<ArchivedKno
 }
 
 export async function restoreArchivedKnowledge(userId: string, id: string, deletedAt: string) {
+  // Not queued offline: the result must be confirmed while the user watches.
   const { data, error } = await client().from("knowledge_records")
     .update({ deleted_at: null }).eq("user_id", userId).eq("id", id)
-    .eq("deleted_at", deletedAt).select("id").maybeSingle();
+    .eq("deleted_at", deletedAt).select("id").setHeader(NETWORK_ONLY_HEADER, "1").maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("The archived record has changed. Refresh Trash and try again.");
 }
@@ -38,8 +41,11 @@ export async function restoreArchivedKnowledge(userId: string, id: string, delet
 async function entireTable(table: string, userId: string): Promise<Record<string, unknown>[]> {
   const records: Record<string, unknown>[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
+    // Straight from the server: a dropped connection must fail the export,
+    // not quietly fill it from this device's partial offline copy.
     const { data, error } = await client().from(table).select("*").eq("user_id", userId)
-      .order("id", { ascending: true }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      .order("id", { ascending: true }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+      .setHeader(NETWORK_ONLY_HEADER, "1");
     if (error) throw error;
     records.push(...(data ?? []) as Record<string, unknown>[]);
     if ((data?.length ?? 0) < PAGE_SIZE) return records;
