@@ -76,6 +76,35 @@ async function tabletNavigation() {
     await page.locator('.mobile-study-subnav button:has-text("Catalogue")').tap();
     check((await page.locator('.mobile-study-subnav button:has-text("Catalogue")').getAttribute("aria-current")) === "page", "Tablet Catalogue navigation works");
     await page.locator('.mobile-study-subnav button:has-text("Library")').tap();
+    const fab = page.locator(".tablet-capture-fab");
+    const beforeDrag = await fab.boundingBox();
+    check(Boolean(beforeDrag && beforeDrag.width >= 44), "Capture handle has a 44px+ touch target");
+    if (!beforeDrag) throw new Error("Floating Capture handle is not rendered");
+    // Real Chromium touch pointer events, not simulated click or CSS assertions.
+    const cdp = await context.newCDPSession(page);
+    const initialX = beforeDrag.x + beforeDrag.width / 2;
+    const initialY = beforeDrag.y + beforeDrag.height / 2;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: initialX, y: initialY }] });
+    for (let step = 1; step <= 7; step++) {
+      const x = initialX + ((25 - initialX) * step) / 7;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: initialY }] });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const snapped = await fab.boundingBox();
+    check(Boolean(snapped && snapped.x < 22), "Dragging Capture to the left snaps it to the edge");
+    check(await page.locator(".qc-panel").count() === 0, "Dragging Capture does not accidentally open it");
+    await page.reload();
+    await page.locator(".tablet-capture-fab:visible").waitFor();
+    const afterReload = await page.locator(".tablet-capture-fab").boundingBox();
+    check(Boolean(afterReload && afterReload.x < 22), "Capture remembers its snapped edge after restart");
+    await page.setViewportSize({ width: 760, height: 900 });
+    const afterRotation = await page.locator(".tablet-capture-fab").boundingBox();
+    check(Boolean(afterRotation && afterRotation.x < 22), "Capture stays attached to its edge on rotation");
+    await page.locator(".tablet-capture-fab").focus();
+    await page.keyboard.press("ArrowRight");
+    const afterKeyboard = await page.locator(".tablet-capture-fab").boundingBox();
+    check(Boolean(afterKeyboard && afterKeyboard.x > 680), "Arrow keys can reposition Capture without opening it");
+    check(await page.locator(".qc-panel").count() === 0, "Moving Capture by keyboard does not activate it");
     await page.locator(".tablet-capture-fab").tap();
     await page.locator(".qc-panel:visible").waitFor();
     check(await page.locator(".qc-panel").isVisible(), "Movable Capture shortcut opens real Capture");
