@@ -496,9 +496,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             onClick={() => setSyncOpen(true)}>
             <span className="hw-sync-dot" aria-hidden="true"/>
           </button>
-          {section === "study"
-            ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)} title={`Search Study cards · ${MOD_KEY}+K searches everything`}><Search size={14} /><span>Search cards</span></button>
-            : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
+          <button type="button" className="desktop-action desktop-search-action" onClick={openPalette} title={`Search notes, Study cards and commands · ${MOD_KEY}+K`}><Search size={14} /><span>Search</span><kbd>{MOD_KEY} K</kbd></button>
           {section === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
           {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
           <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Quick capture (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
@@ -506,12 +504,12 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
-              <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Synchronise offline copy</button>
+              <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Sync now</button>
               <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending + syncState.held ? ` (${syncState.legacyPending + syncState.held})` : ""}
               </button>
               <button onClick={() => { setTrashOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
-                <Trash2 size={14}/> Trash & knowledge export
+                <Trash2 size={14}/> Trash & export
               </button>
               <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
               <button onClick={() => { toggleFocus(); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
