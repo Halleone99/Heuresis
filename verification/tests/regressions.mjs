@@ -323,6 +323,7 @@ const scenarios = {
     await page.waitForTimeout(1200);
     await page.click("button.sort-command");
     await page.fill(".sort-setup-search input", "再见");
+    check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
     await page.waitForTimeout(400);
     const disclosure = page.locator(".sort-card");
