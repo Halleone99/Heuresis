@@ -32,6 +32,8 @@ async function desktopStudy() {
       await page.locator(".review-controls").waitFor(); // The Study templates load asynchronously.
       check(await page.locator(".compact-study-heading .eyebrow").count() === 0, "Review heading is not repeated");
       check(await page.locator('[role="group"][aria-label="Review directions"] button').count() === 2, "One accessible direction switch");
+      check(await page.getByRole("button", { name: "Both directions" }).count() === 1, "Directions have an understandable two-way label");
+      check(await page.getByRole("button", { name: "One direction" }).count() === 1, "Directions have an understandable one-way label");
       check(await page.locator('[role="group"][aria-label="Review card order"] button').count() === 2, "One accessible order switch");
       check(await page.locator(".compact-count-shortcuts").count() === 0, "No duplicate 10/20/50 amount buttons");
       check(await page.locator(".study-start").count() === 1, "One start action");
