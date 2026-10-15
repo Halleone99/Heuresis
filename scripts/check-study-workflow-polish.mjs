@@ -19,6 +19,12 @@ assert.match(study, /aria-label="Review setup"/);
 assert.match(study, /onKeyDown=\{\(event\) => \{ if \(event\.key === "Escape"/, "Review closes with Escape");
 assert.match(study, /previouslyFocused\?\.focus/, "Review returns keyboard focus");
 assert.match(study, /Start review ·/, "Only one clear final Review action");
+assert.match(study, /label: "Both directions"/, "Reversible directions are named plainly");
+assert.match(study, /label: "One direction"/, "Single-direction review is unambiguous");
+assert.match(study, /!busy && event\.currentTarget === event\.target/, "Review cannot be dismissed while the popup is opening");
+assert.match(sort, /Sort \{Math\.min\(count, candidates\.length\)\}/, "Sort names the exact batch size");
+assert.doesNotMatch(sort, /ONE SORT WORKFLOW/, "Sort no longer exposes workflow implementation notes");
+assert.match(sort, /Tap to show details/, "Details affordance uses touch-friendly wording");
 assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
 assert.match(study, /className="study-count-all"/, "One quick way to review all");
 
