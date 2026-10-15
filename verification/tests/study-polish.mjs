@@ -12,8 +12,19 @@ async function desktopStudy() {
   const { browser, page, errors } = await launch({ width: 1440, height: 900 });
   try {
     await signIn(page);
+    await page.locator(".desktop-search-action").click();
+    await page.locator(".ws-palette").waitFor();
+    check(await page.getByRole("dialog", { name: "Search Heuresis and run commands" }).count() === 1,
+      "Header Search opens the single global palette");
+    await page.keyboard.press("Escape");
     await page.click('.hw-sections button:has-text("Study")');
     await page.waitForTimeout(700);
+    await page.locator(".desktop-search-action").click();
+    await page.locator(".ws-palette").waitFor();
+    await page.locator(".ws-palette input").fill("再见");
+    check(await page.locator(".ws-palette-row.is-cards").count() === 1,
+      "Study header Search offers full-card search in the same palette");
+    await page.keyboard.press("Escape");
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-command-bar").waitFor();
     await page.locator(".modern-topic-table").waitFor(); // Wait for cards before inspecting enabled actions.
