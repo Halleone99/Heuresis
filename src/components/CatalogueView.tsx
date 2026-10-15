@@ -33,6 +33,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
+  const [loadRetry, setLoadRetry] = useState(0);
   const [error, setError] = useState("");
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
@@ -80,7 +81,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
       } finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [selectedPacks]);
+  }, [selectedPacks, loadRetry]);
 
   const questionCounts = useMemo(() => {
     let never = 0; let missing = 0; let production = 0; let stale = 0;
@@ -195,15 +196,15 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
 
       <div className="intelligent-action-row">
         <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}><option value="attention">Needs attention first</option><option value="recent">Recently added</option><option value="production">Weakest production first</option><option value="alphabetical">Alphabetical</option></select>
-        <button className="secondary-button" disabled={!shown.length || loading} onClick={() => setReadModeOpen(true)}><BookOpen size={14} /> Read mode</button>
-        <button className="secondary-button" disabled={!shown.length || loading} onClick={() => setSessionMode("browse")}><BookOpen size={14} /> Browse these {shown.length.toLocaleString()}</button>
-        <button className="primary-button" disabled={!shown.length || loading} onClick={() => setSessionMode("review")}><Brain size={14} /> Review these {shown.length.toLocaleString()}</button>
+        <button className="secondary-button" title="Continuous reading view of the selected vocabulary" disabled={!shown.length || loading} onClick={() => setReadModeOpen(true)}><BookOpen size={14} /> Read as text</button>
+        <button className="secondary-button" title="Look through individual cards without recording grades" disabled={!shown.length || loading} onClick={() => setSessionMode("browse")}><BookOpen size={14} /> Browse cards</button>
+        <button className="primary-button" title="Practise the selected cards and record your answers" disabled={!shown.length || loading} onClick={() => setSessionMode("review")}><Brain size={14} /> Review {shown.length.toLocaleString()} cards</button>
         <button className="secondary-button" disabled={smartPreset !== "none"} title={smartPreset !== "none" ? "Save the underlying filters after clearing the smart question." : undefined} onClick={() => setSaveOpen(true)}><BookmarkPlus size={14} /> Save as a catalogue</button>
         {activeSavedId ? <button className="text-button" onClick={() => void updateSaved()}>Update {activeSaved?.title ?? "saved"}</button> : null}
         {activeSavedId ? <button className="text-button" onClick={() => void deleteCatalogue(activeSavedId).then(async () => { setSaved(await listCatalogues()); setActiveSavedId(null); })}><Trash2 size={14} /> Delete saved</button> : null}
       </div>
 
-      {loading && !items.length ? <div className="content-state compact" role="status">Loading the catalogue…{progress ? <small> {progress}</small> : null}</div> : error ? <div className="content-state error-state compact">{error}</div> : <div className="intelligent-result-grid">{shown.map(({ card, pack }) => {
+      {loading && !items.length ? <div className="content-state compact" role="status">Loading the catalogue…{progress ? <small> {progress}</small> : null}</div> : error ? <div className="content-state error-state compact" role="alert"><strong>Could not load the catalogue.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => setLoadRetry((value) => value + 1)}>Retry loading</button></div> : <div className="intelligent-result-grid">{shown.map(({ card, pack }) => {
         const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
         const reading = fieldByRole(pack.cardType, "reading");
         const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;

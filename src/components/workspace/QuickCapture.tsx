@@ -293,7 +293,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     onKeyDown={(event) => {
       // A capture is its own keyboard layer, even above a Study modal.
       event.stopPropagation();
-      if (event.nativeEvent.isComposing) return;
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       const mod = event.ctrlKey || event.metaKey;
       if (event.key === "Escape" && !picking && !creatingSubject) { event.preventDefault(); close(); }
       if (mod && event.key === "Enter") { event.preventDefault(); void submit(); }
@@ -340,7 +340,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           placeholder={stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
           disabled={saving} onChange={(event) => patch({ text: event.target.value })}
           onKeyDown={(event) => {
-            if (stream && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing) {
+            if (stream && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
               event.preventDefault();
               void submit();
             }
@@ -364,8 +364,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           : <button type="button" className="qc-add-why" onClick={() => setShowWhy(true)}>+ Add why</button>}
         <div className="qc-field"><span>Type of mistake</span>
           <div className="qc-categories" role="group" aria-label="Type of mistake">
-            {customModeName ? <button type="button" aria-pressed className="is-active" title="The Mistake Log mode this capture was opened from"
-              onClick={() => undefined}>{customModeName}</button> : null}
+            {customModeName ? <span className="qc-mode-chip is-active" title="The selected Mistake Log mode">{customModeName}</span> : null}
             {([{ id: "grammar", label: "Grammar" }, { id: "vocabulary", label: "Vocabulary" }, { id: "phrase", label: "Expressions" }, { id: "note", label: "Other" }] as Array<{ id: NoteCategory; label: string }>).map((item) =>
               <button key={item.id} type="button" aria-pressed={!customModeName && mistakeCategory === item.id}
                 className={!customModeName && mistakeCategory === item.id ? "is-active" : ""}
@@ -378,7 +377,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
           <input ref={(node) => { if (node) firstFieldRef.current = node; }} value={draft.lessonTitle} maxLength={200}
             placeholder={`e.g. HSK 2 · Chapter 4   (default: Lesson — ${formatDay(lessonDate)})`}
             onChange={(event) => patch({ lessonTitle: event.target.value })}
-            onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); } }} /></label>
+            onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); void submit(); } }} /></label>
         <div className="qc-lesson-row">
           <label className="qc-field is-inline"><span>Date</span><input type="date" value={lessonDate} onChange={(event) => setLessonDate(event.target.value)} /></label>
           <label className="qc-check"><input type="checkbox" checked={openLesson} onChange={(event) => setOpenLesson(event.target.checked)} /> Open the lesson page</label>

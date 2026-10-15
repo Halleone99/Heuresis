@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const src = (name) => readFileSync(name, "utf8");
+const quick = src("src/components/workspace/QuickCapture.tsx");
+const notebook = src("src/components/workspace/DocumentPage.tsx");
+const mistakes = src("src/components/workspace/MistakeLog.tsx");
+const structure = src("src/components/StructureSettings.tsx");
+const catalogue = src("src/components/CatalogueView.tsx");
+const css = src("src/components/workspace/workspace.css");
+
+assert.match(quick, /event\.nativeEvent\.isComposing \|\| event\.nativeEvent\.keyCode === 229/, "Quick Capture parent shortcut guard respects Chinese IMEs");
+assert.match(quick, /event\.nativeEvent\.keyCode !== 229\) \{/, "Quick Capture field Enter shortcuts respect Chinese IMEs");
+assert.doesNotMatch(quick, /onClick=\{\(\) => undefined\}/, "Selected custom mode is not a fake clickable button");
+assert.match(quick, /<span className="qc-mode-chip is-active"/, "Custom mistake mode is a plain label");
+assert.match(css, /\.qc-categories \.qc-mode-chip/, "Custom mistake mode label is styled");
+assert.match(notebook, /event\.nativeEvent\.isComposing \|\| event\.nativeEvent\.keyCode === 229\) return/, "Notebook title keeps IME focus");
+assert.match(notebook, /event\.isComposing \|\| event\.keyCode === 229/, "Notebook reading mode does not close during IME");
+assert.match(mistakes, /event\.nativeEvent\.isComposing \|\| event\.nativeEvent\.keyCode === 229/, "Mistake Log editor and recall support IMEs");
+assert.match(structure, /event\.nativeEvent\.keyCode !== 229/, "Card-field creation respects IME selection");
+assert.match(catalogue, /Read as text/, "Continuous reading is distinct from individual browsing");
+assert.match(catalogue, /Browse cards/, "Browsing cards has its own action");
+assert.match(catalogue, /Review \{shown\.length\.toLocaleString\(\)\} cards/, "Review action states how many cards will be practised");
+assert.match(catalogue, /Retry loading/, "Failed catalogue load offers a retry action");
+assert.match(catalogue, /\[selectedPacks, loadRetry\]/, "Retry actually reissues the card fetch");
+console.log("Non-Study clarity and Chinese IME guards passed.");

@@ -203,6 +203,25 @@ const scenarios = {
     check(await page.locator(".card-editor-modal").count() === 0, "and closes the editor");
   },
 
+  async "Quick Capture respects Chinese IME candidate keys"(page) {
+    await page.keyboard.press("Control+Shift+KeyN");
+    await page.locator(".qc-panel").waitFor();
+    const input = page.locator(".qc-main-input");
+    await input.fill("我正在写汉字");
+    // Some real input methods report keyCode 229 even if isComposing is false.
+    await input.evaluate((element) => {
+      for (const key of ["Enter", "Escape"]) {
+        const event = new KeyboardEvent("keydown", { key, bubbles: true, ctrlKey: key === "Enter" });
+        Object.defineProperty(event, "keyCode", { get: () => 229 });
+        element.dispatchEvent(event);
+      }
+    });
+    check(await page.locator(".qc-panel").count() === 1, "IME candidate Enter/Escape does not close Quick Capture or submit notes");
+    check(await input.inputValue() === "我正在写汉字", "Chinese note remains intact during composition");
+    await page.keyboard.press("Escape");
+    check(await page.locator(".qc-panel").count() === 0, "Ordinary Escape still closes Quick Capture");
+  },
+
   async "one pin icon whose fill shows the state"(page) {
     await page.keyboard.press("Control+Shift+KeyN");
     await page.waitForSelector(".qc-panel");
