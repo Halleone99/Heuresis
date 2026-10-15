@@ -336,7 +336,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   useEffect(() => {
     if (editing) return;
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector(".ws-dialog-backdrop, .qc-panel, .ws-palette")) return;
+      if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || document.querySelector(".ws-dialog-backdrop, .qc-panel, .ws-palette")) return;
       event.preventDefault();
       onClose();
     };
@@ -408,7 +408,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         placeholder={lesson ? "Lesson title — e.g. HSK 2 · Chapter 4" : "Title (optional)"}
         onChange={(event) => updateDraft({ title: event.target.value })}
         onKeyDown={(event) => {
-          if (!event.nativeEvent.isComposing && (event.key === "Enter" || event.key === "ArrowDown")) { event.preventDefault(); editorRef.current?.focus("start"); }
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+          if (event.key === "Enter" || event.key === "ArrowDown") { event.preventDefault(); editorRef.current?.focus("start"); }
           if (event.key === "Escape") { event.preventDefault(); void closeNote(); }
           if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") { event.preventDefault(); void persist(); }
         }} />
