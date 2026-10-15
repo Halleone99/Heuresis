@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const read = (file) => readFileSync(file, "utf8");
+const study = read("src/components/StudyModal.tsx");
+const sort = read("src/components/SortModal.tsx");
+const pack = read("src/components/PackView.tsx");
+const app = read("src/App.tsx");
+const tablet = read("src/tablet.css");
+const fab = read("src/components/TabletCaptureFab.tsx");
+const choice = read("src/components/SegmentedChoice.tsx");
+const mistakes = read("src/components/workspace/MistakeLog.tsx");
+
+assert.match(choice, /aria-pressed=\{value === item\.value\}/, "Shared single-choice controls expose selection");
+assert.match(choice, /role="group" aria-label=\{label\}/, "Shared controls have an accessible label");
+assert.match(study, /<SegmentedChoice label="Review directions"/);
+assert.match(study, /<SegmentedChoice label="Review card order"/);
+assert.match(sort, /<SegmentedChoice label="Sort card order"/);
+assert.match(study, /aria-label="Review setup"/);
+assert.match(study, /onKeyDown=\{\(event\) => \{ if \(event\.key === "Escape"/, "Review closes with Escape");
+assert.match(study, /previouslyFocused\?\.focus/, "Review returns keyboard focus");
+assert.match(study, /Start review ·/, "Only one clear final Review action");
+assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
+assert.match(study, /className="study-count-all"/, "One quick way to review all");
+
+assert.match(pack, /disabled=\{!sortedCards\.length && !reviewedCards\.length\}/, "Do not open Review before a card is sorted");
+assert.match(pack, /className="topic-more-menu"/, "Secondary actions stay in the More menu");
+assert.match(pack, /Import cards/, "Import remains reachable");
+assert.match(pack, /Connections/, "Connections remain reachable");
+assert.doesNotMatch(pack, /Select a card to reveal Edit/, "Do not show a permanent training hint");
+assert.match(pack, /Could not load this topic.*Retry/s, "An error must offer Retry");
+
+assert.match(app, /className="mobile-workspace-nav"/);
+assert.match(app, /className="mobile-study-subnav"/);
+assert.match(app, /SECTIONS\.map\(\(\{ id, label, icon: Icon \}\)/, "All five workspace pages use the same mobile bar");
+assert.match(app, /<TabletCaptureFab onCapture=/);
+assert.match(app, /view !== "pack" \? <button className="desktop-action desktop-primary"/, "Do not repeat New card over the topic's own New card");
+assert.match(tablet, /grid-template-columns: repeat\(5, minmax\(0,1fr\)\)/);
+assert.match(tablet, /\.desktop-nav-group \{ display: none !important; \}/, "Old Study bottom bar cannot overlap the new section nav");
+assert.match(tablet, /min-height: 44px !important/, "Touch targets are consistently sized");
+assert.match(tablet, /\.mobile-study-subnav/, "Study sub-pages remain accessible");
+assert.match(fab, /event\.currentTarget\.setPointerCapture\(event\.pointerId\)/, "Drag uses pointer capture");
+assert.match(fab, /current\.y \/ window\.innerHeight/, "Snapped location persists across sessions");
+assert.match(fab, /onClick=\{\(\) => \{ if \(dragged\.current\)/, "Dragging must not accidentally open Capture");
+assert.match(mistakes, /setOptimisticStatus\(understood \? "understood" : "needs_practice"\)/);
+assert.match(mistakes, /finally \{ setOptimisticStatus\(null\); setChangingStatus\(false\); \}/, "Optimistic status rolls back if persistence fails");
+
+console.log("Study workflow: compact Review, single actions, tablet navigation and optimistic status checks passed.");
