@@ -22,6 +22,7 @@ import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree"
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
+import TabletCaptureFab from "./components/TabletCaptureFab";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
 import { SyncStatusDialog } from "./components/workspace/SyncStatusDialog";
 import { KnowledgeTrashDialog } from "./components/workspace/KnowledgeTrashDialog";
@@ -499,7 +500,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             ? <button className="desktop-action desktop-search-action" onClick={() => setSearchOpen(true)} title={`Search Study cards · ${MOD_KEY}+K searches everything`}><Search size={14} /><span>Search cards</span></button>
             : <button className="desktop-action desktop-search-action" onClick={openPalette}><Search size={14} /><span>Search notes</span><kbd>{MOD_KEY} K</kbd></button>}
           {section === "study" ? <button className="desktop-action desktop-topic-action" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
-          {section === "study" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
+          {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()}><Plus size={14} /> Card</button> : null}
           <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Quick capture (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
@@ -575,6 +576,15 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
         </main>
       </div>
+      <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
+        {SECTIONS.map(({ id, label, icon: Icon }) => <button type="button" key={id}
+          aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
+          onClick={() => { setSection(id); if (id === "study") openLibrary(); }}>
+          <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
+          {id === "mistakes" && dueCount > 0 ? <i className="mobile-nav-due-dot" aria-label={`${dueCount} due`} /> : null}
+        </button>)}
+      </nav>
+      <TabletCaptureFab onCapture={() => openNotebookCapture("note")} />
       <QuickCapture />
       {workspace.cleanupTarget ? <LessonCleanupDialog target={workspace.cleanupTarget} onClose={workspace.closeCleanup} /> : null}
       {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
