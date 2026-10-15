@@ -1,3 +1,3 @@
-Build Heuresis Windows ARM64 after consolidated appearance fixes.
-Source main: c7ae69b36d78c3725a13990142e9ef6a0b6dfd80
-Header single-source CSS and 8-palette Chromium smoke checks passed; Windows runtime visual acceptance pending.
+Build Heuresis Windows ARM64 installer for current visual acceptance.
+Source application: 55cf3b574540b927656ecee3a518e93623043d0c
+Includes Sort/Review v3 and latest non-Study clarity fixes. No application source changes on this build branch.
