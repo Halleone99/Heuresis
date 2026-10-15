@@ -4,7 +4,7 @@ name: Heuresis browser regressions
 # supabase/migrations (no Supabase project, no credentials). See verification/README.md.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, review/claude-audit-2026-10-15]
   workflow_dispatch:
 
 jobs:
