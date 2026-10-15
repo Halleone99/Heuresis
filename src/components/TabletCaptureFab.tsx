@@ -30,9 +30,27 @@ function initialPosition(): Position {
 export default function TabletCaptureFab({ onCapture }: { onCapture: () => void }) {
   const [position, setPosition] = useState<Position>(initialPosition);
   const start = useRef<{ pointerId: number; x: number; y: number; original: Position } | null>(null);
+  const viewportRef = useRef({ width: window.innerWidth, height: window.innerHeight });
   const dragged = useRef(false);
+  function persist(current: Position) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        side: current.x + SIZE / 2 < window.innerWidth / 2 ? "left" : "right",
+        heightRatio: current.y / window.innerHeight,
+      }));
+    } catch { /* Local storage is optional in Android WebView. */ }
+  }
   useEffect(() => {
-    const resize = () => setPosition((current) => fit(current));
+    const resize = () => {
+      const old = viewportRef.current;
+      viewportRef.current = { width: window.innerWidth, height: window.innerHeight };
+      // Screen rotation changes both dimensions. Preserve the chosen edge
+      // and relative height, not the old pixel coordinate.
+      setPosition((current) => fit({
+        x: current.x + SIZE / 2 < old.width / 2 ? EDGE : window.innerWidth - SIZE - EDGE,
+        y: (current.y / old.height) * window.innerHeight,
+      }));
+    };
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, []);
@@ -59,14 +77,22 @@ export default function TabletCaptureFab({ onCapture }: { onCapture: () => void 
       y: held.original.y + event.clientY - held.y,
     });
     setPosition(current);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ side: current.x < window.innerWidth / 2 ? "left" : "right", heightRatio: current.y / window.innerHeight }));
-    } catch { /* Non-persistent storage is fine. */ }
+    persist(current);
   }
   return <button type="button" className="tablet-capture-fab" style={{ left: position.x, top: position.y }}
-    title="Quick Capture · drag to move" aria-label="Quick Capture. Drag to reposition."
+    title="Quick Capture · drag or use arrow keys to reposition" aria-label="Quick Capture. Drag or use arrow keys to reposition."
     onPointerDown={begin} onPointerMove={move} onPointerUp={finish}
-    onPointerCancel={() => { start.current = null; dragged.current = true; }}
+    onPointerCancel={() => { if (start.current) setPosition(start.current.original); start.current = null; dragged.current = true; }}
+    onKeyDown={(event) => {
+      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      const next = fit({
+        x: event.key === "ArrowLeft" ? EDGE : event.key === "ArrowRight" ? window.innerWidth - SIZE - EDGE : position.x,
+        y: position.y + (event.key === "ArrowUp" ? -44 : event.key === "ArrowDown" ? 44 : 0),
+      });
+      setPosition(next);
+      persist(next);
+    }}
     onClick={() => { if (dragged.current) { dragged.current = false; return; } onCapture(); }}>
     <NotebookPen size={21} aria-hidden="true" />
   </button>;
