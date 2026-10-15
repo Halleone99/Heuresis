@@ -4,8 +4,9 @@ import {
   deleteCard,
   fieldByRole,
   fieldText,
-  listCards,
   listTags,
+  listTopicCards,
+  setCardRetention,
   updateCard,
   type CardWithStats,
   type Collection,
@@ -13,9 +14,16 @@ import {
   type PackWithType,
 } from "../lib/heuresis";
 import { getLearningCounts, type LearningAction, type LearningCounts } from "../lib/learning";
-import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, reviewGradeCount, type DirectionTemplates } from "../lib/learningSignals";
-import { cardHasCompletedSort } from "../lib/sort";
+import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, reviewGradeCount, templateDirection, type DirectionTemplates } from "../lib/learningSignals";
+import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
+import { openCosmosWindow } from "../lib/cosmosWindow";
+import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, importanceOf, ranksFor, type Importance } from "../lib/importance";
+import { assessState, directionEvidence, STATE_ATTENTION, STATE_LABEL, STATE_PROGRESSION, summaryState, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
+import { defaultDirections, directionPairs, legacyTemplateId } from "../lib/recommend";
+import { loadGradeEvents } from "../lib/reviewEvidence";
+import { readReviewPrefs, rememberedTemplateIds } from "../lib/reviewPrefs";
+import { resultCountsText } from "../lib/reviewResults";
 import BrowseModal from "./BrowseModal";
 import CardImagesEditor from "./CardImagesEditor";
 import CatalogueSession from "./CatalogueSession";
@@ -25,10 +33,14 @@ import RelatedEditor from "./RelatedEditor";
 import RelatedView from "./RelatedView";
 import SortModal from "./SortModal";
 import StudyModal from "./StudyModal";
+import { MOD_KEY } from "./workspace/ui";
 
 type Props = {
   pack: PackWithType;
   collection: Collection | null;
+  /** A card opened from Search: selected and scrolled into view once the cards load. */
+  focusCardId?: string | null;
+  onFocusCardShown?: () => void;
   onBack: () => void;
   onCapture: () => void;
   onSettings: () => void;
@@ -36,8 +48,10 @@ type Props = {
 };
 
 type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
-type StatusFilter = "unsorted" | "sorted" | "reviewed";
-type InterestFilter = "all" | "none" | "1" | "2" | "3" | "4" | "5";
+/** Unsorted → Learning, or Reference (kept to look up, never reviewed). */
+type StatusFilter = "unsorted" | "learning" | "reference";
+type InterestFilter = "all" | "none" | Importance;
+type DirectionState = { templateId: string; label: string; state: KnowledgeState; agedFrom: KnowledgeState | null };
 type DetailFilter = "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
 type SortDirection = "asc" | "desc";
@@ -63,18 +77,18 @@ function compactLearning(counts: LearningCounts | undefined) {
   return LEARNING_SHORT.flatMap(([key, label]) => counts[key] ? [{ key, label, count: counts[key] }] : []);
 }
 
-function workflowStatus(card: CardWithStats) {
-  if (reviewGradeCount(card) > 0) return "reviewed" as const;
-  if (cardHasCompletedSort(card)) return "sorted" as const;
-  return "unsorted" as const;
+/** Where a card is in the workflow. Review results never move a card between these. */
+function workflowStatus(card: CardWithStats): StatusFilter {
+  if (card.retention === "reference") return "reference";
+  return cardHasCompletedSort(card) ? "learning" : "unsorted";
 }
 
-function workflowStatusRank(card: CardWithStats) {
-  const status = workflowStatus(card);
-  return status === "unsorted" ? 0 : status === "sorted" ? 1 : 2;
+function directionLabel(pack: PackWithType, template: StudyTemplate) {
+  const kind = templateDirection(pack, template);
+  return kind === "recognition" ? "Recognise" : kind === "production" ? "Produce" : template.name;
 }
 
-function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, onConnections }: {
+function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, onConnections, onRetention }: {
   pack: PackWithType;
   card: CardWithStats;
   tags: HeuresisTag[];
@@ -83,6 +97,8 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   onDeleted: () => void;
   onChanged: () => void;
   onConnections: () => void;
+  /** Move between Learning and Reference (reference cards are never reviewed). */
+  onRetention: (retention: "learning" | "reference") => Promise<void>;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((pack.cardType?.field_schema ?? []).map((field) => [field.key, fieldText(card.data, field.key)])));
   const [note, setNote] = useState(card.note ?? "");
@@ -91,8 +107,16 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   const [tagIds, setTagIds] = useState<string[]>(card.tags.map((tag) => tag.id));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const dialogRef = useRef<HTMLElement>(null);
+  // Focus the dialog so Escape and Ctrl+Enter work at once; return focus to the table row afterwards.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => previouslyFocused?.focus({ preventScroll: true });
+  }, []);
 
   async function save() {
+    if (saving) return;
     setSaving(true); setMessage("");
     try {
       await updateCard(pack, card.id, values, { note, favourite, interest_rank: interest, tagIds });
@@ -111,34 +135,46 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section className="card-editor-modal" role="dialog" aria-modal="true">
+      <section ref={dialogRef} tabIndex={-1} className="card-editor-modal" role="dialog" aria-modal="true" aria-label="Edit card"
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === "Escape" && !saving) { event.preventDefault(); event.stopPropagation(); onClose(); }
+          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void save(); }
+        }}>
         <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><GitFork size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
         <div className="editor-fields">
           {(pack.cardType?.field_schema ?? []).map((field) => (
             <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
           ))}
           <label className="field-row"><span>Note</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-          <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><label className="interest-control">Interest <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{[1, 2, 3, 4, 5].map((rank) => <option key={rank} value={rank}>{rank} / 5</option>)}</select></label></div>
+          <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><label className="interest-control">Importance <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{IMPORTANCE_ORDER.map((level) => <option key={level} value={IMPORTANCE_RANK[level]}>{IMPORTANCE_LABEL[level]}</option>)}{interest != null && !IMPORTANCE_ORDER.some((level) => IMPORTANCE_RANK[level] === interest) ? <option value={interest}>{IMPORTANCE_LABEL[importanceOf(interest) ?? "useful"]} (kept as {interest} / 5)</option> : null}</select></label>
+            <button type="button" className="toggle-pill" disabled={saving} onClick={() => { setSaving(true); void onRetention(card.retention === "reference" ? "learning" : "reference").catch((error) => setMessage(error instanceof Error ? error.message : "Could not change this card.")).finally(() => setSaving(false)); }}
+              title={card.retention === "reference" ? "Bring it back into Learning (it will be reviewed)" : "Keep it to look up only; it leaves Review"}>
+              <BookOpen size={14} /> {card.retention === "reference" ? "Move to Learning" : "Keep as reference"}</button></div>
           {tags.length ? <div className="tag-editor"><span className="eyebrow">TAGS</span><div className="tag-choice-list">{tags.map((tag) => { const selected = tagIds.includes(tag.id); return <button key={tag.id} className={`tag-choice ${selected ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} onClick={() => setTagIds((current) => selected ? current.filter((id) => id !== tag.id) : [...current, tag.id])}>{tag.name}</button>; })}</div></div> : null}
           <CardImagesEditor card={card} onChanged={onChanged} />
           <RelatedEditor pack={pack} card={card} onChanged={onChanged} />
         </div>
         {message ? <div className="editor-message">{message}</div> : null}
-        <div className="editor-actions"><button className="danger-button" disabled={saving} onClick={() => void remove()}>Delete</button><span /><button className="primary-button" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save changes"}</button></div>
+        <div className="editor-actions"><button className="danger-button" disabled={saving} onClick={() => void remove()}>Delete</button><span className="editor-shortcut-hint">{MOD_KEY}+Enter save · Esc close</span><button className="primary-button" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save changes"}</button></div>
       </section>
     </div>
   );
 }
 
-export default function PackView({ pack, collection, onBack, onCapture, onSettings, onChanged }: Props) {
+export default function PackView({ pack, collection, focusCardId = null, onFocusCardShown, onBack, onCapture, onSettings, onChanged }: Props) {
   const [cards, setCards] = useState<CardWithStats[]>([]);
+  const [referenceCards, setReferenceCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
+  const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
+  const [events, setEvents] = useState<GradeEvent[] | null>(null);
   const [learningCounts, setLearningCounts] = useState<Record<string, LearningCounts>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
+  const [stateFilter, setStateFilter] = useState<KnowledgeState | null>(null);
   const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
@@ -150,20 +186,27 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   const [connectionsCard, setConnectionsCard] = useState<CardWithStats | null>(null);
   const [studyOpen, setStudyOpen] = useState(false);
   const reviewOpened = useRef(false);
+  const reviewStarting = useRef(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [targetedSession, setTargetedSession] = useState<TargetedSession>(null);
+  const [focusNotice, setFocusNotice] = useState("");
+  const [reviewNotice, setReviewNotice] = useState("");
+  const [loadedPackId, setLoadedPackId] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true); setError("");
     try {
-      const [nextCards, nextTags, setup] = await Promise.all([listCards(pack.id), listTags(), loadStudySetup(pack.id, pack.card_type_id)]);
+      const [topicCards, nextTags, setup, history] = await Promise.all([listTopicCards(pack.id), listTags(), loadStudySetup(pack.id, pack.card_type_id), loadGradeEvents(pack.id).catch(() => null)]);
+      const nextCards = topicCards.learning;
       const nextLearning = await getLearningCounts(nextCards.map((card) => card.id)).catch(() => ({} as Record<string, LearningCounts>));
-      setCards(nextCards); setTags(nextTags); setTemplates(setup.templates); setLearningCounts(nextLearning);
-      setEditing((current) => current ? nextCards.find((card) => card.id === current.id) ?? current : null);
-      setSelectedCardId((current) => current && nextCards.some((card) => card.id === current) ? current : null);
+      setCards(nextCards); setReferenceCards(topicCards.reference); setTags(nextTags); setTemplates(setup.templates); setDefaultTemplateId(setup.defaultTemplateId); setEvents(history); setLearningCounts(nextLearning);
+      setLoadedPackId(pack.id);
+      const all = [...nextCards, ...topicCards.reference];
+      setEditing((current) => current ? all.find((card) => card.id === current.id) ?? current : null);
+      setSelectedCardId((current) => current && all.some((card) => card.id === current) ? current : null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
     } finally { setLoading(false); }
@@ -171,7 +214,10 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
 
   useEffect(() => {
     setSelectedCardId(null);
+    setFocusNotice("");
+    setReviewNotice("");
     setStatusFilters([]);
+    setStateFilter(null);
     setFavouriteOnly(false);
     setInterestFilter("all");
     setTagFilter("all");
@@ -184,43 +230,85 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
   useEffect(() => {
     reviewOpened.current = false;
     const refreshAfterReview = () => {
-      // Study grading flushes as the review popup closes.
+      // Results flush as the Review window closes; reload when Heuresis regains focus.
       if (reviewOpened.current) void reload();
     };
+    // Cards restored from Trash (or made from a note) appear without leaving the topic.
+    const studyChanged = () => { void reload(); };
     window.addEventListener("focus", refreshAfterReview);
-    return () => window.removeEventListener("focus", refreshAfterReview);
+    window.addEventListener("heuresis:study-changed", studyChanged);
+    return () => {
+      window.removeEventListener("focus", refreshAfterReview);
+      window.removeEventListener("heuresis:study-changed", studyChanged);
+    };
   }, [pack.id]);
 
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
   const directions = useMemo<DirectionTemplates>(() => directionTemplates(pack, templates), [pack, templates]);
+  const stateTemplates = useMemo(() => defaultDirections(templates, defaultTemplateId), [defaultTemplateId, templates]);
+  const legacyId = useMemo(() => legacyTemplateId(templates, defaultTemplateId), [defaultTemplateId, templates]);
+  // Direction-specific knowledge states, from results only (events indexed per card once).
+  const cardStates = useMemo(() => {
+    const byCard = new Map<string, GradeEvent[]>();
+    for (const event of events ?? []) { const list = byCard.get(event.cardId); if (list) list.push(event); else byCard.set(event.cardId, [event]); }
+    const result = new Map<string, DirectionState[]>();
+    for (const card of cards) {
+      if (!cardHasCompletedSort(card)) continue;
+      const own = events ? byCard.get(card.id) ?? [] : null;
+      result.set(card.id, stateTemplates.map((template) => {
+        const assessment = assessState(directionEvidence(card, template.id, own, { includeUnattributed: template.id === legacyId }));
+        return { templateId: template.id, label: directionLabel(pack, template), state: assessment.state, agedFrom: assessment.agedFrom };
+      }));
+    }
+    return result;
+  }, [cards, events, legacyId, pack, stateTemplates]);
+  const cardSummary = (card: CardWithStats) => {
+    const states = cardStates.get(card.id);
+    return states?.length ? summaryState(states.map((entry) => entry.state)) : null;
+  };
   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
-  const sortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "sorted"), [cards]);
-  const reviewedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "reviewed"), [cards]);
+  const learningCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "learning"), [cards]);
+  const stateCounts = useMemo(() => {
+    const counts = Object.fromEntries(STATE_PROGRESSION.map((state) => [state, 0])) as Record<KnowledgeState, number>;
+    for (const card of learningCards) { const state = cardSummary(card); if (state) counts[state] += 1; }
+    return counts;
+    // cardSummary reads cardStates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardStates, learningCards]);
   const favouriteCards = useMemo(() => cards.filter((card) => card.favourite), [cards]);
   const lessonTags = useMemo(() => tags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tags]);
   const otherTags = useMemo(() => tags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => a.name.localeCompare(b.name)), [tags]);
   const selectedTag = tagFilter !== "all" && tagFilter !== "none" ? tags.find((tag) => tag.id === tagFilter) ?? null : null;
 
+  const visibleTotal = loadedPackId === pack.id ? cards.length + referenceCards.length : pack.card_count;
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
   const richDiagnostics = explored >= 20;
+  const showingReference = statusFilters.includes("reference");
+
+  const statusRank = (card: CardWithStats) => {
+    const status = workflowStatus(card);
+    if (status === "unsorted") return 0;
+    if (status === "reference") return 10;
+    const state = cardSummary(card);
+    return 1 + (state ? STATE_ATTENTION.indexOf(state) : 5);
+  };
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const filtered = cards.filter((card) => {
+    const source = showingReference ? [...cards, ...referenceCards] : cards;
+    const filtered = source.filter((card) => {
       const status = workflowStatus(card);
-      if (statusFilters.length) {
-        const matchesStatus = statusFilters.some((filter) => status === filter);
-        if (!matchesStatus) return false;
-      }
+      if (statusFilters.length && !statusFilters.includes(status)) return false;
+      if (stateFilter && cardSummary(card) !== stateFilter) return false;
 
       if (favouriteOnly && !card.favourite) return false;
       if (interestFilter === "none" && card.interest_rank != null) return false;
-      if (interestFilter !== "all" && interestFilter !== "none" && card.interest_rank !== Number(interestFilter)) return false;
+      if (interestFilter !== "all" && interestFilter !== "none" && !ranksFor(interestFilter).includes(card.interest_rank ?? -1)) return false;
 
       if (tagFilter === "none" && card.tags.length) return false;
       if (tagFilter !== "all" && tagFilter !== "none" && !card.tags.some((tag) => tag.id === tagFilter)) return false;
@@ -235,14 +323,14 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       }
 
       if (!needle) return true;
-      return Object.values(card.data).flatMap((value) => Array.isArray(value) ? value : [value]).filter(Boolean).join(" ").toLowerCase().includes(needle)
+      return Object.entries(card.data).filter(([key]) => !key.startsWith("_")).flatMap(([, value]) => Array.isArray(value) ? value : [value]).filter(Boolean).join(" ").toLowerCase().includes(needle)
         || card.tags.some((tag) => tag.name.toLowerCase().includes(needle));
     });
 
     const direction = sortDirection === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
       let delta = 0;
-      if (sortField === "status") delta = workflowStatusRank(a) - workflowStatusRank(b);
+      if (sortField === "status") delta = statusRank(a) - statusRank(b);
       if (sortField === "term") delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
       if (sortField === "interest") delta = (a.interest_rank ?? 0) - (b.interest_rank ?? 0);
       if (sortField === "reviews") delta = reviewGradeCount(a) - reviewGradeCount(b);
@@ -250,15 +338,56 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       if (delta === 0) delta = fieldText(a.data, term?.key).localeCompare(fieldText(b.data, term?.key));
       return delta * direction;
     });
-  }, [cards, detailFilters, directions, favouriteOnly, interestFilter, query, sortDirection, sortField, statusFilters, tagFilter, term?.key]);
+    // statusRank and cardSummary read cardStates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, cardStates, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, showingReference, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
 
-  const activeFilterCount = statusFilters.length + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0);
-  const selectedCard = selectedCardId ? cards.find((card) => card.id === selectedCardId) ?? null : null;
+  // Show the card chosen in Search: clear anything that could hide it, select it, scroll to it.
+  useEffect(() => {
+    // Wait for this topic's own cards; the previous topic's list may still be on screen.
+    if (!focusCardId || loading || loadedPackId !== pack.id) return;
+    const isReference = referenceCards.some((card) => card.id === focusCardId);
+    if (isReference || cards.some((card) => card.id === focusCardId)) {
+      setQuery(""); setStatusFilters(isReference ? ["reference"] : []); setStateFilter(null); setFavouriteOnly(false); setInterestFilter("all"); setTagFilter("all"); setDetailFilters([]);
+      setSelectedCardId(focusCardId);
+      setFocusNotice("");
+      window.requestAnimationFrame(() => {
+        const row = document.querySelector<HTMLElement>(`[data-card-id="${focusCardId}"]`);
+        row?.scrollIntoView({ block: "center" });
+        row?.focus({ preventScroll: true });
+      });
+    } else {
+      setFocusNotice("That card is not in this topic's list any more (it may have been discarded; see Trash).");
+    }
+    onFocusCardShown?.();
+  }, [cards, focusCardId, loadedPackId, loading, onFocusCardShown, pack.id, referenceCards]);
+
+  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0);
+  const selectedCard = selectedCardId ? [...cards, ...referenceCards].find((card) => card.id === selectedCardId) ?? null : null;
 
   async function refreshAll(closeEditor = false) {
     if (closeEditor) setEditing(null);
     await reload();
     onChanged();
+  }
+
+  /** One click: a recommended session with the remembered directions and size (Adjust changes them). */
+  async function startReview() {
+    // A double click must not open two Review windows (two sessions).
+    if (reviewStarting.current) return;
+    reviewStarting.current = true;
+    setReviewNotice("");
+    const prefs = readReviewPrefs(pack.id);
+    const templateIds = rememberedTemplateIds(prefs, templates, directionPairs(templates));
+    try {
+      await openCosmosWindow({ mode: "review", packId: pack.id, source: "recommended", order: "pack", count: prefs.size, templateIds });
+      reviewOpened.current = true;
+    } catch (startError) {
+      setReviewNotice(startError instanceof Error ? startError.message : "Could not open Review.");
+    } finally {
+      // The second click of a double click arrives after the window has opened.
+      window.setTimeout(() => { reviewStarting.current = false; }, 800);
+    }
   }
 
   function openTargeted(title: string, selected: CardWithStats[], limit?: number, templateId?: string) {
@@ -280,74 +409,92 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
     setDetailFilters((current) => current.includes(detail) ? current.filter((item) => item !== detail) : [...current, detail]);
   }
 
+  function chooseStage(stage: StatusFilter) {
+    setStateFilter(null);
+    setStatusFilters(statusFilters.length === 1 && statusFilters[0] === stage ? [] : [stage]);
+  }
+
+  function chooseState(state: KnowledgeState) {
+    if (stateFilter === state) { setStateFilter(null); return; }
+    setStatusFilters(["learning"]);
+    setStateFilter(state);
+  }
+
   function clearFilters() {
     setStatusFilters([]);
+    setStateFilter(null);
     setFavouriteOnly(false);
     setInterestFilter("all");
     setTagFilter("all");
     setDetailFilters([]);
   }
 
+  async function changeRetention(card: CardWithStats, retention: "learning" | "reference") {
+    await setCardRetention(card.id, retention);
+    // "Move to Learning" is a sorting decision: the card goes to Learning (and Review),
+    // not back into the Unsorted queue.
+    if (retention === "learning") await markCardSorted(card);
+    await refreshAll(true);
+  }
+
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
+  const learningBreakdown = STATE_PROGRESSION.filter((state) => stateCounts[state]);
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
       <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
 
       <header className="modern-topic-head">
-        <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(pack.card_count, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
+        <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(visibleTotal, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
         <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
       </header>
 
       <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
           <span>Learning stages</span>
-          <small>{statusFilters.length ? `${statusFilters.length} selected · click again to clear` : `${cards.length.toLocaleString()} cards · choose a stage to filter`}</small>
+          <small>{statusFilters.length || stateFilter ? "Filtered · click again for all" : `${plural(visibleTotal, "card")} · click to filter`}</small>
         </div>
         <div className="workflow-overview-stages">
-          <button
-            className={statusFilters.includes("unsorted") ? "active" : ""}
-            data-stage="unsorted"
-            onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "unsorted" ? [] : ["unsorted"])}
-          >
+          <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
             <span className="workflow-stage-dot" />
-            <span className="workflow-stage-copy"><b>Unsorted</b><small>Needs sorting</small></span>
             <strong>{unsortedCards.length.toLocaleString()}</strong>
+            <span className="workflow-stage-copy"><b>Unsorted</b><small>To sort</small></span>
           </button>
           <span className="workflow-stage-arrow" aria-hidden="true">→</span>
-          <button
-            className={statusFilters.includes("sorted") ? "active" : ""}
-            data-stage="ready"
-            onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "sorted" ? [] : ["sorted"])}
-          >
+          <button className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" onClick={() => chooseStage("learning")}>
             <span className="workflow-stage-dot" />
-            <span className="workflow-stage-copy"><b>Ready</b><small>Ready for review</small></span>
-            <strong>{sortedCards.length.toLocaleString()}</strong>
+            <strong>{learningCards.length.toLocaleString()}</strong>
+            <span className="workflow-stage-copy"><b>Learning</b><small>In Review</small></span>
           </button>
-          <span className="workflow-stage-arrow" aria-hidden="true">→</span>
-          <button
-            className={statusFilters.includes("reviewed") ? "active" : ""}
-            data-stage="reviewed"
-            onClick={() => setStatusFilters(statusFilters.length === 1 && statusFilters[0] === "reviewed" ? [] : ["reviewed"])}
-          >
+          <span className="workflow-stage-arrow is-quiet" aria-hidden="true">·</span>
+          <button className={statusFilters.includes("reference") ? "active" : ""} data-stage="reference" onClick={() => chooseStage("reference")}>
             <span className="workflow-stage-dot" />
-            <span className="workflow-stage-copy"><b>Reviewed</b><small>At least one graded review</small></span>
-            <strong>{reviewedCards.length.toLocaleString()}</strong>
+            <strong>{referenceCards.length.toLocaleString()}</strong>
+            <span className="workflow-stage-copy"><b>Reference</b><small>To look up, never reviewed</small></span>
           </button>
         </div>
+        {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
+          <span>Learning, by evidence{stateTemplates.length > 1 ? " (weakest direction)" : ""}:</span>
+          {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
+            <i className="knowledge-dot" data-state={state} aria-hidden="true" /> {stateCounts[state]} {STATE_LABEL[state].toLowerCase()}</button>)}
+        </div> : null}
       </section>
 
       {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
-        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Repeated Again grades.</span><em>REVIEW</em></button>
+        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Missed again and again.</span><em>REVIEW</em></button>
         <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
-        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now stale.</span><em>REFRESH</em></button>
+        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now quiet.</span><em>REFRESH</em></button>
       </div> : null}
 
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
           <button className={unsortedCards.length ? "primary-button sort-command" : "sort-command"} disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <button className={unsortedCards.length ? "secondary-button" : "primary-button"} disabled={!sortedCards.length && !reviewedCards.length}
-            title={sortedCards.length + reviewedCards.length ? "Choose cards and review directions" : "Prepare cards in Sort before reviewing"} onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
+          <span className="review-split">
+            <button className={unsortedCards.length ? "secondary-button review-command" : "primary-button review-command"} disabled={!learningCards.length}
+              title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review</button>
+            <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
+              title="Choose directions, cards, session size and order">Adjust</button>
+          </span>
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
         </div>
@@ -361,6 +508,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
           </details>
         </div>
       </div>
+      {reviewNotice ? <div className="topic-selection-hint" role="alert">{reviewNotice}</div> : null}
 
       <div className="modern-topic-toolbar compact-filter-toolbar">
         <label className="modern-topic-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search term, meaning or tag" /></label>
@@ -373,14 +521,14 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
           </button>
 
           <details className="filter-menu">
-            <summary className={interestFilter !== "all" ? "active" : ""}><span>Interest</span>{interestFilter !== "all" ? <b className={interestFilter === "none" ? "neutral" : `interest-dot interest-${interestFilter}`}>{interestFilter === "none" ? "—" : interestFilter}</b> : null}<ChevronDown size={14} /></summary>
+            <summary className={interestFilter !== "all" ? "active" : ""}><span>{interestFilter === "all" ? "Importance" : interestFilter === "none" ? "No importance" : IMPORTANCE_LABEL[interestFilter]}</span><ChevronDown size={14} /></summary>
             <div className="filter-menu-popover interest-menu-popover">
-              <p>Interest score</p>
-              <div className="interest-score-grid">
-                {[5,4,3,2,1].map((rank) => <button key={rank} className={`interest-score-option interest-${rank} ${interestFilter === String(rank) ? "selected" : ""}`} onClick={() => setInterestFilter(interestFilter === String(rank) ? "all" : String(rank) as InterestFilter)}>{rank}</button>)}
-                <button className={`interest-score-option neutral ${interestFilter === "none" ? "selected" : ""}`} onClick={() => setInterestFilter(interestFilter === "none" ? "all" : "none")}>—</button>
+              <p>Importance</p>
+              <div className="importance-filter-list">
+                {IMPORTANCE_ORDER.map((level) => <button key={level} className={interestFilter === level ? "selected" : ""} data-level={level} onClick={() => setInterestFilter(interestFilter === level ? "all" : level)}>{IMPORTANCE_LABEL[level]}</button>)}
+                <button className={interestFilter === "none" ? "selected" : ""} onClick={() => setInterestFilter(interestFilter === "none" ? "all" : "none")}>Not set</button>
               </div>
-              {interestFilter !== "all" ? <button className="menu-reset" onClick={() => setInterestFilter("all")}>Show any score</button> : null}
+              {interestFilter !== "all" ? <button className="menu-reset" onClick={() => setInterestFilter("all")}>Any importance</button> : null}
             </div>
           </details>
 
@@ -406,6 +554,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
         </div>
       </div>
 
+      {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
       {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
@@ -413,8 +562,8 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       {!loading && !error ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
-          <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STAGE <ArrowUpDown size={11} /></button>
-          <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>INTEREST <ArrowUpDown size={11} /></button>
+          <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATE <ArrowUpDown size={11} /></button>
+          <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>IMPORTANCE <ArrowUpDown size={11} /></button>
           <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>REVIEWS <ArrowUpDown size={11} /></button>
           <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>RECALL <ArrowUpDown size={11} /></button>
           <span>TAGS & LINKS</span>
@@ -428,13 +577,15 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
           const stale = richDiagnostics && isNotSeenRecently(card);
           const learning = compactLearning(learningCounts[card.id]);
           const reviewCount = reviewGradeCount(card);
-          const rank = card.interest_rank;
+          const level = importanceOf(card.interest_rank);
           const visibleTags = card.tags.slice(0, 3);
           const status = workflowStatus(card);
+          const states = cardStates.get(card.id) ?? [];
           const selected = selectedCardId === card.id;
           return <div
-            className={`modern-topic-row excel-topic-row ticker-topic-row ${selected ? "selected" : ""}`}
+            className={`modern-topic-row excel-topic-row ticker-topic-row ${selected ? "selected" : ""} ${status === "reference" ? "is-reference" : ""}`}
             key={card.id}
+            data-card-id={card.id}
             role="row"
             tabIndex={0}
             aria-selected={selected}
@@ -451,9 +602,13 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
               <p>{fieldText(card.data, meaning?.key)}</p>
             </div>
 
-            <div className="topic-status-cell"><span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "sorted" ? "Ready" : "Reviewed"}</span></div>
+            <div className="topic-status-cell">{status === "learning" && states.length
+              ? <div className="knowledge-states">{states.map((entry) => <span key={entry.templateId} data-state={entry.state}
+                  title={`${entry.label}: ${STATE_LABEL[entry.state]}${entry.agedFrom ? ` (was ${STATE_LABEL[entry.agedFrom].toLowerCase()}; the evidence is over four months old)` : ""}`}>
+                  <i className="knowledge-dot" data-state={entry.state} aria-hidden="true" />{stateTemplates.length > 1 ? <small>{entry.label}</small> : null}{STATE_LABEL[entry.state]}</span>)}</div>
+              : <span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "reference" ? "Reference" : "Learning"}</span>}</div>
 
-            <div className="topic-interest-cell">{rank ? <i className={`interest-badge interest-${rank}`}>{rank}</i> : <span>—</span>}</div>
+            <div className="topic-interest-cell">{level ? <i className={`importance-badge importance-${level}`}>{IMPORTANCE_LABEL[level]}</i> : <span>—</span>}</div>
 
             <div className="modern-learning-cell">
               <strong>{reviewCount ? reviewCount.toLocaleString() : "No"} <small>{reviewCount === 1 ? "review" : "reviews"}</small></strong>
@@ -461,8 +616,8 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
             </div>
 
             <div className="modern-recall-cell">
-              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{reviewCount && card.stats.last_encountered_at ? formatSeen(card.stats.last_encountered_at) : "Not reviewed yet"}</strong>}
-              <small>{card.stats.again_count ? `${card.stats.again_count} Again` : ""}{card.stats.again_count && card.stats.good_count ? " · " : ""}{card.stats.good_count ? `${card.stats.good_count} Good` : ""}{card.stats.easy_count ? `${card.stats.good_count || card.stats.again_count ? " · " : ""}${card.stats.easy_count} Easy` : ""}</small>
+              {richDiagnostics && (rp !== null || pp !== null) ? <div className="direction-signal compact modern-direction">{rp !== null ? <span><label>RECOG</label><i><em style={{ width: `${rp}%` }} /></i><b>{rp}%</b></span> : null}{pp !== null ? <span><label>PRODUCE</label><i><em style={{ width: `${pp}%` }} /></i><b>{pp}%</b></span> : null}</div> : <strong>{reviewCount && card.stats.last_encountered_at ? formatSeen(card.stats.last_encountered_at) : status === "reference" ? "Not reviewed (reference)" : "Not reviewed yet"}</strong>}
+              <small>{resultCountsText(card.stats)}</small>
               {missing ? <i className="signal-note danger">Keeps missing</i> : null}{weakProduction ? <i className="signal-note warn">Production</i> : null}{stale && !missing ? <i className="signal-note">Quiet</i> : null}
             </div>
 
@@ -475,13 +630,13 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
             </div>
           </div>;
         })}
-        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length ? "Change the filters or search." : "Use New card to add your first flashcard."}</span></div> : null}
+        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length || referenceCards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length || referenceCards.length ? "Change the filters or search." : "Use New card to add your first flashcard."}</span></div> : null}
       </div> : null}
 
-      {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} /> : null}
+      {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} onRetention={(retention) => changeRetention(editing, retention)} /> : null}
       {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} /> : null}
       {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => { reviewOpened.current = true; }} /> : null}
-      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} /> : null}
+      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
       {targetedSession ? <CatalogueSession title={targetedSession.title} items={targetedSession.cards.map((item) => ({ card: item, pack }))} mode="review" templateByPackId={targetedSession.templateId ? { [pack.id]: targetedSession.templateId } : undefined} onClose={() => setTargetedSession(null)} /> : null}

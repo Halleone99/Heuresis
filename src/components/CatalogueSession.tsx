@@ -116,7 +116,7 @@ export default function CatalogueSession({ title, items, mode, onClose, template
 
   if (loading) return <div className="immersive-layer"><div className="content-state">Opening catalogue session…</div></div>;
   if (error) return <div className="immersive-layer"><div className="content-state error-state">{error}<button onClick={() => void close()}>Close</button></div></div>;
-  if (!current) return <div className="immersive-layer"><div className="content-state"><strong>{mode === "review" && !sessionItems.length ? "No review items in this catalogue." : "Catalogue complete."}</strong><p>{sessionItems.length} cards.</p><button className="primary-button" onClick={() => void close()}>Return</button></div></div>;
+  if (!current) return <div className="immersive-layer"><div className="content-state"><strong>{mode === "review" && !sessionItems.length ? "No review items in this catalogue." : "Catalogue complete."}</strong><p>{sessionItems.length} {sessionItems.length === 1 ? "card" : "cards"}.</p><button className="primary-button" onClick={() => void close()}>Return</button></div></div>;
 
   return <div className="immersive-layer browse-layer">
     <header className="immersive-bar"><span><b>{title}</b> · {mode === "review" ? "Review" : "Browse"} · {index + 1} / {sessionItems.length}</span><button onClick={() => void close()}><X size={16} /> Close</button></header>
@@ -139,7 +139,7 @@ export default function CatalogueSession({ title, items, mode, onClose, template
         <span>Browsing does not change encounter statistics</span>
         <button className="primary-button" onClick={() => void move(index + 1)}>{index >= sessionItems.length - 1 ? "Finish" : <>Next <ArrowRight size={15} /></>}</button>
       </> : revealed ? <>
-        <button onClick={() => void answer("again")}>Again · 1</button><button onClick={() => void answer("hard")}>Hard · 2</button><button className="primary-button" onClick={() => void answer("good")}>Good · 3</button><button onClick={() => void answer("easy")}>Easy · 4</button>
+        <button onClick={() => void answer("again")} title="Could not recall it">Missed · 1</button><button onClick={() => void answer("hard")} title="Part of it, or only with effort">Partial · 2</button><button className="primary-button" onClick={() => void answer("good")} title="Recalled it">Recalled · 3</button><button onClick={() => void answer("easy")} title="Recalled at once, without doubt">Secure · 4</button>
       </> : <span>Reveal before grading.</span>}
     </footer>
   </div>;

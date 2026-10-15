@@ -265,6 +265,13 @@ function encodeJson(value: unknown): ArrayBuffer {
 }
 
 function effectiveValue(row: Record<string, unknown>, key: string) {
+  // JSON path filters such as data->>_discarded_at (a JSON null reads as SQL null).
+  const arrow = key.indexOf("->>");
+  if (arrow > 0) {
+    const base = row[key.slice(0, arrow)];
+    const value = base && typeof base === "object" && !Array.isArray(base) ? (base as Record<string, unknown>)[key.slice(arrow + 3)] : undefined;
+    return value === undefined || value === null ? null : typeof value === "object" ? JSON.stringify(value) : String(value);
+  }
   if (row[key] !== undefined) return row[key];
   if (key === "role" && row.pack_id) return "main";
   return row[key];
@@ -462,7 +469,7 @@ async function applyTableMutation(table: string, method: string, url: URL, body:
   }
   const patch = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : {};
   if (current) {
-    const next = { ...current, ...patch };
+    const next = { ...current, ...patch, id: current.id };
     await upsertCachedRow(table, next);
     if (table === "heuresis_packs") await upsertCachedRow("heuresis_pack_overview", packOverview(next));
   }
@@ -569,7 +576,10 @@ async function queueMutation(method: string, urlString: string, headers: Headers
   if (rpc === EVENT_RPC) throw new TypeError("Offline: review events remain in the Heuresis event queue until synchronisation.");
   if (rpc && REQUIRES_CONNECTION_RPCS.has(rpc)) throw new TypeError("This particular action needs a connection. Everything else can remain open offline.");
 
-  const parsed = addClientIds(table, parseJson(rawBody));
+  // Client ids belong to new rows only. Adding one to a PATCH would ask the server to
+  // change the row's primary key on replay (rejected with 409, or worse) and would
+  // re-key the cached row so later offline edits of the same card miss it.
+  const parsed = method === "POST" ? addClientIds(table, parseJson(rawBody)) : parseJson(rawBody);
   const queuedBody = parsed === null ? rawBody : JSON.stringify(parsed);
   const item: QueueRecord = {
     id: crypto.randomUUID(),
@@ -678,6 +688,23 @@ export function flushOfflineRequests(accessToken: string | null | undefined) {
   return activeFlush;
 }
 
+/**
+ * Updates queued by earlier versions carried a client id (and role) meant for inserts;
+ * sent as they are, the server would try to change the row's primary key. Strip them.
+ */
+export function withoutInjectedIds(item: { method: string; url: string; body: string | null }) {
+  if (item.method !== "PATCH" || !item.body) return item.body;
+  const table = tableName(item.url);
+  if (!table || !TABLES_WITH_CLIENT_IDS.has(table)) return item.body;
+  const parsed = parseJson(item.body);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return item.body;
+  const body = { ...(parsed as Record<string, unknown>) };
+  const target = new URL(item.url).searchParams.get("id");
+  if ("id" in body && (!target?.startsWith("eq.") || body.id !== target.slice(3))) delete body.id;
+  if (table === "heuresis_cards" && body.role === "main") delete body.role;
+  return JSON.stringify(body);
+}
+
 async function flushQueue(accessToken: string | null | undefined) {
   if (typeof navigator !== "undefined" && !navigator.onLine) return { sent: 0, pending: await refreshOfflinePendingCount() };
   const owner = accessToken ? requestOwner(new Headers({ authorization: `Bearer ${accessToken}` })) : null;
@@ -703,7 +730,7 @@ async function flushQueue(accessToken: string | null | undefined) {
     const headers = new Headers(item.headers);
     if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
     try {
-      const response = await networkFetch(item.url, { method: item.method, headers, body: item.body });
+      const response = await networkFetch(item.url, { method: item.method, headers, body: withoutInjectedIds(item) });
       if (!response.ok) {
         const text = await response.text().catch(() => "");
         if (!isAlreadyAppliedInsert(item.method, response.status, text)) {

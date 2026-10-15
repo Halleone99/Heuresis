@@ -1,0 +1,270 @@
+// Browser checks for the clarity pass of 15 October 2026 (Study stages, Sort, Review,
+// card Capture, Search and touch layouts). Each scenario starts from a fresh copy of the
+// showcase database and drives the real app.
+//   node tests/clarity.mjs              (all scenarios)
+//   node tests/clarity.mjs capture      (scenarios whose name contains "capture")
+// Screenshots of each scenario are written to verification/screenshots/clarity/.
+import { execFileSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { BASE, check, launch, signIn, sql } from "./lib.mjs";
+
+const here = fileURLToPath(new URL("..", import.meta.url));
+const shots = `${here}screenshots/clarity`;
+mkdirSync(shots, { recursive: true });
+const only = process.argv[2] ?? "";
+const USER = "11111111-1111-4111-8111-111111111111";
+const HSK = "a0000000-0000-4000-8000-000000000001";
+
+function restore() {
+  execFileSync("./db.sh", ["restore", "heuresis_showcase"], { cwd: here, stdio: "ignore" });
+}
+/** Two cards nobody has sorted yet, next to five that have review grades. */
+async function addUnsortedCards() {
+  await sql(`insert into heuresis_cards(user_id, pack_id, data) values
+    ('${USER}','${HSK}','{"term":"马上","reading":"mǎshàng","meaning":"immediately","example":"我马上来。"}'),
+    ('${USER}','${HSK}','{"term":"最近","reading":"zuìjìn","meaning":"recently"}')`);
+}
+async function openTopic(page) {
+  await page.click('.hw-sections button:has-text("Study")');
+  await page.waitForTimeout(800);
+  await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  await page.locator(".modern-topic-row").first().waitFor();
+  await page.waitForTimeout(400);
+}
+const stageCount = async (page, stage) => Number(await page.locator(`[data-stage="${stage}"] strong`).innerText());
+/** True when the element under (x, y) belongs to the given selector (i.e. nothing covers it). */
+const topmostIs = (page, x, y, selector) => page.evaluate(({ x, y, selector }) => Boolean(document.elementFromPoint(x, y)?.closest(selector)), { x, y, selector });
+
+function luminance([r, g, b]) {
+  const channel = (value) => { const c = value / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+}
+const rgb = (value) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+
+const scenarios = {
+  async "study stages agree in Library, topic, Sort, Browse and Review"(page) {
+    await addUnsortedCards();
+    await page.click('.hw-sections button:has-text("Study")');
+    await page.waitForTimeout(1200);
+    const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
+    check(/2 UNSORTED/i.test(libraryRow), `Library counts the two unsorted cards (“${libraryRow}”)`);
+    await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator(".modern-topic-row").first().waitFor();
+    await page.waitForTimeout(400);
+    const [unsorted, learning, reference] = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];
+    check(unsorted === 2 && learning === 5 && reference === 0, `topic stages are Unsorted 2 → Learning 5 · Reference 0 (got ${unsorted} / ${learning} / ${reference})`);
+    await page.click(".sort-command");
+    await page.locator(".sort-card").waitFor();
+    check(/^1 \/ 2$/.test((await page.locator(".sort-topbar > span").innerText()).trim()), "Sort opens on the first of the two unsorted cards, never reviewed ones");
+    await page.keyboard.press("Escape");
+    await page.locator('button:has-text("Browse")').first().click();
+    await page.locator(".browse-status-grid").waitFor();
+    const browseUnsorted = Number(await page.locator('.browse-status-grid button:has-text("Unsorted") b').innerText());
+    const browseReviewed = Number(await page.locator('.browse-status-grid button:has(span:text-is("Reviewed")) b').innerText());
+    check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
+    check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
+    await page.keyboard.press("Escape");
+    await page.locator(".review-adjust").click();
+    await page.locator(".review-controls").waitFor();
+    const meta = await page.locator(".compact-study-meta").innerText();
+    check(/5\s*learning/.test(meta), `Adjust counts the five Learning cards (“${meta.replace(/\s+/g, " ")}”)`);
+    check(await page.locator(".study-start").isEnabled(), "Review can start from Adjust");
+    await page.screenshot({ path: `${shots}/review-setup.png` });
+  },
+
+  async "study dialogs are never covered by the sidebar"(page) {
+    await addUnsortedCards();
+    await openTopic(page);
+    await page.click(".sort-command");
+    await page.locator(".sort-card").waitFor();
+    check(await topmostIs(page, 120, 300, ".sort-backdrop"), "Sort covers the sidebar instead of sitting under it");
+    check(await topmostIs(page, 200, 100, ".sort-modal"), "the Sort title is visible (not hidden behind the sidebar)");
+    await page.screenshot({ path: `${shots}/sort-card.png` });
+    await page.keyboard.press("Escape");
+    await page.locator(".modern-topic-row").first().dblclick();
+    await page.locator(".card-editor-modal").waitFor();
+    check(await topmostIs(page, 120, 300, ".modal-backdrop"), "Edit card covers the sidebar");
+  },
+
+  async "selected review direction stays readable while hovered"(page) {
+    await openTopic(page);
+    await page.locator(".review-adjust").click();
+    await page.locator(".review-controls").waitFor();
+    const selected = page.locator('.direction-mode-toggle button[aria-pressed="true"]');
+    await selected.hover();
+    await page.waitForTimeout(300);
+    const colours = await selected.evaluate((element) => { const style = getComputedStyle(element); return { color: style.color, background: style.backgroundColor }; });
+    const ratio = contrast(rgb(colours.color), rgb(colours.background));
+    check(ratio >= 4.5, `hovered selected option has readable contrast (${ratio.toFixed(2)}:1)`);
+  },
+
+  async "sort keeps its four outcomes together and works from the keyboard"(page) {
+    await addUnsortedCards();
+    await openTopic(page);
+    await page.click(".sort-command");
+    await page.locator(".sort-card").waitFor();
+    check(true, "Sort opens straight into the queue (no setup step)");
+    const decision = page.locator(".sort-decision");
+    check(await decision.locator(".sort-levels button").count() === 3, "Learn is offered as Core / Useful / Peripheral in the decision group");
+    check(await decision.locator('button:has-text("Reference")').count() === 1, "Reference is in the same group");
+    check(await decision.locator('button:has-text("Discard")').count() === 1, "Discard is in the same group");
+    check(await decision.locator('button:has-text("Later")').count() === 1, "Later is in the same group");
+    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-toggle").count() === 1, "tags are behind one secondary control");
+    const first = (await page.locator(".sort-card > strong").innerText()).trim();
+    await page.keyboard.press("r");
+    await page.waitForTimeout(900);
+    check(await sql(`select retention from heuresis_cards where data->>'term'='${first}'`) === "reference", `R keeps the first card (${first}) as reference`);
+    const second = (await page.locator(".sort-card > strong").innerText()).trim();
+    await page.keyboard.press("u");
+    await page.waitForTimeout(900);
+    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", `U sends the second card (${second}) to Learning as Useful (stored as 3)`);
+    check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
+  },
+
+  async "card capture adds each card at once and asks before closing with an unsaved card"(page) {
+    await page.goto(`${BASE}?capture=1&pack=${HSK}`);
+    await page.locator(".capture-composer").waitFor({ timeout: 15000 });
+    const slots = page.locator(".capture-card-surface .capture-slot textarea");
+    check((await page.locator(".capture-side-label").first().innerText()).includes("FRONT"), "the card sides are called Front and Back");
+    await slots.nth(0).fill("马上");
+    await slots.nth(0).press("Enter");
+    await page.keyboard.type("mǎshàng");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("immediately");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(1200);
+    check(await sql(`select count(*) from heuresis_cards where data->>'term'='马上' and pack_id='${HSK}'`) === "1", "Enter on the last field adds the card to the topic immediately");
+    check(/Added “马上”/.test(await page.locator(".capture-foot-copy").innerText()), "the footer confirms what was added");
+    check(await slots.nth(0).inputValue() === "", "the form is cleared for the next card");
+    await slots.nth(0).fill("最近");
+    await slots.nth(2).fill("recently");
+    // Escape while an input method is composing (pinyin) belongs to the IME, not to Capture.
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", isComposing: true, bubbles: true })));
+    check(await page.locator(".capture-close-confirm").count() === 0, "Escape during IME composition does not try to close Capture");
+    await page.keyboard.press("Escape");
+    await page.locator(".capture-close-confirm").waitFor();
+    check(/1 card is not added yet/.test(await page.locator(".capture-close-confirm").innerText()), "closing with a complete, unsaved card asks first");
+    await page.screenshot({ path: `${shots}/capture-close-confirm.png` });
+    await page.click('.capture-close-confirm button:has-text("Add and close")');
+    await page.waitForTimeout(1200);
+    check(await sql(`select count(*) from heuresis_cards where data->>'term'='最近' and pack_id='${HSK}'`) === "1", "Add and close adds the card");
+  },
+
+  async "search opens a Study card directly in its topic"(page) {
+    await page.keyboard.press("Control+KeyK");
+    await page.waitForSelector(".ws-palette input");
+    await page.keyboard.type("already");
+    await page.locator(".ws-palette-row.is-card").first().waitFor({ timeout: 5000 });
+    check(await page.locator(".ws-palette-row.is-cards").count() === 1, "full card search is still one row away");
+    await page.screenshot({ path: `${shots}/palette-cards.png` });
+    await page.locator(".ws-palette-row.is-card").first().click();
+    await page.locator('.modern-topic-row[aria-selected="true"]').waitFor({ timeout: 8000 });
+    const selected = await page.locator('.modern-topic-row[aria-selected="true"] .modern-card-title').innerText();
+    check(selected.includes("已经"), `the topic opens with that card selected (“${selected}”)`);
+  },
+
+  async "review keeps the prompt visible after reveal"(page) {
+    await page.goto(`${BASE}?cosmos=1&mode=review&pack=${HSK}&source=all&order=pack&count=3`);
+    await page.locator(".cosmos-count").waitFor({ timeout: 15000 });
+    const prompt = (await page.locator(".cosmos-card-copy").innerText()).trim();
+    await page.keyboard.press(" ");
+    await page.locator(".cosmos-card-copy.revealed").waitFor();
+    const recap = (await page.locator(".cosmos-core-field.is-recap").allInnerTexts()).join(" ");
+    check(recap.length > 0 && prompt.includes(recap.split(" ")[0]), `the prompt stays above the answer (“${recap}”)`);
+    check(await page.locator(".cosmos-card-copy.revealed .cosmos-core-field:not(.is-recap)").count() > 0, "the answer is shown below it");
+    await page.screenshot({ path: `${shots}/review-revealed.png` });
+  },
+
+  async "empty review selection is explained, not reported as a failure"(page) {
+    await page.goto(`${BASE}?cosmos=1&mode=review&pack=${HSK}&source=favourites&order=pack&count=3`);
+    await page.waitForFunction(() => { const state = document.querySelector(".cosmos-state"); return Boolean(state && !/Opening/.test(state.textContent ?? "")); }, null, { timeout: 15000 });
+    const text = await page.locator(".cosmos-state").innerText();
+    check(/Nothing to review here/.test(text) && !/could not open/i.test(text), `calm empty state (“${text.split("\n")[0]}”)`);
+  },
+
+  async "edit card works from the keyboard"(page) {
+    await openTopic(page);
+    await page.locator('.modern-topic-row:has-text("刚才")').dblclick();
+    await page.locator(".card-editor-modal").waitFor();
+    await page.keyboard.press("Escape");
+    check(await page.locator(".card-editor-modal").count() === 0, "Escape closes Edit card");
+    await page.locator('.modern-topic-row:has-text("刚才")').dblclick();
+    await page.locator(".card-editor-modal").waitFor();
+    const meaning = page.locator(".card-editor-modal .field-row").filter({ has: page.locator("span", { hasText: /^English/ }) }).locator("input");
+    await meaning.fill("just now; a moment ago");
+    await page.keyboard.press("Control+Enter");
+    await page.waitForTimeout(1200);
+    check(await sql(`select data->>'meaning' from heuresis_cards where data->>'term'='刚才'`) === "just now; a moment ago", "Ctrl+Enter saves the card");
+    check(await page.locator(".card-editor-modal").count() === 0, "and closes the editor");
+  },
+
+  async "one pin icon whose fill shows the state"(page) {
+    await page.keyboard.press("Control+Shift+KeyN");
+    await page.waitForSelector(".qc-panel");
+    const pin = page.locator('.qc-panel button[aria-label="Keep open after saving"]');
+    check(await pin.count() === 1, "Keep open is a labelled toggle");
+    check(await page.locator(".qc-panel .lucide-pin-off").count() === 0, "no crossed-out pin that reads as an action");
+    const before = await pin.getAttribute("aria-pressed");
+    await pin.click();
+    check(await pin.getAttribute("aria-pressed") !== before, "the toggle reports its new state");
+  },
+
+  async "notebook counts read naturally"(page) {
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForTimeout(800);
+    const russian = await page.locator('.nb-home-subject:has-text("Russian") span').innerText();
+    check(russian === "1 topic · 1 note · 0 lessons", `singular and plural are right (“${russian}”)`);
+  },
+
+  async "only one sidebar toggle is visible at a time"(page) {
+    const visible = async (selector) => page.locator(selector).evaluate((element) => getComputedStyle(element).display !== "none");
+    check(!(await visible(".hw-sidebar-header-toggle")) && await visible(".hw-sidebar-collapse"), "with the full sidebar, only its own collapse button shows");
+    await page.click(".hw-sidebar-collapse");
+    await page.waitForTimeout(300);
+    check(await visible(".hw-sidebar-header-toggle"), "with the icon rail, the header toggle brings the sidebar back");
+  },
+};
+
+const TABLET = "tablet: topic rows stay compact";
+async function tabletRows() {
+  restore();
+  console.log(`— ${TABLET}`);
+  const { browser, page, errors } = await launch({ width: 820, height: 1180 });
+  try {
+    await addUnsortedCards();
+    await signIn(page);
+    await openTopic(page);
+    const heights = await page.locator(".modern-topic-row").evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
+    const tallest = Math.max(...heights);
+    check(tallest <= 110, `each card row is at most 110px tall (tallest ${Math.round(tallest)}px)`);
+    await page.screenshot({ path: `${shots}/tablet-topic.png` });
+    check(!errors.filter((message) => !/Failed to load resource/.test(message)).length, "no page errors");
+  } finally { await browser.close(); }
+}
+
+let failures = 0;
+for (const [name, run] of Object.entries(scenarios)) {
+  if (only && !name.includes(only)) continue;
+  restore();
+  console.log(`— ${name}`);
+  const { browser, context, page, errors } = await launch({ width: 1440, height: 900 });
+  try {
+    await signIn(page);
+    await run(page, context);
+    const unexpected = errors.filter((message) => !/status of 406|Failed to load resource|ERR_CONNECTION_REFUSED|Failed to fetch/.test(message));
+    check(!unexpected.length, `no page errors${unexpected.length ? `: ${unexpected.join(" | ")}` : ""}`);
+  } catch (error) {
+    failures += 1;
+    console.log(`  ✗ ${name}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    process.exitCode = 1;
+  } finally {
+    await browser.close();
+  }
+}
+if (!only || TABLET.includes(only)) await tabletRows();
+if (failures) console.log(`${failures} scenario(s) stopped with an exception.`);

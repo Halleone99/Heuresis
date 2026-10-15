@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BookOpen, ChevronDown, ChevronRight, FilePlus2, FolderPlus, Home, MoreHorizontal, Plus, Trash2, Pencil, X } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, FilePlus2, FolderPlus, Home, Plus, Trash2, Pencil } from "lucide-react";
 import type { KnowledgeTopic } from "../../lib/knowledgeWorkspace";
 import { isDocument, isOpenQuestion } from "../../lib/knowledgeWorkspace";
 import { useWorkspace } from "./WorkspaceContext";

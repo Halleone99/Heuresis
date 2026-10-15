@@ -187,7 +187,7 @@ export function MistakeLog() {
         })}
         <button type="button" className="ml-history-launch" onClick={() => openMode("history")}>
           <History size={20} /><span><strong>Complete history</strong><small>All mistakes, original answers and every recall attempt</small></span>
-          <span className="ml-history-total">{inSubject.length} records</span><ArrowRight size={17} />
+          <span className="ml-history-total">{inSubject.length} {inSubject.length === 1 ? "record" : "records"}</span><ArrowRight size={17} />
         </button>
       </div>
       {language !== "All" && !activeSubject ? <p className="ml-language-empty">No {language} subject exists in Notebook yet. Create one there, then record mistakes here.</p> : null}

@@ -51,3 +51,81 @@
 @media (max-width: 920px) {
   .sort-lesson-tags { grid-template-columns: repeat(6, minmax(28px, 1fr)); }
 }
+
+/* One decision block: Learn it (1–5), Keep as reference, Decide later. It stays
+   together and anchored at the bottom of the panel so the three outcomes are always
+   in the same place, whatever the number of tags above it. */
+.sort-decision {
+  margin-top: auto;
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--ws-text) 7%, transparent);
+}
+.sort-panel > .sort-decision:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.sort-decision .sort-interest-panel > small { margin-top: 7px; }
+.sort-alternatives { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sort-decision .sort-skip {
+  margin-top: 0 !important;
+  min-height: 42px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ws-text);
+}
+.sort-decision .sort-skip:hover:not(:disabled) { background: var(--ws-raised) !important; }
+.sort-decision .sort-remaining { margin-top: 2px; }
+@media (max-width: 520px) {
+  .sort-alternatives { grid-template-columns: 1fr; }
+}
+
+/* Sort v3: three importance levels, four outcomes, Undo, tags behind a control. */
+.sort-topbar > .sort-topbar-actions { justify-self: end; display: flex; flex-direction: row; align-items: center; gap: 6px; overflow: visible; }
+.sort-topbar-actions > button { border: 0; background: transparent; padding: 8px; cursor: pointer; color: var(--ws-text); }
+.sort-topbar-actions > .sort-filter-toggle {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent); border-radius: 9px; font-size: 11px;
+}
+.sort-topbar-actions > .sort-filter-toggle.is-on { background: var(--ws-text); border-color: var(--ws-text); color: var(--ws-on-primary); }
+.sort-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.sort-levels button {
+  position: relative; min-height: 64px; display: grid; align-content: center; justify-items: start; gap: 3px;
+  padding: 10px 11px; border: 1px solid color-mix(in srgb, var(--ws-text) 9%, transparent); border-radius: 10px;
+  background: var(--ws-surface-2); color: var(--ws-text); cursor: pointer; text-align: left;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.sort-levels button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 7px 18px rgba(40,35,31,.08); background: var(--ws-raised); }
+.sort-levels button[data-level="core"] { background: var(--c-sage); border-color: var(--c-sage); color: var(--ws-on-primary); }
+.sort-levels button[data-level="core"]:hover:not(:disabled) { background: var(--c-sage); filter: brightness(1.05); }
+.sort-levels b { font: 400 17px/1.1 'Libre Caslon Display', serif; }
+.sort-levels span { font-size: 9px; line-height: 1.3; opacity: .74; }
+.sort-levels kbd { position: absolute; top: 7px; right: 8px; font: 8px 'DM Mono', monospace; opacity: .55; }
+.sort-decision .sort-alternatives { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sort-decision .sort-skip { justify-content: flex-start; }
+.sort-undo {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 11px; border-radius: 9px;
+  background: color-mix(in srgb, var(--ws-raised) 72%, transparent); color: var(--ws-text); font-size: 11px;
+}
+.sort-undo > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sort-undo > button, .sort-undo-inline {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 14%, transparent); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text); cursor: pointer; font-size: 11px;
+}
+.sort-undo-inline { margin: 4px auto 0; }
+.sort-tags-control { display: grid; gap: 8px; }
+.sort-tags-toggle {
+  display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 11px; width: 100%;
+  border: 1px dashed color-mix(in srgb, var(--ws-text) 16%, transparent); border-radius: 9px;
+  background: transparent; color: var(--ws-text); cursor: pointer; font-size: 11px; text-align: left;
+}
+.sort-tags-toggle em { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ws-muted); font-style: normal; }
+.sort-tags-toggle svg.is-open { transform: rotate(180deg); }
+.sort-finished-actions { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+.sort-finished-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.sort-finished-actions button.is-quiet { background: transparent !important; color: var(--ws-text) !important; border: 1px solid color-mix(in srgb, var(--ws-text) 14%, transparent) !important; }
+@media (max-width: 520px) {
+  .sort-levels, .sort-decision .sort-alternatives { grid-template-columns: 1fr; }
+}
+/* The search box already shows focus on its frame; no second ring on the input inside it. */
+.sort-setup .sort-setup-search input:focus,
+.sort-setup .sort-setup-search input:focus-visible { outline: none !important; box-shadow: none !important; }

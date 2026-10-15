@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, PinOff, Radio, RotateCcw, ListChecks, Languages, Trash2, X,
+  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
@@ -369,7 +369,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           <button type="button" className="ws-button is-primary" onClick={() => void finishEditing()} title={`Done (${MOD_KEY}+Enter)`}><Check size={15} /> Done</button>
         </> : <>
           {liveEntry && workspace.writable ? <button type="button" className={`ws-icon-button ${liveEntry.pinned ? "is-on" : ""}`} onClick={() => void togglePin()}
-            aria-pressed={liveEntry.pinned} title={liveEntry.pinned ? "Unpin from Overview" : "Pin to Overview"}>{liveEntry.pinned ? <PinOff size={16} /> : <Pin size={16} />}</button> : null}
+            aria-pressed={liveEntry.pinned} aria-label="Pin to Overview" title={liveEntry.pinned ? "Pinned to Overview — click to unpin" : "Pin to Overview"}><Pin size={16} fill={liveEntry.pinned ? "currentColor" : "none"} /></button> : null}
           {workspace.writable ? <button type="button" className="ws-button" onClick={() => startEditing()} title="Edit (E)"><Pencil size={14} /> Edit</button> : null}
           {liveEntry ? <DocMenu
             onMove={workspace.writable ? () => setMoving(true) : undefined}

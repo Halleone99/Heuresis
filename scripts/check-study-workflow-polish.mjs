@@ -28,7 +28,9 @@ assert.match(sort, /Tap to show details/, "Details affordance uses touch-friendl
 assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
 assert.match(study, /className="study-count-all"/, "One quick way to review all");
 
-assert.match(pack, /disabled=\{!sortedCards\.length && !reviewedCards\.length\}/, "Do not open Review before a card is sorted");
+assert.match(pack, /disabled=\{!learningCards\.length\}/, "Do not open Review before a card is sorted into Learning");
+assert.match(pack, /onClick=\{\(\) => void startReview\(\)\}><Brain size=\{15\} \/> Review<\/button>/, "Review is one click: a recommended session");
+assert.match(pack, /className="secondary-button review-adjust"[^>]*onClick=\{\(\) => setStudyOpen\(true\)\}/s, "Every manual choice stays one step away under Adjust");
 assert.match(pack, /className="topic-more-menu"/, "Secondary actions stay in the More menu");
 assert.match(pack, /Import cards/, "Import remains reachable");
 assert.match(pack, /Connections/, "Connections remain reachable");

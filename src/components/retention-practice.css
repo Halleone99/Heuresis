@@ -164,3 +164,12 @@
   .retention-actions > span { width:100%; text-align:center; margin:0 0 2px; }
   .retention-typed-compare { width:calc(100% - 40px); }
 }
+
+/* Review v3: the typed answer sits under the prompt; extra practice after reveal. */
+.retention-practice.is-revealed { padding-top:0; }
+.retention-type-panel { justify-content:center; }
+.retention-type-panel textarea {
+  width:min(520px,100%); min-height:46px; padding:12px 14px; resize:none; border:1px solid var(--line-2); border-radius:8px;
+  background:var(--paper); color:var(--ink); outline:none; font:18px/1.4 var(--serif); text-align:center;
+}
+.retention-type-panel textarea:focus { border-color:var(--live); }

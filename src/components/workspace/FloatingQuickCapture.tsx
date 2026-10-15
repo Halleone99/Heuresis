@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { CircleDot, Maximize2, Minimize2, NotebookPen, Pin, PinOff, X } from "lucide-react";
+import { CircleDot, Maximize2, Minimize2, NotebookPen, Pin, X } from "lucide-react";
 import AuthGate from "../AuthGate";
 import { entryTitle } from "../../lib/knowledgeWorkspace";
 import { QuickCapture } from "./QuickCapture";
@@ -146,7 +146,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
       <button type="button" className="quick-floating-icon" onClick={() => setPin((value) => !value)}
         title={pin ? "Unpin: allow other windows on top" : "Pin above other windows"}
         aria-label={pin ? "Unpin capture window" : "Pin capture window"}
-        aria-pressed={pin}>{pin ? <Pin size={14}/> : <PinOff size={14}/>}</button>
+        aria-pressed={pin}><Pin size={14} fill={pin ? "currentColor" : "none"}/></button>
       <button type="button" className="quick-floating-icon" title={view === "bubble" ? "Open input" : "Collapse to bubble"}
         aria-label={view === "bubble" ? "Open capture input" : "Collapse to bubble"}
         onClick={() => view === "bubble" ? openCapture() : setView("bubble")}>

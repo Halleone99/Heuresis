@@ -28,19 +28,22 @@ async function desktopStudy() {
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-command-bar").waitFor();
     await page.locator(".modern-topic-table").waitFor(); // Wait for cards before inspecting enabled actions.
-    check(await page.locator(".topic-learning-actions > button").count() === 4, "Topic has four main actions: Sort, Review, Browse and New card");
+    check(await page.locator(".topic-learning-actions > button").count() === 3 && await page.locator(".topic-learning-actions > .review-split > button").count() === 2,
+      "Topic has four main actions: Sort, Review (with Adjust beside it), Browse and New card");
     check(await page.locator(".desktop-header-actions > .desktop-primary").count() === 0, "No redundant New card in the header of an open topic");
     await page.locator(".topic-more-menu > summary").click();
     check(await page.locator(".topic-more-popover button").count() === 2, "Import and Connections live inside one More menu");
     await page.locator(".topic-more-menu > summary").click();
-    const ready = Number(await page.locator('[data-stage="ready"] strong').innerText());
-    const reviewed = Number(await page.locator('[data-stage="reviewed"] strong').innerText());
+    const learning = Number(await page.locator('[data-stage="learning"] strong').innerText());
     const review = page.getByRole("button", { name: "Review", exact: true });
-    check(await review.isDisabled() === (ready + reviewed === 0), "Review cannot open until a card is ready");
-    if (ready + reviewed) {
-      await review.click();
+    check(await review.isDisabled() === (learning === 0), "Review cannot open until a card is in Learning");
+    if (learning) {
+      // Review itself starts at once; every choice lives under Adjust.
+      await page.locator(".review-adjust").click();
       await page.locator(".compact-study-launcher").waitFor();
       await page.locator(".review-controls").waitFor(); // The Study templates load asynchronously.
+      check(await page.locator('[role="group"][aria-label="Review card order"]').count() === 0, "A recommended session sets its own order (no misleading order switch)");
+      await page.locator(".compact-cards-select select").selectOption("all");
       check(await page.locator(".compact-study-heading .eyebrow").count() === 0, "Review heading is not repeated");
       check(await page.locator('[role="group"][aria-label="Review directions"] button').count() === 2, "One accessible direction switch");
       check(await page.getByRole("button", { name: "Both directions" }).count() === 1, "Directions have an understandable two-way label");
@@ -55,8 +58,12 @@ async function desktopStudy() {
     if (await sortAction.isEnabled()) {
       await sortAction.click();
       await page.locator(".sort-modal").waitFor();
-      check(await page.locator('[role="group"][aria-label="Sort card order"] button').count() === 2, "Sort reuses the order control");
+      check(await page.locator(".sort-card").count() === 1, "Sort opens straight into the queue");
+      await page.locator(".sort-filter-toggle").click();
+      check(await page.locator('[role="group"][aria-label="Sort card order"] button').count() === 2, "Sort reuses the order control (inside Filter)");
       check(await page.locator('[role="group"][aria-label="Sort card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
+      await page.keyboard.press("Escape");
+      check(await page.locator(".sort-modal").count() === 1 && await page.locator(".sort-card").count() === 1, "Escape in the filter search closes Filter first");
       await page.keyboard.press("Escape");
       check(await page.locator(".sort-modal").count() === 0, "Escape dismisses Sort");
     } else {
@@ -68,7 +75,7 @@ async function desktopStudy() {
 
 async function tabletNavigation() {
   restore();
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const context = await browser.newContext({ viewport: { width: 820, height: 1100 }, hasTouch: true, isMobile: true });
   const page = await context.newPage();
   const errors = [];

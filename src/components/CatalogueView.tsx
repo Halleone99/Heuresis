@@ -19,7 +19,7 @@ function percentage(value: number | null | undefined) {
 }
 
 function statusLabel(status: CatalogueStatus) {
-  return status === "new" ? "Never met" : status === "favourites" ? "Favourites" : status === "interesting" ? "High interest" : status === "again" ? "Often Again" : "";
+  return status === "new" ? "Never met" : status === "favourites" ? "Favourites" : status === "interesting" ? "Core" : status === "again" ? "Often missed" : "";
 }
 
 export default function CatalogueView({ collections, packs, onBack, onOpenPack }: Props) {
@@ -126,7 +126,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
   }, [criteria, directionsByPack, items, smartPreset, sortKey]);
 
   const orderedTags = useMemo(() => [...tags].sort((a, b) => Number(b.is_badge) - Number(a.is_badge) || a.sort_order - b.sort_order || a.name.localeCompare(b.name, undefined, { numeric: true })), [tags]);
-  const statuses: Array<[CatalogueStatus, string]> = [["all", "Any status"], ["new", "Never met"], ["favourites", "Favourites"], ["interesting", "Interest 4–5"], ["again", "Often Again"]];
+  const statuses: Array<[CatalogueStatus, string]> = [["all", "Any status"], ["new", "Never met"], ["favourites", "Favourites"], ["interesting", "Core"], ["again", "Often missed"]];
   const activeSaved = saved.find((catalogue) => catalogue.id === activeSavedId) ?? null;
   const spansMultiplePacks = new Set(shown.map((item) => item.pack.id)).size > 1;
   const readModeTitle = smartPreset === "production" ? "Weak production" : activeSaved?.title ?? (criteria.packId !== "all" ? packs.find((pack) => pack.id === criteria.packId)?.title : null) ?? "Current catalogue";
@@ -174,7 +174,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
       <div className="intelligent-row-label">QUESTIONS WORTH ASKING</div>
       <div className="intelligent-question-band">
         <button data-tone="indigo" onClick={() => chooseQuestion("never")}><strong>{questionCounts.never.toLocaleString()}</strong><b>Never met</b><span>Cards with no encounter yet.</span></button>
-        <button data-tone="cinnabar" onClick={() => chooseQuestion("missing")}><strong>{questionCounts.missing.toLocaleString()}</strong><b>You keep missing</b><span>Repeated Again grades outweigh successful recalls.</span></button>
+        <button data-tone="cinnabar" onClick={() => chooseQuestion("missing")}><strong>{questionCounts.missing.toLocaleString()}</strong><b>You keep missing</b><span>Missed again and again outweigh successful recalls.</span></button>
         <button data-tone="amber" onClick={() => chooseQuestion("production")}><strong>{questionCounts.production.toLocaleString()}</strong><b>Weak in production</b><span>Production trails recognition in your real direction history.</span></button>
         <button data-tone="sage" onClick={() => chooseQuestion("stale")}><strong>{questionCounts.stale.toLocaleString()}</strong><b>Not seen in a month</b><span>Encountered before, but quiet for at least 30 days.</span></button>
       </div>
@@ -221,7 +221,7 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
           <div className="direction-signal">
             {recognitionPct !== null ? <div><span>RECOG</span><i><em style={{ width: `${recognitionPct}%` }} /></i><b>{recognitionPct}%</b></div> : null}
             {productionPct !== null ? <div><span>PRODUCE</span><i><em style={{ width: `${productionPct}%` }} /></i><b>{productionPct}%</b></div> : null}
-            {!recognition && !production ? <small>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "NOT MET YET"}</small> : <small>{formatSeen(card.stats.last_encountered_at)}{card.stats.again_count ? ` · ${card.stats.again_count} Again` : ""}</small>}
+            {!recognition && !production ? <small>{card.stats.encounter_count ? formatSeen(card.stats.last_encountered_at) : "NOT MET YET"}</small> : <small>{formatSeen(card.stats.last_encountered_at)}{card.stats.again_count ? ` · ${card.stats.again_count} missed` : ""}</small>}
           </div>
           <div className="result-flags">{missing ? <span className="danger">KEEPS MISSING</span> : null}{weakProduction ? <span className="warn">PRODUCTION</span> : null}{stale && !missing ? <span>QUIET 30D+</span> : null}</div>
         </article>;

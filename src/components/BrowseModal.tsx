@@ -1,18 +1,16 @@
 import { ArrowLeft, ArrowRight, Filter, Shuffle, SlidersHorizontal, Star, Tag, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "../lib/heuresis";
-import { cardHasCompletedSort } from "../lib/sort";
+import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, importanceOf, type Importance } from "../lib/importance";
+import { cardStage } from "../lib/sort";
 
 type Props = { pack: PackWithType; cards: CardWithStats[]; onClose: () => void; onComplete: () => void };
 type BrowseStatus = "unsorted" | "ready" | "reviewed" | "favourite";
 type BrowseOrder = "current" | "term" | "interest" | "random";
 type BrowseLimit = number | "all";
 
-function workflowStatus(card: CardWithStats) {
-  if (card.stats.study_count > 0) return "reviewed" as const;
-  if (cardHasCompletedSort(card)) return "ready" as const;
-  return "unsorted" as const;
-}
+/** Same stages as the topic table, Sort and Review (see cardStage). */
+const workflowStatus = cardStage;
 
 function toggleValue<T>(items: T[], value: T) {
   return items.includes(value) ? items.filter((item) => item !== value) : [...items, value];
@@ -30,7 +28,7 @@ function shuffled<T>(items: T[]) {
 export default function BrowseModal({ pack, cards, onClose, onComplete }: Props) {
   const [phase, setPhase] = useState<"setup" | "browse">("setup");
   const [statuses, setStatuses] = useState<BrowseStatus[]>([]);
-  const [interests, setInterests] = useState<number[]>([]);
+  const [interests, setInterests] = useState<Importance[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [order, setOrder] = useState<BrowseOrder>("current");
   const [limit, setLimit] = useState<BrowseLimit>("all");
@@ -63,7 +61,7 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
       const matchesStatus = statuses.some((status) => status === "favourite" ? card.favourite : state === status);
       if (!matchesStatus) return false;
     }
-    if (interests.length && !interests.includes(card.interest_rank ?? 0)) return false;
+    if (interests.length) { const level = importanceOf(card.interest_rank); if (!level || !interests.includes(level)) return false; }
     if (tagIds.length && !card.tags.some((tag) => tagIds.includes(tag.id))) return false;
     return true;
   }), [cards, interests, statuses, tagIds]);
@@ -124,19 +122,19 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
             <div className="browse-filter-heading"><span>Status</span></div>
             <div className="browse-choice-grid browse-status-grid">
               <button className={statuses.includes("unsorted") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "unsorted"))}><i data-tone="unsorted" /><span>Unsorted</span><b>{statusCounts.unsorted}</b></button>
-              <button className={statuses.includes("ready") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "ready"))}><i data-tone="ready" /><span>Ready</span><b>{statusCounts.ready}</b></button>
+              <button className={statuses.includes("ready") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "ready"))}><i data-tone="ready" /><span>Not reviewed yet</span><b>{statusCounts.ready}</b></button>
               <button className={statuses.includes("reviewed") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "reviewed"))}><i data-tone="reviewed" /><span>Reviewed</span><b>{statusCounts.reviewed}</b></button>
               <button className={statuses.includes("favourite") ? "selected" : ""} onClick={() => setStatuses((current) => toggleValue(current, "favourite"))}><Star size={13} /><span>Favourite</span><b>{statusCounts.favourite}</b></button>
             </div>
           </section>
 
-          <section className="browse-filter-section browse-compact-half"><div className="browse-filter-heading"><span>Interest</span></div><div className="browse-interest-row">{[5,4,3,2,1].map((rank) => <button key={rank} className={`interest-${rank} ${interests.includes(rank) ? "selected" : ""}`} onClick={() => setInterests((current) => toggleValue(current, rank))}>{rank}</button>)}</div></section>
+          <section className="browse-filter-section browse-compact-half"><div className="browse-filter-heading"><span>Importance</span></div><div className="browse-interest-row browse-importance-row">{IMPORTANCE_ORDER.map((level) => <button key={level} data-level={level} className={interests.includes(level) ? "selected" : ""} aria-pressed={interests.includes(level)} onClick={() => setInterests((current) => toggleValue(current, level))}>{IMPORTANCE_LABEL[level]}</button>)}</div></section>
 
           <section className="browse-filter-section browse-compact-half browse-amount-section"><div className="browse-filter-heading"><span>Amount</span><strong>{browseCount}</strong></div><input type="range" min={1} max={Math.max(1, filteredCards.length)} value={Math.max(1, browseCount)} disabled={!filteredCards.length} onChange={(event) => setLimit(Number(event.target.value))} /><div className="browse-amount-shortcuts">{[10,20,50].filter((count) => count < filteredCards.length).map((count) => <button key={count} className={limit !== "all" && browseCount === count ? "selected" : ""} onClick={() => setLimit(count)}>{count}</button>)}<button className={limit === "all" ? "selected" : ""} disabled={!filteredCards.length} onClick={() => setLimit("all")}>All</button></div></section>
 
           {tags.length ? <details className="browse-collapsed-tags"><summary className={tagIds.length ? "active" : ""}><Tag size={14} /><span>Tags</span>{tagIds.length ? <b>{tagIds.length}</b> : null}</summary><div className="browse-tags-popover">{lessonTags.length ? <section><p>Lessons</p><div className="browse-lesson-grid">{lessonTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={(event) => { event.preventDefault(); setTagIds((current) => toggleValue(current, tag.id)); }}>{tag.name.match(/\d+/)?.[0] ?? tag.name}</button>)}</div></section> : null}{otherTags.length ? <section><p>Other</p><div className="browse-other-tags">{otherTags.map((tag) => <button key={tag.id} className={tagIds.includes(tag.id) ? "selected" : ""} onClick={(event) => { event.preventDefault(); setTagIds((current) => toggleValue(current, tag.id)); }}>{tag.name}</button>)}</div></section> : null}</div></details> : null}
 
-          <section className="browse-filter-section browse-order-section"><div className="browse-filter-heading"><span>Order</span></div><div className="browse-order-row">{([['current','Current'],['term','A–Z'],['interest','Interest'],['random','Random']] as Array<[BrowseOrder,string]>).map(([value,label]) => <button key={value} className={order === value ? "selected" : ""} onClick={() => setOrder(value)}>{value === "random" ? <Shuffle size={12} /> : null}{label}</button>)}</div></section>
+          <section className="browse-filter-section browse-order-section"><div className="browse-filter-heading"><span>Order</span></div><div className="browse-order-row">{([['current','Current'],['term','A–Z'],['interest','Importance'],['random','Random']] as Array<[BrowseOrder,string]>).map(([value,label]) => <button key={value} className={order === value ? "selected" : ""} onClick={() => setOrder(value)}>{value === "random" ? <Shuffle size={12} /> : null}{label}</button>)}</div></section>
         </div>
 
         <footer className="browse-setup-footer"><button className="browse-reset-button" disabled={!activeFilterCount && order === "current"} onClick={resetFilters}>Reset</button><span>{filteredCards.length.toLocaleString()} matching</span><button className="browse-start-button" disabled={!filteredCards.length} onClick={startBrowse}>Browse {browseCount.toLocaleString()} <ArrowRight size={15} /></button></footer>
@@ -151,7 +149,7 @@ export default function BrowseModal({ pack, cards, onClose, onComplete }: Props)
   return <div className="immersive-layer browse-layer modern-browse-layer">
     <header className="immersive-bar modern-browse-bar"><div><b>{pack.title}</b><span>Browse · {index + 1} of {browseCards.length}</span></div><div className="modern-browse-bar-actions"><button onClick={() => setPhase("setup")}><SlidersHorizontal size={14} /> Filters</button><button onClick={close}><X size={15} /> Close</button></div></header>
     <div className="modern-browse-progress"><i style={{ width: `${progress}%` }} /></div>
-    <main className="browse-stage modern-browse-stage"><article className="browse-card modern-browse-card"><div className="browse-main"><p className="eyebrow">CARD {index + 1}</p><h1>{fieldText(currentCard.data, term?.key) || "Untitled"}</h1>{reading ? <h2>{fieldText(currentCard.data, reading.key)}</h2> : null}<div className="browse-meaning">{fieldText(currentCard.data, meaning?.key)}</div></div>{currentCard.interest_rank || currentCard.favourite ? <div className="modern-browse-signals">{currentCard.interest_rank ? <span className={`interest-${currentCard.interest_rank}`}>Interest {currentCard.interest_rank}</span> : null}{currentCard.favourite ? <span><Star size={12} fill="currentColor" /> Favourite</span> : null}</div> : null}{extraFields.length ? <div className="browse-details">{extraFields.map((field) => <div key={field.key}><span>{field.label}</span><p>{fieldText(currentCard.data, field.key)}</p></div>)}</div> : null}{currentCard.tags.length ? <div className="browse-tags">{currentCard.tags.map((tag) => <span className={tag.is_badge ? "badge" : ""} key={tag.id}>{tag.name}</span>)}</div> : null}{currentCard.note ? <aside>{currentCard.note}</aside> : null}</article></main>
+    <main className="browse-stage modern-browse-stage"><article className="browse-card modern-browse-card"><div className="browse-main"><p className="eyebrow">CARD {index + 1}</p><h1>{fieldText(currentCard.data, term?.key) || "Untitled"}</h1>{reading ? <h2>{fieldText(currentCard.data, reading.key)}</h2> : null}<div className="browse-meaning">{fieldText(currentCard.data, meaning?.key)}</div></div>{currentCard.interest_rank || currentCard.favourite ? <div className="modern-browse-signals">{importanceOf(currentCard.interest_rank) ? <span className={`importance-badge importance-${importanceOf(currentCard.interest_rank)}`}>{IMPORTANCE_LABEL[importanceOf(currentCard.interest_rank)!]}</span> : null}{currentCard.favourite ? <span><Star size={12} fill="currentColor" /> Favourite</span> : null}</div> : null}{extraFields.length ? <div className="browse-details">{extraFields.map((field) => <div key={field.key}><span>{field.label}</span><p>{fieldText(currentCard.data, field.key)}</p></div>)}</div> : null}{currentCard.tags.length ? <div className="browse-tags">{currentCard.tags.map((tag) => <span className={tag.is_badge ? "badge" : ""} key={tag.id}>{tag.name}</span>)}</div> : null}{currentCard.note ? <aside>{currentCard.note}</aside> : null}</article></main>
     <footer className="immersive-controls modern-browse-controls"><button className="secondary-button" disabled={index === 0} onClick={() => setIndex((value) => Math.max(0, value - 1))}><ArrowLeft size={15} /> Previous</button><span>Read-only</span><button className="primary-button" onClick={() => { if (index >= browseCards.length - 1) close(); else setIndex((value) => value + 1); }}>{index >= browseCards.length - 1 ? "Finish" : <>Next <ArrowRight size={15} /></>}</button></footer>
   </div>;
 }

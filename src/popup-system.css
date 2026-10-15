@@ -340,3 +340,38 @@
   .capture-foot-actions { width: 100%; }
   .capture-foot-actions button { flex: 1; }
 }
+
+/* Cards added in this Capture session: confirmation, not a to-do list. */
+.capture-queue-item.is-added { cursor: default; }
+.capture-queue-item.is-added:hover { background: transparent; border-color: transparent; }
+.capture-queue-item.is-added > svg { flex: none; color: var(--c-sage); }
+.capture-queue-panel > .capture-queue-title + .capture-queue-item,
+.capture-queue-panel > .capture-queue-item + .capture-queue-title { margin-top: 10px; }
+
+/* Closing with a card that was never added asks once, inline. */
+.capture-close-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px 9px 13px;
+  border-top: 1px solid color-mix(in srgb, var(--c-cinnabar) 22%, transparent);
+  background: color-mix(in srgb, var(--c-cinnabar) 6%, var(--ws-surface));
+  color: var(--ws-text);
+  font-size: 11px;
+}
+.capture-close-confirm > span { flex: 1 1 160px; min-width: 0; }
+.capture-close-confirm > button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--ws-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ws-text);
+  cursor: pointer;
+  font-size: 10px;
+}
+.capture-close-confirm > button.capture-commit { border-color: var(--ws-primary); background: var(--ws-primary); color: var(--ws-on-primary); }

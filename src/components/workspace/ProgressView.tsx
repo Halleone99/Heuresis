@@ -246,7 +246,7 @@ export function ProgressView() {
       {activity && !studyLoading && !studyError ? <>
         <WeeklyBars title="Card reviews in Study" unit="reviews" table={table}
           weeks={bucket(weeks, reviews.map((event) => event.created_at))}
-          note={goodShare !== null ? `${goodShare}% answered good or easy` : "Graded answers in flashcard review"} />
+          note={goodShare !== null ? `${goodShare}% recalled or secure` : "Graded answers in flashcard review"} />
         <WeeklyBars title="Study sessions" unit="sessions" table={table}
           weeks={bucket(weeks, activeSessions.map((session) => session.started_at))}
           note="Sessions with a card encounter or a graded review; empty launches excluded" />

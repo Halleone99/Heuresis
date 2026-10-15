@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown, ArrowUp, Check, CircleHelp, FolderInput, GraduationCap, Layers,
+  Check, FolderInput, Layers,
   ListPlus, Trash2, X,
 } from "lucide-react";
 import {

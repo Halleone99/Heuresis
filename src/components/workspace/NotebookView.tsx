@@ -7,12 +7,16 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
-import { EmptyState, InlineNameForm, KindIcon, Kbd, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
+import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 
 type ListFilter = "all" | "lessons" | "notes" | "questions";
 export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string } | null;
+
+function countLabel(count: number, singular: string) {
+  return `${count} ${count === 1 ? singular : `${singular}s`}`;
+}
 
 function docSortKey(entry: KnowledgeEntry) {
   return isLesson(entry) && entry.lesson_date ? `${entry.lesson_date}T23:59:59` : entry.updated_at;
@@ -506,7 +510,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
         const subjectLessons = subjectDocs.filter(isLesson).length;
         return <button type="button" key={subject.id} className="nb-home-subject" onClick={() => navigate({ topicId: null, docId: null, subjectId: subject.id })}>
           <strong>{subject.name}</strong>
-          <span>{topicIds.size} {topicIds.size === 1 ? "topic" : "topics"} · {subjectDocs.length - subjectLessons} notes · {subjectLessons} lessons</span>
+          <span>{countLabel(topicIds.size, "topic")} · {countLabel(subjectDocs.length - subjectLessons, "note")} · {countLabel(subjectLessons, "lesson")}</span>
         </button>;
       })}
     </div>

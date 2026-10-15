@@ -144,7 +144,7 @@ export default function ConnectionsPanel({ pack, card, onClose }: Props) {
         </> : null}
       </div>
 
-      <footer className="connections-foot"><span><i className="sample-dash" /> dashed node = Raw connected entry</span><span>review bar appears only when an entry has actually been studied</span><span>{rootCard.stats.study_count ? formatSeen(rootCard.stats.last_encountered_at) : "catalogued · not reviewed"}</span></footer>
+      <footer className="connections-foot"><span><i className="sample-dash" /> dashed node = discovery, not yet a flashcard</span><span>review bar appears only when an entry has actually been studied</span><span>{rootCard.stats.study_count ? formatSeen(rootCard.stats.last_encountered_at) : "catalogued · not reviewed"}</span></footer>
     </section>
   </div>;
 }

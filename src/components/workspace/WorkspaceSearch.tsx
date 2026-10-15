@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Command, Folder, Layers, Search, X } from "lucide-react";
+import { ArrowRight, BookOpen, Command, Folder, Layers, Search, X } from "lucide-react";
+import { fieldByRole, fieldText, type PackWithType } from "../../lib/heuresis";
+import { searchCards, type SearchCardResult } from "../../lib/search";
 import { entryTitle, isLesson, normaliseSearch, plainLine, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { inlinePlain } from "../../lib/noteFormat";
 import { commandScore, resultsFirst } from "../../lib/paletteRanking";
@@ -7,6 +9,23 @@ import { KindIcon, Kbd, entryKindLabel, relativeTime } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
 export type PaletteCommand = { id: string; label: string; detail: string; keywords?: string; run: () => void };
+
+/** Study card matches shown directly in the palette (the rest stay one row away). */
+const INLINE_CARD_LIMIT = 5;
+
+function cardLabel(hit: SearchCardResult, pack: PackWithType | undefined) {
+  const term = fieldByRole(pack?.cardType, "term") ?? pack?.cardType?.field_schema[0] ?? null;
+  const reading = fieldByRole(pack?.cardType, "reading");
+  const meaning = fieldByRole(pack?.cardType, "meaning") ?? pack?.cardType?.field_schema[1] ?? null;
+  // Keys starting with "_" hold internal data (sort marker, workspace blocks), never display text.
+  const values = Object.entries(hit.data).filter(([key]) => !key.startsWith("_"))
+    .flatMap(([, value]) => Array.isArray(value) ? value : [value]).filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  return {
+    term: fieldText(hit.data, term?.key) || values[0] || "Untitled",
+    reading: reading ? fieldText(hit.data, reading.key) : "",
+    meaning: fieldText(hit.data, meaning?.key) || values[1] || "",
+  };
+}
 
 type Result =
   | { type: "topic"; id: string; label: string; path: string; score: number }
@@ -45,9 +64,31 @@ function snippetFor(entry: KnowledgeEntry, words: string[]) {
   return first.length > 160 ? `${first.slice(0, 159)}…` : first;
 }
 
-export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onClose: () => void; onSearchCards: (query: string) => void; commands?: PaletteCommand[] }) {
+export function WorkspaceSearch({ onClose, onSearchCards, onOpenCard, packs = [], commands = [] }: {
+  onClose: () => void;
+  onSearchCards: (query: string) => void;
+  /** Opens the topic containing a Study card, with that card selected. */
+  onOpenCard?: (hit: SearchCardResult) => void;
+  packs?: PackWithType[];
+  commands?: PaletteCommand[];
+}) {
   const workspace = useWorkspace();
   const [query, setQuery] = useState("");
+  const [cardHits, setCardHits] = useState<SearchCardResult[]>([]);
+  const packMap = useMemo(() => new Map(packs.map((pack) => [pack.id, pack])), [packs]);
+
+  // Study cards live in the database (and its offline copy), not in the Notebook
+  // snapshot, so they are looked up after a short pause in typing.
+  useEffect(() => {
+    const term = query.trim();
+    if (!onOpenCard || term.length < 2) { setCardHits([]); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void searchCards(term).then((hits) => { if (!cancelled) setCardHits(hits.filter((hit) => packMap.has(hit.pack_id))); })
+        .catch(() => { if (!cancelled) setCardHits([]); });
+    }, 160);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [onOpenCard, packMap, query]);
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const words = normaliseSearch(query).split(" ").filter(Boolean);
@@ -99,14 +140,18 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
 
   // One ordered list drives the keyboard index, the highlight and Enter, so they
   // can never disagree about which row is selected.
-  type Row = { kind: "command"; command: PaletteCommand } | { kind: "result"; result: Result } | { kind: "cards" };
+  type Row = { kind: "command"; command: PaletteCommand } | { kind: "result"; result: Result } | { kind: "card"; hit: SearchCardResult } | { kind: "cards" };
   const commandRows: Row[] = matchedCommands.map(({ command }) => ({ kind: "command", command }));
   const resultRows: Row[] = results.map((result) => ({ kind: "result", result }));
   const notesFirst = resultsFirst(matchedCommands[0]?.score ?? 0, results[0]?.score ?? 0, words.length > 0);
+  const cardRows: Row[] = query.trim() ? cardHits.slice(0, INLINE_CARD_LIMIT).map((hit) => ({ kind: "card", hit })) : [];
   const rows: Row[] = [...(notesFirst ? [...resultRows, ...commandRows] : [...commandRows, ...resultRows]),
+    ...cardRows,
     ...(query.trim() ? [{ kind: "cards" } as Row] : [])];
 
   useEffect(() => { setActive(0); }, [query]);
+  // Card matches arrive after the first rows; keep the highlighted row in range.
+  useEffect(() => { setActive((value) => Math.min(value, Math.max(0, rows.length - 1))); }, [rows.length]);
   useEffect(() => { listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [active]);
 
   function open(index: number) {
@@ -114,6 +159,7 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
     if (!row) return;
     if (row.kind === "command") { row.command.run(); onClose(); return; }
     if (row.kind === "cards") { onSearchCards(query.trim()); onClose(); return; }
+    if (row.kind === "card") { onOpenCard?.(row.hit); onClose(); return; }
     const { result } = row;
     if (result.type === "topic") workspace.openTopic(result.id);
     else if (result.entry.kind === "mistake") workspace.openMistake(result.entry.id);
@@ -132,8 +178,21 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
     </button>;
     if (row.kind === "cards") return <button {...common} key="cards" className={`ws-palette-row is-cards ${selected ? "is-active" : ""}`}>
       <span className="ws-palette-icon"><Layers size={15} /></span>
-      <span className="ws-palette-text"><strong>Search Study cards for “{query.trim()}”</strong><small>Flashcards and vocabulary in Study</small></span>
+      <span className="ws-palette-text"><strong>{cardHits.length > INLINE_CARD_LIMIT ? `All ${cardHits.length >= 40 ? "40+" : cardHits.length} Study cards for “${query.trim()}”` : `Search Study cards for “${query.trim()}”`}</strong><small>Full card search across every topic</small></span>
     </button>;
+    if (row.kind === "card") {
+      const pack = packMap.get(row.hit.pack_id);
+      const label = cardLabel(row.hit, pack);
+      return <button {...common} key={`card-${row.hit.id}`} className={`ws-palette-row is-card ${selected ? "is-active" : ""}`}>
+        <span className="ws-palette-icon"><BookOpen size={15} /></span>
+        <span className="ws-palette-text">
+          <strong>{highlight(label.term, rawWords)}{label.reading ? <em className="ws-palette-reading"> {label.reading}</em> : null}</strong>
+          {label.meaning ? <span>{highlight(label.meaning, rawWords)}</span> : null}
+          <small>Study card · {pack?.title ?? "Topic"}{row.hit.role === "related" ? " · Discovery" : ""}</small>
+        </span>
+        {selected ? <ArrowRight size={14} className="ws-palette-go" /> : null}
+      </button>;
+    }
     const { result } = row;
     return <button {...common} key={result.type === "topic" ? `t-${result.id}` : result.entry.id} className={`ws-palette-row ${selected ? "is-active" : ""}`}>
       <span className="ws-palette-icon">{result.type === "topic" ? <Folder size={15} /> : <KindIcon entry={result.entry} size={15} />}</span>
@@ -145,7 +204,7 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
       {selected ? <ArrowRight size={14} className="ws-palette-go" /> : null}
     </button>;
   };
-  const groupLabel = (row: Row) => row.kind === "command" ? "Actions" : row.kind === "cards" ? null : query.trim() ? "Notes and topics" : "Recently opened";
+  const groupLabel = (row: Row) => row.kind === "command" ? "Actions" : row.kind === "cards" ? null : row.kind === "card" ? "Study cards" : query.trim() ? "Notes and topics" : "Recently opened";
 
   return <div className="ws-dialog-backdrop is-top" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="ws-palette" role="dialog" aria-modal="true" aria-label="Search Heuresis and run commands"
@@ -171,7 +230,7 @@ export function WorkspaceSearch({ onClose, onSearchCards, commands = [] }: { onC
             {renderRow(row, index)}
           </Fragment>;
         })}
-        {query.trim() && !results.length && !matchedCommands.length ? <p className="ws-muted ws-palette-empty">No notes or commands match. You can still search Study cards below.</p> : null}
+        {query.trim() && !results.length && !matchedCommands.length && !cardRows.length ? <p className="ws-muted ws-palette-empty">No notes, cards or commands match yet.</p> : null}
         {!query.trim() && !results.length && !matchedCommands.length ? <p className="ws-muted ws-palette-empty">Search Heuresis, or choose an action.</p> : null}
       </div>
       <div className="ws-palette-foot"><span><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span><span><Kbd>↵</Kbd> open</span><span><Kbd>Esc</Kbd> close</span></div>
