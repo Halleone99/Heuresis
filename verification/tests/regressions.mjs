@@ -323,8 +323,15 @@ const scenarios = {
     await page.waitForTimeout(1200);
     await page.click("button.sort-command");
     await page.fill(".sort-setup-search input", "再见");
+    check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
     await page.waitForTimeout(400);
+    const disclosure = page.locator(".sort-card");
+    await disclosure.focus();
+    await page.keyboard.press("Enter");
+    check(await disclosure.getAttribute("aria-expanded") === "true", "Sort shows extra card details with keyboard Enter");
+    await page.keyboard.press("Space");
+    check(await disclosure.getAttribute("aria-expanded") === "false", "Sort hides extra details with keyboard Space");
     await page.keyboard.press("4");
     await page.waitForTimeout(1200);
     check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "4|true", "sorting stores interest and completion");

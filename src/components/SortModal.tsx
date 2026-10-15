@@ -1,6 +1,7 @@
 import { ArrowRight, BookOpen, Check, ChevronDown, ChevronUp, Search, Shuffle, SkipForward, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fieldByRole, fieldText, setCardRetention, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+import { SegmentedChoice } from "./SegmentedChoice";
 import { cardHasCompletedSort, completeCardSort, setSortTags } from "../lib/sort";
 import "./sort.css";
 
@@ -25,6 +26,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
   // An explicit card deep link starts immediately, preserving the older route.
   // Normal Sort opens a single setup screen, then the existing rank/tag decisions.
+  const dialogRef = useRef<HTMLElement>(null);
   const [queue, setQueue] = useState<CardWithStats[]>(() => {
     if (!startCardId) return [];
     const selected = unsorted.find((item) => item.id === startCardId);
@@ -120,11 +122,17 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   }
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => previouslyFocused?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target;
       // Study shortcuts must never act on text typed in Quick Capture or an editor.
       if (event.defaultPrevented || event.isComposing || (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog'))) return;
-      if (event.key === "Escape") { onClose(); return; }
+      if (event.key === "Escape") { if (!busy) { event.preventDefault(); onClose(); } return; }
       if (!card || busy) return;
       if (["1","2","3","4","5"].includes(event.key)) { event.preventDefault(); void rank(Number(event.key)); }
       if (event.key.toLowerCase() === "r") { event.preventDefault(); void keepReference(); }
@@ -138,10 +146,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
 
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
 
-  return <div className="sort-backdrop"><section className="sort-modal" role="dialog" aria-modal="true">
-    <header className="sort-topbar"><div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div><span>{!started ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${saved + references} prepared`}</span><button onClick={onClose} aria-label="Close sort"><X size={18} /></button></header>
+  return <div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="Sort cards">
+    <header className="sort-topbar"><div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div><span>{!started ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${saved + references} prepared`}</span><button type="button" disabled={busy} onClick={onClose} aria-label="Close sort"><X size={18} /></button></header>
     {!started && unsorted.length ? <div className="sort-setup">
-      <p className="eyebrow">ONE SORT WORKFLOW</p>
       <h2>Prepare your cards</h2>
       <p>Select which cards to sort. You'll then set an interest score, choose tags, or keep each card as a reference.</p>
       <div className="sort-setup-grid">
@@ -164,27 +171,29 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         </div>
       </div> : null}
       <div className="sort-setup-order"><span>Card order</span>
-        <div><button type="button" className={!randomOrder ? "selected" : ""} onClick={() => setRandomOrder(false)}>Topic order</button>
-          <button type="button" className={randomOrder ? "selected" : ""} onClick={() => setRandomOrder(true)}><Shuffle size={14}/> Random</button></div>
+        <SegmentedChoice label="Sort card order" value={randomOrder ? "random" : "topic"}
+          onChange={(choice) => setRandomOrder(choice === "random")}
+          options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={14} /> }]} />
       </div>
       <div className="sort-setup-bottom">
         <span>{candidates.length} matching unsorted · {candidates.length ? Math.min(count, candidates.length) : 0} selected</span>
         <button type="button" className="sort-setup-start" disabled={!candidates.length} onClick={beginSort}>
-          Start sorting <ArrowRight size={16}/></button>
+          Sort {Math.min(count, candidates.length)} {Math.min(count, candidates.length) === 1 ? "card" : "cards"} <ArrowRight size={16}/></button>
       </div>
     </div> : null}
-    {!started && !unsorted.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">SORT COMPLETE</p><h2>Nothing left to sort.</h2><p>Every loaded card has already been prepared.</p><button onClick={onClose}>Return to topic</button></div> : null}
-    {started && queue.length && !card ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p><h2>{saved + references} cards prepared.</h2><p>{saved ? `${saved} kept in review. ` : ""}{references ? `${references} kept as reference. ` : ""}Skipped cards remain unsorted and will return next time.</p><button onClick={onClose}>Return to topic</button></div> : null}
+    {!started && !unsorted.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">SORT COMPLETE</p><h2>Nothing left to sort.</h2><p>Every loaded card has already been prepared.</p><button type="button" disabled={busy} onClick={onClose}>Return to topic</button></div> : null}
+    {started && queue.length && !card ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p><h2>{saved + references} cards prepared.</h2><p>{saved ? `${saved} kept in review. ` : ""}{references ? `${references} kept as reference. ` : ""}Skipped cards remain unsorted and will return next time.</p><button type="button" disabled={busy} onClick={onClose}>Return to topic</button></div> : null}
     {started && card ? <div className="sort-body">
-      <div className="sort-card" onClick={() => setDetails((value) => !value)} role="button" tabIndex={0}>
-        <span className="sort-card-hint">Click to show all fields</span>
+      <div className="sort-card" onClick={() => setDetails((value) => !value)} role="button" tabIndex={0} aria-expanded={details} aria-label="Show or hide additional card details"
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); setDetails((value) => !value); } }}>
+        <span className="sort-card-hint">{details ? "Tap to hide details" : "Tap to show details"}</span>
         <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>
         {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
         {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
-        {details ? <div className="sort-details">{extraFields.map((field) => { const value = fieldText(card.data, field.key); return value ? <div key={field.key}><span>{field.label}</span><p>{value}</p></div> : null; })}{card.note ? <div><span>Note</span><p>{card.note}</p></div> : null}</div> : <span className="sort-details-toggle">{details ? <ChevronUp size={13} /> : <ChevronDown size={13} />}</span>}
+        {details ? <div className="sort-details" aria-label="Additional card fields">{extraFields.map((field) => { const value = fieldText(card.data, field.key); return value ? <div key={field.key}><span>{field.label}</span><p>{value}</p></div> : null; })}{card.note ? <div><span>Note</span><p>{card.note}</p></div> : null}</div> : null}<span className="sort-details-toggle" aria-hidden="true">{details ? <ChevronUp size={13} /> : <ChevronDown size={13} />}</span>
       </div>
       <div className="sort-panel">
-        <div className="sort-interest-panel"><div className="sort-panel-heading"><p className="eyebrow">KEEP IN REVIEW</p><small>Set how important this is to you</small></div><div className="sort-ranks">{[1,2,3,4,5].map((value) => <button key={value} disabled={busy} onClick={() => void rank(value)} title={`Keyboard: ${value}`}><b>{value}</b><span>{INTEREST_LABELS[value]}</span></button>)}</div><small>Choosing a score keeps this card in Review, completes Sort and moves to the next card.</small></div>
+        <div className="sort-interest-panel"><div className="sort-panel-heading"><p className="eyebrow">KEEP IN REVIEW</p><small>How useful is this card?</small></div><div className="sort-ranks">{[1,2,3,4,5].map((value) => <button key={value} disabled={busy} onClick={() => void rank(value)} title={`Keyboard: ${value}`}><b>{value}</b><span>{INTEREST_LABELS[value]}</span></button>)}</div><small>Pick 1–5 to move this card into Review.</small></div>
         <div className="sort-tags"><div className="sort-panel-heading"><p className="eyebrow">TAGS</p><small>Optional</small></div>
           {lessonTags.length ? <div className="sort-tag-group"><p>Lessons</p><div className="sort-lesson-tags">{lessonTags.map((tag) => renderTag(tag, true))}</div></div> : null}
           {otherTags.length ? <div className="sort-tag-group"><p>Other tags</p><div>{otherTags.map((tag) => renderTag(tag))}</div></div> : null}

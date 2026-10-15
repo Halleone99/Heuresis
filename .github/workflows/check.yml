@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, review/claude-audit-2026-10-15]
 
 jobs:
   frontend:
@@ -51,6 +51,7 @@ jobs:
       - run: node scripts/check-languages.mjs
       - run: node scripts/check-palette-ranking.mjs
       - run: node scripts/check-offline-revision-chain.mjs
+      - run: node scripts/check-study-workflow-polish.mjs
       - run: npm run build
       # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
       # Test-only dependencies: no Playwright package added to the application.

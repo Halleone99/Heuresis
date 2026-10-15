@@ -1,6 +1,7 @@
 import { ArrowRight, Shuffle, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type CardWithStats, type PackWithType } from "../lib/heuresis";
+import { SegmentedChoice } from "./SegmentedChoice";
 import { reviewGradeCount } from "../lib/learningSignals";
 import { openCosmosWindow, type CosmosSource } from "../lib/cosmosWindow";
 import { cardHasCompletedSort } from "../lib/sort";
@@ -61,15 +62,13 @@ function CountControl({ value, available, onChange }: { value: number; available
   return <div className="study-count-control compact-count-control">
     <div className="study-compact-label"><span>Amount</span><b>{available ? safe : 0}/{available}</b></div>
     <input type="range" aria-label="Number of cards to review" min={1} max={Math.max(1, available)} value={safe} disabled={!available} onChange={(event) => onChange(Number(event.target.value))} />
-    <div className="study-count-shortcuts compact-count-shortcuts">
-      {[10, 20, 50].filter((count) => count < available).map((count) => <button type="button" key={count} className={safe === count ? "selected" : ""} onClick={() => onChange(count)}>{count}</button>)}
-      <button type="button" className={available > 0 && safe === available ? "selected" : ""} disabled={!available} onClick={() => onChange(Math.max(1, available))}>All</button>
-    </div>
+    {available > 1 ? <button type="button" className="study-count-all" aria-pressed={safe === available} onClick={() => onChange(available)}>All {available}</button> : null}
   </div>;
 }
 
 export default function StudyModal({ pack, cards, onClose, onComplete }: Props) {
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
+  const dialogRef = useRef<HTMLElement>(null);
   const [templateId, setTemplateId] = useState("");
   const [directionMode, setDirectionMode] = useState<DirectionMode>("one");
   const [directionPairKey, setDirectionPairKey] = useState("");
@@ -111,6 +110,11 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
   }, [pack.id, pack.card_type_id]);
 
   useEffect(() => { setReviewCount((current) => clampCount(current, pool.length)); }, [pool.length]);
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => previouslyFocused?.focus({ preventScroll: true });
+  }, []);
 
   async function startReview() {
     if (!selectedTemplateIds.length || !pool.length || busy) return;
@@ -132,34 +136,35 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     ["again", "Often Again", readyCards.filter((card) => card.stats.again_count >= 2).length],
   ];
 
-  return <div className="study-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <section className="study-modal review-launcher modern-study-launcher compact-study-launcher" role="dialog" aria-modal="true">
-      <header className="study-topbar"><div><span className="eyebrow">REVIEW</span><strong>{pack.title}</strong></div><button type="button" className="study-close" onClick={onClose} aria-label="Close"><X size={18} /></button></header>
+  return <div className="study-backdrop" onMouseDown={(event) => { if (!busy && event.currentTarget === event.target) onClose(); }}>
+    <section ref={dialogRef} tabIndex={-1} className="study-modal review-launcher modern-study-launcher compact-study-launcher" role="dialog" aria-modal="true" aria-label="Review setup"
+      onKeyDown={(event) => { if (event.key === "Escape" && !busy) { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
+      <header className="study-topbar"><div><span className="eyebrow">REVIEW</span><strong>{pack.title}</strong></div><button type="button" className="study-close" disabled={busy} onClick={onClose} aria-label="Close"><X size={18} /></button></header>
 
       <div className="study-launch compact-study-screen">
-        <div className="compact-study-heading"><div><p className="eyebrow">REVIEW</p><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> first</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
+        <div className="compact-study-heading"><div><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> new</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
 
-        {loading ? <div className="study-state">Loading…</div> : null}
-        {!loading && !error && !templates.length ? <div className="study-state">No review direction is configured.</div> : null}
+        {loading ? <div className="study-state" role="status">Loading review directions…</div> : null}
+        {!loading && !error && !templates.length ? <div className="study-state">No review direction is configured. Open Topic settings to add one.</div> : null}
         {!loading && templates.length ? <div className="compact-study-controls review-controls">
           <section className="compact-direction-picker">
             <span>Direction</span>
-            <div className="direction-mode-toggle">
-              <button type="button" className={directionMode === "both" ? "selected" : ""} aria-pressed={directionMode === "both"} disabled={!pairs.length} onClick={() => setDirectionMode("both")}>Mixed directions</button>
-              <button type="button" className={directionMode === "one" ? "selected" : ""} aria-pressed={directionMode === "one"} onClick={() => setDirectionMode("one")}>One side</button>
-            </div>
+            <SegmentedChoice label="Review directions" className="direction-mode-toggle" value={directionMode} onChange={setDirectionMode}
+              options={[{ value: "both", label: "Both directions", disabled: !pairs.length }, { value: "one", label: "One direction" }]} />
             {directionMode === "both" ? <div className="direction-detail">
               {pairs.length > 1 ? <select value={activePair?.key ?? ""} onChange={(event) => setDirectionPairKey(event.target.value)}>{pairs.map((pair) => <option key={pair.key} value={pair.key}>{pair.label}</option>)}</select> : <strong>{activePair?.label ?? "No reversible pair"}</strong>}
             </div> : <div className="direction-detail"><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
-            <small className="study-direction-hint">{directionMode === "both" ? "Alternates directions across cards; each card appears once." : "Uses the selected direction for every card."}</small>
+            <small className="study-direction-hint">{directionMode === "both" ? "Alternates the two directions; each card appears once." : "Shows the selected front side on every card."}</small>
           </section>
           <label className="compact-field"><span>Cards</span><select value={source} onChange={(event) => setSource(event.target.value as ReviewSource)}>{reviewSources.map(([value, label, count]) => <option key={value} value={value} disabled={!count && value !== "all"}>{label} · {count}</option>)}</select></label>
           <section className="compact-count-panel"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
-          <section className="compact-order-panel"><span>Order</span><div className="study-order-toggle"><button type="button" className={!randomOrder ? "selected" : ""} aria-pressed={!randomOrder} onClick={() => setRandomOrder(false)}>Topic</button><button type="button" className={randomOrder ? "selected" : ""} aria-pressed={randomOrder} onClick={() => setRandomOrder(true)}><Shuffle size={13} /> Random</button></div></section>
+          <section className="compact-order-panel"><span>Order</span><SegmentedChoice label="Review card order" className="study-order-toggle"
+            value={randomOrder ? "random" : "topic"} onChange={(choice) => setRandomOrder(choice === "random")}
+            options={[{ value: "topic", label: "Topic" }, { value: "random", label: "Random", icon: <Shuffle size={13} /> }]} /></section>
         </div> : null}
 
-        {error ? <div className="study-error">{error}</div> : null}
-        <div className="compact-study-footer"><button type="button" className="study-start" disabled={loading || !selectedTemplateIds.length || !pool.length || busy} onClick={() => void startReview()}>{busy ? "Opening…" : `Review ${pool.length ? clampCount(reviewCount, pool.length) : 0}`} <ArrowRight size={16} /></button></div>
+        {error ? <div className="study-error" role="alert">{error}</div> : null}
+        <div className="compact-study-footer"><button type="button" className="study-start" disabled={loading || !selectedTemplateIds.length || !pool.length || busy} onClick={() => void startReview()}>{busy ? "Opening…" : `Start review · ${pool.length ? clampCount(reviewCount, pool.length) : 0} cards` } <ArrowRight size={16} /></button></div>
       </div>
     </section>
   </div>;

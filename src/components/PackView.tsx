@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, MoreHorizontal, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteCard,
@@ -346,13 +346,19 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
           <button className={unsortedCards.length ? "primary-button sort-command" : "sort-command"} disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <button className={unsortedCards.length ? "secondary-button" : "primary-button"} disabled={!cards.length} onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
+          <button className={unsortedCards.length ? "secondary-button" : "primary-button"} disabled={!sortedCards.length && !reviewedCards.length}
+            title={sortedCards.length + reviewedCards.length ? "Choose cards and review directions" : "Prepare cards in Sort before reviewing"} onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
         </div>
         <div className="topic-utility-actions">
-          <button className="secondary-button" onClick={() => setRelatedOpen(true)}><Link2 size={15} /> Related</button>
-          <button className="secondary-button" onClick={() => setImportOpen(true)}><FileUp size={15} /> Import</button>
+          <details className="topic-more-menu">
+            <summary className="secondary-button"><MoreHorizontal size={15} /> More <ChevronDown size={13} /></summary>
+            <div className="topic-more-popover">
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setRelatedOpen(true); }}><Link2 size={15} /> Connections</button>
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setImportOpen(true); }}><FileUp size={15} /> Import cards</button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -400,14 +406,14 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
         </div>
       </div>
 
-      <div className="topic-selection-hint">{selectedCard ? <><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · use Edit on the right</> : <>Select a card to reveal Edit · double-click still opens directly</>}</div>
+      {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
-      {loading ? <div className="content-state">Opening cards…</div> : null}
-      {!loading && error ? <div className="content-state error-state"><strong>Could not load this topic.</strong><span>{error}</span></div> : null}
+      {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
+      {!loading && error ? <div className="content-state error-state" role="alert"><strong>Could not load this topic.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
       {!loading && !error ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
-          <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATUS <ArrowUpDown size={11} /></button>
+          <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STAGE <ArrowUpDown size={11} /></button>
           <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>INTEREST <ArrowUpDown size={11} /></button>
           <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>REVIEWS <ArrowUpDown size={11} /></button>
           <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>RECALL <ArrowUpDown size={11} /></button>
@@ -469,7 +475,7 @@ export default function PackView({ pack, collection, onBack, onCapture, onSettin
             </div>
           </div>;
         })}
-        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>No matching cards.</strong><span>Change the filters or search.</span></div> : null}
+        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length ? "Change the filters or search." : "Use New card to add your first flashcard."}</span></div> : null}
       </div> : null}
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} /> : null}
