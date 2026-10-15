@@ -297,3 +297,15 @@
   .compact-count-panel { grid-column: auto; }
   .study-tags-popover { left: 0; right: auto; width: min(310px, calc(100vw - 56px)); }
 }
+
+
+/* Review launcher: one amount slider with a single jump-to-all action. */
+.compact-count-control { position: relative; padding-right: 62px; }
+.study-count-all {
+  position: absolute; right: 0; bottom: 0; min-height: 32px; width: 57px;
+  border: 1px solid var(--ws-line-strong); border-radius: 8px;
+  background: var(--ws-surface); color: var(--ws-text); cursor: pointer;
+  font-size: 10px; font-weight: 650;
+}
+.study-count-all[aria-pressed="true"] { background: var(--ws-accent-soft); color: var(--ws-accent-strong); border-color: var(--ws-accent-line); }
+@media (pointer: coarse) { .study-count-all { min-height: 44px; } }
