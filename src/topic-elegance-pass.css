@@ -226,3 +226,27 @@
     flex-direction: column !important;
   }
 }
+
+
+/* Topic tools: frequent actions stay visible; secondary utilities share one menu. */
+.topic-more-menu { position: relative; }
+.topic-more-menu > summary { display: inline-flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; }
+.topic-more-menu > summary::-webkit-details-marker { display: none; }
+.topic-more-menu[open] > summary { border-color: var(--ws-accent-line) !important; color: var(--ws-ink) !important; }
+.topic-more-popover {
+  position: absolute; z-index: 35; top: calc(100% + 6px); right: 0;
+  display: grid; gap: 2px; min-width: 180px; padding: 5px;
+  border: 1px solid var(--ws-line-strong); border-radius: 10px;
+  background: var(--ws-surface); box-shadow: var(--ws-shadow-2);
+}
+.topic-command-bar .topic-more-popover button {
+  width: 100%; height: auto !important; min-height: 38px !important;
+  display: flex; justify-content: flex-start; gap: 9px;
+  border: 0 !important; border-radius: 7px !important; padding: 8px 10px !important;
+  color: var(--ws-text) !important; background: transparent !important; box-shadow: none !important;
+}
+.topic-command-bar .topic-more-popover button:hover { background: var(--ws-accent-soft) !important; transform: none !important; }
+@media (pointer: coarse) {
+  .topic-command-bar button, .topic-more-menu > summary { min-height: 44px !important; height: auto !important; }
+  .topic-more-popover button { min-height: 44px !important; }
+}

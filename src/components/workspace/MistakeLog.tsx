@@ -255,14 +255,20 @@ function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { ent
   const [confirmElement, confirm] = useConfirm();
   const [flashcard, setFlashcard] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const stage = mistakeStage(entry);
+  const [optimisticStatus, setOptimisticStatus] = useState<"understood" | "needs_practice" | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const displayEntry = optimisticStatus ? { ...entry, status: optimisticStatus } : entry;
+  const stage = mistakeStage(displayEntry);
   const lesson = entry.lesson_id ? workspace.entryById.get(entry.lesson_id) : null;
   const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const lastAttempt = attempts[0];
   const difference = useMemo(() => mistakeDifference(entry.attempt, entry.correction), [entry.attempt, entry.correction]);
-  const due = isRecallDue(entry);
+  const due = isRecallDue(displayEntry);
 
   async function setUnderstood(understood: boolean) {
+    if (changingStatus) return;
+    setChangingStatus(true);
+    setOptimisticStatus(understood ? "understood" : "needs_practice");
     const previous = { status: entry.status, recall_due_at: entry.recall_due_at };
     try {
       await workspace.patchEntry(entry.id, understood
@@ -278,6 +284,7 @@ function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { ent
         } },
       });
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+    finally { setOptimisticStatus(null); setChangingStatus(false); }
   }
   async function remove() {
     if (!await confirm({ title: "Delete this mistake?", body: "You can undo this deletion for a few seconds. Its practice history is preserved.", confirmLabel: "Delete", danger: true })) return;
@@ -322,9 +329,9 @@ function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { ent
         </span>
         <span className="ml-card-actions">
           {entry.correction ? <button type="button" className="ws-button is-small" onClick={onPractise}><RotateCcw size={13} /> Test recall</button> : null}
-          {workspace.writable && entry.correction ? (entry.status === "understood"
-            ? <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(false)}>Practise again</button>
-            : <button type="button" className="ws-button is-small is-quiet" onClick={() => void setUnderstood(true)} title="Self-assessed — recall checks continue"><Check size={13} /> I understand it</button>) : null}
+          {workspace.writable && entry.correction ? (displayEntry.status === "understood"
+            ? <button type="button" disabled={changingStatus} aria-busy={changingStatus} className="ws-button is-small is-quiet" onClick={() => void setUnderstood(false)}>Practise again</button>
+            : <button type="button" disabled={changingStatus} aria-busy={changingStatus} className="ws-button is-small is-quiet" onClick={() => void setUnderstood(true)} title="Self-assessed — recall checks continue"><Check size={13} /> I understand it</button>) : null}
           {workspace.writable ? <RowMenu label="mistake" items={[
             { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
             ...(entry.correction ? [{ label: "Make a flashcard…", icon: <Layers size={14} />, run: () => setFlashcard(true) }] : []),
