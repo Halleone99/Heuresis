@@ -136,13 +136,13 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     ["again", "Often Again", readyCards.filter((card) => card.stats.again_count >= 2).length],
   ];
 
-  return <div className="study-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+  return <div className="study-backdrop" onMouseDown={(event) => { if (!busy && event.currentTarget === event.target) onClose(); }}>
     <section ref={dialogRef} tabIndex={-1} className="study-modal review-launcher modern-study-launcher compact-study-launcher" role="dialog" aria-modal="true" aria-label="Review setup"
       onKeyDown={(event) => { if (event.key === "Escape" && !busy) { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
-      <header className="study-topbar"><div><span className="eyebrow">REVIEW</span><strong>{pack.title}</strong></div><button type="button" className="study-close" onClick={onClose} aria-label="Close"><X size={18} /></button></header>
+      <header className="study-topbar"><div><span className="eyebrow">REVIEW</span><strong>{pack.title}</strong></div><button type="button" className="study-close" disabled={busy} onClick={onClose} aria-label="Close"><X size={18} /></button></header>
 
       <div className="study-launch compact-study-screen">
-        <div className="compact-study-heading"><div><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> first</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
+        <div className="compact-study-heading"><div><h2>Review cards</h2></div><div className="compact-study-meta"><span><b>{readyCards.length}</b> ready</span><span><b>{firstReviewCards.length}</b> new</span><span><b>{reviewedCards.length}</b> reviewed</span></div></div>
 
         {loading ? <div className="study-state" role="status">Loading review directions…</div> : null}
         {!loading && !error && !templates.length ? <div className="study-state">No review direction is configured. Open Topic settings to add one.</div> : null}
@@ -150,11 +150,11 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
           <section className="compact-direction-picker">
             <span>Direction</span>
             <SegmentedChoice label="Review directions" className="direction-mode-toggle" value={directionMode} onChange={setDirectionMode}
-              options={[{ value: "both", label: "Mixed directions", disabled: !pairs.length }, { value: "one", label: "One side" }]} />
+              options={[{ value: "both", label: "Both directions", disabled: !pairs.length }, { value: "one", label: "One direction" }]} />
             {directionMode === "both" ? <div className="direction-detail">
               {pairs.length > 1 ? <select value={activePair?.key ?? ""} onChange={(event) => setDirectionPairKey(event.target.value)}>{pairs.map((pair) => <option key={pair.key} value={pair.key}>{pair.label}</option>)}</select> : <strong>{activePair?.label ?? "No reversible pair"}</strong>}
             </div> : <div className="direction-detail"><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
-            <small className="study-direction-hint">{directionMode === "both" ? "Alternates directions across cards; each card appears once." : "Uses the selected direction for every card."}</small>
+            <small className="study-direction-hint">{directionMode === "both" ? "Alternates the two directions; each card appears once." : "Shows the selected front side on every card."}</small>
           </section>
           <label className="compact-field"><span>Cards</span><select value={source} onChange={(event) => setSource(event.target.value as ReviewSource)}>{reviewSources.map(([value, label, count]) => <option key={value} value={value} disabled={!count && value !== "all"}>{label} · {count}</option>)}</select></label>
           <section className="compact-count-panel"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
