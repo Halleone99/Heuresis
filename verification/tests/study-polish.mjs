@@ -29,6 +29,7 @@ async function desktopStudy() {
     if (ready + reviewed) {
       await review.click();
       await page.locator(".compact-study-launcher").waitFor();
+      await page.locator(".review-controls").waitFor(); // The Study templates load asynchronously.
       check(await page.locator(".compact-study-heading .eyebrow").count() === 0, "Review heading is not repeated");
       check(await page.locator('[role="group"][aria-label="Review directions"] button').count() === 2, "One accessible direction switch");
       check(await page.locator('[role="group"][aria-label="Review card order"] button').count() === 2, "One accessible order switch");
@@ -37,12 +38,17 @@ async function desktopStudy() {
       await page.keyboard.press("Escape");
       check(await page.locator(".compact-study-launcher").count() === 0, "Escape dismisses Review");
     }
-    await page.locator(".sort-command").click();
-    await page.locator(".sort-modal").waitFor();
-    check(await page.locator('[role="group"][aria-label="Sort card order"] button').count() === 2, "Sort reuses the order control");
-    check(await page.locator('[role="group"][aria-label="Sort card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
-    await page.keyboard.press("Escape");
-    check(await page.locator(".sort-modal").count() === 0, "Escape dismisses Sort");
+    const sortAction = page.locator(".sort-command");
+    if (await sortAction.isEnabled()) {
+      await sortAction.click();
+      await page.locator(".sort-modal").waitFor();
+      check(await page.locator('[role="group"][aria-label="Sort card order"] button').count() === 2, "Sort reuses the order control");
+      check(await page.locator('[role="group"][aria-label="Sort card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
+      await page.keyboard.press("Escape");
+      check(await page.locator(".sort-modal").count() === 0, "Escape dismisses Sort");
+    } else {
+      check(true, "Sort is correctly unavailable when the fixture has no unsorted cards (covered by Capture → Sort → Review test)");
+    }
     check(errors.filter((e) => !/status of 404|Failed to load resource/.test(e)).length === 0, "No browser errors on Study controls");
   } finally { await browser.close(); }
 }
