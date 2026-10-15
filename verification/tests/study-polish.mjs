@@ -16,6 +16,7 @@ async function desktopStudy() {
     await page.waitForTimeout(700);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-command-bar").waitFor();
+    await page.locator(".modern-topic-table").waitFor(); // Wait for cards before inspecting enabled actions.
     check(await page.locator(".topic-learning-actions > button").count() === 4, "Topic has four main actions: Sort, Review, Browse and New card");
     check(await page.locator(".desktop-header-actions > .desktop-primary").count() === 0, "No redundant New card in the header of an open topic");
     await page.locator(".topic-more-menu > summary").click();
