@@ -1,6 +1,7 @@
 import { ArrowRight, Shuffle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type CardWithStats, type PackWithType } from "../lib/heuresis";
+import { SegmentedChoice } from "./SegmentedChoice";
 import { reviewGradeCount } from "../lib/learningSignals";
 import { openCosmosWindow, type CosmosSource } from "../lib/cosmosWindow";
 import { cardHasCompletedSort } from "../lib/sort";
@@ -148,10 +149,8 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
         {!loading && templates.length ? <div className="compact-study-controls review-controls">
           <section className="compact-direction-picker">
             <span>Direction</span>
-            <div className="direction-mode-toggle">
-              <button type="button" className={directionMode === "both" ? "selected" : ""} aria-pressed={directionMode === "both"} disabled={!pairs.length} onClick={() => setDirectionMode("both")}>Mixed directions</button>
-              <button type="button" className={directionMode === "one" ? "selected" : ""} aria-pressed={directionMode === "one"} onClick={() => setDirectionMode("one")}>One side</button>
-            </div>
+            <SegmentedChoice label="Review directions" className="direction-mode-toggle" value={directionMode} onChange={setDirectionMode}
+              options={[{ value: "both", label: "Mixed directions", disabled: !pairs.length }, { value: "one", label: "One side" }]} />
             {directionMode === "both" ? <div className="direction-detail">
               {pairs.length > 1 ? <select value={activePair?.key ?? ""} onChange={(event) => setDirectionPairKey(event.target.value)}>{pairs.map((pair) => <option key={pair.key} value={pair.key}>{pair.label}</option>)}</select> : <strong>{activePair?.label ?? "No reversible pair"}</strong>}
             </div> : <div className="direction-detail"><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
@@ -159,7 +158,9 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
           </section>
           <label className="compact-field"><span>Cards</span><select value={source} onChange={(event) => setSource(event.target.value as ReviewSource)}>{reviewSources.map(([value, label, count]) => <option key={value} value={value} disabled={!count && value !== "all"}>{label} · {count}</option>)}</select></label>
           <section className="compact-count-panel"><CountControl value={reviewCount} available={pool.length} onChange={setReviewCount} /></section>
-          <section className="compact-order-panel"><span>Order</span><div className="study-order-toggle"><button type="button" className={!randomOrder ? "selected" : ""} aria-pressed={!randomOrder} onClick={() => setRandomOrder(false)}>Topic</button><button type="button" className={randomOrder ? "selected" : ""} aria-pressed={randomOrder} onClick={() => setRandomOrder(true)}><Shuffle size={13} /> Random</button></div></section>
+          <section className="compact-order-panel"><span>Order</span><SegmentedChoice label="Review card order" className="study-order-toggle"
+            value={randomOrder ? "random" : "topic"} onChange={(choice) => setRandomOrder(choice === "random")}
+            options={[{ value: "topic", label: "Topic" }, { value: "random", label: "Random", icon: <Shuffle size={13} /> }]} /></section>
         </div> : null}
 
         {error ? <div className="study-error" role="alert">{error}</div> : null}
