@@ -122,3 +122,9 @@
   .rl-chapter>span:nth-child(2) { font-size:18px; }
 }
 @media(prefers-reduced-motion:reduce) { .rl * { transition:none !important; } }
+
+/* Named chapter creation reuses the Notebook's existing Markdown editor. */
+.nb-reference-chapter-action { margin: 0 0 14px; display:flex; align-items:center; }
+.nb-reference-chapter-action form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
+.nb-reference-chapter-action input { min-width:140px; flex:1; max-width:360px; height:36px; background:var(--ws-raised); color:var(--ws-ink); border:1px solid var(--ws-line-strong); border-radius:8px; padding:0 11px; font:13px var(--ws-sans); }
+.nb-reference-chapter-action input:focus-visible { outline:2px solid var(--ws-accent); outline-offset:1px; }
