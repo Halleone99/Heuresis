@@ -250,7 +250,7 @@ const scenarios = {
     await page.waitForSelector(".heuresis-section-sidebar");
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(500);
-    await page.locator('.nb-main-tools button:has-text("References")').click();
+    await page.locator('.nb-mode-bar button:has-text("References")').click();
     await page.locator('.rl-work:has-text("Roman Ideas")').waitFor();
     check(await page.locator(".rl-work").count() >= 1, "Reference Library lists the saved work");
     await page.locator('.rl-work:has-text("Roman Ideas")').click();
