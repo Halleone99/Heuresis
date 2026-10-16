@@ -192,7 +192,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
   const counts = useMemo(() => {
     const map = new Map<string, { docs: number; questions: number }>();
     for (const entry of snapshot.entries) {
-      if (!isDocument(entry)) continue;
+      if (!isDocument(entry) || entry.category === "reference") continue;
       const row = map.get(entry.topic_id) ?? { docs: 0, questions: 0 };
       row.docs += 1;
       if (isOpenQuestion(entry)) row.questions += 1;
@@ -364,7 +364,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
   const [creatingChild, setCreatingChild] = useState(false);
 
   const entries = snapshot.entries.filter((entry) => topicIds.includes(entry.topic_id));
-  const docs = entries.filter(isDocument);
+  const docs = entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const mistakes = entries.filter((entry) => entry.kind === "mistake");
   const counts = {
     all: docs.length,
@@ -471,7 +471,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
   const { objectives } = usePersonalOsObjectives(workspace.userId);
   const [creating, setCreating] = useState(false);
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
-  const docs = snapshot.entries.filter(isDocument);
+  const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const lessons = docs.filter(isLesson).sort((a, b) => docSortKey(b).localeCompare(docSortKey(a))).slice(0, 6);
   const recentNotes = docs.filter((entry) => !isLesson(entry)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
   const suggestions = (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
