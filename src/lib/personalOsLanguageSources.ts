@@ -122,3 +122,16 @@ export async function loadCapturedLanguageEntries(userId: string): Promise<Captu
   return (data ?? []) as CapturedLanguageEntry[];
 }
 
+
+/** Daily Anki totals from Personal OS. The legacy table has no deck/language
+ * attribution or user_id; it is deliberately shown only in the All heatmap.
+ * Never infer that a daily total belongs to a particular Heuresis language.
+ */
+export type AnkiReviewDay = { date: string; reviews: number };
+export async function loadPersonalOsAnkiDays(since: string): Promise<AnkiReviewDay[]> {
+  const { data, error } = await db().from("anki_review_days")
+    .select("date,reviews").gte("date", since).order("date", { ascending: true }).limit(1000);
+  if (error) throw error;
+  return (data ?? []).flatMap((row) => typeof row.date === "string" && typeof row.reviews === "number" && row.reviews > 0
+    ? [{ date: row.date, reviews: row.reviews }] : []);
+}
