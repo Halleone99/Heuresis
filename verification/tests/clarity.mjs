@@ -268,7 +268,7 @@ const scenarios = {
     // Cover images should survive reload without any database migration.
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
     await page.waitForSelector(".nb-cover-dialog");
-    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+bSdUAAAAASUVORK5CYII=", "base64");
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPU9k1hYGBgYmBgYGBgAAAKQQDgBh0uIwAAAABJRU5ErkJggg==", "base64");
     await page.locator('.nb-cover-dialog input[type="file"]').setInputFiles({name:"cover.png",mimeType:"image/png",buffer:png});
     await page.waitForSelector(".nb-cover-preview");
     await page.locator('.nb-cover-dialog button:has-text("Save")').click();
