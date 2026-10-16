@@ -241,16 +241,21 @@ const scenarios = {
   },
 
   async "notebook creates subjects and customises their cards"(page) {
+    console.log("NB77: entering Notebook");
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForSelector(".nb-home-subject");
+    console.log("NB77: click New");
     await page.locator(".nb-new-button").click();
     for (const label of ["New subject", "New topic", "New note"]) {
       check(await page.locator('.nb-main-tools [role=menuitem]:has-text("' + label + '")').count() === 1, label + " exists once");
     }
+    console.log("NB77: click New subject");
     await page.locator('.nb-main-tools [role=menuitem]:has-text("New subject")').click();
+    console.log("NB77: new subject form");
     await page.locator(".nb-create-shell input").fill("Philosophy");
     await page.locator(".nb-create-shell input").press("Enter");
     await page.waitForSelector('.nb-scope-head h1:has-text("Philosophy")');
+    console.log("NB77: click breadcrumb");
     await page.locator('.nb-crumbs button:has-text("Notebook")').click();
     await page.waitForSelector('.nb-home-subject:has-text("Philosophy")');
     check(await page.locator(".nb-home-subject").count() === 4, "a fourth subject can be created");
@@ -267,9 +272,12 @@ const scenarios = {
     await page.waitForSelector(".qc-panel");
     check(true, "New note opens quick capture");
     await page.locator('.qc-panel button[aria-label="Close quick capture"]').click();
+    console.log("NB77: double click German");
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
     await page.waitForSelector(".nb-cover-dialog");
+    console.log("NB77: select colour");
     await page.locator('.nb-colour-option[aria-label="Colour 1"]').click();
+    console.log("NB77: save cover");
     await page.locator('.nb-cover-dialog button:has-text("Save")').click();
     await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
     const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
