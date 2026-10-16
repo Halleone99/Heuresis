@@ -3,7 +3,6 @@ import { ChevronDown, Plus, X } from "lucide-react";
 import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
 import { signHeuresisCardImages } from "../lib/cardMedia";
-import "./sort-enrichment.css";
 
 const BLOCKS_KEY = "_workspace_blocks";
 type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "notes";
@@ -161,7 +160,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
       const count = fields.length + owned.length + rows.length + (note ? 1 : 0);
       const open = expanded === dim;
       return <section className="sort-enrich-section" key={dim}>
-        <button type="button" className="sort-enrich-heading" aria-expanded={open} onClick={() => setExpanded(open ? null : dim)} disabled={Boolean(adding && adding !== dim && blocked)}>
+        <button type="button" className="sort-enrich-heading" aria-expanded={open} onClick={() => setExpanded(open ? null : dim)} disabled={Boolean(adding && blocked)}>
           <span>{labels[dim]}</span>{count > 0 ? <b>{count}</b> : null}<ChevronDown size={14} className={open ? "open" : ""} />
         </button>
         {open ? <div className="sort-enrich-contents">
