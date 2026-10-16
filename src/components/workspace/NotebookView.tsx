@@ -158,14 +158,15 @@ export function NotebookView() {
     <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
     <section className="nb-main">
       <div className="nb-main-tools">
-        <button type="button" className="ws-button is-small" onClick={() => setReferencesOpen((value) => !value)}
-          aria-pressed={referencesOpen} title={referencesOpen ? "Return to Notebook notes" : "Browse your reference library"}>
-          <BookOpen size={15} /> {referencesOpen ? "Notes" : "References"}
-        </button>
         <button type="button" className="ws-icon-button nb-rail-toggle" onClick={() => { if (window.matchMedia("(max-width: 900px)").matches) setRailOpenMobile((value) => !value); else toggleRail(); }}
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
+      </div>
+      <div className="nb-mode-bar" role="group" aria-label="Notebook views">
+        <button type="button" className={!referencesOpen ? "active" : ""} aria-pressed={!referencesOpen} onClick={() => setReferencesOpen(false)}>Notes</button>
+        <button type="button" className={referencesOpen ? "active" : ""} aria-pressed={referencesOpen}
+          onClick={() => setReferencesOpen(true)}><BookOpen size={14} /> References</button>
       </div>
       {main}
     </section>
