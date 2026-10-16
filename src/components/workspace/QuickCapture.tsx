@@ -23,7 +23,10 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   const workspace = useWorkspace();
   const { capture: request, memory, updateMemory, currentLesson, userId } = workspace;
   const draftSurface = floating ? "floating" : "inline";
-  const [draft, setDraft] = useState<CaptureDraft>(() => readCaptureDraft(userId, draftSurface) ?? EMPTY_DRAFT("note"));
+  const [draft, setDraft] = useState<CaptureDraft>(() => {
+    const saved = readCaptureDraft(userId, draftSurface);
+    return saved ? { ...saved, mode: saved.mode === "lesson" ? "note" : saved.mode } : EMPTY_DRAFT("note");
+  });
   const [topicId, setTopicId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
@@ -91,8 +94,9 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     setError(""); setFlash(""); setPicking(false);
     setDraft((current) => {
       const stored = captureDraftHasContent(current) ? current : readCaptureDraft(userId, draftSurface) ?? current;
-      const base = captureDraftHasContent(stored) ? stored : EMPTY_DRAFT(request.mode);
-      const next = { ...base, mode: request.mode };
+      const safeMode = request.mode === "lesson" ? "note" : request.mode;
+      const base = captureDraftHasContent(stored) ? stored : EMPTY_DRAFT(safeMode);
+      const next = { ...base, mode: safeMode };
       if (request.text) next.text = request.text;
       if (request.category) { next.category = request.category; next.categoryTouched = true; }
       next.mistakeModeId = request.mode === "mistake" ? (request.mistakeModeId ?? null) : null;
@@ -186,19 +190,19 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     setError("");
     try {
     if (!workspace.writable) { setError("Apply the Notebook database update before capturing (see the notice in Notebook)."); return; }
-    if (!selectedSubjectId) {
-      setError("Choose a language before saving. No notes will be sent to an arbitrary Inbox.");
-      return;
-    }
-    let destination = topicId && workspace.topicById.get(topicId)?.subject_id === selectedSubjectId
+    // Categorisation is optional: quick capture can always save to Unsorted › Inbox.
+    const unsorted = subjects.find((subject) => subject.name.toLowerCase() === "unsorted");
+    const destinationSubjectId = selectedSubjectId ?? unsorted?.id ?? (await workspace.addSubject("Unsorted")).id;
+    let destination = topicId && workspace.topicById.get(topicId)?.subject_id === destinationSubjectId
       ? topicId : null;
     if (!destination || (stream && !attachToLesson)) {
-      destination = (await workspace.ensureInbox(selectedSubjectId)).id;
+      destination = (await workspace.ensureInbox(destinationSubjectId)).id;
     }
     const lessonId = attachToLesson ? currentLesson?.id ?? null : null;
     if (lessonId && currentLesson) destination = currentLesson.topic_id;
     if (!destination) { setError("No destination could be created. Your draft is kept."); return; }
     setTopicId(destination);
+    updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: destinationSubjectId, topicId: destination } }));
     try {
       if (mode === "note") {
         if (!draft.text.trim()) { setError("Write something first."); return; }
@@ -302,7 +306,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       <div className="ws-segmented is-small" role="tablist" aria-label="Capture type">
         <button type="button" role="tab" aria-selected={mode === "note"} className={mode === "note" ? "is-active" : ""} onClick={() => setMode("note")} title={`${MOD_KEY}+Shift+N`}><NotebookPen size={13} /> Note</button>
         <button type="button" role="tab" aria-selected={mode === "mistake"} className={mode === "mistake" ? "is-active" : ""} onClick={() => setMode("mistake")} title={`${MOD_KEY}+Shift+M`}><TriangleAlert size={13} /> Mistake</button>
-        <button type="button" role="tab" aria-selected={mode === "lesson"} className={mode === "lesson" ? "is-active" : ""} onClick={() => setMode("lesson")} title={`${MOD_KEY}+Shift+L`}><GraduationCap size={13} /> Lesson</button>
+
       </div>
       <span className="qc-head-spacer" />
       {mode === "note" && !floating ? <button type="button" className={`qc-stream-toggle ${stream ? "is-active" : ""}`} aria-pressed={stream}
@@ -320,9 +324,9 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
 
     {noSubjects && workspace.loading ? <p className="qc-help qc-loading" role="status"><span className="ws-spinner is-small" aria-hidden="true" /> Loading your languages… keep typing, the draft is kept.</p> : null}
     {noSubjects && workspace.writable && !workspace.loading ? <div className="qc-first-run">
-      <strong>Where should your notes live?</strong>
-      <p>Choose a language. Heuresis creates an Inbox topic inside it; you can organise later.</p>
-      {creatingSubject ? <InlineNameForm label="Language name" placeholder="Chinese, German…" onCancel={() => setCreatingSubject(false)}
+      <strong>Capture first, organise later</strong>
+      <p>You can save straight away in Unsorted › Inbox, or choose a subject below.</p>
+      {creatingSubject ? <InlineNameForm label="Subject name" placeholder="Philosophy, German…" onCancel={() => setCreatingSubject(false)}
         onSubmit={async (name) => { const subject = await workspace.addSubject(name); const inbox = await workspace.ensureInbox(subject.id); setTopicId(inbox.id); updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: subject.id, topicId: inbox.id } })); setCreatingSubject(false); }} />
         : <div className="qc-chips">
           {suggestions.map((name) => <button type="button" key={name} className="ws-button is-small" onClick={async () => {
@@ -387,8 +391,8 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     </div>
 
     <div className="qc-destination">
-      {subjects.length > 1 ? <div className="qc-language-choices" role="group" aria-label="Capture language">
-        <span className="qc-language-caption">Language</span>
+      {subjects.length > 1 ? <div className="qc-language-choices" role="group" aria-label="Capture subject">
+        <span className="qc-language-caption">Subject</span>
         {subjects.map((subject) => <button type="button" key={subject.id}
           className={selectedSubjectId === subject.id ? "is-active" : ""}
           aria-pressed={selectedSubjectId === subject.id} disabled={saving}
@@ -419,7 +423,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     <div className="qc-foot">
       <span className="qc-hint">{stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}<Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
       {hasContent ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
-      <button type="button" className="ws-button is-primary" disabled={saving || (subjects.length > 1 && !selectedSubjectId)} onClick={() => void submit()}>
+      <button type="button" className="ws-button is-primary" disabled={saving} onClick={() => void submit()}>
         {saving ? <><span className="ws-spinner is-small" aria-hidden="true" /> Saving…</>
           : mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
       </button>
