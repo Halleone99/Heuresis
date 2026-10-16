@@ -265,6 +265,20 @@ const scenarios = {
     await page.waitForSelector('.nb-home-subject:has-text("German")');
     const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
     check(retained === colour, "subject colour survives reopening");
+    // Cover images should survive reload without any database migration.
+    await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
+    await page.waitForSelector(".nb-cover-dialog");
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+bSdUAAAAASUVORK5CYII=", "base64");
+    await page.locator('.nb-cover-dialog input[type="file"]').setInputFiles({name:"cover.png",mimeType:"image/png",buffer:png});
+    await page.waitForSelector(".nb-cover-preview");
+    await page.locator('.nb-cover-dialog button:has-text("Save")').click();
+    await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
+    const image = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundImage);
+    check(image.includes("blob:"), "cover image applies to subject card");
+    await page.reload();
+    await page.waitForSelector('.nb-home-subject:has-text("German")');
+    await page.waitForFunction(() => getComputedStyle([...document.querySelectorAll(".nb-home-subject")].find(el => el.textContent?.includes("German"))).backgroundImage.includes("blob:"));
+    check(true, "cover image survives reopening");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {
