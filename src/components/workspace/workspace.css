@@ -1916,6 +1916,11 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 }
 .nb-layout .nb-main-tools > * { pointer-events: auto; }
 .nb-layout:not(.is-rail-collapsed) .nb-main-tools { display: flex; }
+/* The desktop Notebook hides the old drawer toolbar with !important.
+   Restore this toolbar for the single New action, keeping the drawer button hidden. */
+@media (min-width: 901px) {
+  .heuresis-desktop[data-section="notebook"] .nb-main-tools { display: flex !important; }
+}
 @media (min-width: 901px) { .nb-layout:not(.is-rail-collapsed) .nb-rail-toggle { visibility: hidden; } }
 .nb-main-tools .ws-menu { margin-left: auto; }
 .nb-main-tools .nb-new-button {
