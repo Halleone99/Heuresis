@@ -5,6 +5,8 @@ const read = (path) => readFileSync(path, "utf8");
 const pack = read("src/components/PackView.tsx");
 const review = read("src/components/StudyModal.tsx");
 const sort = read("src/components/SortModal.tsx");
+const enrichment = read("src/components/SortEnrichmentPanel.tsx");
+const enrichmentCss = read("src/components/sort-enrichment.css");
 
 assert.match(pack, /<SortModal\s+pack=/, "Topic must open the Sort workflow");
 assert.match(pack, /onClick=\{\(\) => setSortOpen\(true\)\}/, "Topic needs a working Sort action");
@@ -29,5 +31,15 @@ assert.doesNotMatch(pack, /status-menu-popover|StatusFilter = [^;]*favourite/,
 assert.match(pack, /aria-pressed=\{favouriteOnly\}/, "Favourite-only filter must remain accessible");
 assert.match(pack, /if \(favouriteOnly && !card\.favourite\)/, "Favourites must combine with stage selections");
 assert.match(pack, /setFavouriteOnly\(false\)/, "Clear filters must clear Favourites too");
+
+assert.match(sort, /<SortEnrichmentPanel key=/, "Sort must show the enrichment rail for each card");
+assert.match(sort, /aria-label="Complete flashcard"/, "Sort must retain the central flashcard");
+assert.match(sort, /onBlockedChange=/, "Sort must guard unsaved enrichment");
+assert.match(enrichment, /patchCardData/, "Enrichment must save to the original card");
+assert.match(enrichment, /_workspace_blocks/, "Enrichment must reuse the Cosmos card knowledge format");
+assert.match(enrichment, /addRelatedWord/, "Sort must still add linked vocabulary");
+assert.match(enrichment, /removeRelatedRelation/, "Sort must still unlink vocabulary");
+assert.match(enrichmentCss, /grid-template-columns/, "Sort needs a three-column desktop layout");
+assert.match(enrichmentCss, /max-width: 600px/, "Sort must adapt to phones");
 
 console.log("One Sort / Review and topic-filter checks passed.");
