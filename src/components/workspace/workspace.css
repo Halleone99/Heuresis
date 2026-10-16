@@ -815,6 +815,49 @@
 /* --------------------------------------------------------------------------
    Progress
    -------------------------------------------------------------------------- */
+
+/* Quiet Overview: activity first, context below. */
+.ov-simple .ws-page-head{margin-bottom:20px}
+.ov-simple .ov-subjects{margin:-4px 0 18px}
+.ov-activity{margin-bottom:18px}
+.ov-simple-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:18px;align-items:start}
+.ov-simple-side{display:grid;gap:18px;min-width:0}
+.ov-heat-scroll{max-width:100%;overflow-x:auto;padding:7px 0 9px}
+.ov-heat-layout{min-width:max-content}
+.ov-heat-months{display:grid;grid-template-columns:repeat(26,14px);column-gap:3px;height:18px;margin-left:27px;color:var(--ws-muted);font:500 10px/1.1 var(--ws-sans)}
+.ov-heat-months span{white-space:nowrap}
+.ov-heat-body{display:flex;align-items:start;gap:8px}
+.ov-heat-weekdays{display:grid;grid-template-rows:repeat(7,14px);gap:3px;width:19px;color:var(--ws-muted);font:500 10px/14px var(--ws-sans)}
+.ov-heat-grid{display:grid;grid-template-rows:repeat(7,14px);grid-auto-flow:column;grid-auto-columns:14px;gap:3px}
+.ov-heat-cell{display:block;width:14px;height:14px;border-radius:3px;background:var(--ws-surface-2);box-shadow:inset 0 0 0 1px var(--ws-line)}
+.ov-heat-cell[data-level="1"]{background:color-mix(in srgb,var(--ws-accent) 25%,var(--ws-surface-2));box-shadow:none}
+.ov-heat-cell[data-level="2"]{background:color-mix(in srgb,var(--ws-accent) 45%,var(--ws-surface-2));box-shadow:none}
+.ov-heat-cell[data-level="3"]{background:color-mix(in srgb,var(--ws-accent) 68%,var(--ws-surface-2));box-shadow:none}
+.ov-heat-cell[data-level="4"]{background:var(--ws-accent);box-shadow:none}
+.ov-heat-cell[data-level="future"]{opacity:.2}
+.ov-heat-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--ws-muted);font:400 11.5px/1.4 var(--ws-sans)}
+.ov-heat-legend{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--ws-muted)}
+.ov-heat-legend .ov-heat-cell{width:10px;height:10px;border-radius:2px}
+.ov-goal-edit{display:grid;gap:8px}
+.ov-goal-edit label{color:var(--ws-text);font-size:12.5px}
+.ov-goal-edit input{width:100%;min-width:0;padding:10px 11px;border:1px solid var(--ws-line-strong);border-radius:8px;background:var(--ws-surface-2);color:var(--ws-ink);font:400 14px/1.4 var(--ws-sans)}
+.ov-goal-edit input:focus-visible{outline:2px solid var(--ws-accent);outline-offset:2px}
+.ov-goal-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.ov-simple-goals{padding:0;margin:0;list-style:none;display:grid;gap:10px}
+.ov-simple-goals li{display:grid;gap:3px}
+.ov-simple-goals li+li{padding-top:10px;border-top:1px solid var(--ws-line)}
+.ov-simple-goals small{font:500 10px/1.2 var(--ws-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ws-muted)}
+.ov-simple-goals span{color:var(--ws-ink);font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+.ov-quicklinks{padding:4px 16px}
+.ov-quicklinks button{display:flex;gap:12px;align-items:center;width:100%;padding:13px 0;border:0;background:transparent;color:var(--ws-muted);text-align:left;cursor:pointer}
+.ov-quicklinks button+button{border-top:1px solid var(--ws-line)}
+.ov-quicklinks button>span{flex:1;min-width:0;display:grid;gap:3px}
+.ov-quicklinks strong{color:var(--ws-ink);font:600 13.5px/1.3 var(--ws-sans)}
+.ov-quicklinks small{color:var(--ws-muted);font-size:11.5px}
+.ov-quicklinks button:hover strong{color:var(--ws-accent)}
+@media(max-width:900px){.ov-simple-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:480px){.ov-heat-legend{margin-left:0}.ov-simple .ov-list-meta{display:none}}
+
 .pg-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
 .pg-grid > .pg-chart { grid-column: span 2; min-width: 0; }
 /* Five charts: 3 across + 2 equal-width, never 3 plus an empty hole. */
