@@ -48,7 +48,7 @@ function quoteFromRow(row: QuoteRow): SavedQuote {
 }
 const META = /<!--reading-meta:([\\s\\S]*?)-->/i;
 const TIME = /<!--reading-time:([\\s\\S]*?)-->/i;
-const PROGRESS = /<!--reading-progress:([\\s\\S]*?)-->/i;
+const PROGRESS = /<!--reading-progress:(\\d+)\\/(\\d+)-->/i;
 function decodeMarker(notes: string, expression: RegExp): unknown {
   const match = notes.match(expression);
   if (!match) return null;
@@ -81,12 +81,11 @@ export function bookMinutes(book: ReadingBook): number {
   }, 0);
 }
 export function bookProgress(book: ReadingBook): { page: number; pages: number } | null {
-  const record = decodeMarker(book.notes, PROGRESS);
-  if (!record || typeof record !== "object" || !("page" in record) || !("pages" in record)) return null;
-  const page = (record as { page: unknown }).page;
-  const pages = (record as { pages: unknown }).pages;
-  if (typeof page !== "number" || typeof pages !== "number" || pages <= 0 || page < 0 || page > pages) return null;
-  return { page, pages };
+  const match = book.notes.match(PROGRESS);
+  if (!match) return null;
+  const page = Number(match[1]); const pages = Number(match[2]);
+  return Number.isInteger(page) && Number.isInteger(pages) && pages > 0 && page >= 0
+    ? { page: Math.min(page, pages), pages } : null;
 }
 function localToday() {
   const now = new Date();
@@ -164,7 +163,10 @@ export function useReadingLibrary(userId: string) {
   const setProgress = async (book: ReadingBook, page: number, pages: number) => {
     if (!Number.isInteger(page) || !Number.isInteger(pages) || pages < 1 || page < 0 || page > pages)
       throw new Error("Enter a valid page and total, such as 45/240.");
-    return updateBook(book.id, { notes: replaceMarker(book.notes, PROGRESS, "reading-progress", { page, pages }) });
+    const marker = `<!--reading-progress:${page}/${pages}-->`;
+    const notes = PROGRESS.test(book.notes) ? book.notes.replace(PROGRESS, marker)
+      : [marker, book.notes].filter(Boolean).join("\\n");
+    return updateBook(book.id, { notes });
   };
   const addQuote = async (draft: QuoteDraft) => {
     const { data, error: writeError } = await client().from("capital_reading_quotes").insert({
