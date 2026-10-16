@@ -5,7 +5,7 @@ const chapters = read("src/lib/referenceChapters.ts");
 const model = read("src/lib/knowledgeWorkspace.ts");
 const view = read("src/components/workspace/ReferenceLibrary.tsx");
 const notebook = read("src/components/workspace/NotebookView.tsx");
-const migration = read("supabase/migrations/20261016170000_knowledge_reference_category.sql");
+const migration = read("supabase/migrations/20261016191308_knowledge_reference_category.sql");
 assert.match(chapters, /parseReferenceChapters/);
 assert.match(chapters, /\^##/);
 assert.match(model, /reference: "Reference"/);
