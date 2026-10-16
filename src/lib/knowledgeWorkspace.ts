@@ -18,6 +18,8 @@ import { repairPinyinToneMarks } from "./pinyinUnicode";
 export type KnowledgeKind = "note" | "lesson" | "mistake";
 export type NoteCategory = "note" | "question" | "grammar" | "vocabulary" | "phrase" | "reference";
 export type MistakeStatus = "needs_practice" | "understood";
+export type MistakeAccent = "red" | "amber" | "green" | "blue" | "violet";
+const MISTAKE_ACCENTS = new Set<MistakeAccent>(["red", "amber", "green", "blue", "violet"]);
 export type SchemaLevel = "v2" | "v1" | "missing";
 export type PracticeOutcome = "correct" | "incorrect";
 
@@ -29,6 +31,7 @@ export type KnowledgeTopic = {
 export type KnowledgeEntry = {
   id: string; user_id: string; topic_id: string; kind: KnowledgeKind;
   title: string; body: string; attempt: string; correction: string; explanation: string;
+  accent_color: MistakeAccent | null;
   status: MistakeStatus | null; category: NoteCategory | null; mistake_mode_id: string | null;
   lesson_id: string | null; lesson_date: string | null; pinned: boolean;
   recall_streak: number; last_recalled_at: string | null; recall_due_at: string | null;
@@ -46,11 +49,11 @@ export type EntryInput = {
   /** Optional client id, so a retried capture can never be stored twice. */
   id?: string;
   kind: KnowledgeKind; topicId: string; title?: string; body?: string;
-  attempt?: string; correction?: string; explanation?: string;
+  attempt?: string; correction?: string; explanation?: string; accentColor?: MistakeAccent | null;
   category?: NoteCategory | null; mistakeModeId?: string | null; lessonId?: string | null; lessonDate?: string | null;
 };
 export type EntryPatch = Partial<Pick<KnowledgeEntry,
-  "topic_id" | "title" | "body" | "attempt" | "correction" | "explanation" | "status" | "category" | "mistake_mode_id"
+  "topic_id" | "title" | "body" | "attempt" | "correction" | "explanation" | "accent_color" | "status" | "category" | "mistake_mode_id"
   | "lesson_id" | "lesson_date" | "pinned" | "recall_streak" | "last_recalled_at" | "recall_due_at">>;
 
 export const EMPTY_SNAPSHOT: KnowledgeSnapshot = { subjects: [], topics: [], entries: [], practice: [] };
@@ -62,7 +65,7 @@ export const LIMITS = { name: 120, title: 200, body: 50000, attempt: 5000, corre
 
 const PAGE_SIZE = 1000;
 const SCHEMA_KEY = "heuresis.knowledge.schema.v2";
-const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
+const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "accent_color", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
 
 let schemaLevel: SchemaLevel = readStoredSchema();
 
@@ -172,6 +175,7 @@ export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
     id: str(row.id), user_id: str(row.user_id), topic_id: str(row.topic_id), kind,
     title: contentStr(row.title), body: contentStr(row.body), attempt: contentStr(row.attempt), correction: contentStr(row.correction),
     explanation: contentStr(row.explanation),
+    accent_color: typeof row.accent_color === "string" && MISTAKE_ACCENTS.has(row.accent_color as MistakeAccent) ? row.accent_color as MistakeAccent : null,
     status: kind === "mistake" ? (row.status === "understood" ? "understood" : "needs_practice") : null,
     category, mistake_mode_id: nullableStr(row.mistake_mode_id), lesson_id: nullableStr(row.lesson_id), lesson_date: nullableStr(row.lesson_date),
     pinned: row.pinned === true, recall_streak: typeof row.recall_streak === "number" ? row.recall_streak : 0,
@@ -296,6 +300,7 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
     attempt: kind === "mistake" ? repairPinyinToneMarks(input.attempt ?? "").trim() : "",
     correction: kind === "mistake" ? repairPinyinToneMarks(input.correction ?? "").trim() : "",
     explanation: kind === "mistake" ? repairPinyinToneMarks(input.explanation ?? "").trim() : "",
+    accent_color: kind === "mistake" ? (input.accentColor ?? null) : null,
     status: kind === "mistake" ? "needs_practice" : null,
     category: kind === "note" ? (input.category ?? "note") : kind === "mistake" ? (input.category ?? null) : null,
     mistake_mode_id: kind === "mistake" ? (input.mistakeModeId ?? null) : null,

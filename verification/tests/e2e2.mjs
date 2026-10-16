@@ -11,7 +11,7 @@ console.log("11. Record a general mistake in two fields");
 await section(page, "Mistake Log");
 await page.click(".ws-page-actions button:has-text('Add mistake')");
 await page.waitForSelector(".ml-simple-edit");
-check(await page.locator(".ml-simple-edit textarea").count() === 2, "only mistake and correction are required");
+check(await page.locator(".ml-simple-edit > label.ws-field textarea").count() === 2, "only mistake and correction are required");
 await page.locator(".ml-simple-edit textarea").nth(0).fill("Ich freue mich über das Wochenende.");
 await page.locator(".ml-simple-edit textarea").nth(1).fill("Ich freue mich auf das Wochenende.");
 await page.click(".ml-simple-edit button:has-text('Save')");
