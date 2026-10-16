@@ -277,16 +277,16 @@ const scenarios = {
     check(await sql(`select t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id where r.id='${NOTE_A2}'`) === "Time expressions", "Undo after leaving the note moves it back");
 
     const RU = "e0000000-0000-4000-8000-0000000000d4";
-    check(await sql("select count(*) from knowledge_records where id='" + RU + "'") === "1", "A seeded mistake exists");
+    check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "1", "A seeded mistake exists");
     await page.click('.hw-sections button:has-text("Mistake Log")');
     await page.locator('[data-mistake="' + RU + '"] [aria-label="Delete mistake"]').click();
     await page.locator('[role="alertdialog"] button:has-text("Delete")').click();
     await page.waitForTimeout(700);
-    check(await sql("select count(*) from knowledge_records where id='" + RU + "'") === "0", "The mistake is deleted");
+    check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "0", "The mistake is deleted");
     await page.click('.hw-sections button:has-text("Overview")');
     await page.locator('.ws-toast button:has-text("Undo")').click();
     await page.waitForTimeout(700);
-    check(await sql("select count(*) from knowledge_records where id='" + RU + "'") === "1",
+    check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "1",
       "Undo restores the original mistake even after leaving Mistake Log");
   },
 
