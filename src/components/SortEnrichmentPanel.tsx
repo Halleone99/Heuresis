@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
@@ -74,8 +74,9 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const blocked = busy || Boolean(adding && (draft.trim() || word.trim() || reading.trim() || meaning.trim()));
-  useEffect(() => onBlockedChange(blocked), [blocked, onBlockedChange]);
+  // Keep the session in place while an editor is open, even before the first keystroke.
+  const blocked = busy || adding !== null;
+  useLayoutEffect(() => { onBlockedChange(blocked); }, [blocked, onBlockedChange]);
   useEffect(() => () => onBlockedChange(false), [onBlockedChange]);
 
   useEffect(() => {
