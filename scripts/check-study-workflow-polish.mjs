@@ -39,7 +39,7 @@ assert.match(pack, /Could not load this topic.*Retry/s, "An error must offer Ret
 
 assert.match(app, /className="mobile-workspace-nav"/);
 assert.match(app, /className="mobile-study-subnav"/);
-assert.match(app, /SECTIONS\.map\(\(\{ id, label, icon: Icon \}\)/, "All five workspace pages use the same mobile bar");
+assert.match(app, /SECTIONS\.filter\(\(item\) => item\.id !== "progress"\)\.map\(\(\{ id, label, icon: Icon \}\)/, "Progress moves into Overview; remaining mobile navigation stays consistent");
 assert.match(app, /<TabletCaptureFab onCapture=/);
 assert.match(app, /view !== "pack" \? <button className="desktop-action desktop-primary"/, "Do not repeat New card over the topic's own New card");
 assert.match(tablet, /grid-template-columns: repeat\(5, minmax\(0,1fr\)\)/);
