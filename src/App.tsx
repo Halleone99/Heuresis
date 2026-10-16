@@ -153,6 +153,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [cardQuery, setCardQuery] = useState("");
   const [view, setView] = useState<View>("library");
   const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
+  const [referenceMode, setReferenceMode] = useState<"works" | "topics">("works");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
@@ -585,7 +586,13 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
           {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
           {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
-          {section === "reference" && !workspace.loading && !workspace.error ? <ReferenceView /> : null}
+          {section === "reference" && !workspace.loading && !workspace.error ? <div className="lit-reference-workspace">
+            <nav className="lit-reference-modes" role="group" aria-label="Reference views">
+              <button type="button" className={referenceMode === "works" ? "active" : ""} aria-pressed={referenceMode === "works"} onClick={() => setReferenceMode("works")}>Works</button>
+              <button type="button" className={referenceMode === "topics" ? "active" : ""} aria-pressed={referenceMode === "topics"} onClick={() => setReferenceMode("topics")}>Topics</button>
+            </nav>
+            {referenceMode === "works" ? <NotebookView key="reference-works" referenceOnly onExitReference={() => setReferenceMode("topics")} /> : <ReferenceView />}
+          </div> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
