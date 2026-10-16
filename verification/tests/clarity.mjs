@@ -261,6 +261,9 @@ const scenarios = {
     await page.locator('.rl-page-actions button:has-text("Edit reference")').click();
     await page.locator(".nb-title-input").waitFor();
     await page.locator(".nb-title-input").fill("Roman Ideas Revised");
+    await page.locator('.nb-reference-chapter-action button:has-text("Add chapter")').click();
+    await page.locator('.nb-reference-chapter-action input[aria-label="New chapter title"]').fill("Checks and Balances");
+    await page.locator('.nb-reference-chapter-action button:has-text("Add")').click();
     await page.locator('.nb-doc-actions button:has-text("Done")').click();
     await page.waitForTimeout(650);
     check(await sql("select title from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'") === "Roman Ideas Revised",
@@ -268,6 +271,7 @@ const scenarios = {
     await page.locator('.nb-doc-actions button[aria-label="Close note"]').click();
     await page.locator(".rl-titlepage h1").waitFor();
     check((await page.locator(".rl-titlepage h1").innerText()) === "Roman Ideas Revised", "Closing the editor returns directly to the reference");
+    check(await page.locator(".rl-chapter").count() === 3, "New named chapter is preserved in the reference contents");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {
