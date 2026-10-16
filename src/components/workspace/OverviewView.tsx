@@ -3,6 +3,7 @@ import { ArrowRight, BarChart3, BookOpen, Check, NotebookPen, Pencil, Plus, Refr
 import { entryTitle, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { loadStudyActivity, meaningfulStudySessions, weekStart, type StudyActivity } from "../../lib/activity";
 import { languageFromCollection, languageFromName } from "../../lib/languages";
+import { loadPersonalOsAnkiDays, type AnkiReviewDay } from "../../lib/personalOsLanguageSources";
 import type { Collection, PackWithType } from "../../lib/heuresis";
 import { KindIcon, relativeTime } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
@@ -26,19 +27,20 @@ function readGoals(userId: string): GoalMap {
   } catch { return {}; }
 }
 
-function ActivityHeatmap({ activity, filter, packs, collections, entries, subjects, topics, practice, error, loading, onRetry }: {
-  activity: StudyActivity | null; filter: string | null; packs: PackWithType[]; collections: Collection[];
+function ActivityHeatmap({ activity, ankiDays, ankiLoading, ankiError, filter, packs, collections, entries, subjects, topics, practice, error, loading, onRetry }: {
+  activity: StudyActivity | null; ankiDays: AnkiReviewDay[]; ankiLoading: boolean; ankiError: string;
+  filter: string | null; packs: PackWithType[]; collections: Collection[];
   entries: ReturnType<typeof useWorkspace>["snapshot"]["entries"];
   subjects: ReturnType<typeof useWorkspace>["snapshot"]["subjects"];
   topics: ReturnType<typeof useWorkspace>["snapshot"]["topics"];
   practice: ReturnType<typeof useWorkspace>["snapshot"]["practice"];
   error: string; loading: boolean; onRetry: () => void;
 }) {
-  const { weeks, activeDays, counted, lastDay } = useMemo(() => {
+  const { weeks, activeDays, counted } = useMemo(() => {
     const subjectById = new Map(subjects.map((row) => [row.id, keyOfName(row.name)]));
     const topicById = new Map(topics.map((row) => [row.id, row.subject_id]));
     const entryById = new Map(entries.map((row) => [row.id, row]));
-    const collectionById = new Map(collections.map((row) => [row.id, keyOfName(row.title) === row.title.toLocaleLowerCase() ? (languageFromCollection(row) ?? keyOfName(row.title)) : keyOfName(row.title)]));
+    const collectionById = new Map(collections.map((row) => [row.id, languageFromCollection(row) ?? keyOfName(row.title)]));
     const packById = new Map(packs.map((row) => [row.id, collectionById.get(row.collection_id) ?? null]));
     const matches = (key: string | null | undefined) => !filter || key === filter;
     const add = (value: string | null | undefined, language: string | null | undefined, map: Map<string, number>) => {
@@ -59,6 +61,9 @@ function ActivityHeatmap({ activity, filter, packs, collections, entries, subjec
       const key = entry ? subjectById.get(topicById.get(entry.topic_id) ?? "") : null;
       add(event.created_at, key, counts);
     }
+    // Legacy Anki daily totals are not attributed to a language.
+    // Include them only under All, never in one language’s statistics.
+    if (!filter) for (const day of ankiDays) counts.set(day.date, (counts.get(day.date) ?? 0) + day.reviews);
     if (activity) {
       for (const event of activity.reviews) add(event.created_at, packById.get(event.pack_id), counts);
       const withGrades = new Set(activity.reviews.map((row) => row.session_id).filter(Boolean));
@@ -85,8 +90,8 @@ function ActivityHeatmap({ activity, filter, packs, collections, entries, subjec
         slots.push({ key, date, label: date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), future: key > today, count: counts.get(key) ?? 0 });
       }
     }
-    return { weeks: { labels: weekLabels, days: slots }, activeDays: slots.filter((row) => !row.future && row.count > 0).length, counted: slots.filter((row) => !row.future).reduce((sum, row) => sum + row.count, 0), lastDay: today };
-  }, [activity, collections, entries, filter, packs, practice, subjects, topics]);
+    return { weeks: { labels: weekLabels, days: slots }, activeDays: slots.filter((row) => !row.future && row.count > 0).length, counted: slots.filter((row) => !row.future).reduce((sum, row) => sum + row.count, 0) };
+  }, [activity, ankiDays, collections, entries, filter, packs, practice, subjects, topics]);
 
   return <section className="ws-panel ov-activity" aria-labelledby="ov-activity-title">
     <div className="ws-panel-head">
@@ -109,6 +114,7 @@ function ActivityHeatmap({ activity, filter, packs, collections, entries, subjec
     <div className="ov-heat-footer">
       <span>{loading ? "Loading Study activity…" : error ? "Study activity unavailable; only Notebook activity is shown." : `${counted} recorded actions · notes, lessons, recalls and flashcards`}</span>
       {error ? <button type="button" className="nb-link-button" onClick={onRetry}><RefreshCw size={13}/> Retry</button> : null}
+      {filter ? <span>Anki Tracker totals appear in All only.</span> : ankiLoading ? <span>Loading Personal OS reviews…</span> : ankiError ? <span>Anki Tracker totals unavailable.</span> : null}
       <div className="ov-heat-legend" aria-label="Less to more activity"><span>Less</span>{[0,1,2,3,4].map((n) => <i key={n} className="ov-heat-cell" data-level={String(n)} />)}<span>More</span></div>
     </div>
   </section>;
@@ -121,6 +127,9 @@ export function OverviewView({ study, onOpenStudy, collections, packs }: {
   const { snapshot } = workspace;
   const [filter, setFilter] = useState<string | null>(null);
   const [activity, setActivity] = useState<StudyActivity | null>(null);
+  const [ankiDays, setAnkiDays] = useState<AnkiReviewDay[]>([]);
+  const [ankiError, setAnkiError] = useState("");
+  const [ankiLoading, setAnkiLoading] = useState(true);
   const [activityError, setActivityError] = useState("");
   const [activityLoading, setActivityLoading] = useState(true);
   const [retry, setRetry] = useState(0);
@@ -136,6 +145,16 @@ export function OverviewView({ study, onOpenStudy, collections, packs }: {
       .then((value) => { if (alive) setActivity(value); })
       .catch(() => { if (alive) { setActivity(null); setActivityError("unavailable"); } })
       .finally(() => { if (alive) setActivityLoading(false); });
+    return () => { alive = false; };
+  }, [retry, workspace.userId]);
+  useEffect(() => {
+    let alive = true;
+    setAnkiLoading(true); setAnkiError("");
+    const since = new Date(); since.setDate(since.getDate() - 190);
+    void loadPersonalOsAnkiDays(dayKey(since))
+      .then((days) => { if (alive) setAnkiDays(days); })
+      .catch(() => { if (alive) { setAnkiDays([]); setAnkiError("unavailable"); } })
+      .finally(() => { if (alive) setAnkiLoading(false); });
     return () => { alive = false; };
   }, [retry, workspace.userId]);
   useEffect(() => { setGoals(readGoals(workspace.userId)); setEditing(null); }, [workspace.userId]);
@@ -178,7 +197,7 @@ export function OverviewView({ study, onOpenStudy, collections, packs }: {
       {languages.map((row) => <button type="button" key={row.id} className={selected === row.id ? "is-active" : ""} aria-pressed={selected === row.id} onClick={() => { setFilter(row.id); setEditing(null); }}>{row.name}</button>)}
     </nav> : null}
 
-    <ActivityHeatmap activity={activity} filter={selected} packs={packs} collections={collections} entries={snapshot.entries} subjects={snapshot.subjects} topics={snapshot.topics} practice={snapshot.practice} loading={activityLoading} error={activityError} onRetry={() => setRetry((value) => value + 1)} />
+    <ActivityHeatmap activity={activity} ankiDays={ankiDays} ankiLoading={ankiLoading} ankiError={ankiError} filter={selected} packs={packs} collections={collections} entries={snapshot.entries} subjects={snapshot.subjects} topics={snapshot.topics} practice={snapshot.practice} loading={activityLoading} error={activityError} onRetry={() => setRetry((value) => value + 1)} />
 
     <div className="ov-simple-grid">
       <section className="ws-panel">
