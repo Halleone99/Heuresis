@@ -252,7 +252,6 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null, draftSurface);
       return next;
     });
-    setShowWhy(false);
     if (keepOpen || stream) {
       setFlash("Saved. Ready for the next line.");
       setFocusNonce((value) => value + 1);
