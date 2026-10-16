@@ -13,7 +13,7 @@ assert.match(sidebar, /snapshot\.subjects/);
 assert.match(sidebar, /workspace\.childrenOf\(parentId, subjectId\)/);
 assert.match(sidebar, /workspace\.openTopic\(topicId\)/);
 assert.match(sidebar, /aria-label="Notebook navigation"/);
-assert.match(sidebar, /aria-label="Languages"/);
+assert.match(sidebar, /aria-label="Subjects"/);
 assert.match(sidebar, /notebook: \{\s*\.\.\.current\.notebook, subjectId, topicId: null, docId: null/,
   "Selecting a language must clear a stale document");
 assert.match(sidebar, /workspace\.addSubject\(clean\)/);

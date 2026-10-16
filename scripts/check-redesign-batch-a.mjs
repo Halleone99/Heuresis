@@ -17,7 +17,7 @@ assert.match(document, /onClose\(\)/, "Note close still returns to its topic");
 
 assert.match(capture, /<span className="qc-label">Save in<\/span>/, "Capture has one destination label");
 assert.doesNotMatch(capture, /mode === "lesson" \? "In" : "To"/, "No inconsistent destination label");
-assert.match(capture, /Choose a language\. Heuresis creates an Inbox/, "Language terminology is consistent");
+assert.match(capture, /You can save straight away in Unsorted/, "Quick capture works without forced categorisation");
 assert.match(mistakes, /Corrections and recall/, "User-facing Mistake heading");
 assert.doesNotMatch(mistakes, /Mistake → Correction → Practice → Progress/, "No developer-style headings");
 assert.doesNotMatch(overview, /Objectives from Personal OS appear here/, "No technical objective empty-state copy");

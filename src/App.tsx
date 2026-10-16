@@ -329,7 +329,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => setSection(item.id) })),
     { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
     { id: "capture-mistake", label: "Record a mistake", detail: "Quick correction · Ctrl+Shift+M", keywords: "mistake recall", run: () => openNotebookCapture("mistake") },
-    { id: "start-lesson", label: "Start a lesson", detail: "Attach notes and corrections · Ctrl+Shift+L", keywords: "new lesson", run: () => openNotebookCapture("lesson") },
     { id: "practise-due", label: "Practise due mistakes", detail: "Start a recall session", keywords: "review test recall", run: () => {
       const due = workspace.snapshot.entries.filter((entry) => entry.kind === "mistake" && isRecallDue(entry));
       if (due.length) workspace.openMistake(due[0].id, { practise: true, ids: due.map((entry) => entry.id) });
@@ -360,9 +359,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         if (event.shiftKey) toggleFocus(); else toggleSidebar();
         return;
       }
-      if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM", "KeyL"].includes(event.code)) {
+      if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM"].includes(event.code)) {
         event.preventDefault();
-        openNotebookCapture(event.code === "KeyN" ? "note" : event.code === "KeyM" ? "mistake" : "lesson");
+        openNotebookCapture(event.code === "KeyN" ? "note" : "mistake");
         return;
       }
       if (mod && !event.shiftKey && !event.altKey && event.code === "KeyK") {
@@ -509,7 +508,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           <button type="button" className="desktop-action desktop-search-action" onClick={openPalette} title={`Search notes, Study cards and commands · ${MOD_KEY}+K`}><Search size={14} /><span>Search</span><kbd>{MOD_KEY} K</kbd></button>
           {section === "study" ? <button className="desktop-action desktop-topic-action" title="Create a Study topic" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
           {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()} title="Add Study cards to a topic"><Plus size={14} /> New card</button> : null}
-          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Capture a note, mistake or lesson for the Notebook (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
+          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Capture a note or mistake for the Notebook (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -637,7 +636,6 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     ["Ctrl Alt Space", "Floating Notebook Capture (system-wide, desktop)"],
     [`${MOD_KEY} ⇧ N`, "Quick note (from anywhere, even while typing)"],
     [`${MOD_KEY} ⇧ M`, "Record a mistake"],
-    [`${MOD_KEY} ⇧ L`, "Start a lesson"],
     [`${MOD_KEY} ↵`, "Save the capture · finish editing"],
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
