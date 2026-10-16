@@ -2041,3 +2041,40 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .nb-layout .nb-main-tools { right: 16px; }
   .nb-cover-dialog { max-height: 88vh; }
 }
+
+
+/* Notebook hierarchy: a subject shows topic cards; a topic shows its own notes. */
+.nb-scope-head .nb-scope-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.nb-scope-head .ws-menu { position: relative; }
+.nb-scope-head .nb-new-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-width: 90px; min-height: 36px; padding: 0 15px; border-radius: 9px;
+  border: 1px solid var(--ws-line-strong); color: var(--ws-ink);
+  background: var(--ws-raised); font-weight: 600; font-size: 13px; box-shadow: var(--ws-shadow-1);
+}
+.nb-scope-head .nb-new-button:hover { background: var(--ws-surface-2); }
+.nb-scope-head .ws-menu-list { left: auto; right: 0; min-width: 185px; }
+.nb-topic-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 225px), 1fr));
+  gap: 12px; margin: 6px 0 24px;
+}
+.nb-topic-card {
+  width: 100%; min-height: 95px; padding: 17px 18px; display: flex; flex-direction: column;
+  justify-content: center; gap: 12px; border: 1px solid var(--ws-line);
+  border-radius: 12px; text-align: left; cursor: pointer;
+  background: var(--ws-surface); color: var(--ws-ink);
+  box-shadow: var(--ws-shadow-1); transition: border-color .15s, background-color .15s, transform .15s;
+}
+.nb-topic-card:hover { border-color: var(--ws-accent-line); background: var(--ws-raised); transform: translateY(-1px); }
+.nb-topic-card:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
+.nb-topic-card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font: 400 21px/1.2 var(--ws-display); overflow-wrap: anywhere; }
+.nb-topic-card-title svg { flex: none; color: var(--ws-muted); }
+.nb-topic-card-count { color: var(--ws-muted); font: 400 12px/1.4 var(--ws-sans); }
+.nb-topic-empty-filter { padding: 16px 2px; margin: 0; font-size: 13px; }
+.nb-create-shell { margin-top: 16px; margin-bottom: 4px; }
+@media(max-width:600px) {
+  .nb-scope-head { align-items: center; }
+  .nb-scope-head .nb-scope-actions { margin-left: 0; }
+  .nb-topic-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); }
+}
