@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -23,13 +23,13 @@ function docSortKey(entry: KnowledgeEntry) {
   return isLesson(entry) && entry.lesson_date ? `${entry.lesson_date}T23:59:59` : entry.updated_at;
 }
 
-export function NotebookView() {
+export function NotebookView({ referenceOnly = false, onExitReference }: { referenceOnly?: boolean; onExitReference?: () => void } = {}) {
   const workspace = useWorkspace();
   const { memory, updateMemory, snapshot, entryById, topicById, subjectById } = workspace;
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
-  const [referencesOpen, setReferencesOpen] = useState(false);
+  const [referencesOpen, setReferencesOpen] = useState(referenceOnly);
   const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
   const [railOpenMobile, setRailOpenMobile] = useState(false);
   const missingNotified = useRef<string | null>(null);
@@ -142,7 +142,7 @@ export function NotebookView() {
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
-  else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => setReferencesOpen(false)}
+  else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
     onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
     onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
@@ -153,21 +153,16 @@ export function NotebookView() {
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} />;
   else main = <NotebookHome navigate={navigate} onNewNote={startNewNote} />;
 
-  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
-    <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} />
-    <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
+  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${referenceOnly ? "is-reference-standalone" : ""}`}>
+    {!referenceOnly ? <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} /> : null}
+    {!referenceOnly ? <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} /> : null}
     <section className="nb-main">
-      <div className="nb-main-tools">
+      {!referenceOnly ? <div className="nb-main-tools">
         <button type="button" className="ws-icon-button nb-rail-toggle" onClick={() => { if (window.matchMedia("(max-width: 900px)").matches) setRailOpenMobile((value) => !value); else toggleRail(); }}
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
-      </div>
-      <div className="nb-mode-bar" role="group" aria-label="Notebook views">
-        <button type="button" className={!referencesOpen ? "active" : ""} aria-pressed={!referencesOpen} onClick={() => setReferencesOpen(false)}>Notes</button>
-        <button type="button" className={referencesOpen ? "active" : ""} aria-pressed={referencesOpen}
-          onClick={() => setReferencesOpen(true)}><BookOpen size={14} /> References</button>
-      </div>
+      </div> : null}
       {main}
     </section>
   </div>;
