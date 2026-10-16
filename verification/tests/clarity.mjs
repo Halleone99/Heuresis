@@ -247,10 +247,10 @@ const scenarios = {
     console.log("NB77: click New");
     await page.locator(".nb-new-button").click();
     for (const label of ["New subject", "New topic", "New note"]) {
-      check(await page.locator('.nb-main-tools [role=menuitem]:has-text("' + label + '")').count() === 1, label + " exists once");
+      check(await page.locator('.nb-scope-head [role=menuitem]:has-text("' + label + '")').count() === 1, label + " exists once");
     }
     console.log("NB77: click New subject");
-    await page.locator('.nb-main-tools [role=menuitem]:has-text("New subject")').click();
+    await page.locator('.nb-scope-head [role=menuitem]:has-text("New subject")').click();
     console.log("NB77: new subject form");
     await page.locator(".nb-create-shell input").fill("Philosophy");
     await page.locator(".nb-create-shell input").press("Enter");
@@ -260,15 +260,22 @@ const scenarios = {
     await page.waitForSelector('.nb-home-subject:has-text("Philosophy")');
     check(await page.locator(".nb-home-subject").count() === 4, "a fourth subject can be created");
     await page.locator(".nb-new-button").click();
-    await page.locator('.nb-main-tools [role=menuitem]:has-text("New topic")').click();
+    await page.locator('.nb-scope-head [role=menuitem]:has-text("New topic")').click();
     await page.locator("#nb-new-topic-subject").selectOption({label:"Philosophy"});
     await page.locator(".nb-create-shell input").fill("Ethics");
     await page.locator(".nb-create-shell input").press("Enter");
     await page.waitForSelector('.nb-scope-head h1:has-text("Ethics")');
+    await page.locator('.nb-crumbs button:has-text("Philosophy")').click();
+    check(await page.locator('.nb-topic-card:has-text("Ethics")').count() === 1, "Subject shows its topic as a card");
+    check(await page.locator('.nb-doc-row').count() === 0, "Subject does not mix notes into the topic overview");
+    check(await page.locator('.nb-scope-meta').count() === 0, "No Mistake Log counter on subject landing");
+    await page.locator('.nb-topic-card:has-text("Ethics")').click();
+    await page.waitForSelector('.nb-scope-head h1:has-text("Ethics")');
+
     check(true, "New topic creates a topic inside the chosen subject");
     await page.locator('.nb-crumbs button:has-text("Notebook")').click();
     await page.locator(".nb-new-button").click();
-    await page.locator('.nb-main-tools [role=menuitem]:has-text("New note")').click();
+    await page.locator('.nb-scope-head [role=menuitem]:has-text("New note")').click();
     await page.waitForSelector(".qc-panel");
     check(true, "New note opens quick capture");
     await page.locator('.qc-panel button[aria-label="Close quick capture"]').click();

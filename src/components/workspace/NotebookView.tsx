@@ -143,6 +143,20 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     window.scrollTo(0, 0);
   }, [pageKey]);
 
+  const newAction = workspace.writable && !referenceOnly ? <RowMenu label="New Notebook item" buttonLabel="New" items={[
+    { label: "New subject", icon: <Plus size={14}/>, run: () => setCreatingKind("subject") },
+    { label: "New topic", icon: <FolderPlus size={14}/>, run: () => {
+      setTargetSubjectId(topic?.subject_id ?? subject?.id ?? (snapshot.subjects.length === 1 ? snapshot.subjects[0].id : ""));
+      setCreatingKind("topic");
+    } },
+    { label: "New note", icon: <FilePlus2 size={14}/>, run: () => {
+      const currentSubjectId = topic?.subject_id ?? subject?.id ?? null;
+      const inboxId = currentSubjectId
+        ? snapshot.topics.find((row) => row.subject_id === currentSubjectId && isInboxTopic(row))?.id ?? null : null;
+      workspace.openCapture({ mode: "note", topicId: doc?.topic_id ?? topic?.id ?? inboxId });
+    } },
+  ]} /> : null;
+
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
   else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
@@ -152,9 +166,9 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
   else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
-  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} />;
-  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} />;
-  else main = <NotebookHome navigate={navigate} />;
+  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction} />;
+  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} />;
+  else main = <NotebookHome navigate={navigate} newAction={newAction} />;
 
   return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${referenceOnly ? "is-reference-standalone" : ""}`}>
     {!referenceOnly ? <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} /> : null}
@@ -165,14 +179,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
-        {workspace.writable ? <RowMenu label="New Notebook item" buttonLabel="New" items={[
-          { label: "New subject", icon: <Plus size={14}/>, run: () => setCreatingKind("subject") },
-          { label: "New topic", icon: <FolderPlus size={14}/>, run: () => {
-            setTargetSubjectId(topic?.subject_id ?? subject?.id ?? (snapshot.subjects.length === 1 ? snapshot.subjects[0].id : ""));
-            setCreatingKind("topic");
-          } },
-          { label: "New note", icon: <FilePlus2 size={14}/>, run: () => workspace.openCapture({ mode: "note", topicId: doc?.topic_id ?? topic?.id ?? null }) },
-        ]} /> : null}
+        {doc || newDoc ? newAction : null}
       </div> : null}
       {creatingKind ? <div className="nb-create-shell">
         {creatingKind === "subject" ? <InlineNameForm label="New subject" placeholder="Philosophy, History, German…" onCancel={() => setCreatingKind(null)}
@@ -375,25 +382,23 @@ export function RowMenu({ label, items, icon, buttonLabel }: { label: string; it
 // ---------------------------------------------------------------------------
 // Topic or subject page: what lives here, newest first
 // ---------------------------------------------------------------------------
-function ScopePage({ scope, navigate }: {
+function ScopePage({ scope, navigate, newAction }: {
   scope: { topic: KnowledgeTopic } | { subjectId: string };
   navigate: (location: NotebookLocation) => void;
+  newAction: React.ReactNode;
 }) {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory } = workspace;
-  const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
   const topic = "topic" in scope ? scope.topic : null;
   const subjectId = topic ? topic.subject_id : (scope as { subjectId: string }).subjectId;
   const subject = workspace.subjectById.get(subjectId) ?? null;
   const path = topic ? workspace.topicPath(topic.id) : { subject, chain: [] };
-  const topicIds = useMemo(() => topic ? workspace.subtreeIds(topic.id)
-    : snapshot.topics.filter((row) => row.subject_id === subjectId).map((row) => row.id), [snapshot.topics, subjectId, topic, workspace]);
   const children = workspace.childrenOf(topic?.id ?? null, subjectId);
-  // New subjects and topics are created from the single New menu above.
-
-  const entries = snapshot.entries.filter((entry) => topicIds.includes(entry.topic_id));
-  const docs = entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
-  const mistakes = entries.filter((entry) => entry.kind === "mistake");
+  const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
+  // Never flatten all the subject's notes into the subject landing page.
+  // Notes belong on their immediate topic page, not on an ancestor page.
+  const docs = topic ? snapshot.entries.filter((entry) =>
+    entry.topic_id === topic.id && isDocument(entry) && entry.category !== "reference") : [];
   const counts = {
     all: docs.length,
     notes: docs.filter((entry) => !isOpenQuestion(entry)).length,
@@ -401,79 +406,84 @@ function ScopePage({ scope, navigate }: {
   };
   const shown = docs.filter((entry) => filter === "all" || (filter === "questions" ? isOpenQuestion(entry) : !isOpenQuestion(entry)))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || docSortKey(b).localeCompare(docSortKey(a)));
-
   const page = useProgressiveList(shown, `${topic?.id ?? subjectId}|${filter}`);
-  const setFilter = (next: ListFilter) => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, filter: next } }));
+  const setFilter = (next: ListFilter) => updateMemory((current) =>
+    ({ ...current, notebook: { ...current.notebook, filter: next } }));
   const title = topic?.name ?? subject?.name ?? "Notebook";
 
   return <div className="nb-scope">
     <nav className="nb-crumbs" aria-label="Location">
       <button type="button" onClick={() => navigate({ topicId: null, docId: null })}>Notebook</button>
-      {path.subject ? <><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject!.id })}>{path.subject.name}</button></> : null}
-      {path.chain.slice(0, -1).map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button></span>)}
+      {path.subject ? <><ChevronRight size={12} /><button type="button"
+        onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject!.id })}>{path.subject.name}</button></> : null}
+      {path.chain.slice(0, -1).map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} />
+        <button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button>
+      </span>)}
     </nav>
     <header className="nb-scope-head">
-      <div>
-        <h1>{title}</h1>
-        {mistakes.length ? <p className="nb-scope-meta">
-          <button type="button" className="nb-link-button" onClick={() => {
-            updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, subjectId } }));
-            workspace.goTo("mistakes");
-          }}>{mistakes.length} {mistakes.length === 1 ? "mistake" : "mistakes"} →</button>
-        </p> : null}
+      <h1>{title}</h1>
+      <div className="nb-scope-actions">
+        {workspace.writable && topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
+          onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}><ListChecks size={15}/> Organise Inbox</button> : null}
+        {newAction}
       </div>
-      {workspace.writable && topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
-        onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}><ListChecks size={15}/> Organise Inbox</button> : null}
     </header>
 
-    {children.length ? <div className="nb-subtopics">
-      {children.map((child) => <button type="button" key={child.id} className="nb-subtopic" onClick={() => navigate({ topicId: child.id, docId: null })}>
-        <span>{child.name}</span>
-      </button>)}
+    {children.length ? <div className="nb-topic-grid" aria-label={topic ? "Subtopics" : "Topics"}>
+      {children.map((child) => {
+        const subtree = new Set(workspace.subtreeIds(child.id));
+        const noteCount = snapshot.entries.filter((entry) => subtree.has(entry.topic_id) && isDocument(entry) && entry.category !== "reference").length;
+        const childCount = workspace.childrenOf(child.id, subjectId).length;
+        return <button type="button" key={child.id} className="nb-topic-card"
+          onClick={() => navigate({ topicId: child.id, docId: null })}>
+          <span className="nb-topic-card-title">{child.name}<ChevronRight size={16} aria-hidden="true"/></span>
+          <span className="nb-topic-card-count">{countLabel(noteCount, "note")}{childCount ? ` · ${countLabel(childCount, "subtopic")}` : ""}</span>
+        </button>;
+      })}
     </div> : null}
 
-    <div className="ws-segmented" role="tablist" aria-label="Show">
-      {(["all", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
-        aria-selected={filter === key} className={`${filter === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`} onClick={() => setFilter(key)}>
-        {key === "all" ? "All" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
-      </button>)}
-    </div>
-
-    {shown.length ? <><ul className="nb-doc-list">
-      {page.visible.map((entry) => {
-        const inSubtopic = topic && entry.topic_id !== topic.id ? workspace.topicById.get(entry.topic_id)?.name : !topic ? workspace.topicById.get(entry.topic_id)?.name : null;
-        const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
-        const preview = entryPreview(entry, 200);
-        const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);
-        const ownTopicName = workspace.topicById.get(entry.topic_id)?.name.trim().toLocaleLowerCase();
-        const showKind = !ownTopicName || ownTopicName !== kindLabel.toLocaleLowerCase();
-        const metadata = [inSubtopic, showKind ? kindLabel : null, captures ? `${captures} captured` : null].filter(Boolean).join(" · ");
-        return <li key={entry.id}>
-          <button type="button" className={`nb-doc-row ${isLesson(entry) ? "is-lesson" : ""}`} onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
-            <span className="nb-doc-icon"><KindIcon entry={entry} size={16} /></span>
-            <span className="nb-doc-text">
-              <strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
-              {preview ? <span className="nb-doc-preview">{preview}</span> : null}
-            </span>
-            <span className="nb-doc-meta">
-              <span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
-              {metadata ? <small>{metadata}</small> : null}
-            </span>
-          </button>
-        </li>;
-      })}
-    </ul><ShowMore remaining={page.remaining} onMore={page.showMore} label="notes" /></> : <EmptyState icon={filter === "questions" ? <CircleHelp size={22} /> : <FilePlus2 size={22} />}
-      title={filter === "questions" ? "No open questions here" : docs.length ? "Nothing matches this filter" : "Nothing written here yet"}
->
-      {filter === "questions" ? "Questions you capture (end a quick note with ?) collect here until you answer them." : `Quick notes land here instantly with ${MOD_KEY}+Shift+N from anywhere.`}
-    </EmptyState>}
+    {!topic ? (
+      !children.length ? <EmptyState icon={<FolderPlus size={22}/>} title="No topics yet">
+        Use New → New topic to organise your notes. Quick captures can go into an Inbox.
+      </EmptyState> : null
+    ) : docs.length ? <>
+      <div className="ws-segmented" role="tablist" aria-label="Show notes">
+        {(["all", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
+          aria-selected={filter === key} className={`${filter === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`}
+          onClick={() => setFilter(key)}>
+          {key === "all" ? "All" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
+        </button>)}
+      </div>
+      {shown.length ? <><ul className="nb-doc-list">
+        {page.visible.map((entry) => {
+          const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
+          const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);
+          const showKind = topic.name.trim().toLocaleLowerCase() !== kindLabel.toLocaleLowerCase();
+          const metadata = [showKind ? kindLabel : null, captures ? `${captures} captured` : null].filter(Boolean).join(" · ");
+          return <li key={entry.id}>
+            <button type="button" className={`nb-doc-row ${isLesson(entry) ? "is-lesson" : ""}`}
+              onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
+              <span className="nb-doc-icon"><KindIcon entry={entry} size={16}/></span>
+              <span className="nb-doc-text"><strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
+                {entryPreview(entry, 200) ? <span className="nb-doc-preview">{entryPreview(entry, 200)}</span> : null}
+              </span>
+              <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
+                {metadata ? <small>{metadata}</small> : null}</span>
+            </button>
+          </li>;
+        })}
+      </ul><ShowMore remaining={page.remaining} onMore={page.showMore} label="notes"/></> :
+      <p className="ws-muted nb-topic-empty-filter">No notes match this filter.</p>}
+    </> : !children.length ? <EmptyState icon={<FilePlus2 size={22}/>} title="No notes here yet">
+      Use New → New note to capture something here.
+    </EmptyState> : null}
   </div>;
 }
 
 // ---------------------------------------------------------------------------
 // Notebook home: what to reopen, and the first-run path
 // ---------------------------------------------------------------------------
-function NotebookHome({ navigate }: { navigate: (location: NotebookLocation) => void }) {
+function NotebookHome({ navigate, newAction }: { navigate: (location: NotebookLocation) => void; newAction: React.ReactNode }) {
   const workspace = useWorkspace();
   const { snapshot } = workspace;
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
@@ -481,6 +491,7 @@ function NotebookHome({ navigate }: { navigate: (location: NotebookLocation) => 
   return <div className="nb-scope nb-home">
     <header className="nb-scope-head">
       <div><span className="ws-eyebrow">{formatDay(localDateKey(new Date()))}</span><h1>Notebook</h1></div>
+      <div className="nb-scope-actions">{newAction}</div>
     </header>
     {subjects.length ? <div className="nb-home-subjects">
       {subjects.map((subject) => {
