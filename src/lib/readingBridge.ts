@@ -66,6 +66,12 @@ export function bookShelf(book: ReadingBook): "next" | "idea" | "library" {
   }
   return "library";
 }
+export function notesWithShelf(book: ReadingBook, shelf: "next" | "library") {
+  const previous = decodeMarker(book.notes, META);
+  const meta = previous && typeof previous === "object" && !Array.isArray(previous)
+    ? previous as Record<string, unknown> : {};
+  return replaceMarker(book.notes, META, "reading-meta", { ...meta, shelf });
+}
 export function bookDomain(book: ReadingBook): string {
   const meta = decodeMarker(book.notes, META);
   return meta && typeof meta === "object" && "domain" in meta && typeof (meta as { domain?: unknown }).domain === "string"
