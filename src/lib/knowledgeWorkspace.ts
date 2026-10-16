@@ -16,7 +16,7 @@ import { repairPinyinToneMarks } from "./pinyinUnicode";
  */
 
 export type KnowledgeKind = "note" | "lesson" | "mistake";
-export type NoteCategory = "note" | "question" | "grammar" | "vocabulary" | "phrase";
+export type NoteCategory = "note" | "question" | "grammar" | "vocabulary" | "phrase" | "reference";
 export type MistakeStatus = "needs_practice" | "understood";
 export type SchemaLevel = "v2" | "v1" | "missing";
 export type PracticeOutcome = "correct" | "incorrect";
@@ -56,7 +56,7 @@ export type EntryPatch = Partial<Pick<KnowledgeEntry,
 export const EMPTY_SNAPSHOT: KnowledgeSnapshot = { subjects: [], topics: [], entries: [], practice: [] };
 export const LEGACY_LESSON_PREFIX = "Lesson · ";
 export const CATEGORY_LABELS: Record<NoteCategory, string> = {
-  note: "Note", question: "Question", grammar: "Grammar", vocabulary: "Vocabulary", phrase: "Expression",
+  note: "Note", question: "Question", grammar: "Grammar", vocabulary: "Vocabulary", phrase: "Expression", reference: "Reference",
 };
 export const LIMITS = { name: 120, title: 200, body: 50000, attempt: 5000, correction: 5000, explanation: 10000, answer: 5000 };
 
@@ -163,7 +163,7 @@ export function normaliseTopic(row: Record<string, unknown>): KnowledgeTopic {
     name: contentStr(row.name), created_at: created, updated_at: str(row.updated_at, created),
   };
 }
-const CATEGORIES = new Set<NoteCategory>(["note", "question", "grammar", "vocabulary", "phrase"]);
+const CATEGORIES = new Set<NoteCategory>(["note", "question", "grammar", "vocabulary", "phrase", "reference"]);
 export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
   const created = str(row.created_at, new Date().toISOString());
   const kind: KnowledgeKind = row.kind === "mistake" ? "mistake" : row.kind === "lesson" ? "lesson" : "note";

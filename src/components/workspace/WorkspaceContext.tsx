@@ -55,7 +55,7 @@ type WorkspaceValue = {
   // navigation across the five sections
   section: WorkspaceSection;
   goTo: (section: WorkspaceSection) => void;
-  openDocument: (id: string, options?: { edit?: boolean }) => void;
+  openDocument: (id: string, options?: { edit?: boolean; stayInSection?: boolean }) => void;
   openTopic: (topicId: string) => void;
   openMistake: (id: string, options?: { practise?: boolean; ids?: string[] }) => void;
   pendingEditId: string | null;
@@ -435,7 +435,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   }, [setSnapshotLocal, userId]);
 
   const goTo = useCallback((next: WorkspaceSection) => onSection(next), [onSection]);
-  const openDocument = useCallback((id: string, options: { edit?: boolean } = {}) => {
+  const openDocument = useCallback((id: string, options: { edit?: boolean; stayInSection?: boolean } = {}) => {
     const entry = snapshotRef.current.entries.find((row) => row.id === id);
     setMemory((current) => ({
       ...current,
@@ -443,7 +443,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       recentDocs: pushRecent(current.recentDocs, id),
     }));
     if (options.edit) setPendingEditId(id);
-    onSection("notebook");
+    if (!options.stayInSection) onSection("notebook");
   }, [onSection]);
   const consumePendingEdit = useCallback((id: string) => {
     if (pendingEditId !== id) return false;

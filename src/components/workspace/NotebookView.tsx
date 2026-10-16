@@ -7,11 +7,13 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
+import { ReferenceLibrary } from "./ReferenceLibrary";
+import { SubjectCard } from "./SubjectCard";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 
-type ListFilter = "all" | "lessons" | "notes" | "questions";
+type ListFilter = "all" | "notes" | "questions";
 export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string } | null;
 
 function countLabel(count: number, singular: string) {
@@ -22,12 +24,16 @@ function docSortKey(entry: KnowledgeEntry) {
   return isLesson(entry) && entry.lesson_date ? `${entry.lesson_date}T23:59:59` : entry.updated_at;
 }
 
-export function NotebookView() {
+export function NotebookView({ referenceOnly = false, onExitReference }: { referenceOnly?: boolean; onExitReference?: () => void } = {}) {
   const workspace = useWorkspace();
   const { memory, updateMemory, snapshot, entryById, topicById, subjectById } = workspace;
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
+  const [referencesOpen, setReferencesOpen] = useState(referenceOnly);
+  const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
+  const [creatingKind, setCreatingKind] = useState<"subject" | "topic" | null>(null);
+  const [targetSubjectId, setTargetSubjectId] = useState("");
   const [railOpenMobile, setRailOpenMobile] = useState(false);
   const missingNotified = useRef<string | null>(null);
   // A new note keeps the same page instance once it has been saved for the first time,
@@ -116,13 +122,13 @@ export function NotebookView() {
     return () => { window.removeEventListener("mouseup", onMouse); window.removeEventListener("keydown", onKey); };
   }, [goBack]);
 
-  const startNewNote = useCallback((topicId: string | null, title?: string) => {
+  const startNewNote = useCallback((topicId: string | null, title?: string, category?: KnowledgeEntry["category"]) => {
     const target = topicId ?? topic?.id ?? doc?.topic_id ?? null;
     if (!target) { workspace.toast("Choose or create a topic first.", { tone: "error" }); return; }
     setHistory((stack) => [...stack.slice(-30), { topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null }]);
     internalNavigation.current = true;
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, topicId: target, docId: null, subjectId: null } }));
-    setNewDoc({ topicId: target, title });
+    setNewDoc({ topicId: target, title, category });
   }, [doc?.topic_id, location.docId, location.subjectId, location.topicId, topic?.id, updateMemory, workspace]);
 
   const railCollapsed = memory.notebook.railCollapsed;
@@ -139,24 +145,57 @@ export function NotebookView() {
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
+  else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
+    onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
+    onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true, stayInSection: referenceOnly }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
-    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
+    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
-  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
-  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} onNewNote={startNewNote} />;
-  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} />;
-  else main = <NotebookHome navigate={navigate} onNewNote={startNewNote} />;
+  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
+  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} />;
+  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} />;
+  else main = <NotebookHome navigate={navigate} />;
 
-  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
-    <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} />
-    <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
+  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${referenceOnly ? "is-reference-standalone" : ""}`}>
+    {!referenceOnly ? <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} /> : null}
+    {!referenceOnly ? <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} /> : null}
     <section className="nb-main">
-      <div className="nb-main-tools">
+      {!referenceOnly ? <div className="nb-main-tools">
         <button type="button" className="ws-icon-button nb-rail-toggle" onClick={() => { if (window.matchMedia("(max-width: 900px)").matches) setRailOpenMobile((value) => !value); else toggleRail(); }}
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
-      </div>
+        {workspace.writable ? <RowMenu label="New Notebook item" buttonLabel="New" items={[
+          { label: "New subject", icon: <Plus size={14}/>, run: () => setCreatingKind("subject") },
+          { label: "New topic", icon: <FolderPlus size={14}/>, run: () => {
+            setTargetSubjectId(topic?.subject_id ?? subject?.id ?? (snapshot.subjects.length === 1 ? snapshot.subjects[0].id : ""));
+            setCreatingKind("topic");
+          } },
+          { label: "New note", icon: <FilePlus2 size={14}/>, run: () => workspace.openCapture({ mode: "note", topicId: doc?.topic_id ?? topic?.id ?? null }) },
+        ]} /> : null}
+      </div> : null}
+      {creatingKind ? <div className="nb-create-shell">
+        {creatingKind === "subject" ? <InlineNameForm label="New subject" placeholder="Philosophy, History, German…" onCancel={() => setCreatingKind(null)}
+          onSubmit={async (name) => {
+            const created = await workspace.addSubject(name);
+            await workspace.ensureInbox(created.id);
+            setCreatingKind(null);
+            navigate({ topicId: null, docId: null, subjectId: created.id });
+          }} /> : <>
+          <label className="nb-create-label" htmlFor="nb-new-topic-subject">Subject</label>
+          <select id="nb-new-topic-subject" value={targetSubjectId} onChange={(event) => setTargetSubjectId(event.target.value)}>
+            <option value="">Choose subject…</option>
+            {snapshot.subjects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select>
+          {targetSubjectId ? <InlineNameForm label="New topic" placeholder="Grammar, Philosophy of mind…" onCancel={() => setCreatingKind(null)}
+            onSubmit={async (name) => {
+              const parent = topic?.subject_id === targetSubjectId ? topic.id : null;
+              const created = await workspace.addTopic(targetSubjectId, name, parent);
+              setCreatingKind(null);
+              navigate({ topicId: created.id, docId: null });
+            }} /> : <button className="ws-button" type="button" onClick={() => setCreatingKind(null)}>Cancel</button>}
+        </>}
+      </div> : null}
       {main}
     </section>
   </div>;
@@ -181,7 +220,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
   const counts = useMemo(() => {
     const map = new Map<string, { docs: number; questions: number }>();
     for (const entry of snapshot.entries) {
-      if (!isDocument(entry)) continue;
+      if (!isDocument(entry) || entry.category === "reference") continue;
       const row = map.get(entry.topic_id) ?? { docs: 0, questions: 0 };
       row.docs += 1;
       if (isOpenQuestion(entry)) row.questions += 1;
@@ -255,7 +294,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
           ]} /> : null}
         </div>}
       {creating && creating.parentId === topic.id ? <div style={{ paddingLeft: 20 + depth * 14 }}>
-        <InlineNameForm label="Sub-topic name" placeholder="Time expressions, Lesson 7…" onCancel={() => setCreating(null)}
+        <InlineNameForm label="Sub-topic name" placeholder="Time expressions, Sub-topic…" onCancel={() => setCreating(null)}
           onSubmit={async (name) => { const created = await workspace.addTopic(subjectId, name, topic.id); setCreating(null); navigate({ topicId: created.id, docId: null }); }} />
       </div> : null}
       {isOpen ? <div role="group">{renderTopics(subjectId, topic.id, depth + 1)}</div> : null}
@@ -271,12 +310,12 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
     <div className="nb-rail-head">
       <button type="button" className="ws-icon-button nb-rail-collapse" aria-label="Hide topics" title="Hide topics" onClick={onCollapse}><PanelLeftClose size={15} /></button>
     </div>
-    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Languages and topics">
+    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Subjects and topics">
       <div className="nb-rail-section-head">
-        <span className="ws-eyebrow">Languages</span>
-        {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="New language" title="New language" onClick={() => setCreating({ subjectId: null, parentId: null })}><Plus size={14} /></button> : null}
+        <span className="ws-eyebrow">Subjects</span>
+
       </div>
-      {creating && !creating.subjectId ? <InlineNameForm label="Language name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
+      {creating && !creating.subjectId ? <InlineNameForm label="Subject name" placeholder="Philosophy, German, History…" suggestions={suggestions}
         onCancel={() => setCreating(null)}
         onSubmit={async (name) => {
           const created = await workspace.addSubject(name);
@@ -289,7 +328,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
         const isOpen = expanded.has(subject.id);
         return <div key={subject.id} className="nb-tree-subject" role="treeitem" aria-expanded={isOpen}>
           {renaming?.kind === "subject" && renaming.id === subject.id
-            ? <InlineNameForm label="Language name" initial={subject.name} submitLabel="Rename" onCancel={() => setRenaming(null)}
+            ? <InlineNameForm label="Subject name" initial={subject.name} submitLabel="Rename" onCancel={() => setRenaming(null)}
               onSubmit={async (name) => { await workspace.renameSubjectById(subject.id, name); setRenaming(null); }} />
             : <div className={`nb-tree-row is-subject ${location.subjectId === subject.id && !location.topicId && !location.docId ? "is-active" : ""}`}>
               <button type="button" className="nb-tree-twisty" aria-label={isOpen ? `Collapse ${subject.name}` : `Expand ${subject.name}`} onClick={() => toggle(subject.id)}>
@@ -307,25 +346,25 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
           {isOpen ? <div role="group">
             {renderTopics(subject.id, null, 1)}
             {creating && creating.subjectId === subject.id && !creating.parentId ? <div className="nb-tree-create">
-              <InlineNameForm label="Topic name" placeholder="Grammar, B1.2, Lessons…" onCancel={() => setCreating(null)}
+              <InlineNameForm label="Topic name" placeholder="Grammar, B1.2, Ideas…" onCancel={() => setCreating(null)}
                 onSubmit={async (name) => { const created = await workspace.addTopic(subject.id, name, null); setCreating(null); navigate({ topicId: created.id, docId: null }); }} />
             </div> : workspace.writable ? <button type="button" className="nb-tree-add" onClick={() => setCreating({ subjectId: subject.id, parentId: null })}><Plus size={12} /> Topic</button> : null}
           </div> : null}
         </div>;
       })}
-      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Languages contain your topics — Chinese, German, Russian…</p> : null}
+      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Subjects contain topics and notes.</p> : null}
     </div>
   </aside>;
 }
 
 type MenuItem = { label: string; icon?: React.ReactNode; run: () => void; danger?: boolean };
-export function RowMenu({ label, items, icon }: { label: string; items: MenuItem[]; icon?: React.ReactNode }) {
+export function RowMenu({ label, items, icon, buttonLabel }: { label: string; items: MenuItem[]; icon?: React.ReactNode; buttonLabel?: string }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = usePopover(open, close);
   return <div className="ws-menu" ref={ref}>
-    <button type="button" className="ws-icon-button ws-menu-trigger" aria-label={`Actions for ${label}`} aria-haspopup="menu" aria-expanded={open}
-      onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}>{icon ?? <MoreHorizontal size={15} />}</button>
+    <button type="button" className={`ws-icon-button ws-menu-trigger ${buttonLabel ? "nb-new-button" : ""}`} aria-label={buttonLabel ?? `Actions for ${label}`} aria-haspopup="menu" aria-expanded={open}
+      onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}>{buttonLabel ? <><Plus size={15} /> {buttonLabel}</> : icon ?? <MoreHorizontal size={15} />}</button>
     {open ? <div className="ws-menu-list" role="menu">
       {items.map((item) => <button type="button" role="menuitem" key={item.label} className={item.danger ? "is-danger" : ""}
         onClick={(event) => { event.stopPropagation(); setOpen(false); item.run(); }}>{item.icon}{item.label}</button>)}
@@ -336,13 +375,13 @@ export function RowMenu({ label, items, icon }: { label: string; items: MenuItem
 // ---------------------------------------------------------------------------
 // Topic or subject page: what lives here, newest first
 // ---------------------------------------------------------------------------
-function ScopePage({ scope, navigate, onNewNote }: {
+function ScopePage({ scope, navigate }: {
   scope: { topic: KnowledgeTopic } | { subjectId: string };
-  navigate: (location: NotebookLocation) => void; onNewNote: (topicId: string | null) => void;
+  navigate: (location: NotebookLocation) => void;
 }) {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory } = workspace;
-  const filter = memory.notebook.filter as ListFilter;
+  const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
   const topic = "topic" in scope ? scope.topic : null;
   const subjectId = topic ? topic.subject_id : (scope as { subjectId: string }).subjectId;
   const subject = workspace.subjectById.get(subjectId) ?? null;
@@ -350,23 +389,21 @@ function ScopePage({ scope, navigate, onNewNote }: {
   const topicIds = useMemo(() => topic ? workspace.subtreeIds(topic.id)
     : snapshot.topics.filter((row) => row.subject_id === subjectId).map((row) => row.id), [snapshot.topics, subjectId, topic, workspace]);
   const children = workspace.childrenOf(topic?.id ?? null, subjectId);
-  const [creatingChild, setCreatingChild] = useState(false);
+  // New subjects and topics are created from the single New menu above.
 
   const entries = snapshot.entries.filter((entry) => topicIds.includes(entry.topic_id));
-  const docs = entries.filter(isDocument);
+  const docs = entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const mistakes = entries.filter((entry) => entry.kind === "mistake");
   const counts = {
     all: docs.length,
-    lessons: docs.filter(isLesson).length,
-    notes: docs.filter((entry) => !isLesson(entry) && !isOpenQuestion(entry)).length,
+    notes: docs.filter((entry) => !isOpenQuestion(entry)).length,
     questions: docs.filter(isOpenQuestion).length,
   };
-  const shown = docs.filter((entry) => filter === "all" || (filter === "lessons" ? isLesson(entry) : filter === "questions" ? isOpenQuestion(entry) : !isLesson(entry) && !isOpenQuestion(entry)))
+  const shown = docs.filter((entry) => filter === "all" || (filter === "questions" ? isOpenQuestion(entry) : !isOpenQuestion(entry)))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || docSortKey(b).localeCompare(docSortKey(a)));
 
   const page = useProgressiveList(shown, `${topic?.id ?? subjectId}|${filter}`);
   const setFilter = (next: ListFilter) => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, filter: next } }));
-  const fallbackTopic = topic?.id ?? children[0]?.id ?? null;
   const title = topic?.name ?? subject?.name ?? "Notebook";
 
   return <div className="nb-scope">
@@ -385,38 +422,20 @@ function ScopePage({ scope, navigate, onNewNote }: {
           }}>{mistakes.length} {mistakes.length === 1 ? "mistake" : "mistakes"} →</button>
         </p> : null}
       </div>
-      {workspace.writable ? <div className="nb-scope-actions">
-        {(topic ? workspace.topicPath(topic.id).chain.length < 4 : true) ? <RowMenu label={title} items={[
-          { label: topic ? "New sub-topic" : "New topic", icon: <FolderPlus size={14}/>, run: () => setCreatingChild(true) },
-        ]}/> : null}
-        {topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
-          onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}>
-          <ListChecks size={15}/> Organise Inbox
-        </button> : null}
-        <button type="button" className="ws-button" disabled={!fallbackTopic}
-          onClick={() => workspace.openCapture({ mode: "lesson", topicId: fallbackTopic })}><GraduationCap size={15} /> New lesson</button>
-        <button type="button" className="ws-button is-primary" disabled={!fallbackTopic} onClick={() => onNewNote(fallbackTopic)}><FilePlus2 size={15} /> New note</button>
-      </div> : null}
+      {workspace.writable && topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
+        onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}><ListChecks size={15}/> Organise Inbox</button> : null}
     </header>
 
-    {(children.length || creatingChild) ? <div className="nb-subtopics">
-      {children.map((child) => {
-        const childDocs = snapshot.entries.filter((entry) => isDocument(entry) && workspace.subtreeIds(child.id).includes(entry.topic_id)).length;
-        return <button type="button" key={child.id} className="nb-subtopic" onClick={() => navigate({ topicId: child.id, docId: null })}>
-          <span>{child.name}</span><small>{childDocs}</small>
-        </button>;
-      })}
-      {creatingChild && workspace.writable ? <div className="nb-subtopic-form">
-        <InlineNameForm label={topic ? "Sub-topic name" : "Topic name"} placeholder={topic ? "Sub-topic" : "Topic"}
-          onCancel={() => setCreatingChild(false)}
-          onSubmit={async (name) => { const created = await workspace.addTopic(subjectId, name, topic?.id ?? null); setCreatingChild(false); navigate({ topicId: created.id, docId: null }); }}/>
-      </div> : null}
+    {children.length ? <div className="nb-subtopics">
+      {children.map((child) => <button type="button" key={child.id} className="nb-subtopic" onClick={() => navigate({ topicId: child.id, docId: null })}>
+        <span>{child.name}</span>
+      </button>)}
     </div> : null}
 
     <div className="ws-segmented" role="tablist" aria-label="Show">
-      {(["all", "lessons", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
+      {(["all", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
         aria-selected={filter === key} className={`${filter === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`} onClick={() => setFilter(key)}>
-        {key === "all" ? "All" : key === "lessons" ? "Lessons" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
+        {key === "all" ? "All" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
       </button>)}
     </div>
 
@@ -425,7 +444,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
         const inSubtopic = topic && entry.topic_id !== topic.id ? workspace.topicById.get(entry.topic_id)?.name : !topic ? workspace.topicById.get(entry.topic_id)?.name : null;
         const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
         const preview = entryPreview(entry, 200);
-        const kindLabel = entryKindLabel(entry);
+        const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);
         const ownTopicName = workspace.topicById.get(entry.topic_id)?.name.trim().toLocaleLowerCase();
         const showKind = !ownTopicName || ownTopicName !== kindLabel.toLocaleLowerCase();
         const metadata = [inSubtopic, showKind ? kindLabel : null, captures ? `${captures} captured` : null].filter(Boolean).join(" · ");
@@ -444,7 +463,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
         </li>;
       })}
     </ul><ShowMore remaining={page.remaining} onMore={page.showMore} label="notes" /></> : <EmptyState icon={filter === "questions" ? <CircleHelp size={22} /> : <FilePlus2 size={22} />}
-      title={filter === "questions" ? "No open questions here" : filter === "lessons" ? "No lessons here yet" : docs.length ? "Nothing matches this filter" : "Nothing written here yet"}
+      title={filter === "questions" ? "No open questions here" : docs.length ? "Nothing matches this filter" : "Nothing written here yet"}
 >
       {filter === "questions" ? "Questions you capture (end a quick note with ?) collect here until you answer them." : `Quick notes land here instantly with ${MOD_KEY}+Shift+N from anywhere.`}
     </EmptyState>}
@@ -454,87 +473,24 @@ function ScopePage({ scope, navigate, onNewNote }: {
 // ---------------------------------------------------------------------------
 // Notebook home: what to reopen, and the first-run path
 // ---------------------------------------------------------------------------
-function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLocation) => void; onNewNote: (topicId: string | null) => void }) {
+function NotebookHome({ navigate }: { navigate: (location: NotebookLocation) => void }) {
   const workspace = useWorkspace();
   const { snapshot } = workspace;
-  const { objectives } = usePersonalOsObjectives(workspace.userId);
-  const [creating, setCreating] = useState(false);
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
-  const docs = snapshot.entries.filter(isDocument);
-  const lessons = docs.filter(isLesson).sort((a, b) => docSortKey(b).localeCompare(docSortKey(a))).slice(0, 6);
-  const recentNotes = docs.filter((entry) => !isLesson(entry)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
-  const suggestions = (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
-    .filter((name) => !subjects.some((subject) => subject.name.toLowerCase() === name.toLowerCase())).slice(0, 4);
-
-  if (!subjects.length) {
-    return <div className="nb-welcome">
-      <span className="ws-eyebrow">Notebook</span>
-      <h1>Where what you learn is kept, and found again.</h1>
-      <p>Start with a language. Heuresis adds an <em>Inbox</em> topic so quick notes always have somewhere to land; organise them into topics whenever you like.</p>
-      {workspace.writable ? (creating
-        ? <div className="nb-welcome-form"><InlineNameForm label="Language name" placeholder="Chinese, German, Russian…" suggestions={suggestions}
-          onCancel={() => setCreating(false)}
-          onSubmit={async (name) => {
-            const created = await workspace.addSubject(name);
-            const inbox = await workspace.ensureInbox(created.id);
-            workspace.updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: Array.from(new Set([...current.notebook.expanded, created.id])) } }));
-            setCreating(false);
-            navigate({ topicId: inbox.id, docId: null });
-          }} /></div>
-        : <div className="ws-empty-actions">
-          {suggestions.slice(0, 3).map((name) => <button type="button" key={name} className="ws-button" onClick={async () => {
-            try {
-              const created = await workspace.addSubject(name);
-              const inbox = await workspace.ensureInbox(created.id);
-              workspace.updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: Array.from(new Set([...current.notebook.expanded, created.id])) } }));
-              navigate({ topicId: inbox.id, docId: null });
-            } catch (error) { workspace.toast(error instanceof Error ? error.message : String(error), { tone: "error" }); }
-          }}><Plus size={14} /> {name}</button>)}
-          <button type="button" className="ws-button is-primary" onClick={() => setCreating(true)}><Plus size={14} /> Other language…</button>
-        </div>) : null}
-    </div>;
-  }
-
+  const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   return <div className="nb-scope nb-home">
     <header className="nb-scope-head">
       <div><span className="ws-eyebrow">{formatDay(localDateKey(new Date()))}</span><h1>Notebook</h1></div>
-      {workspace.writable ? <div className="nb-scope-actions">
-        <button type="button" className="ws-button" onClick={() => workspace.openCapture({ mode: "lesson" })}><GraduationCap size={15} /> New lesson</button>
-        <button type="button" className="ws-button is-primary" onClick={() => onNewNote(workspace.memory.capture.topicId && workspace.topicById.has(workspace.memory.capture.topicId) ? workspace.memory.capture.topicId : snapshot.topics[0]?.id ?? null)}><FilePlus2 size={15} /> New note</button>
-      </div> : null}
     </header>
-    <div className="nb-home-subjects">
+    {subjects.length ? <div className="nb-home-subjects">
       {subjects.map((subject) => {
         const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subject.id).map((topic) => topic.id));
-        const subjectDocs = docs.filter((entry) => topicIds.has(entry.topic_id));
-        const subjectLessons = subjectDocs.filter(isLesson).length;
-        return <button type="button" key={subject.id} className="nb-home-subject" onClick={() => navigate({ topicId: null, docId: null, subjectId: subject.id })}>
-          <strong>{subject.name}</strong>
-          <span>{countLabel(topicIds.size, "topic")} · {countLabel(subjectDocs.length - subjectLessons, "note")} · {countLabel(subjectLessons, "lesson")}</span>
-        </button>;
+        const notes = docs.filter((entry) => topicIds.has(entry.topic_id)).length;
+        return <SubjectCard key={subject.id} subject={subject} topics={topicIds.size} notes={notes}
+          onOpen={() => navigate({ topicId: null, docId: null, subjectId: subject.id })} />;
       })}
-    </div>
-    <div className="nb-home-columns">
-      <section>
-        <h2 className="ws-section-title">Recent lessons</h2>
-        {lessons.length ? <ul className="nb-doc-list is-compact">{lessons.map((entry) => <li key={entry.id}>
-          <button type="button" className="nb-doc-row is-lesson" onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
-            <span className="nb-doc-icon"><KindIcon entry={entry} size={15} /></span>
-            <span className="nb-doc-text"><strong>{entryTitle(entry)}</strong><span className="nb-doc-preview">{workspace.pathLabel(entry.topic_id)}</span></span>
-            <span className="nb-doc-meta"><span>{formatDay(entry.lesson_date ?? entry.created_at)}</span></span>
-          </button></li>)}</ul>
-          : <p className="ws-muted">Lessons you start with {MOD_KEY}+Shift+L appear here.</p>}
-      </section>
-      <section>
-        <h2 className="ws-section-title">Recently edited notes</h2>
-        {recentNotes.length ? <ul className="nb-doc-list is-compact">{recentNotes.map((entry) => <li key={entry.id}>
-          <button type="button" className="nb-doc-row" onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
-            <span className="nb-doc-icon"><KindIcon entry={entry} size={15} /></span>
-            <span className="nb-doc-text"><strong>{entryTitle(entry)}</strong><span className="nb-doc-preview">{workspace.pathLabel(entry.topic_id)}</span></span>
-            <span className="nb-doc-meta"><span>{relativeTime(entry.updated_at)}</span></span>
-          </button></li>)}</ul>
-          : <p className="ws-muted">Nothing yet. Capture a quick note with {MOD_KEY}+Shift+N.</p>}
-      </section>
-    </div>
+    </div> : <EmptyState icon={<FolderPlus size={24}/>} title="Your notebook is ready">
+      Choose New → New subject to begin, or capture a note directly and organise it later.
+    </EmptyState>}
   </div>;
 }

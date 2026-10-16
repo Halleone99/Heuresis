@@ -9,10 +9,10 @@ assert.match(shell,/workspace\.loading && !workspace\.error \? <div className="w
 assert.match(shell,/section === "notebook" && !workspace\.loading && !workspace\.error \? <NotebookSidebarTree \/>/,"Sidebar must not falsely appear empty on load errors");
 assert.match(shell,/workspace\.error \? <div className="ws-error-panel" role="alert"/);
 assert.match(shell,/onClick=\{\(\) => void workspace\.reload\(\)\}/,"Retry remains functional");
-assert.match(overview,/studyHistoryState/, "Study history has an explicit state");
-assert.match(overview,/setStudyHistoryState\("ready"\)/);
-assert.match(overview,/setStudyHistoryState\("error"\)/);
-assert.match(overview,/onClick=\{\(\) => setRetryStudyHistory\(\(count\) => count \+ 1\)\}/,"History failure is recoverable");
-assert.match(overview,/studyHistoryState === "loading" \? "Loading study history…"/);
-assert.match(overview,/studyHistoryState === "error" \?/, "Failure does not look like an empty session history");
+assert.match(overview,/const \[activityLoading, setActivityLoading\]/,"Study activity has a loading state");
+assert.match(overview,/setActivityLoading\(false\)/);
+assert.match(overview,/const \[activityError, setActivityError\]/,"Study activity has an error state");
+assert.match(overview,/setActivityError\("unavailable"\)/);
+assert.match(overview,/onRetry=\{\(\) => setRetry\(\(value\) => value \+ 1\)\}/,"Study retry remains functional");
+assert.match(overview,/Study activity unavailable; only Notebook activity is shown\./,"Failure must not look like zero activity");
 console.log("Notebook loading, retry and Study-history state differentiation checks passed.");

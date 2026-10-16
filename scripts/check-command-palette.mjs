@@ -15,7 +15,7 @@ assert.match(palette, /event\.nativeEvent\.isComposing \|\| event\.keyCode === 2
 assert.match(palette, /role: "option"/, "Actions and results expose listbox options");
 assert.match(app, /commands=\{paletteCommands\}/, "App passes live command functions");
 assert.match(app, /const paletteCommands: PaletteCommand\[\] =/, "Commands are defined in app shell");
-for (const id of ["capture-note","capture-mistake","start-lesson","practise-due","organise-inbox","settings","sidebar","focus","sync","trash","export"]) {
+for (const id of ["capture-note","capture-mistake","practise-due","organise-inbox","settings","sidebar","focus","sync","trash","export"]) {
   assert.ok(app.includes(`id: "${id}"`), `Missing command: ${id}`);
 }
 assert.match(app, /workspace\.openMistake\(due\[0\]\.id, \{ practise: true/, "Due review opens a real session");

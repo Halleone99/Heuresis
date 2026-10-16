@@ -25,7 +25,7 @@ assert.match(icons,/new Intl\.DateTimeFormat\("en-GB", \{ day: "numeric", month:
 assert.match(icons,/if \(days === 1\) return "yesterday";/);
 assert.match(icons,/if \(days <= 6\) return `\$\{days\} days ago`;/);
 assert.match(icons,/if \(elapsed < -60_000\) return formatDay\(value\);/);
-assert.match(overview,/formatDay\(new Date\(\)\.toISOString\(\)\)/);
+assert.match(overview,/date\.toLocaleDateString\("en-GB"/);
 assert.doesNotMatch(overview,/formatLongDay\(/);
 
 // #13: Zero counts keep keyboard navigation and search, just lose prominence.
@@ -36,9 +36,9 @@ assert.match(progress,/total === 0 \? <div className="pg-empty-chart" role="stat
 assert.match(css,/\.pg-empty-chart \{/);
 
 // #14: Consistent visible language terminology across user-facing surfaces.
-assert.match(notebook,/aria-label="Languages and topics"/);
-assert.match(notebook,/>Languages<\/span>/);
-assert.match(capture,/label="Language name"/);
+assert.match(notebook,/aria-label="Subjects and topics"/);
+assert.match(notebook,/label="Subject name"/);
+assert.match(capture,/label="Subject name"/);
 assert.match(icons,/New language/);
 assert.match(mistakes,/language === "All" \? "All" : language/);
 assert.match(progress,/<h2>By language<\/h2>/);

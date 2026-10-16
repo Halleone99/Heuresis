@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut, Maximize2,
+  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
   NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
@@ -21,6 +21,9 @@ import { NotebookView } from "./components/workspace/NotebookView";
 import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree";
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
+import { ReadingView } from "./components/workspace/ReadingView";
+import { QuotationsView } from "./components/workspace/QuotationsView";
+import { ReferenceView } from "./components/workspace/ReferenceView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
 import TabletCaptureFab from "./components/TabletCaptureFab";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
@@ -69,6 +72,9 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "notebook", label: "Notebook", icon: NotebookPen, key: "3" },
   { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
   { id: "progress", label: "Progress", icon: BarChart3, key: "5" },
+  { id: "reading", label: "Reading", icon: BookOpen, key: "6" },
+  { id: "quotations", label: "Quotations", icon: Quote, key: "7" },
+  { id: "reference", label: "Reference", icon: LibraryBig, key: "8" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -146,6 +152,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cardQuery, setCardQuery] = useState("");
   const [view, setView] = useState<View>("library");
+  const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
+  const [referenceMode, setReferenceMode] = useState<"works" | "topics">("works");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
@@ -321,7 +329,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => setSection(item.id) })),
     { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
     { id: "capture-mistake", label: "Record a mistake", detail: "Quick correction · Ctrl+Shift+M", keywords: "mistake recall", run: () => openNotebookCapture("mistake") },
-    { id: "start-lesson", label: "Start a lesson", detail: "Attach notes and corrections · Ctrl+Shift+L", keywords: "new lesson", run: () => openNotebookCapture("lesson") },
     { id: "practise-due", label: "Practise due mistakes", detail: "Start a recall session", keywords: "review test recall", run: () => {
       const due = workspace.snapshot.entries.filter((entry) => entry.kind === "mistake" && isRecallDue(entry));
       if (due.length) workspace.openMistake(due[0].id, { practise: true, ids: due.map((entry) => entry.id) });
@@ -352,9 +359,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         if (event.shiftKey) toggleFocus(); else toggleSidebar();
         return;
       }
-      if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM", "KeyL"].includes(event.code)) {
+      if (mod && event.shiftKey && !event.altKey && ["KeyN", "KeyM"].includes(event.code)) {
         event.preventDefault();
-        openNotebookCapture(event.code === "KeyN" ? "note" : event.code === "KeyM" ? "mistake" : "lesson");
+        openNotebookCapture(event.code === "KeyN" ? "note" : "mistake");
         return;
       }
       if (mod && !event.shiftKey && !event.altKey && event.code === "KeyK") {
@@ -370,7 +377,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         openPalette();
         return;
       }
-      if (event.altKey && !mod && /^Digit[1-5]$/.test(event.code)) {
+      if (event.altKey && !mod && /^Digit[1-8]$/.test(event.code)) {
         event.preventDefault();
         setSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
         return;
@@ -464,7 +471,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }
 
 
-  const workspaceNotice = workspace.schema !== "v2" && section !== "study" ? <div className="ws-schema-notice" role="status">
+  const workspaceNotice = workspace.schema !== "v2" && section !== "study" && section !== "reading" && section !== "quotations" ? <div className="ws-schema-notice" role="status">
     <TriangleAlert size={16} />
     <span>{workspace.schema === "missing"
       ? <>The Notebook tables do not exist in this database yet. Apply the two Knowledge migrations in <code>supabase/migrations/</code> to start writing notes. Study is unaffected.</>
@@ -501,7 +508,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           <button type="button" className="desktop-action desktop-search-action" onClick={openPalette} title={`Search notes, Study cards and commands · ${MOD_KEY}+K`}><Search size={14} /><span>Search</span><kbd>{MOD_KEY} K</kbd></button>
           {section === "study" ? <button className="desktop-action desktop-topic-action" title="Create a Study topic" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
           {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()} title="Add Study cards to a topic"><Plus size={14} /> New card</button> : null}
-          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Capture a note, mistake or lesson for the Notebook (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
+          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Capture a note or mistake for the Notebook (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -551,8 +558,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             </button>
           </div>
           <nav className="hw-sections">
-            {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
-              onClick={() => setSection(id)} title={`${label} (Alt+${key})`}>
+            {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
+              onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); }} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
               {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
             </button>)}
@@ -566,16 +573,25 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </aside>
         <main className={`desktop-content ${section === "study" ? "is-study" : "is-workspace"}`}>
           {workspaceNotice}
-          {section !== "study" && workspace.error ? <div className="ws-error-panel" role="alert">
+          {section !== "study" && section !== "reading" && section !== "quotations" && workspace.error ? <div className="ws-error-panel" role="alert">
             <strong>{getOfflineSyncState().online ? "The Notebook could not be loaded." : "This device has no offline copy of the Notebook yet."}</strong>
             <span>{workspace.error}</span>
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
-          {section !== "study" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
-          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} /> : null}
+          {section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
+          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} collections={collections} packs={packs} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
+          {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
+          {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
+          {section === "reference" && !workspace.loading && !workspace.error ? <div className="lit-reference-workspace">
+            <nav className="lit-reference-modes" role="group" aria-label="Reference views">
+              <button type="button" className={referenceMode === "works" ? "active" : ""} aria-pressed={referenceMode === "works"} onClick={() => setReferenceMode("works")}>Works</button>
+              <button type="button" className={referenceMode === "topics" ? "active" : ""} aria-pressed={referenceMode === "topics"} onClick={() => setReferenceMode("topics")}>Topics</button>
+            </nav>
+            {referenceMode === "works" ? <NotebookView key="reference-works" referenceOnly onExitReference={() => setReferenceMode("topics")} /> : <ReferenceView />}
+          </div> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
@@ -586,9 +602,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
-        {SECTIONS.map(({ id, label, icon: Icon }) => <button type="button" key={id}
+        {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon }) => <button type="button" key={id}
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
-          onClick={() => { setSection(id); if (id === "study") openLibrary(); }}>
+          onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); if (id === "study") openLibrary(); }}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
           {id === "mistakes" && dueCount > 0 ? <i className="mobile-nav-due-dot" aria-label={`${dueCount} due`} /> : null}
         </button>)}
@@ -620,12 +636,11 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     ["Ctrl Alt Space", "Floating Notebook Capture (system-wide, desktop)"],
     [`${MOD_KEY} ⇧ N`, "Quick note (from anywhere, even while typing)"],
     [`${MOD_KEY} ⇧ M`, "Record a mistake"],
-    [`${MOD_KEY} ⇧ L`, "Start a lesson"],
     [`${MOD_KEY} ↵`, "Save the capture · finish editing"],
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
-    ["Alt 1 – 5", "Overview · Study · Notebook · Mistake Log · Progress"],
+    ["Alt 1 – 8", "Overview · Study · Notebook · Mistake Log · Progress · Reading · Quotations · Reference"],
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
     [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],

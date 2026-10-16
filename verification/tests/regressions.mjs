@@ -200,7 +200,8 @@ const scenarios = {
   },
 
   async "progress keeps one colour per language"(page) {
-    await page.click('.hw-sections button:has-text("Progress")');
+    await page.click('.hw-sections button:has-text("Overview")');
+    await page.click('.ov-quicklinks button:has-text("View progress")');
     await page.waitForTimeout(1200);
     const swatches = await page.locator(".pg-language-legend span").evaluateAll((spans) => spans.map((span) => [span.textContent.trim(), span.querySelector("i")?.getAttribute("style") ?? ""]));
     const chinese = new Set(swatches.filter(([name]) => name === "Chinese").map(([, style]) => style));
@@ -224,7 +225,7 @@ const scenarios = {
   async "narrow window: the icon rail closes again after choosing a section"(page) {
     await page.setViewportSize({ width: 1000, height: 800 });
     await page.waitForTimeout(300);
-    await page.click('.hw-sections button[title^="Progress"]');
+    await page.click('.hw-sections button[title^="Overview"]');
     await page.mouse.move(700, 500);
     await page.waitForTimeout(400);
     const width = await page.locator(".heuresis-section-sidebar").evaluate((el) => el.getBoundingClientRect().width);
@@ -274,7 +275,8 @@ const scenarios = {
     await page.click(`[data-mistake="${RU}"] button:has-text("I understand it")`);
     await page.waitForTimeout(800);
     check((await sql(`select status from knowledge_records where id='${RU}'`)) === "understood", "marked as understood");
-    await page.click('.hw-sections button:has-text("Progress")');
+    await page.click('.hw-sections button:has-text("Overview")');
+    await page.click('.ov-quicklinks button:has-text("View progress")');
     await page.click('.ws-toast button:has-text("Undo")');
     await page.waitForTimeout(800);
     check(await sql(`select status||'|'||coalesce(recall_due_at::text,'none') from knowledge_records where id='${RU}'`) === before, "Undo restores both the status and the recall date");

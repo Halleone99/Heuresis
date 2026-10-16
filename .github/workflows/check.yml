@@ -41,6 +41,7 @@ jobs:
       - run: node scripts/check-workspace-signal.mjs
       - run: node scripts/check-notebook-controls.mjs
       - run: node scripts/check-notebook-sidebar.mjs
+      - run: node scripts/check-reference-library.mjs
       - run: node scripts/check-save-feedback.mjs
       - run: node scripts/check-rejected-capture-recovery.mjs
       - run: node scripts/check-chinese-reading.mjs

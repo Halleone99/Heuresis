@@ -237,7 +237,102 @@ const scenarios = {
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(800);
     const russian = await page.locator('.nb-home-subject:has-text("Russian") span').innerText();
-    check(russian === "1 topic · 1 note · 0 lessons", `singular and plural are right (“${russian}”)`);
+    check(russian === "1 topic · 1 note", `singular and plural are right (“${russian}”)`);
+  },
+
+  async "notebook creates subjects and customises their cards"(page) {
+    console.log("NB77: entering Notebook");
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForSelector(".nb-home-subject");
+    console.log("NB77: click New");
+    await page.locator(".nb-new-button").click();
+    for (const label of ["New subject", "New topic", "New note"]) {
+      check(await page.locator('.nb-main-tools [role=menuitem]:has-text("' + label + '")').count() === 1, label + " exists once");
+    }
+    console.log("NB77: click New subject");
+    await page.locator('.nb-main-tools [role=menuitem]:has-text("New subject")').click();
+    console.log("NB77: new subject form");
+    await page.locator(".nb-create-shell input").fill("Philosophy");
+    await page.locator(".nb-create-shell input").press("Enter");
+    await page.waitForSelector('.nb-scope-head h1:has-text("Philosophy")');
+    console.log("NB77: click breadcrumb");
+    await page.locator('.nb-crumbs button:has-text("Notebook")').click();
+    await page.waitForSelector('.nb-home-subject:has-text("Philosophy")');
+    check(await page.locator(".nb-home-subject").count() === 4, "a fourth subject can be created");
+    await page.locator(".nb-new-button").click();
+    await page.locator('.nb-main-tools [role=menuitem]:has-text("New topic")').click();
+    await page.locator("#nb-new-topic-subject").selectOption({label:"Philosophy"});
+    await page.locator(".nb-create-shell input").fill("Ethics");
+    await page.locator(".nb-create-shell input").press("Enter");
+    await page.waitForSelector('.nb-scope-head h1:has-text("Ethics")');
+    check(true, "New topic creates a topic inside the chosen subject");
+    await page.locator('.nb-crumbs button:has-text("Notebook")').click();
+    await page.locator(".nb-new-button").click();
+    await page.locator('.nb-main-tools [role=menuitem]:has-text("New note")').click();
+    await page.waitForSelector(".qc-panel");
+    check(true, "New note opens quick capture");
+    await page.locator('.qc-panel button[aria-label="Close quick capture"]').click();
+    console.log("NB77: double click German");
+    await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
+    await page.waitForSelector(".nb-cover-dialog");
+    console.log("NB77: select colour");
+    await page.locator('.nb-colour-option[aria-label="Colour 1"]').click();
+    console.log("NB77: save cover");
+    await page.locator('.nb-cover-dialog button:has-text("Save")').click();
+    await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
+    const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
+    check(colour === "rgb(53, 75, 104)", "a colour choice changes the subject card");
+    await page.reload();
+    await page.waitForSelector('.nb-home-subject:has-text("German")');
+    const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
+    check(retained === colour, "subject colour survives reopening");
+    // Cover images should survive reload without any database migration.
+    await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
+    await page.waitForSelector(".nb-cover-dialog");
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGPU9k1hYGBgYmBgYGBgAAAKQQDgBh0uIwAAAABJRU5ErkJggg==", "base64");
+    await page.locator('.nb-cover-dialog input[type="file"]').setInputFiles({name:"cover.png",mimeType:"image/png",buffer:png});
+    await page.waitForSelector(".nb-cover-preview");
+    await page.locator('.nb-cover-dialog button:has-text("Save")').click();
+    await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
+    const image = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundImage);
+    check(image.includes("blob:"), "cover image applies to subject card");
+    await page.reload();
+    await page.waitForSelector('.nb-home-subject:has-text("German")');
+    await page.waitForFunction(() => getComputedStyle([...document.querySelectorAll(".nb-home-subject")].find(el => el.textContent?.includes("German"))).backgroundImage.includes("blob:"));
+    check(true, "cover image survives reopening");
+  },
+
+  async "reference work opens as a book and edits through Notebook"(page) {
+    const topicId = await sql("select id from knowledge_topics where user_id='11111111-1111-4111-8111-111111111111' limit 1");
+    check(Boolean(topicId), "test user has a Notebook topic");
+    await sql(`insert into knowledge_records(id,user_id,topic_id,kind,title,body,category)
+      values ('e0000000-0000-4000-8000-00000000b001','11111111-1111-4111-8111-111111111111','${topicId}',
+      'note','Roman Ideas',E'## Republic\\n\\nA mixed constitution.\\n\\n## Citizenship\\n\\nA civic status.','reference')`);
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
+    await page.click('.hw-sections button:has-text("Reference")');
+    await page.locator('.lit-reference-modes button:has-text("Works")').waitFor();
+    await page.locator('.rl-work:has-text("Roman Ideas")').waitFor();
+    check(await page.locator(".rl-work").count() >= 1, "Reference Library lists the saved work");
+    await page.locator('.rl-work:has-text("Roman Ideas")').click();
+    check(await page.locator(".rl-chapter").count() === 2, "Two headings become an ordered contents page");
+    await page.locator('.rl-chapter:has-text("Citizenship")').click();
+    check((await page.locator(".rl-page-head h1").innerText()) === "Citizenship", "chapter opens as readable document");
+    check((await page.locator(".rl-prose").innerText()).includes("A civic status."), "chapter content is rendered");
+    await page.locator('.rl-page-actions button:has-text("Edit reference")').click();
+    await page.locator(".nb-title-input").waitFor();
+    await page.locator(".nb-title-input").fill("Roman Ideas Revised");
+    await page.locator('.nb-reference-chapter-action button:has-text("Add chapter")').click();
+    await page.locator('.nb-reference-chapter-action input[aria-label="New chapter title"]').fill("Checks and Balances");
+    await page.locator('.nb-reference-chapter-action button:has-text("Add")').click();
+    await page.locator('.nb-doc-actions button:has-text("Done")').click();
+    await page.waitForTimeout(650);
+    check(await sql("select title from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'") === "Roman Ideas Revised",
+      "Reference edits save through the existing Notebook persistence path");
+    await page.locator('.nb-doc-actions button[aria-label="Close note"]').click();
+    await page.locator(".rl-titlepage h1").waitFor();
+    check((await page.locator(".rl-titlepage h1").innerText()) === "Roman Ideas Revised", "Closing the editor returns directly to the reference");
+    check(await page.locator(".rl-chapter").count() === 3, "New named chapter is preserved in the reference contents");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {

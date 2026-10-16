@@ -30,7 +30,7 @@ export function NotebookSidebarTree() {
   const counts = useMemo(() => {
     const counts = new Map<string, { notes: number; questions: number }>();
     for (const entry of snapshot.entries) {
-      if (!isDocument(entry)) continue;
+      if (!isDocument(entry) || entry.category === "reference") continue;
       const count = counts.get(entry.topic_id) ?? { notes: 0, questions: 0 };
       count.notes++;
       if (isOpenQuestion(entry)) count.questions++;
@@ -112,19 +112,19 @@ export function NotebookSidebarTree() {
     const topics = snapshot.topics.filter((topic) => topic.subject_id === id);
     const ids = new Set(topics.map((topic) => topic.id));
     if (snapshot.entries.some((entry) => ids.has(entry.topic_id))) {
-      setError("Move or delete this language's entries before deleting it.");
+      setError("Move or delete this subject's entries before deleting it.");
       return;
     }
     if (!await confirm({ title: `Delete “${label}”?`,
-      body: `The language and its ${topics.length} empty topics will be permanently removed.`,
-      confirmLabel:"Delete language", danger:true })) return;
+      body: `The subject and its ${topics.length} empty topics will be permanently removed.`,
+      confirmLabel:"Delete subject", danger:true })) return;
     try { setError(""); await workspace.removeSubject(id); if (activeSubject === id) goHome(); }
     catch (err) { setError(err instanceof Error ? err.message : "Deletion failed."); }
   }
   function editor() {
     return <form className="hw-nb-editor" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-      <input aria-label={renaming ? "Rename" : "New language or topic"} autoFocus maxLength={100}
-        placeholder={renaming ? renaming.name : creating?.subjectId ? "Topic name" : "Language name"}
+      <input aria-label={renaming ? "Rename" : "New subject or topic"} autoFocus maxLength={100}
+        placeholder={renaming ? renaming.name : creating?.subjectId ? "Topic name" : "Subject name"}
         value={name} disabled={busy} onChange={(event) => setName(event.target.value)}/>
       <div><button type="submit" disabled={busy || !name.trim()}>{renaming ? "Rename" : "Create"}</button>
         <button type="button" disabled={busy} onClick={() => { setRenaming(null); setCreating(null); setError(""); }}>Cancel</button></div>
@@ -164,16 +164,15 @@ export function NotebookSidebarTree() {
       </div>;
     });
   }
-  return <section className="hw-notebook-tree" aria-label="Notebook languages and topics">
+  return <section className="hw-notebook-tree" aria-label="Notebook subjects and topics">
     {confirmElement}
-    <div className="hw-nb-heading"><span>Languages & topics</span>
-      {workspace.writable ? <button type="button" onClick={() => prepareCreate({subjectId:null,parentId:null})}
-        title="Add language" aria-label="Add language"><Plus size={14}/></button> : null}
+    <div className="hw-nb-heading"><span>Subjects & topics</span>
+
     </div>
     <nav className="hw-nb-tree-nav" aria-label="Notebook navigation">
       <button type="button" className={`hw-nb-home ${!activeSubject && !activeTopic ? "is-active" : ""}`}
         onClick={goHome}><Home size={13}/> All notes</button>
-      <div role="tree" aria-label="Languages">
+      <div role="tree" aria-label="Subjects">
         {subjects.map((subject) => {
           const open=expanded.has(subject.id);
           const selected=activeSubject === subject.id && !activeTopic;
@@ -189,7 +188,7 @@ export function NotebookSidebarTree() {
               {workspace.writable ? <RowMenu label={subject.name} items={[
                 {label:"New topic",icon:<FolderPlus size={14}/>,run:() => prepareCreate({subjectId:subject.id,parentId:null})},
                 {label:"Rename",icon:<Pencil size={14}/>,run:() => prepareRename("subject",subject.id,subject.name)},
-                {label:"Delete empty language",icon:<Trash2 size={14}/>,danger:true,run:()=>void removeSubject(subject.id,subject.name)},
+                {label:"Delete empty subject",icon:<Trash2 size={14}/>,danger:true,run:()=>void removeSubject(subject.id,subject.name)},
               ]}/> : null}
             </div>
             {renaming?.id===subject.id ? editor() : null}
@@ -200,7 +199,7 @@ export function NotebookSidebarTree() {
         })}
       </div>
       {creating && !creating.subjectId ? editor() : null}
-      {subjects.length === 0 && !creating ? <p className="hw-nb-empty">Add your first language to start organising notes.</p> : null}
+      {subjects.length === 0 && !creating ? <p className="hw-nb-empty">Choose New → New subject to organise your notes.</p> : null}
       {error ? <p className="hw-nb-error" role="alert">{error}</p> : null}
     </nav>
   </section>;

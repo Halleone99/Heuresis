@@ -5,7 +5,7 @@
  */
 import type { KnowledgeKind, NoteCategory } from "./knowledgeWorkspace";
 
-export type WorkspaceSection = "overview" | "study" | "notebook" | "mistakes" | "progress";
+export type WorkspaceSection = "overview" | "study" | "notebook" | "mistakes" | "progress" | "reading" | "quotations" | "reference";
 export type ThemePreference = "system" | "light" | "dark";
 
 export type NotebookLocation = { topicId: string | null; docId: string | null; subjectId?: string | null };
@@ -65,7 +65,7 @@ function write(key: string, value: unknown) {
 export function readSection(): WorkspaceSection {
   try {
     const stored = localStorage.getItem(SECTION_KEY);
-    return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "progress" || stored === "overview" ? stored : "overview";
+    return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "progress" || stored === "overview" || stored === "reading" || stored === "quotations" || stored === "reference" ? stored : "overview";
   } catch { return "overview"; }
 }
 export function writeSection(section: WorkspaceSection) {

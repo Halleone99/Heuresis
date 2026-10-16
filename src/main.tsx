@@ -45,6 +45,7 @@ import "./catalogue-read-filters.css";
 import "./tablet.css";
 // Loaded last: the learning workspace and the shared shell around Study.
 import "./components/workspace/workspace.css";
+import "./components/workspace/literary.css";
 // Loaded last to resolve legacy and workspace colours with one shared palette.
 import "./theme/palettes.css";
 import "./theme/chrome.css";

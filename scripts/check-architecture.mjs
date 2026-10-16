@@ -93,7 +93,7 @@ if (!offline.includes("activeFlush") || !offline.includes("isAlreadyAppliedInser
   throw new Error("Offline replay must be single-flight and must not block on inserts that already reached the server.");
 }
 
-if (!app.includes('["KeyN", "KeyM", "KeyL"].includes(event.code)')) {
+if (!app.includes('["KeyN", "KeyM"].includes(event.code)')) {
   throw new Error("Quick capture shortcuts must use physical key codes so they work with any keyboard layout.");
 }
 
