@@ -288,7 +288,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
           ]} /> : null}
         </div>}
       {creating && creating.parentId === topic.id ? <div style={{ paddingLeft: 20 + depth * 14 }}>
-        <InlineNameForm label="Sub-topic name" placeholder="Time expressions, Lesson 7…" onCancel={() => setCreating(null)}
+        <InlineNameForm label="Sub-topic name" placeholder="Time expressions, Sub-topic…" onCancel={() => setCreating(null)}
           onSubmit={async (name) => { const created = await workspace.addTopic(subjectId, name, topic.id); setCreating(null); navigate({ topicId: created.id, docId: null }); }} />
       </div> : null}
       {isOpen ? <div role="group">{renderTopics(subjectId, topic.id, depth + 1)}</div> : null}
@@ -306,8 +306,8 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
     </div>
     <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Subjects and topics">
       <div className="nb-rail-section-head">
-        <span className="ws-eyebrow">Languages</span>
-        {workspace.writable ? <button type="button" className="ws-icon-button" aria-label="New subject" title="New subject" onClick={() => setCreating({ subjectId: null, parentId: null })}><Plus size={14} /></button> : null}
+        <span className="ws-eyebrow">Subjects</span>
+
       </div>
       {creating && !creating.subjectId ? <InlineNameForm label="Subject name" placeholder="Philosophy, German, History…" suggestions={suggestions}
         onCancel={() => setCreating(null)}
@@ -340,7 +340,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
           {isOpen ? <div role="group">
             {renderTopics(subject.id, null, 1)}
             {creating && creating.subjectId === subject.id && !creating.parentId ? <div className="nb-tree-create">
-              <InlineNameForm label="Topic name" placeholder="Grammar, B1.2, Lessons…" onCancel={() => setCreating(null)}
+              <InlineNameForm label="Topic name" placeholder="Grammar, B1.2, Ideas…" onCancel={() => setCreating(null)}
                 onSubmit={async (name) => { const created = await workspace.addTopic(subject.id, name, null); setCreating(null); navigate({ topicId: created.id, docId: null }); }} />
             </div> : workspace.writable ? <button type="button" className="nb-tree-add" onClick={() => setCreating({ subjectId: subject.id, parentId: null })}><Plus size={12} /> Topic</button> : null}
           </div> : null}
