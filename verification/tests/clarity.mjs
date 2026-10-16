@@ -237,7 +237,34 @@ const scenarios = {
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(800);
     const russian = await page.locator('.nb-home-subject:has-text("Russian") span').innerText();
-    check(russian === "1 topic · 1 note · 0 lessons", `singular and plural are right (“${russian}”)`);
+    check(russian === "1 topic · 1 note", `singular and plural are right (“${russian}”)`);
+  },
+
+  async "notebook creates subjects and customises their cards"(page) {
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForSelector(".nb-home-subject");
+    await page.locator(".nb-new-button").click();
+    for (const label of ["New subject", "New topic", "New note"]) {
+      check(await page.locator('.nb-main-tools [role=menuitem]:has-text("' + label + '")').count() === 1, label + " exists once");
+    }
+    await page.locator('.nb-main-tools [role=menuitem]:has-text("New subject")').click();
+    await page.locator(".nb-create-shell input").fill("Philosophy");
+    await page.locator(".nb-create-shell input").press("Enter");
+    await page.waitForSelector('.nb-scope-head h1:has-text("Philosophy")');
+    await page.locator('.nb-crumbs button:has-text("Notebook")').click();
+    await page.waitForSelector('.nb-home-subject:has-text("Philosophy")');
+    check(await page.locator(".nb-home-subject").count() === 4, "a fourth subject can be created");
+    await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
+    await page.waitForSelector(".nb-cover-dialog");
+    await page.locator('.nb-colour-option[aria-label="Colour 1"]').click();
+    await page.locator('.nb-cover-dialog button:has-text("Save")').click();
+    await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
+    const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
+    check(colour === "rgb(53, 75, 104)", "a colour choice changes the subject card");
+    await page.reload();
+    await page.waitForSelector('.nb-home-subject:has-text("German")');
+    const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
+    check(retained === colour, "subject colour survives reopening");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {
