@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { BookOpen, BookPlus, ChevronRight, Clock3, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
 import {
-  bookDomain, bookMinutes, bookProgress, bookShelf, useReadingLibrary,
+  bookDomain, bookMinutes, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
 } from "../../lib/readingBridge";
 
@@ -129,6 +129,10 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
             {STATUSES.map((status) => <option key={status}>{status}</option>)}
           </select>
         </label>
+        {selected.status === "To read" ? <button className="lit-button" disabled={busy}
+          onClick={() => void execute(() => api.updateBook(selected.id, { notes: notesWithShelf(selected, bookShelf(selected) === "next" ? "library" : "next") }))}>
+          {bookShelf(selected) === "next" ? "Remove from Next" : "Add to Next"}
+        </button> : null}
         <div className="lit-detail-stat"><Clock3 size={17}/><strong>{minutesLabel(bookMinutes(selected))}</strong><span>logged with this book</span></div>
         <div className="lit-form-row"><label className="lit-field">Add reading time (minutes)
             <input type="number" min="1" max="720" value={minutes} onChange={(event) => setMinutes(event.target.value)}/></label>
