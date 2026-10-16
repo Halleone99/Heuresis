@@ -6,6 +6,7 @@ import { SegmentedChoice } from "./SegmentedChoice";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortTags } from "../lib/sort";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
 import "./sort.css";
+import "./sort-enrichment.css";
 
 type Props = {
   pack: PackWithType;
