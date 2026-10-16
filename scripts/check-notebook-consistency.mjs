@@ -25,7 +25,7 @@ assert.match(icons,/new Intl\.DateTimeFormat\("en-GB", \{ day: "numeric", month:
 assert.match(icons,/if \(days === 1\) return "yesterday";/);
 assert.match(icons,/if \(days <= 6\) return `\$\{days\} days ago`;/);
 assert.match(icons,/if \(elapsed < -60_000\) return formatDay\(value\);/);
-assert.match(overview,/formatDay\(new Date\(\)\.toISOString\(\)\)/);
+assert.match(overview,/date\.toLocaleDateString\("en-GB"/);
 assert.doesNotMatch(overview,/formatLongDay\(/);
 
 // #13: Zero counts keep keyboard navigation and search, just lose prominence.
