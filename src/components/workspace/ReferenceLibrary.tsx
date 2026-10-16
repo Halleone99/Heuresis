@@ -9,17 +9,18 @@ import "./reference-library.css";
 
 type Props = {
   onClose: () => void;
+  initialWorkId: string | null;
   onCreate: (topicId: string) => void;
   onEdit: (entry: KnowledgeEntry) => void;
 };
 
-export function ReferenceLibrary({ onClose, onCreate, onEdit }: Props) {
+export function ReferenceLibrary({ onClose, onCreate, onEdit, initialWorkId }: Props) {
   const workspace = useWorkspace();
   const { snapshot } = workspace;
   const references = useMemo(() => snapshot.entries.filter((entry) => entry.kind === "note" && entry.category === "reference"), [snapshot.entries]);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [workId, setWorkId] = useState<string | null>(null);
+  const [workId, setWorkId] = useState<string | null>(initialWorkId);
   const [chapterIndex, setChapterIndex] = useState<number | null>(null);
   const [destination, setDestination] = useState("");
   const [showSubjectPicker, setShowSubjectPicker] = useState(false);
