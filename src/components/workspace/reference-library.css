@@ -128,3 +128,20 @@
 .nb-reference-chapter-action form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
 .nb-reference-chapter-action input { min-width:140px; flex:1; max-width:360px; height:36px; background:var(--ws-raised); color:var(--ws-ink); border:1px solid var(--ws-line-strong); border-radius:8px; padding:0 11px; font:13px var(--ws-sans); }
 .nb-reference-chapter-action input:focus-visible { outline:2px solid var(--ws-accent); outline-offset:1px; }
+
+
+/* Dedicated Reference section: the book reader and topic browser share one destination. */
+.lit-reference-workspace { min-width: 0; }
+.lit-reference-modes {
+  display: inline-flex; gap: 3px; padding: 4px; margin: 0 0 20px;
+  border: 1px solid var(--ws-border, rgba(127,127,127,.24)); border-radius: 12px;
+  background: var(--ws-surface, transparent);
+}
+.lit-reference-modes button {
+  border: 0; border-radius: 8px; padding: 8px 17px;
+  background: transparent; color: inherit; cursor: pointer; font: inherit;
+}
+.lit-reference-modes button.active { background: var(--ws-card, rgba(127,127,127,.14)); font-weight: 650; }
+.lit-reference-modes button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.nb-layout.is-reference-standalone { display: block; grid-template-columns: minmax(0, 1fr); min-height: auto; }
+.nb-layout.is-reference-standalone .nb-main { width: 100%; min-width: 0; }
