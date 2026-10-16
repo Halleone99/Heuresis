@@ -86,7 +86,8 @@ async function tabletNavigation() {
     await page.fill("input[type=password]", "heuresis");
     await page.click("button[type=submit]");
     await page.locator(".mobile-workspace-nav:visible").waitFor({ timeout: 15000 });
-    check(await page.locator(".mobile-workspace-nav button").count() === 5, "All five workspace sections have one bottom bar");
+    check(await page.locator(".mobile-workspace-nav button").count() === 8, "All eight workspace sections use one horizontally scrollable bottom bar");
+    check(await page.locator('.mobile-workspace-nav button:has-text("Quotations")').count() === 1 && await page.locator('.mobile-workspace-nav button:has-text("Reference")').count() === 1, "Reading-related destinations remain accessible from touch navigation");
     check(!(await page.locator(".desktop-nav-group").isVisible()), "Old Study bottom bar is not stacked over it");
     const touchSize = await page.locator(".mobile-workspace-nav button").first().boundingBox();
     check(Boolean(touchSize && touchSize.height >= 44), "Bottom targets are finger-sized");
