@@ -120,7 +120,9 @@ export function SubjectCard({ subject, topics, notes, onOpen }: {
   function clickCard(event: React.MouseEvent<HTMLButtonElement>) {
     if (event.detail === 0) { onOpen(); return; }
     if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
-    if (event.detail >= 2) { beginEdit(); return; }
+    // Wait for the real double-click event: opening a modal during click #2
+    // can interrupt the browser’s double-click sequence.
+    if (event.detail >= 2) return;
     clickTimer.current = window.setTimeout(() => { clickTimer.current = null; onOpen(); }, 310);
   }
   async function pickFile(file: File | undefined) {
