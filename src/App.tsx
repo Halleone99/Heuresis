@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, Link2, LogOut, Maximize2,
+  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
   NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
@@ -21,6 +21,9 @@ import { NotebookView } from "./components/workspace/NotebookView";
 import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree";
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
+import { ReadingView } from "./components/workspace/ReadingView";
+import { QuotationsView } from "./components/workspace/QuotationsView";
+import { ReferenceView } from "./components/workspace/ReferenceView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
 import TabletCaptureFab from "./components/TabletCaptureFab";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
@@ -69,6 +72,9 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "notebook", label: "Notebook", icon: NotebookPen, key: "3" },
   { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
   { id: "progress", label: "Progress", icon: BarChart3, key: "5" },
+  { id: "reading", label: "Reading", icon: BookOpen, key: "6" },
+  { id: "quotations", label: "Quotations", icon: Quote, key: "7" },
+  { id: "reference", label: "Reference", icon: LibraryBig, key: "8" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -146,6 +152,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cardQuery, setCardQuery] = useState("");
   const [view, setView] = useState<View>("library");
+  const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
@@ -370,7 +377,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         openPalette();
         return;
       }
-      if (event.altKey && !mod && /^Digit[1-5]$/.test(event.code)) {
+      if (event.altKey && !mod && /^Digit[1-8]$/.test(event.code)) {
         event.preventDefault();
         setSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
         return;
@@ -552,7 +559,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </div>
           <nav className="hw-sections">
             {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
-              onClick={() => setSection(id)} title={`${label} (Alt+${key})`}>
+              onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); }} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
               {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
             </button>)}
@@ -576,6 +583,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
+          {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
+          {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
+          {section === "reference" && !workspace.loading && !workspace.error ? <ReferenceView /> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
@@ -588,7 +598,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
         {SECTIONS.map(({ id, label, icon: Icon }) => <button type="button" key={id}
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
-          onClick={() => { setSection(id); if (id === "study") openLibrary(); }}>
+          onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); if (id === "study") openLibrary(); }}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
           {id === "mistakes" && dueCount > 0 ? <i className="mobile-nav-due-dot" aria-label={`${dueCount} due`} /> : null}
         </button>)}
@@ -625,7 +635,7 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
-    ["Alt 1 – 5", "Overview · Study · Notebook · Mistake Log · Progress"],
+    ["Alt 1 – 8", "Overview · Study · Notebook · Mistake Log · Progress · Reading · Quotations · Reference"],
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
     [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],
