@@ -145,7 +145,7 @@ const scenarios = {
       "No mode, language, or stage selection is required");
     await page.click('button:has-text("Add mistake")');
     const editor = page.locator(".ml-simple-edit");
-    check(await editor.locator("> label.ws-field textarea").count() === 2, "The editor contains only two text fields");
+    check(await editor.locator(":scope > label.ws-field textarea").count() === 2, "The editor contains only two text fields");
     await editor.locator("textarea").nth(0).fill("Wrong assumption");
     await editor.locator("textarea").nth(1).fill("Corrected conclusion");
     await editor.locator('button:has-text("Save")').click();
