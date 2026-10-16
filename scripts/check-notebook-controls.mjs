@@ -1,14 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const notebook = readFileSync("src/components/workspace/NotebookView.tsx", "utf8");
+const cards = readFileSync("src/components/workspace/SubjectCard.tsx", "utf8");
+const quick = readFileSync("src/components/workspace/QuickCapture.tsx", "utf8");
 const css = readFileSync("src/components/workspace/workspace.css", "utf8");
-assert.match(notebook, /<RowMenu label=\{title\} items=\{\[/,
-  "Scope action menu should contain creation rather than a duplicate tile");
-assert.match(notebook, /label: topic \? "New sub-topic" : "New topic"/);
-assert.doesNotMatch(notebook, /className="nb-subtopic is-add"/);
-assert.match(notebook, /creatingChild && workspace\.writable/);
-assert.match(notebook, /const ownTopicName = workspace\.topicById\.get\(entry\.topic_id\)/);
-assert.match(notebook, /const showKind = !ownTopicName \|\| ownTopicName !== kindLabel\.toLocaleLowerCase\(\)/);
+
+assert.match(notebook, /buttonLabel="New"/, "Single New action");
+for (const name of ["New subject", "New topic", "New note"]) assert.ok(notebook.includes(name), name);
+assert.doesNotMatch(notebook, /New lesson|Recent lessons|Recently edited notes/);
+assert.match(notebook, /<SubjectCard key=\{subject.id\}/);
+assert.match(cards, /onDoubleClick=/, "Double-click opens subject editing");
+assert.match(cards, /workspace.renameSubjectById/);
+assert.match(cards, /indexedDB.open/);
+assert.match(cards, /type="file"/);
+assert.match(cards, /nb-colour-option/);
+assert.match(quick, /workspace.addSubject\("Unsorted"\)/, "Uncategorised capture supported");
+assert.match(css, /\.nb-cover-backdrop/);
+assert.match(css, /\.nb-main-tools \.nb-new-button/);
+assert.match(notebook, /const ownTopicName = workspace.topicById.get\(entry.topic_id\)/);
+assert.match(notebook, /const showKind = !ownTopicName \|\| ownTopicName !== kindLabel.toLocaleLowerCase\(\)/);
 assert.match(notebook, /\{metadata \? <small>\{metadata\}<\/small> : null\}/);
-assert.match(css, /@media \(min-width: 901px\) \{\s*\.nb-crumbs \.nb-back \{ display: none; \}/);
-console.log("Notebook de-duplication checks passed.");
+console.log("Notebook capture/subject customisation checks passed.");
