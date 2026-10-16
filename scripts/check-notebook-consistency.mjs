@@ -36,9 +36,9 @@ assert.match(progress,/total === 0 \? <div className="pg-empty-chart" role="stat
 assert.match(css,/\.pg-empty-chart \{/);
 
 // #14: Consistent visible language terminology across user-facing surfaces.
-assert.match(notebook,/aria-label="Languages and topics"/);
-assert.match(notebook,/>Languages<\/span>/);
-assert.match(capture,/label="Language name"/);
+assert.match(notebook,/aria-label="Subjects and topics"/);
+assert.match(notebook,/label="Subject name"/);
+assert.match(capture,/label="Subject name"/);
 assert.match(icons,/New language/);
 assert.match(mistakes,/language === "All" \? "All" : language/);
 assert.match(progress,/<h2>By language<\/h2>/);
