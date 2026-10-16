@@ -28,6 +28,7 @@ export function parseReferenceChapters(body: string): ReferenceChapter[] {
 
 export function referenceSummary(body: string): string {
   return body.split("\n")
-    .map((line) => line.replace(/^\s*(?:#{1,6}\s*|[-*>]\s*)/, "").replace(/[*_`\[\]]/g, "").trim())
-    .find((line) => Boolean(line) && !/^Chapter\s+\d+$/i.test(line))?.slice(0, 160) ?? "";
+    .filter((line) => !/^\s*#{1,6}\s+/.test(line))
+    .map((line) => line.replace(/^\s*[-*>]\s*/, "").replace(/[*_`\[\]]/g, "").trim())
+    .find((line) => Boolean(line))?.slice(0, 160) ?? "";
 }
