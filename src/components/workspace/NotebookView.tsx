@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -7,6 +7,7 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
+import { ReferenceLibrary } from "./ReferenceLibrary";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
@@ -28,6 +29,7 @@ export function NotebookView() {
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
+  const [referencesOpen, setReferencesOpen] = useState(false);
   const [railOpenMobile, setRailOpenMobile] = useState(false);
   const missingNotified = useRef<string | null>(null);
   // A new note keeps the same page instance once it has been saved for the first time,
@@ -116,13 +118,13 @@ export function NotebookView() {
     return () => { window.removeEventListener("mouseup", onMouse); window.removeEventListener("keydown", onKey); };
   }, [goBack]);
 
-  const startNewNote = useCallback((topicId: string | null, title?: string) => {
+  const startNewNote = useCallback((topicId: string | null, title?: string, category?: KnowledgeEntry["category"]) => {
     const target = topicId ?? topic?.id ?? doc?.topic_id ?? null;
     if (!target) { workspace.toast("Choose or create a topic first.", { tone: "error" }); return; }
     setHistory((stack) => [...stack.slice(-30), { topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null }]);
     internalNavigation.current = true;
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, topicId: target, docId: null, subjectId: null } }));
-    setNewDoc({ topicId: target, title });
+    setNewDoc({ topicId: target, title, category });
   }, [doc?.topic_id, location.docId, location.subjectId, location.topicId, topic?.id, updateMemory, workspace]);
 
   const railCollapsed = memory.notebook.railCollapsed;
@@ -139,6 +141,9 @@ export function NotebookView() {
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
+  else if (referencesOpen) main = <ReferenceLibrary onClose={() => setReferencesOpen(false)}
+    onCreate={(topicId) => { setReferencesOpen(false); startNewNote(topicId, "", "reference"); }}
+    onEdit={(entry) => { setReferencesOpen(false); workspace.openDocument(entry.id, { edit: true }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
@@ -152,6 +157,10 @@ export function NotebookView() {
     <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
     <section className="nb-main">
       <div className="nb-main-tools">
+        <button type="button" className="ws-button is-small" onClick={() => setReferencesOpen((value) => !value)}
+          aria-pressed={referencesOpen} title={referencesOpen ? "Return to Notebook notes" : "Browse your reference library"}>
+          <BookOpen size={15} /> {referencesOpen ? "Notes" : "References"}
+        </button>
         <button type="button" className="ws-icon-button nb-rail-toggle" onClick={() => { if (window.matchMedia("(max-width: 900px)").matches) setRailOpenMobile((value) => !value); else toggleRail(); }}
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
