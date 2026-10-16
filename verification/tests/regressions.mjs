@@ -331,12 +331,12 @@ const scenarios = {
     check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
     await page.waitForTimeout(400);
-    const disclosure = page.locator(".sort-card");
+    const disclosure = page.locator('.sort-enrich-heading:has-text("Examples")');
     await disclosure.focus();
     await page.keyboard.press("Enter");
-    check(await disclosure.getAttribute("aria-expanded") === "true", "Sort shows extra card details with keyboard Enter");
+    check(await disclosure.getAttribute("aria-expanded") === "true", "Sort opens the editable Examples dimension with keyboard Enter");
     await page.keyboard.press("Space");
-    check(await disclosure.getAttribute("aria-expanded") === "false", "Sort hides extra details with keyboard Space");
+    check(await disclosure.getAttribute("aria-expanded") === "false", "Sort closes the Examples dimension with keyboard Space");
     await page.keyboard.press("4");
     await page.waitForTimeout(1200);
     // Digit 4 is Core, stored on the existing 1–5 scale as 5.
