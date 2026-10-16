@@ -435,10 +435,10 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       {draft.category === "reference" ? <div className="nb-reference-chapter-action">
         {addingChapter ? <form onSubmit={(event) => {
           event.preventDefault();
-          const title = chapterTitle.trim().replace(/[\\r\\n]+/g, " ");
+          const title = chapterTitle.trim().replace(/[\r\n]+/g, " ");
           if (!title) return;
           const current = editorRef.current?.getMarkdown() ?? draftRef.current.body;
-          editorRef.current?.setMarkdown(`${current.trimEnd()}${current.trim() ? "\\n\\n" : ""}## ${title}\\n\\n`);
+          editorRef.current?.setMarkdown(`${current.trimEnd()}${current.trim() ? "\n\n" : ""}## ${title}\n\n`);
           editorRef.current?.focus("end");
           setChapterTitle("");
           setAddingChapter(false);
