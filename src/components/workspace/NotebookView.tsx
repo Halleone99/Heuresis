@@ -30,6 +30,7 @@ export function NotebookView() {
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
   const [referencesOpen, setReferencesOpen] = useState(false);
+  const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
   const [railOpenMobile, setRailOpenMobile] = useState(false);
   const missingNotified = useRef<string | null>(null);
   // A new note keeps the same page instance once it has been saved for the first time,
@@ -141,13 +142,13 @@ export function NotebookView() {
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
-  else if (referencesOpen) main = <ReferenceLibrary onClose={() => setReferencesOpen(false)}
-    onCreate={(topicId) => { setReferencesOpen(false); startNewNote(topicId, "", "reference"); }}
-    onEdit={(entry) => { setReferencesOpen(false); workspace.openDocument(entry.id, { edit: true }); }} />;
+  else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => setReferencesOpen(false)}
+    onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
+    onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
-    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
+    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
-  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
+  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} onNewNote={startNewNote} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} />;
   else main = <NotebookHome navigate={navigate} onNewNote={startNewNote} />;
