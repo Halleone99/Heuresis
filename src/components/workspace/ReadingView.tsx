@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Archive, BookOpen, BookPlus, ChevronRight, Clock3, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
+import { BookOpen, BookPlus, ChevronRight, Clock3, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
 import {
   bookDomain, bookMinutes, bookProgress, bookShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
@@ -75,7 +75,7 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
   function updateStatus(book: ReadingBook, status: ReadingStatus) {
     void execute(() => api.updateBook(book.id, {
       status,
-      ...(!book.startDate && status === "Reading" ? { startDate: new Date().toLocaleDateString("en-CA") } : {}),
+      ...(!book.startDate && status === "Reading" ? { startDate: [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, "0"), String(new Date().getDate()).padStart(2, "0")].join("-") } : {}),
       ...(status === "Read" ? { finishDate: new Date().toLocaleDateString("en-CA") } : {}),
     }));
   }
