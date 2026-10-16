@@ -245,7 +245,7 @@ const scenarios = {
     check(Boolean(topicId), "test user has a Notebook topic");
     await sql(`insert into knowledge_records(id,user_id,topic_id,kind,title,body,category)
       values ('e0000000-0000-4000-8000-00000000b001','11111111-1111-4111-8111-111111111111','${topicId}',
-      'note','Roman Ideas','## Republic\\n\\nA mixed constitution.\\n\\n## Citizenship\\n\\nA civic status.','reference')`);
+      'note','Roman Ideas',E'## Republic\\n\\nA mixed constitution.\\n\\n## Citizenship\\n\\nA civic status.','reference')`);
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(500);
     await page.locator('.nb-main-tools button:has-text("References")').click();
