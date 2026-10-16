@@ -1,8 +1,8 @@
 /* Restore the original three-part Sort workspace: knowledge | card | decisions. */
 .sort-backdrop { padding: 10px; }
-.sort-modal { width: min(1460px, 98vw); height: min(850px, 96dvh); }
-.sort-body {
-  grid-template-columns: minmax(235px, .95fr) minmax(310px, 1.55fr) minmax(285px, 1fr);
+.sort-backdrop .sort-modal { width: min(1460px, 98vw) !important; height: min(850px, 96dvh) !important; }
+.sort-modal .sort-body {
+  grid-template-columns: minmax(235px, .95fr) minmax(310px, 1.55fr) minmax(285px, 1fr) !important;
   min-width: 0;
 }
 .sort-card { min-width: 0; padding: 36px 30px; cursor: default; }
@@ -54,22 +54,22 @@
 .sort-enrich-editor-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .sort-enrich-error { margin: auto 14px 14px; padding: 10px; border: 1px solid var(--ws-line-strong); border-radius: 5px; color: var(--c-cinnabar); font-size: 11px; }
 @media (max-width: 1080px) {
-  .sort-body { grid-template-columns: minmax(200px, .85fr) minmax(250px, 1.15fr) minmax(245px, 1fr); }
+  .sort-modal .sort-body { grid-template-columns: minmax(200px, .85fr) minmax(250px, 1.15fr) minmax(245px, 1fr) !important; }
   .sort-panel { padding: 16px 12px; }
   .sort-card { padding: 25px 15px; }
 }
 @media (max-width: 880px) {
-  .sort-body { grid-template-columns: minmax(220px, 1fr) minmax(0, 1.4fr); overflow-y: auto; align-items: stretch; }
+  .sort-modal .sort-body { grid-template-columns: minmax(220px, 1fr) minmax(0, 1.4fr) !important; overflow-y: auto; align-items: stretch; }
   .sort-enrichment { max-height: 370px; }
   .sort-card { min-height: 350px; }
   .sort-panel { grid-column: 1 / -1; overflow: visible; border-top: 1px solid var(--ws-line); }
 }
 @media (max-width: 600px) {
-  .sort-body { display: flex; flex-direction: column; }
+  .sort-modal .sort-body { display: flex; flex-direction: column; }
   .sort-card { order: -1; flex: 0 0 auto; min-height: 260px; padding: 30px 18px; border-right: 0; border-bottom: 1px solid var(--ws-line); }
   .sort-enrichment { order: 0; max-height: none; flex: 0 0 auto; overflow: visible; border-right: 0; }
   .sort-panel { order: 1; flex: 0 0 auto; padding: 20px 16px 30px; }
   .sort-enrich-head { position: static; }
-  .sort-modal { height: 96dvh; }
+  .sort-backdrop .sort-modal { height: 96dvh !important; }
 }
 @media (prefers-reduced-motion: reduce) { .sort-enrich-heading svg { transition: none; } }
