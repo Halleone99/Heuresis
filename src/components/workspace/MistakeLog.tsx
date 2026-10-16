@@ -152,7 +152,7 @@ function MistakeEditor({ entry, onDone }: { entry?: KnowledgeEntry; onDone: () =
 
   return <form className="ml-simple-edit" onSubmit={(event) => { event.preventDefault(); void save(); }}
     onKeyDown={(event) => {
-      if (event.nativeEvent.isComposing) return;
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       if (event.key === "Escape") { event.preventDefault(); onDone(); }
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault(); void save();
