@@ -559,7 +559,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             </button>
           </div>
           <nav className="hw-sections">
-            {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
+            {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); }} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
               {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
@@ -580,7 +580,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
           {section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
-          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} /> : null}
+          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} collections={collections} packs={packs} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
@@ -603,7 +603,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
-        {SECTIONS.map(({ id, label, icon: Icon }) => <button type="button" key={id}
+        {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon }) => <button type="button" key={id}
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
           onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); if (id === "study") openLibrary(); }}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
