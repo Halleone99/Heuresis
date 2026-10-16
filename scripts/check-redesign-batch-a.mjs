@@ -18,7 +18,7 @@ assert.match(document, /onClose\(\)/, "Note close still returns to its topic");
 assert.match(capture, /<span className="qc-label">Save in<\/span>/, "Capture has one destination label");
 assert.doesNotMatch(capture, /mode === "lesson" \? "In" : "To"/, "No inconsistent destination label");
 assert.match(capture, /You can save straight away in Unsorted/, "Quick capture works without forced categorisation");
-assert.match(mistakes, /Corrections and recall/, "User-facing Mistake heading");
+assert.match(mistakes, /<h1>Mistake Log<\/h1>/, "Mistake Log has one plain heading");
 assert.doesNotMatch(mistakes, /Mistake → Correction → Practice → Progress/, "No developer-style headings");
 assert.doesNotMatch(overview, /Objectives from Personal OS appear here/, "No technical objective empty-state copy");
 assert.match(overview, /onClick=\{onOpenStudy\}/, "Overview retains a direct Study link");
@@ -34,7 +34,8 @@ assert.match(css, /\.qc-field textarea \{ font:[^\n]+var\(--ws-sans\)/, "Capture
 assert.match(document, /const previousTopicId = liveEntry\.topic_id;/, "Move stores the original topic");
 assert.match(document, /void applyTopic\(previousTopicId\)/, "Move Undo persists the old topic");
 assert.match(document, /savedRef\.current = \{ \.\.\.savedRef\.current, topicId: destination \}/, "Undo restores the document draft location");
-assert.match(mistakes, /const previous = \{ status: entry\.status, recall_due_at: entry\.recall_due_at \}/, "Status Undo remembers both stage and due date");
-assert.match(mistakes, /void workspace\.patchEntry\(entry\.id, previous\)/, "Status Undo writes the restored values");
+assert.match(mistakes, /await confirm\(\{/, "Deleting a correction requires confirmation");
+assert.match(mistakes, /await workspace\.removeEntry\(entry\.id\)/, "Correction deletion uses the reversible workspace action");
+assert.match(mistakes, /await workspace\.patchEntry\(entry\.id, \{ attempt:/, "Editing a correction preserves its other metadata");
 
 console.log("Batch A: navigation, language labels, interface hierarchy, typography and reversible actions passed.");
