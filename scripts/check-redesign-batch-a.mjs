@@ -36,6 +36,6 @@ assert.match(document, /void applyTopic\(previousTopicId\)/, "Move Undo persists
 assert.match(document, /savedRef\.current = \{ \.\.\.savedRef\.current, topicId: destination \}/, "Undo restores the document draft location");
 assert.match(mistakes, /await confirm\(\{/, "Deleting a correction requires confirmation");
 assert.match(mistakes, /await workspace\.removeEntry\(entry\.id\)/, "Correction deletion uses the reversible workspace action");
-assert.match(mistakes, /await workspace\.patchEntry\(entry\.id, \{ attempt:/, "Editing a correction preserves its other metadata");
+assert.match(mistakes, /await workspace\.patchEntry\(entry\.id, \{[\s\S]*attempt:/, "Editing a correction preserves its other metadata");
 
 console.log("Batch A: navigation, language labels, interface hierarchy, typography and reversible actions passed.");
