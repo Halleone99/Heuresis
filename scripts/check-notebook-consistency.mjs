@@ -30,7 +30,7 @@ assert.doesNotMatch(overview,/formatLongDay\(/);
 
 // #13: Zero counts keep keyboard navigation and search, just lose prominence.
 assert.match(notebook,/counts\[key\] === 0 \? "is-zero"/);
-assert.match(mistakes,/counts\[key\] === 0 \? "is-zero"/);
+assert.doesNotMatch(mistakes,/counts\[key\] === 0 \? "is-zero"/, "Mistake Log no longer requires practice-stage filters");
 assert.match(css,/\.ws-segmented button\.is-zero:not\(\.is-active\)/);
 assert.match(progress,/total === 0 \? <div className="pg-empty-chart" role="status">No activity in this period/);
 assert.match(css,/\.pg-empty-chart \{/);
@@ -40,7 +40,7 @@ assert.match(notebook,/aria-label="Subjects and topics"/);
 assert.match(notebook,/label="Subject name"/);
 assert.match(capture,/label="Subject name"/);
 assert.match(icons,/New language/);
-assert.match(mistakes,/language === "All" \? "All" : language/);
+assert.doesNotMatch(mistakes,/ml-languages-tabs/, "Corrections apply to every subject without language tabs");
 assert.match(progress,/<h2>By language<\/h2>/);
 
 // #19: Notebook owns its gutters; content under identical maximum width.
