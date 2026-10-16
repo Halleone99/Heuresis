@@ -49,7 +49,8 @@ assert.match(tablet, /\.mobile-study-subnav/, "Study sub-pages remain accessible
 assert.match(fab, /event\.currentTarget\.setPointerCapture\(event\.pointerId\)/, "Drag uses pointer capture");
 assert.match(fab, /current\.y \/ window\.innerHeight/, "Snapped location persists across sessions");
 assert.match(fab, /onClick=\{\(\) => \{ if \(dragged\.current\)/, "Dragging must not accidentally open Capture");
-assert.match(mistakes, /setOptimisticStatus\(understood \? "understood" : "needs_practice"\)/);
-assert.match(mistakes, /finally \{ setOptimisticStatus\(null\); setChangingStatus\(false\); \}/, "Optimistic status rolls back if persistence fails");
+assert.doesNotMatch(mistakes, /setOptimisticStatus|setChangingStatus/, "No status controls compete with the correction list");
+assert.match(mistakes, /<span className="ml-simple-label">Mistake<\/span>/, "The original mistake remains visible");
+assert.match(mistakes, /<span className="ml-simple-label">Correction<\/span>/, "The corrected version sits underneath");
 
-console.log("Study workflow: compact Review, single actions, tablet navigation and optimistic status checks passed.");
+console.log("Study workflow: compact Review, single actions, tablet navigation and minimal correction visibility checks passed.");

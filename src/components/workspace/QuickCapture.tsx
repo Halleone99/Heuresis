@@ -5,7 +5,6 @@ import { captureDraftHasContent, readCaptureDraft, writeCaptureDraft, type Captu
 import { getOfflineSyncState } from "../../lib/offlineFetch";
 import { parseCaptureLine } from "../../lib/captureParse";
 import { resolveCaptureContext } from "../../lib/captureContext";
-import { loadMistakeModes, type MistakeMode } from "../../lib/mistakeModes";
 import { InlineNameForm, Kbd, MOD_KEY, TopicPicker, formatDay } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
@@ -29,7 +28,6 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   });
   const [topicId, setTopicId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const [showWhy, setShowWhy] = useState(false);
   const [openLesson, setOpenLesson] = useState(true);
   const [lessonDate, setLessonDate] = useState(localDateKey(new Date()));
   const [error, setError] = useState("");
@@ -40,13 +38,6 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   const firstFieldRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const draftTimer = useRef<number | null>(null);
   const { objectives } = usePersonalOsObjectives(userId);
-  const [customModes, setCustomModes] = useState<MistakeMode[]>([]);
-  useEffect(() => {
-    if (!draft.mistakeModeId) return;
-    let alive = true;
-    void loadMistakeModes(userId).then((rows) => { if (alive) setCustomModes(rows); }).catch(() => undefined);
-    return () => { alive = false; };
-  }, [draft.mistakeModeId, userId]);
 
   const mode = draft.mode as CaptureMode;
   const attachToLesson = Boolean(currentLesson && memory.capture.attachToLesson && mode !== "lesson");
@@ -150,8 +141,6 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   const patch = (value: Partial<CaptureDraft>) => setDraft((current) => ({ ...current, ...value }));
   const setMode = (next: CaptureMode) => { patch({ mode: next, pendingId: undefined }); setError(""); };
   const category: NoteCategory = draft.categoryTouched ? (draft.category ?? "note") : looksLikeQuestion(draft.text) ? "question" : (draft.category ?? "note");
-  const customModeName = mode === "mistake" && draft.mistakeModeId ? customModes.find((item) => item.id === draft.mistakeModeId)?.name ?? "Selected mode" : null;
-  const mistakeCategory: NoteCategory = draft.category === "grammar" || draft.category === "vocabulary" || draft.category === "phrase" ? draft.category : "note";
 
   const destinationLabel = topicId ? workspace.pathLabel(topicId) : "";
   const subjects = workspace.snapshot.subjects;
@@ -223,7 +212,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         reset(destination);
         confirmSaved(created.id, created.topic_id, input.kind === "mistake" ? "the Mistake Log" : lessonId ? "the lesson" : workspace.pathLabel(created.topic_id));
       } else if (mode === "mistake") {
-        if (!draft.attempt.trim() && !draft.correction.trim()) { setError("Write what you said, or the correct form."); return; }
+        if (!draft.attempt.trim() || !draft.correction.trim()) { setError("Write the mistake and the correct version."); return; }
         const label = (draft.attempt || draft.correction).trim().slice(0, 40);
         const sent = { ...draft };
         const id = sent.pendingId ?? crypto.randomUUID();
@@ -263,7 +252,6 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null, draftSurface);
       return next;
     });
-    setShowWhy(false);
     if (keepOpen || stream) {
       setFlash("Saved. Ready for the next line.");
       setFocusNonce((value) => value + 1);
@@ -322,7 +310,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
     </div>
 
-    {noSubjects && workspace.loading ? <p className="qc-help qc-loading" role="status"><span className="ws-spinner is-small" aria-hidden="true" /> Loading your languages… keep typing, the draft is kept.</p> : null}
+    {noSubjects && workspace.loading ? <p className="qc-help qc-loading" role="status"><span className="ws-spinner is-small" aria-hidden="true" /> Loading your subjects… keep typing, the draft is kept.</p> : null}
     {noSubjects && workspace.writable && !workspace.loading ? <div className="qc-first-run">
       <strong>Capture first, organise later</strong>
       <p>You can save straight away in Unsorted › Inbox, or choose a subject below.</p>
@@ -350,7 +338,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
             }
           }} />
         {stream ? <div className="qc-stream-meta">
-          <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : languageName ? `${languageName} › Inbox` : "Choose language"}</span>
+          <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : languageName ? `${languageName} › Inbox` : "Choose subject"}</span>
           <span><Kbd>Enter</Kbd> save · <Kbd>⇧ Enter</Kbd> newline</span>
           <small>Use a → b for mistakes, // for why, #g grammar, #v vocabulary, #e expressions; ? for questions.</small>
         </div> : <div className="qc-categories" role="radiogroup" aria-label="Kind of note">
@@ -358,24 +346,12 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
             className={category === key ? "is-active" : ""} onClick={() => patch({ category: key, categoryTouched: true })}>{CATEGORY_LABELS[key]}</button>)}
         </div>}
       </> : mode === "mistake" ? <>
-        <label className="qc-field"><span>What I said or wrote</span>
+        <label className="qc-field"><span>Mistake</span>
           <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} rows={2} value={draft.attempt}
-            placeholder="我吃饭了的时候…" onChange={(event) => patch({ attempt: event.target.value })} /></label>
-        <label className="qc-field"><span>Correct form <small>— can be added later</small></span>
-          <textarea rows={2} value={draft.correction} placeholder="我吃饭的时候…" onChange={(event) => patch({ correction: event.target.value })} /></label>
-        {showWhy || draft.explanation ? <label className="qc-field"><span>Why <small>— optional</small></span>
-          <textarea rows={2} value={draft.explanation} placeholder="The rule or misunderstanding" onChange={(event) => patch({ explanation: event.target.value })} /></label>
-          : <button type="button" className="qc-add-why" onClick={() => setShowWhy(true)}>+ Add why</button>}
-        <div className="qc-field"><span>Type of mistake</span>
-          <div className="qc-categories" role="group" aria-label="Type of mistake">
-            {customModeName ? <span className="qc-mode-chip is-active" title="The selected Mistake Log mode">{customModeName}</span> : null}
-            {([{ id: "grammar", label: "Grammar" }, { id: "vocabulary", label: "Vocabulary" }, { id: "phrase", label: "Expressions" }, { id: "note", label: "Other" }] as Array<{ id: NoteCategory; label: string }>).map((item) =>
-              <button key={item.id} type="button" aria-pressed={!customModeName && mistakeCategory === item.id}
-                className={!customModeName && mistakeCategory === item.id ? "is-active" : ""}
-                // Choosing a type replaces a custom mode; before, the hidden mode silently won.
-                onClick={() => patch({ category: item.id, categoryTouched: true, mistakeModeId: null })}>{item.label}</button>)}
-          </div>
-        </div>
+            placeholder="What did you get wrong?" onChange={(event) => patch({ attempt: event.target.value })} /></label>
+        <label className="qc-field"><span>Correction</span>
+          <textarea rows={2} value={draft.correction} placeholder="What is the correct version?"
+            onChange={(event) => patch({ correction: event.target.value })} /></label>
       </> : <>
         <label className="qc-field"><span>Lesson</span>
           <input ref={(node) => { if (node) firstFieldRef.current = node; }} value={draft.lessonTitle} maxLength={200}
@@ -396,13 +372,13 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         {subjects.map((subject) => <button type="button" key={subject.id}
           className={selectedSubjectId === subject.id ? "is-active" : ""}
           aria-pressed={selectedSubjectId === subject.id} disabled={saving}
-          title={attachToLesson && lessonSubjectId !== subject.id ? "Detach from the active lesson to change language" : `Save captures in ${subject.name}`}
+          title={attachToLesson && lessonSubjectId !== subject.id ? "Detach from the active lesson to change subject" : `Save captures in ${subject.name}`}
           onClick={() => selectLanguage(subject.id)}>{subject.name}</button>)}
       </div> : null}
       <div className="qc-destination-row">
         <span className="qc-label">Save in</span>
         <button type="button" className="qc-topic" aria-haspopup="listbox" aria-expanded={picking} onClick={() => setPicking((value) => !value)} disabled={noSubjects}>
-          {stream && !attachToLesson ? (languageName ? `${languageName} › Inbox` : "Choose language") : destinationLabel || (languageName ? `${languageName} › Inbox` : "Choose language")} <ChevronDown size={13} />
+          {stream && !attachToLesson ? (languageName ? `${languageName} › Inbox` : "Choose subject") : destinationLabel || (languageName ? `${languageName} › Inbox` : "Choose subject")} <ChevronDown size={13} />
         </button>
         {currentLesson && mode !== "lesson" ? <button type="button" className={`qc-lesson-chip ${attachToLesson ? "is-on" : ""}`} aria-pressed={attachToLesson}
           title={attachToLesson ? "Attached to the current lesson — click to file it on its own" : "Attach to the current lesson"}

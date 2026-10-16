@@ -138,34 +138,45 @@ const scenarios = {
     await page.keyboard.press("Escape");
   },
 
-  async "record mistake from a language tab files it in that language's Inbox"(page) {
+  async "a mistake needs only a wrong and a correct version"(page) {
     await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.waitForTimeout(500);
-    await page.click('.ml-languages-tabs button:has-text("German")');
-    await page.click('button:has-text("Record mistake")');
-    await page.waitForSelector(".qc-panel");
-    const destination = (await page.locator(".qc-topic").innerText()).trim();
-    check(destination === "German › Inbox", `destination is German › Inbox (was “${destination}”)`);
+    await page.waitForSelector(".ml-simple-page");
+    check(await page.locator(".ml-mode-grid, .ml-languages-tabs, .ml-filters").count() === 0,
+      "No mode, language, or stage selection is required");
+    await page.click('button:has-text("Add mistake")');
+    const editor = page.locator(".ml-simple-edit");
+    check(await editor.locator("textarea").count() === 2, "The editor contains only two text fields");
+    await editor.locator("textarea").nth(0).fill("Wrong assumption");
+    await editor.locator("textarea").nth(1).fill("Corrected conclusion");
+    await editor.locator('button:has-text("Save")').click();
+    await page.waitForSelector('.ml-simple-item:has-text("Corrected conclusion")');
+    const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id = r.topic_id join knowledge_subjects s on s.id = t.subject_id where r.attempt='Wrong assumption'");
+    check(destination === "Unsorted › Inbox", "No categorisation is needed to save a mistake");
   },
 
-  async "capture: choosing a mistake type replaces the custom mode"(page) {
-    await sql(`insert into knowledge_mistake_modes(id,user_id,name,description,symbol,sort_order)
-      values ('a1a1a1a1-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Word order','Sentence order','🧩',9)`);
+  async "older classified mistakes remain intact in the simpler UI"(page) {
+    const id = "e0000000-0000-4000-8000-00000000dead";
+    const mode = "a1a1a1a1-0000-4000-8000-000000000001";
+    await sql("insert into knowledge_mistake_modes(id,user_id,name,description,symbol,sort_order) values ('" + mode + "','11111111-1111-4111-8111-111111111111','Word order','Sentence order','🧩',9)");
+    await sql("insert into knowledge_records(id,user_id,topic_id,kind,attempt,correction,status,category,mistake_mode_id) values ('" + id + "','11111111-1111-4111-8111-111111111111','70b00000-0000-4000-8000-0000000000c1','mistake','ich habe gegangen','ich bin gegangen','needs_practice','grammar','" + mode + "')");
+    await page.reload();
+    await page.waitForSelector(".heuresis-section-sidebar");
     await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.waitForTimeout(800);
-    await page.click('.ml-mode-card:has-text("Word order")');
-    await page.click('button:has-text("Record mistake")');
+    const card = page.locator('[data-mistake="' + id + '"]');
+    await card.waitFor();
+    check(await card.locator(".ml-simple-wrong").innerText() === "ich habe gegangen", "Old attempt remains readable");
+    check(await card.locator(".ml-simple-right").innerText() === "ich bin gegangen", "Old correction remains readable");
+    await card.locator('[aria-label="Edit mistake"]').click();
+    await page.locator(".ml-simple-edit textarea").nth(1).fill("ich bin nach Hause gegangen");
+    await page.locator('.ml-simple-edit button:has-text("Save")').click();
+    await page.waitForSelector('.ml-simple-item:has-text("ich bin nach Hause gegangen")');
+    const preserved = await sql("select category || '|' || mistake_mode_id::text from knowledge_records where id='" + id + "'");
+    check(preserved === "grammar|" + mode, "Editing the text does not destroy historical classification");
+
+    await page.keyboard.press("Control+Shift+KeyM");
     await page.waitForSelector(".qc-panel");
-    await page.waitForTimeout(500);
-    check(/Word order/.test(await page.locator('.qc-categories[aria-label="Type of mistake"]').innerText()), "the custom mode is shown in Capture");
-    await page.click('.qc-categories[aria-label="Type of mistake"] button:has-text("Grammar")');
-    await page.click('.qc-language-choices button:has-text("German")');
-    await page.locator(".qc-field textarea").nth(0).fill("ich habe gegangen");
-    await page.locator(".qc-field textarea").nth(1).fill("ich bin gegangen");
-    await page.keyboard.press("Control+Enter");
-    await page.waitForTimeout(1200);
-    const row = await sql("select category, coalesce(mistake_mode_id::text,'none') from knowledge_records where attempt='ich habe gegangen'");
-    check(row === "grammar|none", `the visible choice (Grammar) is what is saved (got ${row})`);
+    check(await page.locator(".qc-panel .qc-field textarea").count() === 2, "Quick Capture also uses two mistake fields");
+    check(await page.locator(".qc-panel .qc-categories").count() === 0, "Quick Capture no longer demands a mistake type");
   },
 
   async "organise inbox uses the language being worked in"(page) {
@@ -240,21 +251,19 @@ const scenarios = {
     await page.waitForSelector(".heuresis-section-sidebar");
     await page.waitForTimeout(1200);
     await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.click(".ml-history-launch");
-    await page.waitForSelector(".ml-card");
-    check(await page.locator(".ml-card").count() === 120, "the first 120 mistakes render at once");
-    await page.click(".ws-show-more");
-    await page.waitForTimeout(300);
-    check(await page.locator(".ml-card").count() >= 240, "Show more adds the next page");
+    await page.waitForSelector(".ml-simple-item");
+    check(await page.locator(".ml-simple-item").count() === 60, "Only the first 60 corrections render initially");
+    await page.click(".ml-simple-more");
+    check(await page.locator(".ml-simple-item").count() === 120, "Show more progressively loads the next 60 corrections");
     await openPalette(page);
     await page.keyboard.type("对 299");
     await page.waitForTimeout(250);
     await page.locator(".ws-palette-row:not(.is-command):not(.is-cards)").first().click();
     await page.waitForTimeout(800);
-    check(await page.locator(".ml-card.is-highlighted").count() === 1, "a mistake opened from search is rendered and highlighted, even far down the list");
+    check(await page.locator(".ml-simple-item.is-highlighted").count() === 1, "Searching opens and highlights an old correction");
   },
 
-  async "undo restores a move and a status change, even after leaving the page"(page) {
+  async "undo restores a move and a deletion, even after leaving the page"(page) {
     await openNote(page, "以前 / 以后");
     await page.click('button[aria-label="More actions"]');
     await page.click('button[role=menuitem]:has-text("Move to")');
@@ -268,18 +277,17 @@ const scenarios = {
     check(await sql(`select t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id where r.id='${NOTE_A2}'`) === "Time expressions", "Undo after leaving the note moves it back");
 
     const RU = "e0000000-0000-4000-8000-0000000000d4";
-    const before = await sql(`select status||'|'||coalesce(recall_due_at::text,'none') from knowledge_records where id='${RU}'`);
+    check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "1", "A seeded mistake exists");
     await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.click(".ml-history-launch");
-    await page.click(`[data-mistake="${RU}"] .ml-summary`);
-    await page.click(`[data-mistake="${RU}"] button:has-text("I understand it")`);
-    await page.waitForTimeout(800);
-    check((await sql(`select status from knowledge_records where id='${RU}'`)) === "understood", "marked as understood");
+    await page.locator('[data-mistake="' + RU + '"] [aria-label="Delete mistake"]').click();
+    await page.locator('[role="alertdialog"] button:has-text("Delete")').click();
+    await page.waitForTimeout(700);
+    check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "0", "The mistake is deleted");
     await page.click('.hw-sections button:has-text("Overview")');
-    await page.click('.ov-quicklinks button:has-text("View progress")');
-    await page.click('.ws-toast button:has-text("Undo")');
-    await page.waitForTimeout(800);
-    check(await sql(`select status||'|'||coalesce(recall_due_at::text,'none') from knowledge_records where id='${RU}'`) === before, "Undo restores both the status and the recall date");
+    await page.locator('.ws-toast button:has-text("Undo")').click();
+    await page.waitForTimeout(700);
+    check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "1",
+      "Undo restores the original mistake even after leaving Mistake Log");
   },
 
   async "server unreachable: the device copy is shown and captures are not called stored"(page, context) {

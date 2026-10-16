@@ -123,6 +123,7 @@ await page.waitForSelector(".ws-toast:has-text('Saved to the lesson')");
 await page.keyboard.press(`${mod}+Shift+KeyM`);
 await page.waitForSelector(".qc-panel textarea");
 await page.keyboard.type("我吃饭了的时候，他来了");
+await page.locator(".qc-field textarea").nth(1).fill("我吃饭的时候，他来了");
 await page.keyboard.press(`${mod}+Enter`);
 await page.waitForSelector(".ws-toast:has-text('Mistake Log')");
 check(await sql("select count(*) from knowledge_records r join knowledge_records l on l.id=r.lesson_id where l.title='HSK 2 · Chapter 4'") === "2", "note and mistake linked to the lesson");
