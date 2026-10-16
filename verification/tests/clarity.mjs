@@ -240,6 +240,34 @@ const scenarios = {
     check(russian === "1 topic · 1 note · 0 lessons", `singular and plural are right (“${russian}”)`);
   },
 
+  async "reference work opens as a book and edits through Notebook"(page) {
+    const topicId = await sql("select id from knowledge_topics where user_id='11111111-1111-4111-8111-111111111111' limit 1");
+    check(Boolean(topicId), "test user has a Notebook topic");
+    await sql(`insert into knowledge_records(id,user_id,topic_id,kind,title,body,category)
+      values ('e0000000-0000-4000-8000-00000000b001','11111111-1111-4111-8111-111111111111','${topicId}',
+      'note','Roman Ideas','## Republic\\n\\nA mixed constitution.\\n\\n## Citizenship\\n\\nA civic status.','reference')`);
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForTimeout(500);
+    await page.locator('.nb-main-tools button:has-text("References")').click();
+    await page.locator('.rl-work:has-text("Roman Ideas")').waitFor();
+    check(await page.locator(".rl-work").count() >= 1, "Reference Library lists the saved work");
+    await page.locator('.rl-work:has-text("Roman Ideas")').click();
+    check(await page.locator(".rl-chapter").count() === 2, "Two headings become an ordered contents page");
+    await page.locator('.rl-chapter:has-text("Citizenship")').click();
+    check((await page.locator(".rl-page-head h1").innerText()) === "Citizenship", "chapter opens as readable document");
+    check((await page.locator(".rl-prose").innerText()).includes("A civic status."), "chapter content is rendered");
+    await page.locator('.rl-page-actions button:has-text("Edit reference")').click();
+    await page.locator(".nb-title-input").waitFor();
+    await page.locator(".nb-title-input").fill("Roman Ideas Revised");
+    await page.locator('.nb-doc-actions button:has-text("Done")').click();
+    await page.waitForTimeout(650);
+    check(await sql("select title from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'") === "Roman Ideas Revised",
+      "Reference edits save through the existing Notebook persistence path");
+    await page.locator('.nb-main-tools button:has-text("References")').click();
+    await page.locator('.rl-work:has-text("Roman Ideas Revised")').waitFor();
+    check(true, "The Reference Library reopens the updated work");
+  },
+
   async "only one sidebar toggle is visible at a time"(page) {
     const visible = async (selector) => page.locator(selector).evaluate((element) => getComputedStyle(element).display !== "none");
     check(!(await visible(".hw-sidebar-header-toggle")) && await visible(".hw-sidebar-collapse"), "with the full sidebar, only its own collapse button shows");
