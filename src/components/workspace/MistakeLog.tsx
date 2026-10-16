@@ -1,410 +1,179 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, History, Layers, Pencil, Plus, RotateCcw, Search, Trash2, TriangleAlert, X } from "lucide-react";
-import {
-  addDays, entryTitle, friendlyError, isRecallDue, mistakeStage, normaliseSearch, RETAINED_STREAK,
-  type KnowledgeEntry, type MistakeStage,
-} from "../../lib/knowledgeWorkspace";
-import { FALLBACK_MODES, loadMistakeModes, moveMistakeMode, resolveMistakeMode, type MistakeMode } from "../../lib/mistakeModes";
-import { MistakeModeDialog, ModeSymbol } from "./MistakeModeDialog";
-import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
-import { FlashcardDialog } from "./FlashcardDialog";
-import { RowMenu } from "./NotebookView";
-import { EmptyState, Kbd, MOD_KEY, Portal, ShowMore, TopicPicker, dueLabel, formatDay, relativeTime, useConfirm, useProgressiveList } from "./ui";
+import { Check, GraduationCap, Pencil, Plus, Trash2, X } from "lucide-react";
+import { friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
+import { EmptyState, Kbd, MOD_KEY, Portal, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
-type StageFilter = "all" | MistakeStage | "due";
-const STAGE_LABEL: Record<MistakeStage, string> = { to_correct: "To correct", practising: "In review", understood: "Understood" };
-
-
-type MistakeView = "home" | "history" | string;
-
+/**
+ * Mistake Log is a general-purpose correction notebook, not a language or
+ * flashcard dashboard. Old modes, subjects, practice events and explanations
+ * are deliberately retained in storage, but never required for a simple entry.
+ */
 export function MistakeLog() {
   const workspace = useWorkspace();
-  const { snapshot, memory, updateMemory, focusMistake, clearFocusMistake } = workspace;
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [view, setView] = useState<MistakeView>("home");
-  const [modes, setModes] = useState<MistakeMode[]>(FALLBACK_MODES);
-  const [modesReady, setModesReady] = useState(false);
-  const [modesError, setModesError] = useState("");
-  const [modeDialogId, setModeDialogId] = useState<string | null | undefined>(undefined);
-  const refreshModes = useCallback(async () => {
-    const rows = await loadMistakeModes(workspace.userId);
-    setModes(rows);
-    setModesReady(true);
-    setModesError("");
-  }, [workspace.userId]);
-  useEffect(() => { void refreshModes().catch((error) => {
-    setModesReady(false);
-    setModesError(friendlyError(error));
-  }); }, [refreshModes]);
-  const [language, setLanguage] = useState("All");
-  const [session, setSession] = useState<string[] | null>(null);
+  const { snapshot, focusMistake, clearFocusMistake } = workspace;
+  const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [session, setSession] = useState<string[] | null>(null);
+  const [visibleCount, setVisibleCount] = useState(60);
   const listRef = useRef<HTMLDivElement>(null);
-  const stage = memory.mistakes.stage as StageFilter;
 
-  const subjects = useMemo(() => [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name)), [snapshot.subjects]);
-  const languageNames = useMemo(() => {
-    const names = ["All", "German", "Russian", "Chinese"];
-    for (const subject of subjects) if (!names.some((name) => name.toLowerCase() === subject.name.toLowerCase())) names.push(subject.name);
-    return names;
-  }, [subjects]);
-  const activeSubject = subjects.find((subject) => subject.name.toLowerCase() === language.toLowerCase()) ?? null;
-  const mistakes = useMemo(() => snapshot.entries.filter((entry) => entry.kind === "mistake"), [snapshot.entries]);
-  const inSubject = useMemo(() => language === "All" ? mistakes
-    : mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === activeSubject?.id),
-    [activeSubject?.id, language, mistakes, workspace.topicById]);
-  const inMode = useMemo(() => view === "home" || view === "history" ? inSubject
-    : inSubject.filter((entry) => resolveMistakeMode(entry, modes) === view), [inSubject, modes, view]);
-  const counts = useMemo(() => ({
-    all: inMode.length,
-    to_correct: inMode.filter((entry) => mistakeStage(entry) === "to_correct").length,
-    practising: inMode.filter((entry) => mistakeStage(entry) === "practising").length,
-    understood: inMode.filter((entry) => mistakeStage(entry) === "understood").length,
-    due: inMode.filter((entry) => isRecallDue(entry)).length,
-  }), [inMode]);
-  const q = normaliseSearch(query);
-  const shown = inMode
-    .filter((entry) => stage === "all" || (stage === "due" ? isRecallDue(entry) : mistakeStage(entry) === stage))
-    .filter((entry) => !q || q.split(" ").every((word) => normaliseSearch([entry.attempt, entry.correction, entry.explanation, entry.title, workspace.pathLabel(entry.topic_id)].join(" ")).includes(word)))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const page = useProgressiveList(shown, `${view}|${language}|${stage}|${q}`);
-  const due = inMode.filter((entry) => isRecallDue(entry))
-    .sort((a, b) => (a.recall_due_at ?? "").localeCompare(b.recall_due_at ?? ""));
-  const allDue = inSubject.filter((entry) => isRecallDue(entry))
-    .sort((a, b) => (a.recall_due_at ?? "").localeCompare(b.recall_due_at ?? ""));
+  const mistakes = useMemo(() => snapshot.entries
+    .filter((entry) => entry.kind === "mistake")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at)), [snapshot.entries]);
 
+  // Other parts of Heuresis can still open an old entry (or an existing recall
+  // session) without reintroducing those controls to this minimal main page.
   useEffect(() => {
     if (!focusMistake) return;
-    const target = snapshot.entries.find((entry) => entry.id === focusMistake.id);
+    const target = mistakes.find((entry) => entry.id === focusMistake.id);
     clearFocusMistake();
     if (!target) return;
-    if (focusMistake.practise) { setSession(focusMistake.ids?.length ? focusMistake.ids : [target.id]); return; }
-    setView("history");
-    setLanguage("All");
-    updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, stage: "all", subjectId: null } }));
+    if (focusMistake.practise) {
+      setSession(focusMistake.ids?.length ? focusMistake.ids : [target.id]);
+      return;
+    }
+    const position = mistakes.findIndex((entry) => entry.id === target.id);
+    setVisibleCount((count) => Math.max(count, position + 1));
+    setAdding(false);
+    setEditingId(null);
     setHighlightId(target.id);
-    revealRef.current(target.id);
-    window.setTimeout(() => listRef.current?.querySelector(`[data-mistake="${target.id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
-    window.setTimeout(() => setHighlightId(null), 2600);
-  }, [clearFocusMistake, focusMistake, snapshot.entries, updateMemory]);
+  }, [focusMistake, clearFocusMistake, mistakes]);
 
-  // The focused mistake must be rendered before it can be scrolled to.
-  const revealRef = useRef<(id: string) => void>(() => undefined);
-  revealRef.current = (id: string) => page.reveal(shown.findIndex((entry) => entry.id === id));
-  const setStage = (next: StageFilter) => updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, stage: next } }));
-  function selectLanguage(next: string) {
-    setLanguage(next);
-    const subject = subjects.find((item) => item.name.toLowerCase() === next.toLowerCase());
-    updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, subjectId: subject?.id ?? null, stage: "all" } }));
-    setEditingId(null);
-    setQuery("");
-  }
-  function openMode(next: MistakeView) {
-    setView(next);
-    setStage("all");
-    setQuery("");
-    setEditingId(null);
-  }
-  async function recordMistake() {
-    // A language choice must never silently file a mistake under another language.
-    try {
-      let topicId: string | null = null;
-      if (language !== "All") {
-        const subject = activeSubject ?? await workspace.addSubject(language);
-        // The last capture topic in this language, otherwise its Inbox — never
-        // whichever topic of the language happens to be first in the list.
-        const remembered = memory.capture.topicId ? workspace.topicById.get(memory.capture.topicId) : null;
-        topicId = remembered?.subject_id === subject.id ? remembered.id : (await workspace.ensureInbox(subject.id)).id;
-      }
-      const currentMode = modes.find((mode) => mode.id === view) ?? null;
-      workspace.openCapture({
-        mode: "mistake", topicId,
-        category: currentMode?.legacy_category ?? "note",
-        mistakeModeId: currentMode && !currentMode.id.startsWith("fallback-") ? currentMode.id : null,
-      });
-    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
-  }
-  const title = view === "history" ? "History" : modes.find((mode) => mode.id === view)?.name ?? "Choose a mode";
-  const editingMode = modes.find((mode) => mode.id === modeDialogId) ?? null;
-  const editingPosition = modes.findIndex((mode) => mode.id === modeDialogId);
-  async function reorderMode(direction: -1 | 1) {
-    const second = modes[editingPosition + direction];
-    if (!editingMode || !second) return;
-    await moveMistakeMode(workspace.userId, editingMode, second);
-    await refreshModes();
-  }
+  useEffect(() => {
+    if (!highlightId) return;
+    const scroll = window.setTimeout(() => {
+      const item = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-mistake]") ?? [])
+        .find((node) => node.dataset.mistake === highlightId);
+      item?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 50);
+    const clear = window.setTimeout(() => setHighlightId(null), 2600);
+    return () => { window.clearTimeout(scroll); window.clearTimeout(clear); };
+  }, [highlightId]);
 
-  return <div className="ml-page">
+  return <div className="ml-page ml-simple-page">
     <header className="ws-page-head">
-      <div>
-        <span className="ws-eyebrow">Corrections and recall</span>
-        <h1>Mistake Log</h1>
-      </div>
-      <div className="ws-page-actions">
-        <button type="button" className="ws-button is-primary" disabled={!(view === "home" ? allDue.length : due.length)}
-          onClick={() => setSession((view === "home" ? allDue : due).map((entry) => entry.id))}>
-          <GraduationCap size={15} /> Practise due ({view === "home" ? allDue.length : due.length})</button>
-        {workspace.writable ? <button type="button" className="ws-button" onClick={recordMistake} title={`${MOD_KEY}+Shift+M`}>
-          <Plus size={15} /> Record mistake</button> : null}
-      </div>
+      <div><h1>Mistake Log</h1></div>
+      {workspace.writable ? <div className="ws-page-actions">
+        <button className="ws-button is-primary" type="button" onClick={() => {
+          setAdding(true); setEditingId(null);
+        }}><Plus size={16} /> Add mistake</button>
+      </div> : null}
     </header>
-
-    {view === "home" ? <nav className="ml-languages" aria-label="Mistake Log languages">
-      <span className="ml-languages-label">Language</span>
-      <div className="ml-languages-tabs">
-        {languageNames.map((name) => <button key={name} type="button" className={language === name ? "is-active" : ""}
-          aria-current={language === name ? "page" : undefined} onClick={() => selectLanguage(name)}>{name}</button>)}
-      </div>
-    </nav> : null}
-
-    {view === "home" ? <main className="ml-launch" aria-labelledby="ml-modes-title">
-      <div className="ml-launch-intro">
-        <div><h2 id="ml-modes-title">What would you like to work on?</h2>
-          <p>Select a subject area to practise and review your actual mistakes.</p></div>
-        <div className="ml-launch-tools">
-          <span>{language === "All" ? "All" : language}</span>
-          <button type="button" className="ws-button is-primary" disabled={!modesReady || !workspace.writable}
-            onClick={() => setModeDialogId(null)}><Plus size={15}/> New mode</button>
-        </div>
-      </div>
-      {modesError ? <p className="ws-field-error" role="alert">Mode customisation is unavailable: {modesError}. Existing default categories remain visible.</p> : null}
-      <div className="ml-mode-grid">
-        {modes.map((mode) => {
-          const entries = inSubject.filter((entry) => resolveMistakeMode(entry, modes) === mode.id);
-          const dueCount = entries.filter((entry) => isRecallDue(entry)).length;
-          return <div className="ml-mode-shell" key={mode.id}>
-            <button type="button" className="ml-mode-card" onClick={() => openMode(mode.id)}>
-              <span className="ml-mode-icon"><ModeSymbol symbol={mode.symbol} size={21}/></span>
-              <span className="ml-mode-body"><strong>{mode.name}</strong><span>{mode.description}</span></span>
-              <span className="ml-mode-foot"><span>{entries.length} logged</span><span>{dueCount ? `${dueCount} due` : "View mistakes"}</span><ArrowRight size={17} /></span>
-            </button>
-            {modesReady && workspace.writable ? <button type="button" className="ml-mode-edit" title={`Edit ${mode.name}`}
-              aria-label={`Edit ${mode.name}`} onClick={() => setModeDialogId(mode.id)}><Pencil size={15}/></button> : null}
-          </div>;
-        })}
-        <button type="button" className="ml-history-launch" onClick={() => openMode("history")}>
-          <History size={20} /><span><strong>Complete history</strong><small>All mistakes, original answers and every recall attempt</small></span>
-          <span className="ml-history-total">{inSubject.length} {inSubject.length === 1 ? "record" : "records"}</span><ArrowRight size={17} />
-        </button>
-      </div>
-      {language !== "All" && !activeSubject ? <p className="ml-language-empty">No {language} subject exists in Notebook yet. Create one there, then record mistakes here.</p> : null}
-      {inSubject.length > 0 ? <p className="ml-legacy-note">Removing a mode never deletes mistakes. Records remain accessible through Complete history.</p> : null}
-    </main> : <>
-      <nav className="ml-breadcrumb" aria-label="Mistake Log location">
-        <button type="button" onClick={() => openMode("home")}><ArrowLeft size={15} /> Modes</button>
-        <span aria-hidden="true">/</span><strong>{title}</strong>
-        <span className="ml-breadcrumb-total">{inMode.length} {inMode.length === 1 ? "mistake" : "mistakes"}</span>
-      </nav>
-      <section className="ml-filters" aria-label={`${title} filters`}>
-        <div className="ml-filter-row">
-          <nav className="ml-languages is-inline" aria-label="Mistake Log languages">
-      <span className="ml-languages-label">Language</span>
-      <div className="ml-languages-tabs">
-        {languageNames.map((name) => <button key={name} type="button" className={language === name ? "is-active" : ""}
-          aria-current={language === name ? "page" : undefined} onClick={() => selectLanguage(name)}>{name}</button>)}
-      </div>
-    </nav>
-          <div className="ws-segmented" role="tablist" aria-label="Stage">
-            {(["all", "to_correct", "practising", "due", "understood"] as StageFilter[]).map((key) => <button type="button" role="tab" key={key}
-              aria-selected={stage === key} className={`${stage === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`} onClick={() => setStage(key)}>
-              {key === "all" ? "All" : key === "due" ? "Due" : STAGE_LABEL[key]}<small>{counts[key]}</small></button>)}
-          </div>
-          {searchOpen || query ? <label className="ws-search-field ml-search">
-            <Search size={14}/><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search mistakes…" aria-label="Search mistakes"/>
-            <button type="button" aria-label="Close search" onClick={() => { setQuery(""); setSearchOpen(false); }}><X size={13}/></button>
-          </label> : <button type="button" className="ml-search-toggle" onClick={() => setSearchOpen(true)}
-            aria-label="Search mistakes" title="Search mistakes"><Search size={16}/></button>}
-        </div>
-      </section>
-      <div className="ml-list" ref={listRef}>
-        {page.visible.map((entry) => editingId === entry.id
-          ? <MistakeEditor key={entry.id} entry={entry} modes={modes} onDone={() => setEditingId(null)} />
-          : <MistakeCard key={entry.id} entry={entry} modeName={modes.find((mode) => mode.id === resolveMistakeMode(entry, modes))?.name ?? "Unassigned"} highlighted={highlightId === entry.id}
-            onEdit={() => setEditingId(entry.id)} onPractise={() => setSession([entry.id])} />)}
-        <ShowMore remaining={page.remaining} onMore={page.showMore} label="mistakes" />
-        {!shown.length ? <EmptyState icon={<TriangleAlert size={22} />}
-          title={stage === "due" ? "Nothing due in this mode" : query ? "No matching mistakes" : "No mistakes here yet"}
-          action={workspace.writable && stage !== "due" && !query ? <button type="button" className="ws-button is-primary" onClick={recordMistake}><Plus size={15} /> Record a mistake</button> : null}>
-          {stage === "due" ? "Completed recalls will return when the next interval is due."
-            : language !== "All" && !activeSubject ? `Create a ${language} language in Notebook to start recording mistakes.`
-            : !inMode.length ? "Mistakes saved in this category will appear here. Older uncategorised records remain under Other mistakes."
-            : "Try another filter or search."}
-        </EmptyState> : null}
-      </div>
-    </>}
-    {modeDialogId !== undefined && modesReady ? <MistakeModeDialog key={modeDialogId ?? "new"} mode={editingMode}
-      maxOrder={Math.max(0, ...modes.map((mode) => mode.sort_order))} position={editingPosition} total={modes.length}
-      onClose={() => setModeDialogId(undefined)} onChanged={refreshModes} onMove={reorderMode} /> : null}
+    <main className="ml-simple-list" ref={listRef}>
+      {adding ? <MistakeEditor onDone={() => setAdding(false)} /> : null}
+      {!mistakes.length && !adding ? <EmptyState title="No mistakes recorded yet" icon={<Pencil size={22} />}>
+        Add a mistake and the correct version. You can use this for anything you are learning.
+      </EmptyState> : null}
+      {mistakes.slice(0, visibleCount).map((entry) => editingId === entry.id
+        ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
+        : <MistakeItem key={entry.id} entry={entry} highlighted={entry.id === highlightId}
+          onEdit={() => { setAdding(false); setEditingId(entry.id); }} />)}
+      {mistakes.length > visibleCount ? <button className="ml-simple-more" type="button"
+        onClick={() => setVisibleCount((count) => count + 60)}>Show more</button> : null}
+    </main>
     {session ? <RecallSession ids={session} onClose={() => setSession(null)} /> : null}
   </div>;
 }
 
-
-function DifferenceText({ parts, fallback }: { parts: DifferencePart[]; fallback: string }) {
-  if (!parts.some((part) => part.text)) return <em className="ws-muted">{fallback}</em>;
-  return <>{parts.map((part, index) =>
-    <span key={index} className={part.kind === "wrong" ? "ml-diff-wrong" : part.kind === "corrected" ? "ml-diff-right" : undefined}>{part.text}</span>)}</>;
-}
-
-function MistakeCard({ entry, modeName, highlighted, onEdit, onPractise }: { entry: KnowledgeEntry; modeName: string; highlighted: boolean; onEdit: () => void; onPractise: () => void }) {
+function MistakeItem({ entry, highlighted, onEdit }: {
+  entry: KnowledgeEntry; highlighted: boolean; onEdit: () => void;
+}) {
   const workspace = useWorkspace();
   const [confirmElement, confirm] = useConfirm();
-  const [flashcard, setFlashcard] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [optimisticStatus, setOptimisticStatus] = useState<"understood" | "needs_practice" | null>(null);
-  const [changingStatus, setChangingStatus] = useState(false);
-  const displayEntry = optimisticStatus ? { ...entry, status: optimisticStatus } : entry;
-  const stage = mistakeStage(displayEntry);
-  const lesson = entry.lesson_id ? workspace.entryById.get(entry.lesson_id) : null;
-  const attempts = workspace.snapshot.practice.filter((event) => event.record_id === entry.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  const lastAttempt = attempts[0];
-  const difference = useMemo(() => mistakeDifference(entry.attempt, entry.correction), [entry.attempt, entry.correction]);
-  const due = isRecallDue(displayEntry);
-
-  async function setUnderstood(understood: boolean) {
-    if (changingStatus) return;
-    setChangingStatus(true);
-    setOptimisticStatus(understood ? "understood" : "needs_practice");
-    const previous = { status: entry.status, recall_due_at: entry.recall_due_at };
-    try {
-      await workspace.patchEntry(entry.id, understood
-        ? { status: "understood", recall_due_at: entry.recall_due_at ?? addDays(new Date(), 3).toISOString() }
-        : { status: "needs_practice" });
-      workspace.toast(understood
-        ? "Marked as understood. Recall remains scheduled."
-        : "Returned to practice.", {
-        action: { label: "Undo", run: () => {
-          void workspace.patchEntry(entry.id, previous)
-            .then(() => workspace.toast("Mistake status restored."))
-            .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
-        } },
-      });
-    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
-    finally { setOptimisticStatus(null); setChangingStatus(false); }
-  }
   async function remove() {
-    if (!await confirm({ title: "Delete this mistake?", body: "You can undo this deletion for a few seconds. Its practice history is preserved.", confirmLabel: "Delete", danger: true })) return;
-    try { await workspace.removeEntry(entry.id); } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+    if (!await confirm({
+      title: "Delete this mistake?",
+      body: "You can undo the deletion for a few seconds.",
+      confirmLabel: "Delete", danger: true,
+    })) return;
+    try { await workspace.removeEntry(entry.id); }
+    catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
 
-  return <article className={`ml-card is-compact is-${stage} ${highlighted ? "is-highlighted" : ""} ${expanded ? "is-expanded" : ""}`} data-mistake={entry.id}>
+  return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")} data-mistake={entry.id}>
     {confirmElement}
-    {flashcard ? <FlashcardDialog entry={entry} onClose={() => setFlashcard(false)} /> : null}
-    <button type="button" className="ml-summary" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}
-      aria-label={`${expanded ? "Collapse" : "Expand"} mistake: ${entry.attempt || entry.title || modeName}`}>
-      <span className="ml-summary-top">
-        <span className="ml-summary-context">{modeName} · {workspace.pathLabel(entry.topic_id)} · {formatDay(entry.created_at)}</span>
-        <span className="ml-summary-status">
-          {due ? <span className="ml-due-dot" title="Due for recall"><span className="ml-visually-hidden">Due for recall</span></span> : null}
-          <span className={`ml-stage is-${stage}`}>{STAGE_LABEL[stage]}</span>
-          <ChevronDown size={16} className="ml-summary-chevron" aria-hidden="true" />
-        </span>
-      </span>
-      <span className="ml-summary-comparison">
-        <span className="ml-summary-part ml-attempt" lang="und"><DifferenceText parts={difference.before} fallback="Attempt not written down" /></span>
-        <ArrowRight size={15} className="ml-summary-arrow" aria-hidden="true" />
-        <span className="ml-summary-part ml-correct" lang="und"><DifferenceText parts={difference.after} fallback="Correction needed" /></span>
-      </span>
-    </button>
-    {expanded ? <div className="ml-expanded-content">
-      {entry.title.trim() ? <h3 className="ml-card-title">{entry.title}</h3> : null}
-      <div className="ml-expanded-context">
-        <button type="button" className="nb-link-button" onClick={() => workspace.openTopic(entry.topic_id)}>{workspace.pathLabel(entry.topic_id)}</button>
-        {lesson ? <> · <button type="button" className="nb-link-button" onClick={() => workspace.openDocument(lesson.id)}>{entryTitle(lesson)}</button></> : null}
-        <span> · {formatDay(entry.created_at)}</span>
+    <div className="ml-simple-body">
+      <div className="ml-simple-pair">
+        <span className="ml-simple-label">Mistake</span>
+        <p className="ml-simple-wrong">{entry.attempt || "Not recorded"}</p>
       </div>
-      {entry.explanation ? <div className="ml-why"><span className="ml-label">Why</span><p>{entry.explanation}</p></div> : null}
-      {!entry.correction && workspace.writable ? <button type="button" className="ml-add-correction" onClick={onEdit}><Plus size={13} /> Add the correction</button> : null}
-      <div className="ml-card-foot">
-        <span className="ml-evidence">
-          {attempts.length
-            ? <>{attempts.filter((event) => event.outcome === "correct").length}/{attempts.length} recalls correct · last {relativeTime(lastAttempt.created_at)}
-              {entry.recall_streak >= RETAINED_STREAK ? <b> · recalled on {entry.recall_streak} separate days</b> : null}
-              {entry.recall_due_at && entry.correction ? <> · {dueLabel(entry.recall_due_at)}</> : null}</>
-            : entry.correction ? (entry.recall_due_at ? <>Not recalled yet · {dueLabel(entry.recall_due_at)}</> : "Not recalled yet") : "Add the correct form to practise it"}
-        </span>
-        <span className="ml-card-actions">
-          {entry.correction ? <button type="button" className="ws-button is-small" onClick={onPractise}><RotateCcw size={13} /> Test recall</button> : null}
-          {workspace.writable && entry.correction ? (displayEntry.status === "understood"
-            ? <button type="button" disabled={changingStatus} aria-busy={changingStatus} className="ws-button is-small is-quiet" onClick={() => void setUnderstood(false)}>Practise again</button>
-            : <button type="button" disabled={changingStatus} aria-busy={changingStatus} className="ws-button is-small is-quiet" onClick={() => void setUnderstood(true)} title="Self-assessed — recall checks continue"><Check size={13} /> I understand it</button>) : null}
-          {workspace.writable ? <RowMenu label="mistake" items={[
-            { label: "Edit", icon: <Pencil size={14} />, run: onEdit },
-            ...(entry.correction ? [{ label: "Make a flashcard…", icon: <Layers size={14} />, run: () => setFlashcard(true) }] : []),
-            { label: "Delete", icon: <Trash2 size={14} />, danger: true, run: () => void remove() },
-          ]} /> : null}
-        </span>
+      <div className="ml-simple-pair">
+        <span className="ml-simple-label">Correction</span>
+        <p className={"ml-simple-right" + (!entry.correction ? " is-missing" : "")}>
+          {entry.correction || "Add the correct version"}
+        </p>
       </div>
-      {attempts.length ? <details className="ml-attempt-history">
-        <summary><History size={13} /> Previous attempts ({attempts.length})</summary>
-        <ol>
-          {attempts.map((event) => <li key={event.id}>
-            <span>{formatDay(event.created_at)}</span>
-            <strong className={event.outcome === "correct" ? "is-correct" : "is-incorrect"}>{event.outcome === "correct" ? "Correct" : "Needs work"}</strong>
-            <p>{event.answer || "No written answer recorded"}</p>
-          </li>)}
-        </ol>
-      </details> : null}
+    </div>
+    {workspace.writable ? <div className="ml-simple-actions">
+      <button type="button" className="ws-icon-button" aria-label="Edit mistake" title="Edit" onClick={onEdit}>
+        <Pencil size={15}/>
+      </button>
+      <button type="button" className="ws-icon-button" aria-label="Delete mistake" title="Delete"
+        onClick={() => void remove()}><Trash2 size={15}/></button>
     </div> : null}
   </article>;
 }
 
-function MistakeEditor({ entry, modes, onDone }: { entry: KnowledgeEntry; modes: MistakeMode[]; onDone: () => void }) {
+function MistakeEditor({ entry, onDone }: { entry?: KnowledgeEntry; onDone: () => void }) {
   const workspace = useWorkspace();
-  const [values, setValues] = useState({ title: entry.title, attempt: entry.attempt, correction: entry.correction,
-    explanation: entry.explanation, topicId: entry.topic_id, modeId: resolveMistakeMode(entry, modes) ?? "" });
-  const [picking, setPicking] = useState(false);
+  const [attempt, setAttempt] = useState(entry?.attempt ?? "");
+  const [correction, setCorrection] = useState(entry?.correction ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const firstEmpty = !entry.correction ? "correction" : "attempt";
-
   async function save() {
     if (busy) return;
+    if (!attempt.trim() || !correction.trim()) {
+      setError("Write the mistake and the correct version.");
+      return;
+    }
     setBusy(true); setError("");
     try {
-      const selected = modes.find((mode) => mode.id === values.modeId);
-      await workspace.patchEntry(entry.id, { title: values.title.trim(), attempt: values.attempt.trim(),
-        correction: values.correction.trim(), explanation: values.explanation.trim(), topic_id: values.topicId,
-        category: selected?.legacy_category ?? "note",
-        mistake_mode_id: selected && !selected.id.startsWith("fallback-") ? selected.id : null });
+      if (entry) {
+        // Preserve the original subject, metadata and practice history.
+        await workspace.patchEntry(entry.id, { attempt: attempt.trim(), correction: correction.trim() });
+      } else {
+        // No subject/category decision is needed to capture a correction.
+        const subject = workspace.snapshot.subjects.find((item) => item.name.trim().toLowerCase() === "unsorted")
+          ?? await workspace.addSubject("Unsorted");
+        const inbox = await workspace.ensureInbox(subject.id);
+        await workspace.addEntry({
+          kind: "mistake", topicId: inbox.id,
+          attempt: attempt.trim(), correction: correction.trim(),
+        });
+      }
       onDone();
-    } catch (saveError) { setError(friendlyError(saveError)); }
-    finally { setBusy(false); }
+    } catch (reason) {
+      // Keep both fields intact on error, so the user can retry the save.
+      setError(friendlyError(reason));
+    } finally { setBusy(false); }
   }
 
-  return <form className="ml-card is-editing" data-mistake={entry.id} onSubmit={(event) => { event.preventDefault(); void save(); }}
+  return <form className="ml-simple-edit" onSubmit={(event) => { event.preventDefault(); void save(); }}
     onKeyDown={(event) => {
-      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-      if (event.key === "Escape" && !picking) { event.preventDefault(); onDone(); }
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void save(); }
+      if (event.nativeEvent.isComposing) return;
+      if (event.key === "Escape") { event.preventDefault(); onDone(); }
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault(); void save();
+      }
     }}>
-    <div className="ml-edit-grid">
-      <label className="ws-field"><span>My attempt</span><textarea rows={2} autoFocus={firstEmpty === "attempt"} value={values.attempt} onChange={(event) => setValues({ ...values, attempt: event.target.value })} /></label>
-      <label className="ws-field"><span>Correct form</span><textarea rows={2} autoFocus={firstEmpty === "correction"} value={values.correction} onChange={(event) => setValues({ ...values, correction: event.target.value })} /></label>
-    </div>
-    <label className="ws-field"><span>Why it was wrong</span><textarea rows={2} value={values.explanation} placeholder="The rule, or what you misunderstood" onChange={(event) => setValues({ ...values, explanation: event.target.value })} /></label>
-    <div className="ml-edit-kind" role="group" aria-label="Mistake category">
-      <span>Type of mistake</span>
-      {modes.map((mode) => <button type="button" key={mode.id} className={values.modeId === mode.id ? "is-active" : ""}
-        aria-pressed={values.modeId === mode.id}
-        onClick={() => setValues((current) => ({ ...current, modeId: mode.id }))}>{mode.name}</button>)}
-    </div>
-    <div className="ml-edit-grid">
-      <label className="ws-field"><span>Short label <small>optional</small></span><input value={values.title} maxLength={200} placeholder="e.g. 了 inside a 的时候 clause" onChange={(event) => setValues({ ...values, title: event.target.value })} /></label>
-      <div className="ws-field"><span>Topic</span>
-        <button type="button" className="qc-topic" onClick={() => setPicking((value) => !value)}>{workspace.pathLabel(values.topicId)} <ChevronDown size={13} /></button>
-        {picking ? <div className="ws-popover-host"><TopicPicker value={values.topicId} onChange={(id) => { setValues({ ...values, topicId: id }); setPicking(false); }} onClose={() => setPicking(false)} /></div> : null}
-      </div>
-    </div>
+    <label className="ws-field">
+      <span>Mistake</span>
+      <textarea autoFocus rows={2} maxLength={5000} value={attempt}
+        placeholder="What did you get wrong?" onChange={(event) => setAttempt(event.target.value)} />
+    </label>
+    <label className="ws-field">
+      <span>Correction</span>
+      <textarea rows={2} maxLength={5000} value={correction}
+        placeholder="What is the correct version?" onChange={(event) => setCorrection(event.target.value)} />
+    </label>
     {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
-    <div className="ws-dialog-actions">
-      <span className="qc-hint"><Kbd>{MOD_KEY} ↵</Kbd> save</span>
-      <button type="button" className="ws-button" onClick={onDone}>Cancel</button>
-      <button type="submit" className="ws-button is-primary" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+    <div className="ml-simple-edit-actions">
+      <button className="ws-button" type="button" disabled={busy} onClick={onDone}>Cancel</button>
+      <button className="ws-button is-primary" type="submit" disabled={busy}>
+        {busy ? "Saving…" : "Save"}
+      </button>
     </div>
   </form>;
 }
