@@ -286,6 +286,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
   const [title, setTitle] = useState(entry?.title ?? "");
   const [explanation, setExplanation] = useState(entry?.explanation ?? "");
   const [accent, setAccent] = useState<MistakeAccent | "">(entry?.accent_color ?? "");
+  const [notesOpen, setNotesOpen] = useState(Boolean(entry?.explanation));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -389,7 +390,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
         </button>)}
       </div>
     </fieldset>
-    <details className="ml-edit-notes" defaultOpen={Boolean(explanation)}>
+    <details className="ml-edit-notes" open={notesOpen} onToggle={(event) => setNotesOpen(event.currentTarget.open)}>
       <summary>Additional note <small>(optional)</small></summary>
       <label className="ws-field">
         <span>Context or explanation</span>
