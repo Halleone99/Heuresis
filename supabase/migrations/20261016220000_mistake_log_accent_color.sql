@@ -8,3 +8,6 @@ ALTER TABLE public.knowledge_records
   CHECK (accent_color IS NULL OR accent_color IN ('red', 'amber', 'green', 'blue', 'violet'));
 COMMENT ON COLUMN public.knowledge_records.accent_color
   IS 'Optional visual colour selected by the user for a Mistake Log entry.';
+
+-- Existing access is column-scoped: permission for the new field must be explicit.
+GRANT UPDATE (accent_color) ON TABLE public.knowledge_records TO authenticated;
