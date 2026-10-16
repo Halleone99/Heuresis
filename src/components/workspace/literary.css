@@ -150,3 +150,10 @@
 @media (prefers-reduced-motion:reduce) {
   .lit-book-card,.lit-button { transition:none; }
 }
+
+/* Eight workspace destinations remain reachable on touch screens without squeezing labels. */
+@media (pointer: coarse) and (max-width: 900px) {
+  .mobile-workspace-nav { display: flex; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .mobile-workspace-nav::-webkit-scrollbar { display: none; }
+  .mobile-workspace-nav button { flex: 0 0 69px; scroll-snap-align: center; }
+}
