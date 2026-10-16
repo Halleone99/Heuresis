@@ -468,7 +468,6 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
   const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const lessons = docs.filter(isLesson).sort((a, b) => docSortKey(b).localeCompare(docSortKey(a))).slice(0, 6);
-  const recentNotes = docs.filter((entry) => !isLesson(entry)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
   const suggestions = (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
     .filter((name) => !subjects.some((subject) => subject.name.toLowerCase() === name.toLowerCase())).slice(0, 4);
 
@@ -520,7 +519,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
         </button>;
       })}
     </div>
-    <div className="nb-home-columns">
+    <div className="nb-home-lessons">
       <section>
         <h2 className="ws-section-title">Recent lessons</h2>
         {lessons.length ? <ul className="nb-doc-list is-compact">{lessons.map((entry) => <li key={entry.id}>
@@ -530,16 +529,6 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
             <span className="nb-doc-meta"><span>{formatDay(entry.lesson_date ?? entry.created_at)}</span></span>
           </button></li>)}</ul>
           : <p className="ws-muted">Lessons you start with {MOD_KEY}+Shift+L appear here.</p>}
-      </section>
-      <section>
-        <h2 className="ws-section-title">Recently edited notes</h2>
-        {recentNotes.length ? <ul className="nb-doc-list is-compact">{recentNotes.map((entry) => <li key={entry.id}>
-          <button type="button" className="nb-doc-row" onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
-            <span className="nb-doc-icon"><KindIcon entry={entry} size={15} /></span>
-            <span className="nb-doc-text"><strong>{entryTitle(entry)}</strong><span className="nb-doc-preview">{workspace.pathLabel(entry.topic_id)}</span></span>
-            <span className="nb-doc-meta"><span>{relativeTime(entry.updated_at)}</span></span>
-          </button></li>)}</ul>
-          : <p className="ws-muted">Nothing yet. Capture a quick note with {MOD_KEY}+Shift+N.</p>}
       </section>
     </div>
   </div>;
