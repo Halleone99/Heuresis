@@ -30,7 +30,7 @@ export function NotebookSidebarTree() {
   const counts = useMemo(() => {
     const counts = new Map<string, { notes: number; questions: number }>();
     for (const entry of snapshot.entries) {
-      if (!isDocument(entry)) continue;
+      if (!isDocument(entry) || entry.category === "reference") continue;
       const count = counts.get(entry.topic_id) ?? { notes: 0, questions: 0 };
       count.notes++;
       if (isOpenQuestion(entry)) count.questions++;
