@@ -145,13 +145,48 @@ const scenarios = {
       "No mode, language, or stage selection is required");
     await page.click('button:has-text("Add mistake")');
     const editor = page.locator(".ml-simple-edit");
-    check(await editor.locator("textarea").count() === 2, "The editor contains only two text fields");
+    check(await editor.locator("> label.ws-field textarea").count() === 2, "The editor contains only two text fields");
     await editor.locator("textarea").nth(0).fill("Wrong assumption");
     await editor.locator("textarea").nth(1).fill("Corrected conclusion");
     await editor.locator('button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Corrected conclusion")');
     const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id = r.topic_id join knowledge_subjects s on s.id = t.subject_id where r.attempt='Wrong assumption'");
     check(destination === "Unsorted › Inbox", "No categorisation is needed to save a mistake");
+    // Enrichment is optional but saved to the same record, not a separate cache.
+    const card = page.locator('.ml-simple-item:has-text("Corrected conclusion")').first();
+    await card.locator('[aria-label="Edit mistake"]').click();
+    const styledEditor = page.locator(".ml-simple-edit");
+    await styledEditor.locator('input[maxlength="200"]').fill("Cause and effect");
+    await styledEditor.locator('[aria-label="Colour: Violet"]').click();
+    await styledEditor.locator("summary").click();
+    await styledEditor.locator(".ml-edit-notes textarea").fill("Compare correlation and causation");
+    await styledEditor.locator('button:has-text("Save")').click();
+    await page.waitForSelector('.ml-simple-item[data-accent="violet"]:has-text("Cause and effect")');
+    check(await page.locator('.ml-simple-item[data-accent="violet"]:has-text("Compare correlation")').count() > 0,
+      "Title, colour and optional context appear on the card");
+
+    await page.locator('[aria-label="New subject"]').click();
+    const subjectForm = page.locator(".ml-inline-create").first();
+    await subjectForm.locator("input").fill("Logic");
+    await subjectForm.locator("input").press("Enter");
+    await page.locator('[aria-label="Add topic to Logic"]').click();
+    const topicForm = page.locator(".ml-inline-create").first();
+    await topicForm.locator("input").fill("Reasoning");
+    await topicForm.locator("input").press("Enter");
+    await page.locator(".ml-nav-all").click();
+    await page.locator('.ml-simple-item:has-text("Cause and effect") [aria-label="Edit mistake"]').click();
+    const moveEditor = page.locator(".ml-simple-edit");
+    await moveEditor.locator("select").first().selectOption({ label: "Logic" });
+    await moveEditor.locator("select").nth(1).selectOption({ label: "Reasoning" });
+    await moveEditor.locator('button:has-text("Save")').click();
+    await page.locator('.ml-nav-topic:has-text("Reasoning")').click();
+    check(await page.locator('.ml-simple-item:has-text("Cause and effect")').count() > 0,
+      "Topic filter shows the relocated mistake");
+    await page.reload();
+    await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.locator('.ml-nav-topic:has-text("Reasoning")').click();
+    check(await page.locator('.ml-simple-item[data-accent="violet"]:has-text("Cause and effect")').count() > 0,
+      "Subject, topic, title and colour survive reload");
   },
 
   async "older classified mistakes remain intact in the simpler UI"(page) {
