@@ -479,9 +479,9 @@
 .nb-home-subject strong { color: var(--ws-ink); font: 400 24px/1.1 var(--ws-display); }
 .nb-home-subject span { color: var(--ws-muted); font-size: 12px; }
 .nb-home-subject:hover { border-color: var(--ws-accent-line); }
-.nb-home-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; }
-.nb-home-columns .ws-section-title { margin-bottom: 8px; }
-.nb-home-columns .ws-muted { font-size: 13px; }
+.nb-home-lessons { max-width: 660px; }
+.nb-home-lessons .ws-section-title { margin-bottom: 8px; }
+.nb-home-lessons .ws-muted { font-size: 13px; }
 
 .nb-welcome { max-width: 620px; margin: 0 auto; padding: 12vh 28px 60px; }
 .nb-welcome h1 { margin: 12px 0 14px; color: var(--ws-ink); font: 400 clamp(32px, 3.6vw, 46px)/1.08 var(--ws-display); letter-spacing: -.015em; }
