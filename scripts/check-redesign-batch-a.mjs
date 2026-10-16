@@ -21,7 +21,7 @@ assert.match(capture, /Choose a language\. Heuresis creates an Inbox/, "Language
 assert.match(mistakes, /Corrections and recall/, "User-facing Mistake heading");
 assert.doesNotMatch(mistakes, /Mistake → Correction → Practice → Progress/, "No developer-style headings");
 assert.doesNotMatch(overview, /Objectives from Personal OS appear here/, "No technical objective empty-state copy");
-assert.match(overview, /className="ov-continue-main"/, "Live lesson link remains active");
+assert.match(overview, /onClick=\{onOpenStudy\}/, "Overview retains a direct Study link");
 assert.doesNotMatch(overview, /<button[^>]*>Open lesson <ArrowRight/, "No duplicate primary action in active lesson");
 assert.doesNotMatch(notebook, /action=\{workspace\.writable && fallbackTopic \? <div className="ws-empty-actions"/, "Notebook empty state relies on header action");
 
