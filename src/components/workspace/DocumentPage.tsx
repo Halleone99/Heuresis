@@ -45,6 +45,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const [restore, setRestore] = useState<{ title: string; body: string; savedAt: string } | null>(null);
   const [moving, setMoving] = useState(false);
   const [flashcardTarget, setFlashcardTarget] = useState<KnowledgeEntry | null>(null);
+  const [addingChapter, setAddingChapter] = useState(false);
+  const [chapterTitle, setChapterTitle] = useState("");
   const [rubyPinyin, setRubyPinyin] = useState(() => {
     try { return localStorage.getItem(`heuresis.notebook.ruby.v1:${userId}`) === "true"; }
     catch { return false; }
@@ -430,6 +432,22 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     {editing ? <div className="nb-doc-editor">
       {lesson && !draft.body.trim() ? <button type="button" className="ws-button is-small nb-outline-button"
         onClick={() => editorRef.current?.setMarkdown(LESSON_OUTLINE)}><ListPlus size={14} /> Add lesson outline</button> : null}
+      {draft.category === "reference" ? <div className="nb-reference-chapter-action">
+        {addingChapter ? <form onSubmit={(event) => {
+          event.preventDefault();
+          const title = chapterTitle.trim().replace(/[\\r\\n]+/g, " ");
+          if (!title) return;
+          const current = editorRef.current?.getMarkdown() ?? draftRef.current.body;
+          editorRef.current?.setMarkdown(`${current.trimEnd()}${current.trim() ? "\\n\\n" : ""}## ${title}\\n\\n`);
+          editorRef.current?.focus("end");
+          setChapterTitle("");
+          setAddingChapter(false);
+        }}>
+          <input autoFocus aria-label="New chapter title" maxLength={120} placeholder="Chapter title" value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} />
+          <button type="submit" className="ws-button is-small is-primary" disabled={!chapterTitle.trim()}>Add</button>
+          <button type="button" className="ws-button is-small" onClick={() => { setAddingChapter(false); setChapterTitle(""); }}>Cancel</button>
+        </form> : <button type="button" className="ws-button is-small" onClick={() => setAddingChapter(true)}><ListPlus size={14} /> Add chapter</button>}
+      </div> : null}
       <RichEditor ref={editorRef} resetKey={editorKey.current} value={draft.body} autoFocus
         placeholder={lesson ? "Write during or after the lesson — or add the outline above. Quick captures appear below." : draft.category === "reference" ? "Start with ## Chapter title, then write your chapter. Add more ## headings to build the contents." : "Start writing. Use # for a heading, - for a list, > for a quotation, or the Example and Rule blocks."}
         onChange={(body) => updateDraft({ body })}
