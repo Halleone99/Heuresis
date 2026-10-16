@@ -103,6 +103,37 @@ const scenarios = {
     check(ratio >= 4.5, `hovered selected option has readable contrast (${ratio.toFixed(2)}:1)`);
   },
 
+  async "Sort restores the card enrichment rails and preserves additions"(page) {
+    await addUnsortedCards();
+    await openTopic(page);
+    await page.locator(".sort-command").click();
+    await page.locator(".sort-enrichment").waitFor();
+    const left = await page.locator(".sort-enrichment").boundingBox();
+    const centre = await page.locator(".sort-card").boundingBox();
+    const right = await page.locator(".sort-panel").boundingBox();
+    check(Boolean(left && centre && right && left.x < centre.x && centre.x < right.x),
+      "Enrichment left, complete flashcard centre, Sort decisions right");
+    const cardId = await page.locator(".sort-card").getAttribute("data-card-id");
+    await page.locator('.sort-enrich-heading:has-text("Examples")').click();
+    await page.getByRole("button", { name: "Add detail" }).click();
+    await page.getByRole("textbox", { name: "Add to Examples" }).fill("An example recorded while sorting.");
+    check(await page.locator(".sort-levels button").first().isDisabled(),
+      "An unfinished enrichment draft blocks moving to the next card");
+    await page.keyboard.press("Escape");
+    check(await page.locator(".sort-modal").count() === 1,
+      "Escape cannot silently discard typed card knowledge");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').waitFor();
+    const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
+    check(persisted.includes("An example recorded while sorting."),
+      "New knowledge is saved to the original flashcard data");
+    await page.keyboard.press("Escape");
+    await page.locator(".sort-command").click();
+    await page.locator('.sort-enrich-heading:has-text("Examples")').click();
+    check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
+      "Saved enrichment is present when Sort reopens");
+  },
+
   async "sort keeps its four outcomes together and works from the keyboard"(page) {
     await addUnsortedCards();
     await openTopic(page);
