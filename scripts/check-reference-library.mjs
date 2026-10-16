@@ -1,0 +1,16 @@
+import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+const read = (p) => readFileSync(p, "utf8");
+const chapters = read("src/lib/referenceChapters.ts");
+const model = read("src/lib/knowledgeWorkspace.ts");
+const view = read("src/components/workspace/ReferenceLibrary.tsx");
+const notebook = read("src/components/workspace/NotebookView.tsx");
+const migration = read("supabase/migrations/20261016170000_knowledge_reference_category.sql");
+assert.match(chapters, /parseReferenceChapters/);
+assert.match(chapters, /\^##/);
+assert.match(model, /reference: "Reference"/);
+assert.match(view, /<RichText/);
+assert.match(view, /onEdit\(work\)/);
+assert.match(notebook, /ReferenceLibrary/);
+assert.match(migration, /'reference'/);
+console.log("Reference Library integration checks: OK");

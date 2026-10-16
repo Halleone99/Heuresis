@@ -35,8 +35,12 @@ $P -d heuresis -1 -f sql/10_seed.sql
 $P -c "create database heuresis_v1_baseline template heuresis"
 for f in "${LATER[@]}"; do
   $P -d heuresis -1 -f "$f" >/dev/null 2>&1 || { echo "migration failed: $f"; exit 1; }
+  # Test v2 idempotency immediately after v2, before newer migrations
+  # deliberately expand its constraints. Replaying v2 last would undo them.
+  if [[ "$(basename "$f")" == "$V2" ]]; then
+    $P -d heuresis -1 -f "$f" >/dev/null 2>&1 || { echo "v2 idempotency failed: $f"; exit 1; }
+  fi
 done
-$P -d heuresis -1 -f "../supabase/migrations/$V2" >/dev/null 2>&1   # idempotency: a second run must succeed
 $P -c "create database heuresis_v2_baseline template heuresis"
 $P -d heuresis -f sql/20_showcase.sql
 $P -c "create database heuresis_showcase template heuresis"

@@ -43,6 +43,7 @@ jobs:
       - name: Regression scenarios
         working-directory: verification
         run: |
+          node tests/clarity.mjs "reference work"
           node tests/regressions.mjs
           node tests/study-polish.mjs
           node tests/clarity.mjs

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -7,6 +7,7 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
+import { ReferenceLibrary } from "./ReferenceLibrary";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
@@ -28,6 +29,8 @@ export function NotebookView() {
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
+  const [referencesOpen, setReferencesOpen] = useState(false);
+  const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
   const [railOpenMobile, setRailOpenMobile] = useState(false);
   const missingNotified = useRef<string | null>(null);
   // A new note keeps the same page instance once it has been saved for the first time,
@@ -116,13 +119,13 @@ export function NotebookView() {
     return () => { window.removeEventListener("mouseup", onMouse); window.removeEventListener("keydown", onKey); };
   }, [goBack]);
 
-  const startNewNote = useCallback((topicId: string | null, title?: string) => {
+  const startNewNote = useCallback((topicId: string | null, title?: string, category?: KnowledgeEntry["category"]) => {
     const target = topicId ?? topic?.id ?? doc?.topic_id ?? null;
     if (!target) { workspace.toast("Choose or create a topic first.", { tone: "error" }); return; }
     setHistory((stack) => [...stack.slice(-30), { topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null }]);
     internalNavigation.current = true;
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, topicId: target, docId: null, subjectId: null } }));
-    setNewDoc({ topicId: target, title });
+    setNewDoc({ topicId: target, title, category });
   }, [doc?.topic_id, location.docId, location.subjectId, location.topicId, topic?.id, updateMemory, workspace]);
 
   const railCollapsed = memory.notebook.railCollapsed;
@@ -139,10 +142,13 @@ export function NotebookView() {
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
+  else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => setReferencesOpen(false)}
+    onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
+    onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
-    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
+    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
-  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
+  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} onNewNote={startNewNote} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} onNewNote={startNewNote} />;
   else main = <NotebookHome navigate={navigate} onNewNote={startNewNote} />;
@@ -156,6 +162,11 @@ export function NotebookView() {
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
+      </div>
+      <div className="nb-mode-bar" role="group" aria-label="Notebook views">
+        <button type="button" className={!referencesOpen ? "active" : ""} aria-pressed={!referencesOpen} onClick={() => setReferencesOpen(false)}>Notes</button>
+        <button type="button" className={referencesOpen ? "active" : ""} aria-pressed={referencesOpen}
+          onClick={() => setReferencesOpen(true)}><BookOpen size={14} /> References</button>
       </div>
       {main}
     </section>
@@ -181,7 +192,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
   const counts = useMemo(() => {
     const map = new Map<string, { docs: number; questions: number }>();
     for (const entry of snapshot.entries) {
-      if (!isDocument(entry)) continue;
+      if (!isDocument(entry) || entry.category === "reference") continue;
       const row = map.get(entry.topic_id) ?? { docs: 0, questions: 0 };
       row.docs += 1;
       if (isOpenQuestion(entry)) row.questions += 1;
@@ -353,7 +364,7 @@ function ScopePage({ scope, navigate, onNewNote }: {
   const [creatingChild, setCreatingChild] = useState(false);
 
   const entries = snapshot.entries.filter((entry) => topicIds.includes(entry.topic_id));
-  const docs = entries.filter(isDocument);
+  const docs = entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const mistakes = entries.filter((entry) => entry.kind === "mistake");
   const counts = {
     all: docs.length,
@@ -460,7 +471,7 @@ function NotebookHome({ navigate, onNewNote }: { navigate: (location: NotebookLo
   const { objectives } = usePersonalOsObjectives(workspace.userId);
   const [creating, setCreating] = useState(false);
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
-  const docs = snapshot.entries.filter(isDocument);
+  const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const lessons = docs.filter(isLesson).sort((a, b) => docSortKey(b).localeCompare(docSortKey(a))).slice(0, 6);
   const recentNotes = docs.filter((entry) => !isLesson(entry)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
   const suggestions = (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
