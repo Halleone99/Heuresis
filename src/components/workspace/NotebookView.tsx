@@ -144,7 +144,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
   else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
     onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
-    onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true }); }} />;
+    onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true, stayInSection: referenceOnly }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
