@@ -265,9 +265,9 @@ const scenarios = {
     await page.waitForTimeout(650);
     check(await sql("select title from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'") === "Roman Ideas Revised",
       "Reference edits save through the existing Notebook persistence path");
-    await page.locator('.nb-main-tools button:has-text("References")').click();
-    await page.locator('.rl-work:has-text("Roman Ideas Revised")').waitFor();
-    check(true, "The Reference Library reopens the updated work");
+    await page.locator('.nb-doc-actions button[aria-label="Close note"]').click();
+    await page.locator(".rl-titlepage h1").waitFor();
+    check((await page.locator(".rl-titlepage h1").innerText()) === "Roman Ideas Revised", "Closing the editor returns directly to the reference");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {
