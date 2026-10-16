@@ -1,5 +1,12 @@
 name: Heuresis Windows x64 Preview
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "package.json"
+      - ".github/workflows/tauri-windows-x64-preview.yml"
   pull_request:
     branches: [main]
     paths:
