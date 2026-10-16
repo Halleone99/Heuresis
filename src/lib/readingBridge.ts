@@ -46,9 +46,9 @@ function quoteFromRow(row: QuoteRow): SavedQuote {
     attribution: row.attribution ?? "", page: row.page ?? "", createdAt: row.created_at,
   };
 }
-const META = /<!--reading-meta:([\\s\\S]*?)-->/i;
-const TIME = /<!--reading-time:([\\s\\S]*?)-->/i;
-const PROGRESS = /<!--reading-progress:(\\d+)\\/(\\d+)-->/i;
+const META = /<!--reading-meta:([\s\S]*?)-->/i;
+const TIME = /<!--reading-time:([\s\S]*?)-->/i;
+const PROGRESS = /<!--reading-progress:(\d+)\/(\d+)-->/i;
 function decodeMarker(notes: string, expression: RegExp): unknown {
   const match = notes.match(expression);
   if (!match) return null;
@@ -165,7 +165,7 @@ export function useReadingLibrary(userId: string) {
       throw new Error("Enter a valid page and total, such as 45/240.");
     const marker = `<!--reading-progress:${page}/${pages}-->`;
     const notes = PROGRESS.test(book.notes) ? book.notes.replace(PROGRESS, marker)
-      : [marker, book.notes].filter(Boolean).join("\\n");
+      : [marker, book.notes].filter(Boolean).join("\n");
     return updateBook(book.id, { notes });
   };
   const addQuote = async (draft: QuoteDraft) => {
