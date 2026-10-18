@@ -33,7 +33,7 @@ const review = readFileSync("src/components/workspace/CaptureReviewPage.tsx", "u
 assert.match(review, /workspace\.openCleanup\(\{ kind: "inbox", id: inbox.id \}\)/);
 assert.match(review, /onOpenNote\(entry\)/);
 assert.doesNotMatch(notebook, /mistakes.length \? <p className="nb-scope-meta"/, "No distracting mistake shortcut under subject headings");
-assert.match(notebook, /\{metadata \? <small>\{metadata\}<\/small> : null\}/);
+assert.match(notebook, /<small>\{metadata \|\| "Note"\}<\/small>/, "Note list keeps a readable type label");
 assert.match(context, /if \(next === "notebook"\)/, "Explicit Notebook section navigation targets its home");
 assert.match(context, /docId: null, topicId: null, subjectId: null/, "Notebook home clears the retained note and topic");
 assert.match(context, /if \(!options.stayInSection\) onSection\("notebook"\)/, "Direct document openings still bypass home reset");
