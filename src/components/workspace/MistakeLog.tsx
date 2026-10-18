@@ -96,48 +96,47 @@ export function MistakeLog() {
     : selectedSubjectId ? workspace.subjectById.get(selectedSubjectId)?.name : null;
 
 
-  // Subjects and topics are shared with Notebook; deletions affect all records.
+  // The hierarchy belongs to Notebook AND Mistake Log. Never delete knowledge
+  // as a side effect of removing its organisational label.
   const removeSubject = async (subject: KnowledgeSubject) => {
-    const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subject.id).map((topic) => topic.id));
-    const entries = snapshot.entries.filter((entry) => topicIds.has(entry.topic_id));
-    const notes = entries.filter((entry) => entry.kind !== "mistake").length;
-    const corrections = entries.length - notes;
+    if (snapshot.topics.some((topic) => topic.subject_id === subject.id)) {
+      workspace.toast(`“${subject.name}” still has topics. Move or delete every empty topic first. Notes and mistakes will be preserved.`, { tone: "error" });
+      return;
+    }
     if (!await confirm({
-      title: `Delete subject “${subject.name}”?`,
-      body: `This permanently deletes the subject and its topics, including ${corrections} mistake${corrections === 1 ? "" : "s"} and ${notes} Notebook entr${notes === 1 ? "y" : "ies"}. This cannot be undone.`,
-      confirmLabel: "Delete subject", danger: true,
+      title: `Delete empty subject “${subject.name}”?`,
+      body: "Only empty subjects can be deleted. This cannot be undone.",
+      confirmLabel: "Delete empty subject", danger: true,
     })) return;
     try {
       await workspace.removeSubject(subject.id);
       if (selectedSubjectId === subject.id) select(null, null);
       setCreatingTopic(null);
       setRenaming(null);
-      workspace.toast(`Deleted “${subject.name}”.`);
+      workspace.toast(`Deleted empty subject “${subject.name}”.`);
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   };
 
   const removeTopic = async (topic: KnowledgeTopic) => {
-    // PostgreSQL prevents deletion of a topic with children. No partial
-    // multi-request cascade: the user must delete subtopics first.
-    const subtopics = workspace.subtreeIds(topic.id).length - 1;
-    if (subtopics > 0) {
-      workspace.toast(`“${topic.name}” has ${subtopics} subtopic${subtopics === 1 ? "" : "s"}. Delete the subtopics first.`, { tone: "error" });
+    if (workspace.subtreeIds(topic.id).length > 1) {
+      workspace.toast(`“${topic.name}” has subtopics. Move or delete the empty subtopics first.`, { tone: "error" });
       return;
     }
-    const entries = snapshot.entries.filter((entry) => entry.topic_id === topic.id);
-    const notes = entries.filter((entry) => entry.kind !== "mistake").length;
-    const corrections = entries.length - notes;
+    if (snapshot.entries.some((entry) => entry.topic_id === topic.id)) {
+      workspace.toast(`“${topic.name}” still contains notes or mistakes. Move them before deleting this topic.`, { tone: "error" });
+      return;
+    }
     if (!await confirm({
-      title: `Delete topic “${topic.name}”?`,
-      body: `This permanently deletes the topic, including ${corrections} mistake${corrections === 1 ? "" : "s"} and ${notes} Notebook entr${notes === 1 ? "y" : "ies"}. This cannot be undone.`,
-      confirmLabel: "Delete topic", danger: true,
+      title: `Delete empty topic “${topic.name}”?`,
+      body: "Only empty topics can be deleted. Your notes and mistakes will not be deleted.",
+      confirmLabel: "Delete empty topic", danger: true,
     })) return;
     try {
       await workspace.removeTopic(topic.id);
       if (selectedTopicId === topic.id) select(topic.subject_id, null);
       setCreatingTopic(null);
       setRenaming(null);
-      workspace.toast(`Deleted “${topic.name}”.`);
+      workspace.toast(`Deleted empty topic “${topic.name}”.`);
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   };
 
