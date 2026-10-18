@@ -62,7 +62,15 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   const order: Dimension[] = ["examples", "neighbours", "components", "structure", "origin", "facts", "notes"];
   const [data, setData] = useState(card.data);
   const blocks = useMemo(() => parseBlocks(data), [data]);
-  const [expanded, setExpanded] = useState<Dimension | null>(null);
+  // Open existing information automatically: otherwise every card looks empty until clicked.
+  const [expanded, setExpanded] = useState<Dimension | null>(() => {
+    const existing = parseBlocks(card.data);
+    return order.find((dim) =>
+      existing.some((block) => block.dim === dim)
+      || (dim === "notes" && Boolean(card.note?.trim()))
+      || (pack.cardType?.field_schema ?? []).some((field) => dimensionForField(field) === dim && Boolean(fieldText(card.data, field.key)))
+    ) ?? "examples";
+  });
   const [adding, setAdding] = useState<Dimension | null>(null);
   const [mode, setMode] = useState<"text" | "word">("text");
   const [draft, setDraft] = useState("");
@@ -148,7 +156,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   }
 
   return <aside className="sort-enrichment" aria-label="Enrich this flashcard">
-    <header className="sort-enrich-head"><strong>Enrich this card</strong><span>Add context, examples and connections</span></header>
+    <header className="sort-enrich-head"><small>1 · CONTEXT (OPTIONAL)</small><strong>Card knowledge</strong><span>Read or add examples, connections and notes before deciding.</span></header>
     <div className="sort-enrich-list">{order.map((dim) => {
       const fields = (pack.cardType?.field_schema ?? []).flatMap((field) => {
         if (dimensionForField(field) !== dim) return [];
