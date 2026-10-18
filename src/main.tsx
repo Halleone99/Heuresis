@@ -51,8 +51,8 @@ import "./theme/palettes.css";
 import "./components/workspace/note-window.css";
 import "./components/workspace/note-formatting.css";
 import "./components/workspace/note-reading-views.css";
-import "./theme/chrome.css";
 import "./components/workspace/note-identity.css";
+import "./theme/chrome.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
