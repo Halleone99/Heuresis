@@ -32,6 +32,7 @@ export type KnowledgeEntry = {
   id: string; user_id: string; topic_id: string; kind: KnowledgeKind;
   title: string; body: string; attempt: string; correction: string; explanation: string;
   accent_color: MistakeAccent | null;
+  icon?: string | null;
   status: MistakeStatus | null; category: NoteCategory | null; mistake_mode_id: string | null;
   lesson_id: string | null; lesson_date: string | null; pinned: boolean;
   recall_streak: number; last_recalled_at: string | null; recall_due_at: string | null;
@@ -49,12 +50,12 @@ export type EntryInput = {
   /** Optional client id, so a retried capture can never be stored twice. */
   id?: string;
   kind: KnowledgeKind; topicId: string; title?: string; body?: string;
-  attempt?: string; correction?: string; explanation?: string; accentColor?: MistakeAccent | null;
+  attempt?: string; correction?: string; explanation?: string; accentColor?: MistakeAccent | null; icon?: string | null;
   category?: NoteCategory | null; mistakeModeId?: string | null; lessonId?: string | null; lessonDate?: string | null;
 };
 export type EntryPatch = Partial<Pick<KnowledgeEntry,
   "topic_id" | "title" | "body" | "attempt" | "correction" | "explanation" | "accent_color" | "status" | "category" | "mistake_mode_id"
-  | "lesson_id" | "lesson_date" | "pinned" | "recall_streak" | "last_recalled_at" | "recall_due_at">>;
+  | "lesson_id" | "lesson_date" | "icon" | "pinned" | "recall_streak" | "last_recalled_at" | "recall_due_at">>;
 
 export const EMPTY_SNAPSHOT: KnowledgeSnapshot = { subjects: [], topics: [], entries: [], practice: [] };
 export const LEGACY_LESSON_PREFIX = "Lesson · ";
@@ -65,7 +66,7 @@ export const LIMITS = { name: 120, title: 200, body: 50000, attempt: 5000, corre
 
 const PAGE_SIZE = 1000;
 const SCHEMA_KEY = "heuresis.knowledge.schema.v2";
-const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "accent_color", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
+const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "accent_color", "icon", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
 
 let schemaLevel: SchemaLevel = readStoredSchema();
 
@@ -176,6 +177,7 @@ export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
     title: contentStr(row.title), body: contentStr(row.body), attempt: contentStr(row.attempt), correction: contentStr(row.correction),
     explanation: contentStr(row.explanation),
     accent_color: typeof row.accent_color === "string" && MISTAKE_ACCENTS.has(row.accent_color as MistakeAccent) ? row.accent_color as MistakeAccent : null,
+    icon: typeof row.icon === "string" && row.icon.trim().length <= 32 ? row.icon.trim() || null : null,
     status: kind === "mistake" ? (row.status === "understood" ? "understood" : "needs_practice") : null,
     category, mistake_mode_id: nullableStr(row.mistake_mode_id), lesson_id: nullableStr(row.lesson_id), lesson_date: nullableStr(row.lesson_date),
     pinned: row.pinned === true, recall_streak: typeof row.recall_streak === "number" ? row.recall_streak : 0,
@@ -300,7 +302,8 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
     attempt: kind === "mistake" ? repairPinyinToneMarks(input.attempt ?? "").trim() : "",
     correction: kind === "mistake" ? repairPinyinToneMarks(input.correction ?? "").trim() : "",
     explanation: kind === "mistake" ? repairPinyinToneMarks(input.explanation ?? "").trim() : "",
-    accent_color: kind === "mistake" ? (input.accentColor ?? null) : null,
+    accent_color: input.accentColor ?? null,
+    icon: input.icon ? limit(input.icon.trim(), 32, "The icon") : null,
     status: kind === "mistake" ? "needs_practice" : null,
     category: kind === "note" ? (input.category ?? "note") : kind === "mistake" ? (input.category ?? null) : null,
     mistake_mode_id: kind === "mistake" ? (input.mistakeModeId ?? null) : null,
@@ -340,6 +343,10 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
     changed.last_recalled_at = null;
     changed.recall_due_at = null;
     changed.status = "needs_practice";
+  }
+  if ("icon" in changed && changed.icon !== null && changed.icon !== undefined) {
+    if (typeof changed.icon !== "string") throw new Error("Choose a valid icon.");
+    changed.icon = limit(changed.icon.trim(), 32, "The icon") || null;
   }
   const next: KnowledgeEntry = { ...current, ...changed };
   validateEntry(next);
