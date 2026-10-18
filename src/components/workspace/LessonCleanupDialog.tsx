@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check, FolderInput, Layers,
-  ListPlus, Trash2, X,
+  ListPlus, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryPreview, entryTitle, friendlyError,
@@ -21,6 +21,11 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
   const [focusIndex, setFocusIndex] = useState(0);
   const [moving, setMoving] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [mistakeAttempt, setMistakeAttempt] = useState("");
+  const [mistakeCorrection, setMistakeCorrection] = useState("");
+  const [mistakeExplanation, setMistakeExplanation] = useState("");
+  const [mistakeTopic, setMistakeTopic] = useState("");
   const [mergeTitle, setMergeTitle] = useState("");
   const [mergeBody, setMergeBody] = useState("");
   const [mergeTopic, setMergeTopic] = useState("");
@@ -101,6 +106,40 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
       setNotice(`${moved} ${moved === 1 ? "entry" : "entries"} filed in ${workspace.pathLabel(destination)}. Original lesson references were preserved.`);
     });
   }
+  function prepareMistake() {
+    if (actionable.length !== 1 || actionable[0].kind !== "note") {
+      setError("Select one idea to turn into a mistake.");
+      return;
+    }
+    setError("");
+    setMerging(false);
+    setMoving(false);
+    setMistakeAttempt(actionable[0].body.trim().slice(0, 5000));
+    setMistakeCorrection("");
+    setMistakeExplanation("");
+    setMistakeTopic(originTopicId);
+    setConverting(true);
+  }
+  async function createMistake() {
+    if (!workspace.writable || busy || !mistakeAttempt.trim() || !mistakeCorrection.trim() || !mistakeTopic) return;
+    const destination = workspace.topicById.get(mistakeTopic);
+    if (!topic || !destination || destination.subject_id !== topic.subject_id) {
+      setError("Choose a destination within the same subject.");
+      return;
+    }
+    await perform(async () => {
+      await workspace.addEntry({
+        kind: "mistake",
+        topicId: mistakeTopic,
+        attempt: mistakeAttempt.trim(),
+        correction: mistakeCorrection.trim(),
+        explanation: mistakeExplanation.trim(),
+      });
+      setConverting(false);
+      setNotice("Mistake Log entry created. Your original capture is still here until you explicitly archive it.");
+    });
+  }
+
   function prepareMerge() {
     if (actionable.length < 2 || actionable.some((row) => row.kind !== "note")) {
       setError("Select at least two notes or questions to combine. Mistakes keep their own recall history.");
@@ -219,6 +258,8 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
             onClick={() => { setError(""); setMoving(true); }}><FolderInput size={15}/> Move to topic <Kbd>T</Kbd></button>
           <button type="button" className="ws-button" disabled={!workspace.writable || busy || !actionable.length}
             onClick={() => setFlashcard(focused)}><Layers size={15}/> Flashcard <Kbd>F</Kbd></button>
+          <button type="button" className="ws-button" disabled={!workspace.writable || busy || actionable.length !== 1 || actionable[0]?.kind !== "note"}
+            onClick={prepareMistake}><TriangleAlert size={15}/> Make mistake</button>
           <button type="button" className="ws-button" disabled={!workspace.writable || busy || actionable.length < 2 || actionable.some((row) => row.kind !== "note")}
             onClick={prepareMerge}><ListPlus size={15}/> Merge notes <Kbd>M</Kbd></button>
           <button type="button" className="ws-button is-quiet" disabled={!workspace.writable || busy || !actionable.length}
@@ -232,6 +273,21 @@ export function LessonCleanupDialog({ target, onClose }: { target: CleanupTarget
       </div>
       <p>Choose another topic in this language. The original lesson link is preserved.</p>
       <TopicPicker value={originTopicId} onChange={(id) => void moveTo(id)} onClose={() => setMoving(false)} allowCreate={false}/>
+      </div> : null}
+      {converting ? <div className="lc-merge-panel">
+        <div className="lc-picker-head"><strong>Turn an idea into a mistake</strong>
+          <button type="button" className="ws-icon-button" aria-label="Cancel conversion" onClick={() => setConverting(false)}><X size={15}/></button></div>
+        <p>Define the incorrect attempt and its correction. The original capture is preserved; nothing is deleted automatically.</p>
+        <label className="ws-field"><span>What was wrong?</span>
+          <textarea value={mistakeAttempt} maxLength={5000} onChange={(event) => setMistakeAttempt(event.target.value)} rows={2}/></label>
+        <label className="ws-field"><span>Correct version</span>
+          <textarea value={mistakeCorrection} maxLength={5000} onChange={(event) => setMistakeCorrection(event.target.value)} rows={2}/></label>
+        <label className="ws-field"><span>Explanation (optional)</span>
+          <textarea value={mistakeExplanation} maxLength={10000} onChange={(event) => setMistakeExplanation(event.target.value)} rows={2}/></label>
+        <span className="lc-destination">Save in: {workspace.pathLabel(mistakeTopic)}</span>
+        <TopicPicker value={mistakeTopic} onChange={setMistakeTopic} onClose={() => undefined} allowCreate={false}/>
+        <button type="button" className="ws-button is-primary" disabled={!mistakeAttempt.trim() || !mistakeCorrection.trim() || busy || !workspace.writable}
+          onClick={() => void createMistake()}><TriangleAlert size={14}/> Create mistake</button>
       </div> : null}
       {merging ? <div className="lc-merge-panel">
         <div className="lc-picker-head"><strong>New combined note</strong>
