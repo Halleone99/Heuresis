@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { CircleDot, Maximize2, Minimize2, NotebookPen, Pin, X } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleDot, Maximize2, Minimize2, NotebookPen, Pin, X } from "lucide-react";
+import { AICheck } from "./AICheck";
 import AuthGate from "../AuthGate";
 import { entryTitle } from "../../lib/knowledgeWorkspace";
 import { QuickCapture } from "./QuickCapture";
@@ -32,15 +33,14 @@ function FloatingCaptureBody({ session }: { session: Session }) {
     catch { return true; }
   });
   const [notice, setNotice] = useState("");
-  const started = useMemo(() => Date.now(), []);
-  // Show only captures made through this window session. All ideas remain in the
-  // shared server-backed Notebook Inbox, so closing the window never loses them.
+  const [recentOpen, setRecentOpen] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Recent saved notes and mistakes, not only items filed in an Inbox.
   const captured = useMemo(() => workspace.snapshot.entries
-    .filter((entry) => new Date(entry.created_at).getTime() >= started &&
-      workspace.snapshot.topics.some((topic) => topic.id === entry.topic_id &&
-        topic.parent_id === null && topic.name.trim().toLocaleLowerCase() === "inbox"))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6),
-    [started, workspace.snapshot.entries, workspace.snapshot.topics]);
+    .filter((entry) => entry.kind !== "lesson")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 12), [workspace.snapshot.entries]);
 
   const openCapture = (mode: CaptureMode = "note") => {
     setView((current) => current === "bubble" ? "compact" : current);
@@ -156,17 +156,38 @@ function FloatingCaptureBody({ session }: { session: Session }) {
       {!workspace.capture ? <button type="button" className="quick-floating-reopen" onClick={() => openCapture()}>
         <NotebookPen size={15}/> New capture</button> : null}
     </div>
-    {view !== "bubble" ? <section className="quick-floating-recent" aria-label="Ideas saved during this session">
-      <div className="quick-floating-recent-head"><strong>Saved ideas</strong><small>Review later in Notebook → Captures</small></div>
-      {captured.length ? <ol>{captured.map((entry) => <li key={entry.id}>
-        <span className="quick-floating-recent-meta">
-          <time>{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
-          {workspace.pathLabel(entry.topic_id)}
-        </span>
-        <span className="quick-floating-recent-preview">{entry.kind === "mistake"
-          ? [entry.attempt, entry.correction].filter(Boolean).join(" → ")
-          : (entry.body || entryTitle(entry)).trim()}</span>
-      </li>)}</ol> : <p>Each saved idea will appear here, with its destination.</p>}
+    {view !== "bubble" ? <section className="quick-floating-recent" aria-label="Recent captures">
+      <button type="button" className="quick-floating-recent-head qc-recent-collapse"
+        aria-expanded={recentOpen} onClick={() => setRecentOpen((value) => !value)}>
+        <strong>Recent captures</strong>
+        <span>{recentOpen ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}</span>
+      </button>
+      {recentOpen ? captured.length ? <ol>{captured.map((entry) => {
+        const expanded = expandedId === entry.id;
+        const label = entry.kind === "mistake" ? "Mistake Log" : entry.category === "note" ? "Raw" : (entry.category || "Raw");
+        const fullText = entry.kind === "mistake"
+          ? [entry.attempt ? `Mistake: ${entry.attempt}` : "", entry.correction ? `Correction: ${entry.correction}` : "", entry.explanation].filter(Boolean).join("\n")
+          : entry.body;
+        const targetText = entry.kind === "mistake" ? entry.correction : entry.body;
+        const heading = (entry.title || (entry.kind === "mistake" ? entry.attempt : entry.body.split("\n")[0]) || "Untitled capture").trim();
+        const subject = workspace.topicPath(entry.topic_id).subject?.name ?? "No category";
+        return <li key={entry.id}>
+          <div className="qc-recent-item-head">
+            <button type="button" className="qc-recent-item-toggle" aria-expanded={expanded}
+              onClick={() => setExpandedId((value) => value === entry.id ? null : entry.id)}>
+              {expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+              <span className="qc-recent-title">{heading}</span>
+            </button>
+            <AICheck text={targetText} language={subject} context={entry.kind === "mistake" ? "mistake" : "note"} compact
+              onApply={(next) => workspace.patchEntry(entry.id, entry.kind === "mistake" ? { correction: next } : { body: next }).then(() => undefined)} />
+          </div>
+          <span className="quick-floating-recent-meta">
+            <time>{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+            {label} · {subject}
+          </span>
+          {expanded ? <div className="qc-recent-full" aria-label="Full saved capture">{fullText}</div> : null}
+        </li>;
+      })}</ol> : <p>No captures yet. Save one above to see it here.</p> : null}
     </section> : null}
     {notice ? <p className="quick-floating-notice" role="alert">{notice}</p> : null}
     <Toaster/>
