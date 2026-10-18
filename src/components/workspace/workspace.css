@@ -475,6 +475,10 @@
 .nb-doc-list.is-compact .nb-doc-preview { font: 400 12px/1.3 var(--ws-sans); -webkit-line-clamp: 1; }
 
 .nb-home-subjects { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 0 0 30px; }
+.nb-home-recovery { display: grid; justify-items: start; gap: 9px; margin: 0 0 18px; padding: 15px 17px; border: 1px solid var(--ws-line-strong); border-radius: 10px; background: var(--ws-raised); color: var(--ws-text); }
+.nb-home-recovery strong { color: var(--ws-ink); font: 600 13px/1.45 var(--ws-sans); }
+.nb-home-recovery p { margin: 0; max-width: 670px; color: var(--ws-muted); font: 400 12.5px/1.6 var(--ws-sans); }
+.nb-home-recovery .ws-button { margin-top: 3px; }
 .nb-home-subject { display: grid; gap: 6px; padding: 16px 16px 14px; border: 1px solid var(--ws-line); border-radius: 12px; background: var(--ws-surface); text-align: left; cursor: pointer; box-shadow: var(--ws-shadow-1); }
 .nb-home-subject strong { color: var(--ws-ink); font: 400 24px/1.1 var(--ws-display); }
 .nb-home-subject span { color: var(--ws-muted); font-size: 12px; }
