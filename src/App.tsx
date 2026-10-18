@@ -525,10 +525,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             title={`Search notes, Study cards and commands (${MOD_KEY}+K)`} aria-label={`Search everywhere (${MOD_KEY}+K)`}>
             <Search size={17} aria-hidden="true" />
           </button>
-          <button type="button" className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")}
-            title={`Quick Capture (${MOD_KEY}+Shift+N)`} aria-label="Open Quick Capture to save a note or mistake">
-            <Feather size={18} strokeWidth={1.9} aria-hidden="true" />
-          </button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -576,6 +572,13 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="hw-lesson-title" onClick={() => workspace.openDocument(workspace.currentLesson!.id)} title="Open the lesson page">{entryTitle(workspace.currentLesson)}</button>
             <button type="button" className="hw-lesson-end" onClick={() => workspace.endLesson()} aria-label="End lesson" title="End lesson — captures stop attaching to it"><X size={13} /></button>
           </div> : null}
+          <div className="hw-sidebar-capture-position">
+            <button type="button" className="hw-sidebar-capture" onClick={() => openNotebookCapture("note")}
+              title={`Quick Capture (${MOD_KEY}+Shift+N)`}
+              aria-label="Open Quick Capture">
+              <Feather size={27} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </div>
         </aside>
         <main className={`desktop-content ${section === "study" ? "is-study" : "is-workspace"}`}>
           {workspaceNotice}
