@@ -7,6 +7,8 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
+import { openNoteWindow } from "../../lib/noteWindow";
+import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { ReferenceLibrary } from "./ReferenceLibrary";
 import { SubjectCard } from "./SubjectCard";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
@@ -14,7 +16,7 @@ import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePers
 import { useWorkspace } from "./WorkspaceContext";
 
 type ListFilter = "all" | "notes" | "questions";
-export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string } | null;
+export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string; draftKey?: string } | null;
 
 function countLabel(count: number, singular: string) {
   return `${count} ${count === 1 ? singular : `${singular}s`}`;
@@ -128,14 +130,14 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     setHistory((stack) => [...stack.slice(-30), { topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null }]);
     internalNavigation.current = true;
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, topicId: target, docId: null, subjectId: null } }));
-    setNewDoc({ topicId: target, title, category });
+    setNewDoc({ topicId: target, title, category, draftKey: crypto.randomUUID() });
   }, [doc?.topic_id, location.docId, location.subjectId, location.topicId, topic?.id, updateMemory, workspace]);
 
   const railCollapsed = memory.notebook.railCollapsed;
   const toggleRail = () => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, railCollapsed: !current.notebook.railCollapsed } }));
 
   // A different page opens at its top; a new note keeps its place when its first save gives it an id.
-  const pageKey = newDoc ? `new-${newDoc.topicId}` : doc ? stableKeys.current.get(doc.id) ?? doc.id : topic?.id ?? subject?.id ?? "home";
+  const pageKey = newDoc ? `new-${newDoc.draftKey ?? newDoc.topicId}` : doc ? stableKeys.current.get(doc.id) ?? doc.id : topic?.id ?? subject?.id ?? "home";
   const shownPage = useRef(pageKey);
   useLayoutEffect(() => {
     if (shownPage.current === pageKey) return;
@@ -151,9 +153,29 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     } },
     { label: "New note", icon: <FilePlus2 size={14}/>, run: () => {
       const currentSubjectId = topic?.subject_id ?? subject?.id ?? null;
-      const inboxId = currentSubjectId
-        ? snapshot.topics.find((row) => row.subject_id === currentSubjectId && isInboxTopic(row))?.id ?? null : null;
-      workspace.openCapture({ mode: "note", topicId: doc?.topic_id ?? topic?.id ?? inboxId });
+      const target = doc?.topic_id ?? topic?.id ?? (currentSubjectId
+        ? snapshot.topics.find((row) => row.subject_id === currentSubjectId && isInboxTopic(row))?.id ?? null : null);
+      if (target) { startNewNote(target); return; }
+      if (!currentSubjectId) {
+        // From Notebook home, use the same Unsorted → Inbox destination as
+        // Quick Capture, but open the *document editor*, not the capture panel.
+        void (async () => {
+          const unsorted = snapshot.subjects.find((row) => row.name.trim().toLocaleLowerCase() === "unsorted")
+            ?? await workspace.addSubject("Unsorted");
+          const inbox = await workspace.ensureInbox(unsorted.id);
+          startNewNote(inbox.id);
+        })().catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+        return;
+      }
+      void workspace.ensureInbox(currentSubjectId).then((inbox) => startNewNote(inbox.id))
+        .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+    } },
+    { label: "New writing window", icon: <FilePlus2 size={14}/>, run: () => {
+      const currentSubjectId = topic?.subject_id ?? subject?.id ?? null;
+      const target = doc?.topic_id ?? topic?.id ?? (currentSubjectId
+        ? snapshot.topics.find((row) => row.subject_id === currentSubjectId && isInboxTopic(row))?.id ?? null : null);
+      if (!target) { workspace.toast("Open a topic or its Inbox before creating a window.", { tone: "error" }); return; }
+      void openNoteWindow({ topicId: target }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
     } },
   ]} /> : null;
 
@@ -162,10 +184,11 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
   else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
     onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
     onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true, stayInSection: referenceOnly }); }} />;
-  else if (newDoc) main = <DocumentPage key={`new-${newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
-    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
+  else if (newDoc) main = <DocumentPage key={`new-${newDoc.draftKey ?? newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
+    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.draftKey ?? newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
-  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} />;
+  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote}
+    onDetach={() => void openNoteWindow({ noteId: doc.id }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }))} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} />;
   else main = <NotebookHome navigate={navigate} newAction={newAction} />;

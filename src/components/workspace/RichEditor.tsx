@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Quote, Redo2, Scale, Undo2 } from "lucide-react";
+import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Pilcrow, Quote, Redo2, Scale, Strikethrough, Undo2 } from "lucide-react";
 import { editorToMarkdown, markdownToEditorHtml, type CalloutVariant } from "../../lib/noteFormat";
 
 export type RichEditorHandle = { getMarkdown: () => string; focus: (where?: "start" | "end") => void; setMarkdown: (value: string) => void };
@@ -441,12 +441,14 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   return <div className={`nb-editor-shell ${source ? "is-source" : ""}`}>
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
       <div className="nb-toolbar-group">
+        {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
         {tool("Heading", `${MOD}+Alt+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
         {tool("Subheading", `${MOD}+Alt+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
       </div>
       <div className="nb-toolbar-group">
         {tool("Bold", `${MOD}+B`, <Bold size={15} />, () => run(() => exec("bold")), active.bold)}
         {tool("Italic", `${MOD}+I`, <Italic size={15} />, () => run(() => exec("italic")), active.italic)}
+        {tool("Strikethrough", "", <Strikethrough size={15} />, () => run(() => exec("strikeThrough")))}
         {tool("Highlight", `${MOD}+Shift+H`, <Highlighter size={15} />, toggleMark, active.mark)}
       </div>
       <div className="nb-toolbar-group">
