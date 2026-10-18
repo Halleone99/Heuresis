@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, Trash2, X,
+  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
@@ -32,14 +32,15 @@ function draftFromEntry(entry: KnowledgeEntry | null, newDoc: NewDocRequest): Dr
   };
 }
 
-export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote }: {
+export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote, onDetach, startInEditMode = false, detached = false }: {
   entry: KnowledgeEntry | null; newDoc: NewDocRequest; onBack: () => void; onClose: () => void;
   navigate: (location: NotebookLocation) => void; onCreated: (entry: KnowledgeEntry) => void;
   onNewNote: (topicId: string | null, title?: string) => void;
+  onDetach?: () => void; startInEditMode?: boolean; detached?: boolean;
 }) {
   const workspace = useWorkspace();
   const { userId, snapshot } = workspace;
-  const [editing, setEditing] = useState(() => Boolean(newDoc) || Boolean(entry && workspace.pendingEditId === entry.id));
+  const [editing, setEditing] = useState(() => Boolean(newDoc) || startInEditMode || Boolean(entry && workspace.pendingEditId === entry.id));
   const [draft, setDraft] = useState<Draft>(() => draftFromEntry(entry, newDoc));
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [restore, setRestore] = useState<{ title: string; body: string; savedAt: string } | null>(null);
@@ -59,7 +60,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const editorRef = useRef<RichEditorHandle>(null);
   const entryIdRef = useRef<string | null>(entry?.id ?? null);
   // New notes also need a durable draft key before they acquire a server ID.
-  const draftIdRef = useRef(entry?.id ?? `unsaved:${newDoc?.topicId ?? "inbox"}`);
+  const draftIdRef = useRef(entry?.id ?? `unsaved:${newDoc?.draftKey ?? newDoc?.topicId ?? "inbox"}`);
   const draftRef = useRef(draft);
   const savedRef = useRef<Draft>(draftFromEntry(entry, newDoc));
   const savingRef = useRef(false);
@@ -358,8 +359,13 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     {flashcardTarget ? <FlashcardDialog entry={flashcardTarget} onClose={() => setFlashcardTarget(null)} /> : null}
     <div className="nb-doc-bar">
       <nav className="nb-crumbs" aria-label="Location">
-        <button type="button" onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject?.id ?? null })}>{path.subject?.name ?? "Notebook"}</button>
-        {path.chain.map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button></span>)}
+        {detached ? <>
+          <span>{path.subject?.name ?? "Notebook"}</span>
+          {path.chain.map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><span>{item.name}</span></span>)}
+        </> : <>
+          <button type="button" onClick={() => navigate({ topicId: null, docId: null, subjectId: path.subject?.id ?? null })}>{path.subject?.name ?? "Notebook"}</button>
+          {path.chain.map((item) => <span key={item.id} className="nb-crumb"><ChevronRight size={12} /><button type="button" onClick={() => navigate({ topicId: item.id, docId: null })}>{item.name}</button></span>)}
+        </>}
       </nav>
       <div className="nb-doc-actions">
         {editing ? <>
@@ -370,6 +376,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           </span>
           <button type="button" className="ws-button is-primary" onClick={() => void finishEditing()} title={`Done (${MOD_KEY}+Enter)`}><Check size={15} /> Done</button>
         </> : <>
+          {onDetach && liveEntry ? <button type="button" className="ws-button nb-open-window" onClick={onDetach} title="Open this note in a separate window"><ExternalLink size={14} /> Open window</button> : null}
           {liveEntry && workspace.writable ? <button type="button" className={`ws-icon-button ${liveEntry.pinned ? "is-on" : ""}`} onClick={() => void togglePin()}
             aria-pressed={liveEntry.pinned} aria-label="Pin to Overview" title={liveEntry.pinned ? "Pinned to Overview — click to unpin" : "Pin to Overview"}><Pin size={16} fill={liveEntry.pinned ? "currentColor" : "none"} /></button> : null}
           {workspace.writable ? <button type="button" className="ws-button" onClick={() => startEditing()} title="Edit (E)"><Pencil size={14} /> Edit</button> : null}
