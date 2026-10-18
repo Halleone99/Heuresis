@@ -147,6 +147,14 @@ function HeuresisApp({ session }: { session: Session }) {
 
 function HeuresisShell({ session, section, setSection }: { session: Session; section: WorkspaceSection; setSection: (section: WorkspaceSection) => void }) {
   const workspace = useWorkspace();
+  // A newly launched app should not reopen yesterday's last viewed document
+  // merely because Notebook was the previously selected section.
+  const startupNotebook = useRef(section === "notebook");
+  useEffect(() => {
+    if (!startupNotebook.current) return;
+    startupNotebook.current = false;
+    workspace.goTo("notebook");
+  }, [workspace.goTo]);
   const notebookPage = workspace.memory.notebook;
   useSectionScroll(section, section === "notebook" ? `${notebookPage.docId ?? ""}|${notebookPage.topicId ?? ""}|${notebookPage.subjectId ?? ""}` : "", session.user.id);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -327,7 +335,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }
 
   const paletteCommands: PaletteCommand[] = [
-    ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => setSection(item.id) })),
+    ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => workspace.goTo(item.id) })),
     { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
     { id: "capture-mistake", label: "Record a mistake", detail: "Quick correction · Ctrl+Shift+M", keywords: "mistake recall", run: () => openNotebookCapture("mistake") },
     { id: "practise-due", label: "Practise due mistakes", detail: "Start a recall session", keywords: "review test recall", run: () => {
@@ -380,7 +388,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       }
       if (event.altKey && !mod && /^Digit[1-8]$/.test(event.code)) {
         event.preventDefault();
-        setSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
+        workspace.goTo(SECTIONS[Number(event.code.slice(5)) - 1].id);
         return;
       }
       if (event.key === "?" && !mod) { event.preventDefault(); setShortcutsOpen(true); }
@@ -560,7 +568,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </div>
           <nav className="hw-sections">
             {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
-              onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); }} title={`${label} (Alt+${key})`}>
+              onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); workspace.goTo(id); }} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
               {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
             </button>)}
@@ -605,7 +613,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
         {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon }) => <button type="button" key={id}
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
-          onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); setSection(id); if (id === "study") openLibrary(); }}>
+          onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); workspace.goTo(id); if (id === "study") openLibrary(); }}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
           {id === "mistakes" && dueCount > 0 ? <i className="mobile-nav-due-dot" aria-label={`${dueCount} due`} /> : null}
         </button>)}
