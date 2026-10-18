@@ -1464,6 +1464,46 @@
 }
 
 
+/* Notebook Capture Inbox: one place to turn raw ideas into usable knowledge. */
+.nb-capture-summary { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 0 0 18px; padding: 13px 16px; text-align: left;
+  background: var(--ws-accent-soft); border: 1px solid var(--ws-accent-line);
+  border-radius: 11px; color: var(--ws-ink); cursor: pointer; }
+.nb-capture-summary span { display: grid; gap: 4px; }
+.nb-capture-summary strong { font: 600 13px/1.4 var(--ws-sans); }
+.nb-capture-summary small { color: var(--ws-muted); font: 12px/1.5 var(--ws-sans); }
+.nb-capture-summary:hover { border-color: var(--ws-accent); }
+.nb-capture-open { gap: 7px; }
+.nb-capture-review { max-width: 850px; }
+.nb-review-back { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 0; margin: 0 0 20px;
+  color: var(--ws-muted); background: none; cursor: pointer; font: 500 12px/1.3 var(--ws-sans); }
+.nb-review-back:hover { color: var(--ws-accent); }
+.nb-review-intro { max-width: 590px; margin: 11px 0 0; color: var(--ws-muted); font: 13px/1.6 var(--ws-sans); }
+.nb-review-empty { display: grid; justify-items: center; gap: 9px; padding: 48px 18px; margin-top: 24px;
+  border: 1px dashed var(--ws-line-strong); border-radius: 12px; color: var(--ws-muted); text-align: center; }
+.nb-review-empty strong { color: var(--ws-ink); font-size: 15px; }
+.nb-review-empty p { max-width: 380px; margin: 0; font: 13px/1.5 var(--ws-sans); }
+.nb-review-groups { display: grid; gap: 24px; margin-top: 20px; }
+.nb-review-group { border: 1px solid var(--ws-line); border-radius: 13px; background: var(--ws-surface); overflow: hidden; }
+.nb-review-group > header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px 17px;
+  background: var(--ws-raised); border-bottom: 1px solid var(--ws-line); }
+.nb-review-group > header > div { display: grid; gap: 4px; }
+.nb-review-group h2 { margin: 0; color: var(--ws-ink); font: 600 17px/1.35 var(--ws-serif); }
+.nb-review-group header span { color: var(--ws-muted); font: 11px/1.35 var(--ws-sans); }
+.nb-review-list { display: grid; }
+.nb-review-item { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 17px; }
+.nb-review-item + .nb-review-item { border-top: 1px solid var(--ws-line); }
+.nb-review-item-copy { min-width: 0; flex: 1; display: grid; gap: 5px; }
+.nb-review-item-copy time { color: var(--ws-muted); font: 10px/1.4 var(--ws-mono); }
+.nb-review-item-copy strong { color: var(--ws-ink); font: 500 13px/1.5 var(--ws-sans); overflow-wrap: anywhere; white-space: pre-wrap; }
+.nb-review-item-copy p { margin: 0; color: var(--ws-muted); font: 12px/1.5 var(--ws-sans); overflow-wrap: anywhere; }
+.nb-review-kind { color: var(--ws-muted); font: 11px/1.2 var(--ws-sans); }
+@media (max-width: 560px) {
+  .nb-review-group > header { flex-wrap: wrap; }
+  .nb-review-item { align-items: flex-start; flex-wrap: wrap; }
+  .nb-review-item > .ws-button { margin-left: auto; }
+}
+
 /* Native idea Capture — one clear destination, composer, save and short receipt list. */
 body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   margin: 0; padding: 0; min-height: 100dvh; background: var(--ws-page); overflow: hidden;
