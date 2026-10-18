@@ -39,9 +39,9 @@ assert.match(pack, /Could not load this topic.*Retry/s, "An error must offer Ret
 
 assert.match(app, /className="mobile-workspace-nav"/);
 assert.match(app, /className="mobile-study-subnav"/);
-assert.match(app, /SECTIONS\.filter\(\(item\) => item\.id !== "progress"\)\.map\(\(\{ id, label, icon: Icon \}\)/, "Progress moves into Overview; remaining mobile navigation stays consistent");
+assert.match(app, /SECTIONS\.filter\(\(item\) => item\.id !== "progress"\)\.map\(\(\{ id, label, icon: Icon, key \}\)/, "Progress moves into Overview; remaining mobile navigation stays consistent");
 assert.match(app, /<TabletCaptureFab onCapture=/);
-assert.match(app, /view !== "pack" \? <button className="desktop-action desktop-primary"/, "Do not repeat New card over the topic's own New card");
+assert.match(app, /section === "study" && view !== "pack" \? <button className="desktop-action desktop-primary"/, "Do not repeat New card over the topic's own New card");
 assert.match(tablet, /grid-template-columns: repeat\(5, minmax\(0,1fr\)\)/);
 assert.match(tablet, /\.desktop-nav-group \{ display: none !important; \}/, "Old Study bottom bar cannot overlap the new section nav");
 assert.match(tablet, /min-height: 44px !important/, "Touch targets are consistently sized");
