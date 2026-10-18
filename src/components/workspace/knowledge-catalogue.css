@@ -12,7 +12,7 @@
 .kc-masthead h1 { font:400 clamp(40px,5.6vw,78px)/1.05 var(--ws-display); letter-spacing:-.036em; margin:20px 0 10px; text-wrap:balance; }
 .kc-masthead p { font:italic 17px/1.5 var(--ws-serif); color:var(--ws-muted); margin:0; max-width:650px; }
 .kc-masthead-actions { display:flex; flex-direction:column; align-items:flex-end; gap:15px; flex:none; color:var(--ws-muted); font:11px var(--ws-mono); }
-.kc-new,.kc-empty button { display:inline-flex; align-items:center; gap:8px; background:var(--ws-ink); color:var(--ws-bg, #fff); border:1px solid var(--ws-ink); border-radius:3px; padding:11px 17px; font:600 12px var(--ws-sans); }
+.kc-new,.kc-empty button { display:inline-flex; align-items:center; gap:8px; background:var(--ws-ink); color:var(--ws-page, #fff); border:1px solid var(--ws-ink); border-radius:3px; padding:11px 17px; font:600 12px var(--ws-sans); }
 .kc-new:hover,.kc-empty button:hover { opacity:.85; }
 .kc-search { display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--ws-line); color:var(--ws-muted); padding:6px 0; margin:16px 0 44px; }
 .kc-search input { flex:1; min-width:0; background:transparent; color:var(--ws-ink); border:0; outline:0; padding:10px 0; font:16px var(--ws-serif); }
@@ -102,7 +102,7 @@
 .kc-form-error { color:var(--ws-danger, #ba5151); font:13px var(--ws-sans); }
 .kc-modal-actions { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:12px; border-top:1px solid var(--ws-line); padding-top:20px; margin-top:28px; }
 .kc-modal-actions button { display:inline-flex; align-items:center; gap:7px; border:1px solid var(--ws-line-strong); border-radius:4px; padding:10px 15px; background:transparent; color:var(--ws-ink); font:12px var(--ws-sans); }
-.kc-modal-actions button[type=submit] { background:var(--ws-ink); color:var(--ws-bg,#fff); border-color:var(--ws-ink); }
+.kc-modal-actions button[type=submit] { background:var(--ws-ink); color:var(--ws-page,#fff); border-color:var(--ws-ink); }
 .kc-modal-actions button:disabled { opacity:.45; cursor:not-allowed; }
 @media(max-width:920px) {
  .kc-domain-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
