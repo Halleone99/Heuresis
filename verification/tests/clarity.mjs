@@ -324,7 +324,7 @@ const scenarios = {
     check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
     // Deep links have different semantics: Recently edited should still open the document.
     await page.locator('.hw-sections button:has-text("Overview")').click();
-    await page.locator('.ov-list button:has-text("Today\\'s grammar")').click();
+    await page.locator('.ov-list button').filter({ hasText: "Today's grammar" }).click();
     await page.locator('.nb-doc-title:has-text("Today")').waitFor();
     check(await page.locator(".nb-doc").count() === 1, "Overview opens a specific document, not Notebook home");
     await page.locator('.hw-sections button:has-text("Notebook")').click();
