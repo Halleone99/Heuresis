@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Sparkles, X } from "lucide-react";
 import { checkCaptureText, type ProofreadingSuggestion } from "../../lib/aiCheck";
 
@@ -13,6 +13,8 @@ type Props = {
 /** On-demand, non-destructive proofreading for both drafts and saved knowledge. */
 export function AICheck({ text, language = "Unknown", context = "note", onApply, compact = false }: Props) {
   const [reviewed, setReviewed] = useState("");
+  const latestText = useRef(text);
+  latestText.current = text;
   const [suggestions, setSuggestions] = useState<ProofreadingSuggestion[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -31,9 +33,9 @@ export function AICheck({ text, language = "Unknown", context = "note", onApply,
     setReviewed(checkedText);
     try {
       const result = await checkCaptureText(checkedText, language, context);
-      if (checkedText === text) setSuggestions(result);
+      if (checkedText === latestText.current) setSuggestions(result);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Checking failed. Your note was not changed.");
+      if (checkedText === latestText.current) setError(failure instanceof Error ? failure.message : "Checking failed. Your note was not changed.");
     } finally { setBusy(false); }
   }
 
