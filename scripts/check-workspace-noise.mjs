@@ -11,7 +11,9 @@ assert.ok(app.includes('setSyncOpen(true)'));
 assert.ok(app.includes('<SyncStatusDialog state={syncState}'));
 // Header is for universal tools; Study creation belongs on the relevant page.
 assert.doesNotMatch(app, /desktop-topic-action|desktop-action desktop-primary/, "No global topic/card creation buttons");
-assert.match(app, /className="desktop-action hw-capture-button"[\s\S]*?aria-label="Open Quick Capture[^"]*">[\s\S]*?<Feather/, "Quick Capture is an accessible icon-only action");
+assert.match(app, /className="hw-sidebar-capture"[\s\S]*?aria-label="Open Quick Capture"/, "The sidebar feather is labelled for accessibility");
+assert.match(app, /<Feather size=\{27\}/, "Quick Capture uses the feather symbol");
+assert.doesNotMatch(app, /desktop-action hw-capture-button/, "No duplicate top-right Capture button");
 assert.match(app, /onNewTopic=\{openNewTopic\}/, "Study passes the topic creator to its collection view");
 const library = readFileSync("src/components/LibraryView.tsx", "utf8");
 assert.match(library, /className="collection-new-topic" onClick=\{\(\) => onNewTopic\(activeCollection.id\)\}/, "Collection creation is contextual");
