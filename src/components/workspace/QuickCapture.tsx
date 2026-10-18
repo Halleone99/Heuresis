@@ -343,7 +343,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         <option value="notepad">Notepad</option>
       </select>
     </div> : null}
-    {floating && captureStyle !== "flashcard" ? <div className="qc-floating-destination">
+    {floating ? <div className="qc-floating-destination">
       <label htmlFor="quick-capture-subject">Save idea to</label>
       <select id="quick-capture-subject" aria-label="Save capture to subject Inbox" disabled={saving || !workspace.writable}
         value={selectedSubjectId ?? ""}
