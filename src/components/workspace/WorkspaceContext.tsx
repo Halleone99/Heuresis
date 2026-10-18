@@ -306,11 +306,13 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     await deleteSubject(userId, id);
     setSnapshotLocal((current) => {
       const topicIds = new Set(current.topics.filter((topic) => topic.subject_id === id).map((topic) => topic.id));
+      const deletedEntryIds = new Set(current.entries.filter((row) => topicIds.has(row.topic_id)).map((row) => row.id));
       return {
         ...current,
         subjects: current.subjects.filter((row) => row.id !== id),
         topics: current.topics.filter((row) => !topicIds.has(row.id)),
-        entries: current.entries.filter((row) => !topicIds.has(row.topic_id)),
+        entries: current.entries.filter((row) => !deletedEntryIds.has(row.id)),
+        practice: current.practice.filter((row) => !deletedEntryIds.has(row.record_id)),
       };
     });
   }, [setSnapshotLocal, userId]);
@@ -325,7 +327,15 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   }, [setSnapshotLocal, userId]);
   const removeTopic = useCallback(async (id: string) => {
     await deleteTopic(userId, id);
-    setSnapshotLocal((current) => ({ ...current, topics: current.topics.filter((row) => row.id !== id) }));
+    setSnapshotLocal((current) => {
+      const deletedEntryIds = new Set(current.entries.filter((row) => row.topic_id === id).map((row) => row.id));
+      return {
+        ...current,
+        topics: current.topics.filter((row) => row.id !== id),
+        entries: current.entries.filter((row) => !deletedEntryIds.has(row.id)),
+        practice: current.practice.filter((row) => !deletedEntryIds.has(row.record_id)),
+      };
+    });
   }, [setSnapshotLocal, userId]);
   const ensureInbox = useCallback(async (subjectId: string) => {
     const existing = snapshotRef.current.topics.find((topic) => topic.subject_id === subjectId && !topic.parent_id && topic.name.toLowerCase() === "inbox");

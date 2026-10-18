@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, FolderPlus, GraduationCap, Pin, Pencil, Plus, Trash2, X } from "lucide-react";
-import { friendlyError, type KnowledgeEntry, type KnowledgeTopic, type MistakeAccent } from "../../lib/knowledgeWorkspace";
+import { friendlyError, type KnowledgeEntry, type KnowledgeSubject, type KnowledgeTopic, type MistakeAccent } from "../../lib/knowledgeWorkspace";
 import { EmptyState, InlineNameForm, Kbd, MOD_KEY, Portal, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -17,6 +17,7 @@ const ACCENTS: Array<{ value: MistakeAccent | ""; label: string }> = [
 export function MistakeLog() {
   const workspace = useWorkspace();
   const { snapshot, focusMistake, clearFocusMistake } = workspace;
+  const [confirmElement, confirm] = useConfirm();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -92,7 +93,54 @@ export function MistakeLog() {
   const selectedTitle = selectedTopicId ? workspace.topicById.get(selectedTopicId)?.name
     : selectedSubjectId ? workspace.subjectById.get(selectedSubjectId)?.name : null;
 
+
+  // Subjects and topics are shared with Notebook; deletions affect all records.
+  const removeSubject = async (subject: KnowledgeSubject) => {
+    const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subject.id).map((topic) => topic.id));
+    const entries = snapshot.entries.filter((entry) => topicIds.has(entry.topic_id));
+    const notes = entries.filter((entry) => entry.kind !== "mistake").length;
+    const corrections = entries.length - notes;
+    if (!await confirm({
+      title: `Delete subject “${subject.name}”?`,
+      body: `This permanently deletes the subject and its topics, including ${corrections} mistake${corrections === 1 ? "" : "s"} and ${notes} Notebook entr${notes === 1 ? "y" : "ies"}. This cannot be undone.`,
+      confirmLabel: "Delete subject", danger: true,
+    })) return;
+    try {
+      await workspace.removeSubject(subject.id);
+      if (selectedSubjectId === subject.id) select(null, null);
+      setCreatingTopic(null);
+      setRenaming(null);
+      workspace.toast(`Deleted “${subject.name}”.`);
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+  };
+
+  const removeTopic = async (topic: KnowledgeTopic) => {
+    // PostgreSQL prevents deletion of a topic with children. No partial
+    // multi-request cascade: the user must delete subtopics first.
+    const subtopics = workspace.subtreeIds(topic.id).length - 1;
+    if (subtopics > 0) {
+      workspace.toast(`“${topic.name}” has ${subtopics} subtopic${subtopics === 1 ? "" : "s"}. Delete the subtopics first.`, { tone: "error" });
+      return;
+    }
+    const entries = snapshot.entries.filter((entry) => entry.topic_id === topic.id);
+    const notes = entries.filter((entry) => entry.kind !== "mistake").length;
+    const corrections = entries.length - notes;
+    if (!await confirm({
+      title: `Delete topic “${topic.name}”?`,
+      body: `This permanently deletes the topic, including ${corrections} mistake${corrections === 1 ? "" : "s"} and ${notes} Notebook entr${notes === 1 ? "y" : "ies"}. This cannot be undone.`,
+      confirmLabel: "Delete topic", danger: true,
+    })) return;
+    try {
+      await workspace.removeTopic(topic.id);
+      if (selectedTopicId === topic.id) select(topic.subject_id, null);
+      setCreatingTopic(null);
+      setRenaming(null);
+      workspace.toast(`Deleted “${topic.name}”.`);
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+  };
+
   return <div className="ml-page ml-simple-page">
+    {confirmElement}
     <header className="ws-page-head">
       <div><h1>Mistake Log</h1>
         <p className="ws-muted ml-page-subtitle">Keep the mistake. Keep the correction.</p>
@@ -151,6 +199,8 @@ export function MistakeLog() {
                   }}><FolderPlus size={15} /></button>
                 <button className="ws-icon-button ml-nav-tool" type="button" title="Rename subject"
                   aria-label={"Rename " + subject.name} onClick={() => setRenaming({ kind: "subject", id: subject.id })}><Pencil size={13} /></button>
+                <button className="ws-icon-button ml-nav-tool is-danger" type="button" title="Delete subject"
+                  aria-label={"Delete subject " + subject.name} onClick={() => void removeSubject(subject)}><Trash2 size={13} /></button>
               </> : null}
             </div>}
           <TopicBranch subjectId={subject.id} parentId={null} depth={0}
@@ -159,7 +209,7 @@ export function MistakeLog() {
             onCreate={(parentId) => {
               setCreatingTopic({ subjectId: subject.id, parentId }); setCreatingSubject(false);
             }}
-            renaming={renaming} setRenaming={setRenaming} />
+            onDelete={removeTopic} renaming={renaming} setRenaming={setRenaming} />
         </div>)}
         {!subjects.length ? <p className="ml-nav-hint">Add a subject to organise mistakes. You can also save without one.</p> : null}
       </aside>
@@ -187,11 +237,12 @@ export function MistakeLog() {
 }
 
 function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTopicId, mistakes, onSelect,
-  onCreate, renaming, setRenaming }: {
+  onCreate, onDelete, renaming, setRenaming }: {
   subjectId: string; parentId: string | null; depth: number;
   selectedSubjectId: string | null; selectedTopicId: string | null; mistakes: KnowledgeEntry[];
   onSelect: (subjectId: string | null, topicId: string | null) => void;
   onCreate: (parentId: string) => void;
+  onDelete: (topic: KnowledgeTopic) => void;
   renaming: { kind: "subject" | "topic"; id: string } | null;
   setRenaming: (value: { kind: "subject" | "topic"; id: string } | null) => void;
 }) {
@@ -216,11 +267,13 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
               aria-label={"Add subtopic to " + topic.name} onClick={() => onCreate(topic.id)}><Plus size={13}/></button>
             <button className="ws-icon-button ml-nav-tool" type="button" title="Rename topic"
               aria-label={"Rename topic " + topic.name} onClick={() => setRenaming({ kind: "topic", id: topic.id })}><Pencil size={12}/></button>
+            <button className="ws-icon-button ml-nav-tool is-danger" type="button" title="Delete topic"
+              aria-label={"Delete topic " + topic.name} onClick={() => onDelete(topic)}><Trash2 size={12}/></button>
           </> : null}
         </div>}
       <TopicBranch subjectId={subjectId} parentId={topic.id} depth={depth + 1}
         selectedSubjectId={selectedSubjectId} selectedTopicId={selectedTopicId} mistakes={mistakes}
-        onSelect={onSelect} onCreate={onCreate} renaming={renaming} setRenaming={setRenaming} />
+        onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} renaming={renaming} setRenaming={setRenaming} />
     </div>;
   })}</>;
 }
