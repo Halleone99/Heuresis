@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, FilePlus2, LibraryBig, Pencil, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, LibraryBig, Pencil, Plus, Search, X } from "lucide-react";
 import { parseReferenceChapters, referenceSummary } from "../../lib/referenceChapters";
 import type { KnowledgeEntry, KnowledgeSubject, KnowledgeTopic } from "../../lib/knowledgeWorkspace";
 import { isInboxTopic } from "../../lib/lessonCleanup";
@@ -54,7 +54,7 @@ export function ReferenceLibrary({ onClose, onCreate, onEdit, initialWorkId }: P
     .filter((entry) => workspace.topicById.has(entry.topic_id))
     .sort(byRecent), [snapshot.entries, workspace.topicById]);
   const subjects = useMemo(() => [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name)), [snapshot.subjects]);
-  const topics = useMemo(() => snapshot.topics.filter((topic) => !isInboxTopic(topic)), [snapshot.topics]);
+  const topics = useMemo(() => snapshot.topics, [snapshot.topics]);
   const subject = subjects.find((item) => item.id === subjectId) ?? null;
   const topic = topics.find((item) => item.id === topicId) ?? null;
   const work = articles.find((entry) => entry.id === workId) ?? null;
@@ -72,9 +72,9 @@ export function ReferenceLibrary({ onClose, onCreate, onEdit, initialWorkId }: P
     ? articles.filter((entry) => scopeTopicIds.has(entry.topic_id))
     : subject ? subjectArticles(subject.id) : articles);
   const scopeTopics = topic
-    ? topics.filter((item) => item.subject_id === topic.subject_id && item.parent_id === topic.id)
+    ? topics.filter((item) => !isInboxTopic(item) && item.subject_id === topic.subject_id && item.parent_id === topic.id)
     : subject
-      ? topics.filter((item) => item.subject_id === subject.id && (!item.parent_id || !topics.some((candidate) => candidate.id === item.parent_id)))
+      ? topics.filter((item) => !isInboxTopic(item) && item.subject_id === subject.id && (!item.parent_id || !topics.some((candidate) => candidate.id === item.parent_id)))
       : [];
   const scopeTitle = topic?.name ?? subject?.name ?? "Knowledge Catalogue";
   const searchText = query.trim().toLocaleLowerCase();
