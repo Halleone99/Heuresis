@@ -249,6 +249,41 @@ async function saveResponse(key: string, method: string, url: string, response: 
   }
 }
 
+/**
+ * Read-only emergency export of earlier per-device API responses.
+ * Never replays writes or silently restores stale rows into the live database.
+ * All rows must belong to the currently authenticated user.
+ */
+export async function exportCachedKnowledgeForRecovery(userId: string): Promise<{ json: string; counts: Record<string, number> }> {
+  if (!userId || userId !== cacheOwner()) throw new Error("Sign in to the original account before checking the device cache.");
+  const tables = ["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events", "knowledge_mistake_modes"] as const;
+  type Table = typeof tables[number];
+  const collected = Object.fromEntries(tables.map((table) => [table, new Map<string, Record<string, unknown>>()])) as Record<Table, Map<string, Record<string, unknown>>>;
+  const cached = await getAllRecords<CacheRecord>(CACHE_STORE);
+  for (const response of cached) {
+    if (response.ownerId !== userId || response.method !== "GET") continue;
+    const table = tableName(response.url);
+    if (!table || !Object.prototype.hasOwnProperty.call(collected, table)) continue;
+    const parsed = decodeJson(response);
+    const rows = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
+    for (const raw of rows) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const row = raw as Record<string, unknown>;
+      if (row.user_id !== userId || typeof row.id !== "string") continue;
+      collected[table as Table].set(row.id, row);
+    }
+  }
+  const data = Object.fromEntries(tables.map((table) => [table, Array.from(collected[table].values())]));
+  const counts = Object.fromEntries(tables.map((table) => [table, collected[table].size]));
+  const json = JSON.stringify({
+    format: "heuresis-device-cache-recovery-v1",
+    exported_at: new Date().toISOString(),
+    warning: "Private learning data from this device only. May be incomplete or out of date. Nothing was restored. Keep the file private.",
+    counts, data,
+  }, null, 2);
+  return { json, counts };
+}
+
 function cachedResponse(record: CacheRecord) {
   return new Response(record.body.slice(0), { status: record.status, statusText: record.statusText, headers: record.headers });
 }
