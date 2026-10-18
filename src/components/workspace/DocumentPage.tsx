@@ -469,7 +469,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       </div> : null}
       {draft.body.trim() ? <RichText text={draft.body} resolve={resolveLink} className="nb-reading" rubyPinyin={rubyPinyin} collapsible />
         : <p className="ws-muted nb-doc-empty">{lesson ? "No lesson notes written yet." : "This note is empty."}</p>}
-      {workspace.writable ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}
+      {workspace.writable && !detached ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}
     </div>}
 
     {lessonId ? <section className="nb-lesson-extras" aria-label="Captured during this lesson">
