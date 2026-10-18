@@ -36,8 +36,10 @@ export type OfflineSyncState = {
 };
 
 const DB_NAME = "heuresis-offline-network-v1";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const CACHE_STORE = "responses";
+const RECOVERY_STORE = "knowledge-recovery";
+const KNOWLEDGE_TABLES = new Set(["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events", "knowledge_mistake_modes"]);
 const QUEUE_STORE = "queue";
 const LAST_SYNC_KEY = "heuresis.offline.lastSync.v1";
 const READ_RPCS = new Set([
@@ -133,6 +135,7 @@ function openDb() {
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(CACHE_STORE)) db.createObjectStore(CACHE_STORE, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(RECOVERY_STORE)) db.createObjectStore(RECOVERY_STORE, { keyPath: "key" });
       if (!db.objectStoreNames.contains(QUEUE_STORE)) db.createObjectStore(QUEUE_STORE, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
@@ -233,6 +236,18 @@ async function saveResponse(key: string, method: string, url: string, response: 
   try {
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, name) => { responseHeaders[name] = value; });
+    // Preserve the FIRST non-empty earlier response separately before a newer
+    // server read replaces it. Missing/deleted Notebook data must not erase the
+    // only recoverable copy on this device. This is never used for normal reads.
+    if (method === "GET" && KNOWLEDGE_TABLES.has(tableName(url) ?? "")) {
+      const previous = await getRecord<CacheRecord>(CACHE_STORE, key);
+      const preserved = await getRecord<CacheRecord>(RECOVERY_STORE, key);
+      if (previous?.ownerId === ownerId && !preserved) {
+        const original = decodeJson(previous);
+        if (Array.isArray(original) ? original.length > 0 : Boolean(original && typeof original === "object"))
+          await putRecord<CacheRecord>(RECOVERY_STORE, previous);
+      }
+    }
     await putRecord<CacheRecord>(CACHE_STORE, {
       key,
       ownerId,
@@ -259,7 +274,10 @@ export async function exportCachedKnowledgeForRecovery(userId: string): Promise<
   const tables = ["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events", "knowledge_mistake_modes"] as const;
   type Table = typeof tables[number];
   const collected = Object.fromEntries(tables.map((table) => [table, new Map<string, Record<string, unknown>>()])) as Record<Table, Map<string, Record<string, unknown>>>;
-  const cached = await getAllRecords<CacheRecord>(CACHE_STORE);
+  const cached = [
+    ...await getAllRecords<CacheRecord>(RECOVERY_STORE),
+    ...await getAllRecords<CacheRecord>(CACHE_STORE),
+  ];
   for (const response of cached) {
     if (response.ownerId !== userId || response.method !== "GET") continue;
     const table = tableName(response.url);
