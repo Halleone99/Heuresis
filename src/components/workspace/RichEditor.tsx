@@ -142,6 +142,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const emitTimer = useRef<number | null>(null);
   const [source, setSource] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [colourHint, setColourHint] = useState("");
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
   const [active, setActive] = useState<{ block: BlockKind; bold: boolean; italic: boolean; mark: boolean }>({ block: "p", bold: false, italic: false, mark: false });
@@ -256,7 +257,8 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       const selection = window.getSelection();
       if (root && selection?.rangeCount) {
         const range = selection.getRangeAt(0);
-        if (root.contains(range.startContainer) && root.contains(range.endContainer)) {
+        if (root.contains(range.startContainer) && root.contains(range.endContainer) &&
+            (!selection.isCollapsed || document.activeElement === root)) {
           savedSelection.current = range.cloneRange();
         }
       }
@@ -356,6 +358,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
 
   /** Apply a named colour to one selected phrase without changing adjacent lines. */
   const applyColour = useCallback((mode: "ink" | "tone" | "clear", colour?: NoteColour) => {
+    let applied = false;
     run(() => {
       const root = rootRef.current;
       const selection = window.getSelection();
@@ -381,9 +384,10 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       const html = mode === "clear" ? escapeHtml(selected) :
         mode === "ink" ? `<span data-ink="${colour}">${fragment}</span>` :
           `<mark data-tone="${colour}">${fragment}</mark>`;
-      exec("insertHTML", html);
+      applied = exec("insertHTML", html);
     });
-    setPaletteOpen(false);
+    if (applied) { setPaletteOpen(false); setColourHint(""); }
+    else setColourHint("Select a word or one complete line in the note first.");
   }, [run]);
 
   const foldAll = useCallback(() => {
@@ -537,7 +541,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         <div className="nb-colour-anchor">
           <button type="button" aria-label="Text and highlight colours" aria-expanded={paletteOpen} title="Text and highlight colours" disabled={source}
             className={paletteOpen ? "is-active" : ""}
-            onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((open) => !open)}><Palette size={15}/></button>
+            onMouseDown={(event) => event.preventDefault()} onClick={() => { setColourHint(""); setPaletteOpen((open) => !open); }}><Palette size={15}/></button>
           {paletteOpen && !source ? <div className="nb-colour-popover" aria-label="Colours">
             <div className="nb-colour-row"><span>Text</span>{NOTE_COLOURS.map((colour) =>
               <button key={colour} type="button" className="nb-colour-swatch" data-swatch={colour}
@@ -549,7 +553,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
                 onMouseDown={(event) => event.preventDefault()} onClick={() => applyColour("tone", colour)}/>)}</div>
             <button type="button" className="nb-colour-clear" onMouseDown={(event) => event.preventDefault()}
               onClick={() => applyColour("clear")}>Remove selected colour</button>
-            <span className="nb-colour-help">Select a phrase first</span>
+            <span className="nb-colour-help" role="status">{colourHint || "Select a phrase first"}</span>
           </div> : null}
         </div>
       </div>
