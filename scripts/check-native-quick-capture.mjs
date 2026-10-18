@@ -48,18 +48,18 @@ assert.match(floating, /Saved ideas/, "Confirmation receipts must be visible ben
 // Visual entry point stays unique and opens the existing Capture workflow.
 assert.equal((shell.match(/className="hw-sidebar-capture"/g) ?? []).length, 1,
   "Exactly one feather Capture action belongs in the desktop sidebar");
-assert.match(shell, /<aside className="heuresis-section-sidebar"[\\s\\S]*?className="hw-sidebar-capture" onClick=\\{\\(\\) => openNotebookCapture\\("note"\\)\\}/,
+assert.match(shell, /<aside className="heuresis-section-sidebar"[\s\S]*?className="hw-sidebar-capture" onClick=\{\(\) => openNotebookCapture\("note"\)\}/,
   "Sidebar Capture must continue opening the established native Quick Capture workflow");
 assert.doesNotMatch(shell, /className="desktop-action hw-capture-button"/,
   "No duplicate feather in top-right toolbar");
-assert.doesNotMatch(chromeCss, /\\.desktop-action\\.hw-capture-button/,
+assert.doesNotMatch(chromeCss, /\.desktop-action\.hw-capture-button/,
   "No leftover header Capture styles");
-assert.match(workspaceCss, /\\.hw-sidebar-capture-position[\\s\\S]*?justify-content: center/,
+assert.match(workspaceCss, /\.hw-sidebar-capture-position[\s\S]*?justify-content: center/,
   "Capture circle horizontally centres inside sidebar");
-assert.match(workspaceCss, /\\.hw-sidebar-capture-position[\\s\\S]*?margin-top: auto/,
+assert.match(workspaceCss, /\.hw-sidebar-capture-position[\s\S]*?margin-top: auto/,
   "Capture circle stays pinned to the foot of the sidebar");
-assert.match(workspaceCss, /\\[data-sidebar="rail"\\] \\.hw-sidebar-capture/,
+assert.match(workspaceCss, /\[data-sidebar="rail"\] \.hw-sidebar-capture/,
   "Capture stays usable in collapsed sidebar");
-assert.match(shell, /<TabletCaptureFab onCapture=\\{\\(\\) => openNotebookCapture\\("note"\\)\\}/,
+assert.match(shell, /<TabletCaptureFab onCapture=\{\(\) => openNotebookCapture\("note"\)\}/,
   "Existing tablet Capture button is unaffected");
 console.log("Native floating Quick Capture integration checks passed.");
