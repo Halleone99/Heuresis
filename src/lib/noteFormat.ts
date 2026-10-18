@@ -157,7 +157,7 @@ export function pinyinSegments(text: string): Array<{ text: string; pinyin: bool
   return segments.length ? segments : [{ text: normalized, pinyin: false }];
 }
 
-export function inlinePlain(text: string) {
+export function inlinePlain(text: string): string {
   return parseInline(text).map((part) => part.type === "link" ? part.label : part.type === "text" ? part.text : inlinePlain(part.text)).join("");
 }
 
@@ -175,7 +175,7 @@ function pinyinHtml(text: string) {
   ).join("");
 }
 /** Wiki links stay as literal [[text]] while editing so they cannot drift out of sync. */
-function inlineHtml(text: string) {
+function inlineHtml(text: string): string {
   return parseInline(text).map((part) => {
     if (part.type === "strong") return `<strong>${inlineHtml(part.text)}</strong>`;
     if (part.type === "em") return `<em>${inlineHtml(part.text)}</em>`;
