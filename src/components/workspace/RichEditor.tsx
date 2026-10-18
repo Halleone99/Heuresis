@@ -146,6 +146,8 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const [empty, setEmpty] = useState(!value.trim());
   const [active, setActive] = useState<{ block: BlockKind; bold: boolean; italic: boolean; mark: boolean }>({ block: "p", bold: false, italic: false, mark: false });
   const latest = useRef(value);
+  // Preserve selections while tapping the toolbar (especially on touch screens).
+  const savedSelection = useRef<Range | null>(null);
 
   const readMarkdown = useCallback(() => {
     if (source) return sourceText;
@@ -197,6 +199,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   // Initialise once per document; afterwards the DOM is owned by the browser.
   useEffect(() => {
     latest.current = value;
+    savedSelection.current = null;
     setSourceText(value);
     setEmpty(!value.trim());
     if (rootRef.current) { rootRef.current.innerHTML = markdownToEditorHtml(value); ensureTrailingParagraph(rootRef.current); updateFolds(rootRef.current); }
@@ -248,7 +251,17 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   }, [closest]);
 
   useEffect(() => {
-    const onSelection = () => refreshActive();
+    const onSelection = () => {
+      const root = rootRef.current;
+      const selection = window.getSelection();
+      if (root && selection?.rangeCount) {
+        const range = selection.getRangeAt(0);
+        if (root.contains(range.startContainer) && root.contains(range.endContainer)) {
+          savedSelection.current = range.cloneRange();
+        }
+      }
+      refreshActive();
+    };
     document.addEventListener("selectionchange", onSelection);
     return () => document.removeEventListener("selectionchange", onSelection);
   }, [refreshActive]);
@@ -257,12 +270,25 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     if (source) return;
     const root = rootRef.current;
     if (!root) return;
-    if (!root.contains(window.getSelection()?.anchorNode ?? null)) placeCaret("end");
+    const selection = window.getSelection();
+    const current = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    if (!current || !root.contains(current.startContainer) || !root.contains(current.endContainer)) {
+      const saved = savedSelection.current;
+      if (saved && saved.startContainer.isConnected && saved.endContainer.isConnected &&
+          root.contains(saved.startContainer) && root.contains(saved.endContainer) && selection) {
+        root.focus({ preventScroll: true });
+        selection.removeAllRanges();
+        selection.addRange(saved.cloneRange());
+      } else placeCaret("end");
+    }
     action();
     const caret = saveCaret();
     if (hoistNestedBlocks(root)) restoreCaret(caret);
     ensureTrailingParagraph(root);
     updateFolds(root);
+    const nextSelection = window.getSelection();
+    if (nextSelection?.rangeCount && root.contains(nextSelection.anchorNode))
+      savedSelection.current = nextSelection.getRangeAt(0).cloneRange();
     emit();
     refreshActive();
   }, [emit, placeCaret, refreshActive, source]);
@@ -336,11 +362,20 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       if (!root || !selection?.rangeCount || selection.isCollapsed) return;
       const range = selection.getRangeAt(0);
       if (!root.contains(range.commonAncestorContainer)) return;
-      const selected = selection.toString();
-      // Block-level selections cannot be wrapped in an inline span safely.
-      if (!selected.trim() || /[\r\n]/.test(selected)) return;
+      let selected = selection.toString();
+      if (!selected.trim()) return;
+      // Double/triple-click or dragging a complete paragraph may include its
+      // trailing newline. Restrict that selection to the text *inside* the
+      // paragraph so the colour can be applied without damaging nearby blocks.
       const holder = document.createElement("div");
       holder.appendChild(range.cloneContents());
+      if (/[\r\n]/.test(selected) || holder.querySelector("p,div,h1,h2,h3,li,ol,ul,blockquote")) {
+        const blocks = Array.from(root.querySelectorAll("p,h1,h2,h3,li")).filter((block) => range.intersectsNode(block));
+        if (blocks.length !== 1 || selected.trim() !== (blocks[0].textContent ?? "").trim()) return;
+        range.selectNodeContents(blocks[0]);
+        selected = selection.toString();
+        holder.replaceChildren(range.cloneContents());
+      }
       if (holder.querySelector("p,div,h1,h2,h3,li,ol,ul,blockquote")) return;
       const fragment = holder.innerHTML || escapeHtml(selected);
       const html = mode === "clear" ? escapeHtml(selected) :
@@ -485,7 +520,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const tool = (label: string, shortcut: string, icon: ReactNode, onPress: () => void, pressed = false) =>
     <button type="button" className={pressed ? "is-active" : ""} aria-label={label} aria-pressed={pressed}
       title={shortcut ? `${label} (${shortcut})` : label} disabled={source}
-      onMouseDown={(event) => { event.preventDefault(); onPress(); }}>{icon}</button>;
+      onMouseDown={(event) => event.preventDefault()} onClick={onPress}>{icon}</button>;
 
   return <div className={`nb-editor-shell ${source ? "is-source" : ""}`}>
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
@@ -525,13 +560,13 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       </div>
       <div className="nb-toolbar-group nb-toolbar-blocks">
         <button type="button" className={active.block === "example" ? "is-active" : ""} disabled={source} title="Example block — sentence, reading, translation on separate lines"
-          onMouseDown={(event) => { event.preventDefault(); setBlock("example"); }}><MessageSquareText size={14} /><span>Example</span></button>
+          onMouseDown={(event) => event.preventDefault()} onClick={() => setBlock("example")}><MessageSquareText size={14} /><span>Example</span></button>
         <button type="button" className={active.block === "rule" ? "is-active" : ""} disabled={source} title="Rule block — a grammar rule or pattern"
-          onMouseDown={(event) => { event.preventDefault(); setBlock("rule"); }}><Scale size={14} /><span>Rule</span></button>
+          onMouseDown={(event) => event.preventDefault()} onClick={() => setBlock("rule")}><Scale size={14} /><span>Rule</span></button>
         <button type="button" className={active.block === "correction" ? "is-active" : ""} disabled={source} title="Correction block — the right form next to a common error"
-          onMouseDown={(event) => { event.preventDefault(); setBlock("correction"); }}><CheckCheck size={14} /><span>Correction</span></button>
+          onMouseDown={(event) => event.preventDefault()} onClick={() => setBlock("correction")}><CheckCheck size={14} /><span>Correction</span></button>
         <button type="button" className={active.block === "tip" ? "is-active" : ""} disabled={source} title="Tip block — a hint or memory aid"
-          onMouseDown={(event) => { event.preventDefault(); setBlock("tip"); }}><Lightbulb size={14} /><span>Tip</span></button>
+          onMouseDown={(event) => event.preventDefault()} onClick={() => setBlock("tip")}><Lightbulb size={14} /><span>Tip</span></button>
         {tool("Divider", "", <Minus size={15} />, () => run(() => exec("insertHorizontalRule")))}
         {tool("Collapse or expand all headings", "", <ChevronsUpDown size={15}/>, foldAll)}
       </div>
@@ -540,7 +575,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         {tool("Undo", `${MOD}+Z`, <Undo2 size={15} />, () => run(() => exec("undo")))}
         {tool("Redo", `${MOD}+Shift+Z`, <Redo2 size={15} />, () => run(() => exec("redo")))}
         <button type="button" className={source ? "is-active" : ""} aria-pressed={source} title="Edit the plain text source"
-          onMouseDown={(event) => { event.preventDefault(); toggleSource(); }}><Code2 size={15} /></button>
+          onMouseDown={(event) => event.preventDefault()} onClick={toggleSource}><Code2 size={15} /></button>
       </div>
       {extraTools}
     </div>
