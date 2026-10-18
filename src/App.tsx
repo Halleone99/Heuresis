@@ -332,8 +332,15 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     return [...inboxes].sort((a, b) => waiting(b.id) - waiting(a.id))[0].id;
   }
 
+  /** Section buttons always open their section's landing page; deep links use openPack instead. */
+  function navigateSection(target: WorkspaceSection) {
+    if (target === "study") openLibrary();
+    if (target === "quotations") setQuoteSourceBookId(null);
+    workspace.goTo(target);
+  }
+
   const paletteCommands: PaletteCommand[] = [
-    ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => workspace.goTo(item.id) })),
+    ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => navigateSection(item.id) })),
     { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
     { id: "capture-mistake", label: "Record a mistake", detail: "Quick correction · Ctrl+Shift+M", keywords: "mistake recall", run: () => openNotebookCapture("mistake") },
     { id: "practise-due", label: "Practise due mistakes", detail: "Start a recall session", keywords: "review test recall", run: () => {
@@ -386,7 +393,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       }
       if (event.altKey && !mod && /^Digit[1-8]$/.test(event.code)) {
         event.preventDefault();
-        workspace.goTo(SECTIONS[Number(event.code.slice(5)) - 1].id);
+        navigateSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
         return;
       }
       if (event.key === "?" && !mod) { event.preventDefault(); setShortcutsOpen(true); }
@@ -565,7 +572,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </div>
           <nav className="hw-sections">
             {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
-              onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); workspace.goTo(id); }} title={`${label} (Alt+${key})`}>
+              onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
             </button>)}
           </nav>
@@ -584,7 +591,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
           {section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
-          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => setSection("study")} collections={collections} packs={packs} /> : null}
+          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => navigateSection("study")} collections={collections} packs={packs} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
@@ -604,7 +611,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
         {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon }) => <button type="button" key={id}
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
-          onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); workspace.goTo(id); if (id === "study") openLibrary(); }}>
+          onClick={() => navigateSection(id)}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
         </button>)}
       </nav>
