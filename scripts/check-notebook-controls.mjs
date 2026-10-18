@@ -26,7 +26,12 @@ assert.match(notebook, /const showKind = topic.name.trim\(\).toLocaleLowerCase\(
 assert.match(notebook, /!topic \? \(/, "Subject pages only display topic cards");
 assert.match(notebook, /entry.topic_id === topic.id && isDocument\(entry\)/, "Topic notes are not flattened from other topics");
 assert.match(notebook, /className="nb-topic-grid"/, "Subjects show topic cards");
-assert.match(notebook, /<div className="nb-scope-actions">\{newAction\}<\/div>/, "New is aligned with the home heading");
+assert.match(notebook, /<div className="nb-scope-actions">[\s\S]*?nb-capture-open[\s\S]*?\{newAction\}/, "Home actions include Captures and New");
+assert.match(notebook, /<CaptureReviewPage/);
+assert.match(notebook, /nb-capture-summary/);
+const review = readFileSync("src/components/workspace/CaptureReviewPage.tsx", "utf8");
+assert.match(review, /workspace\.openCleanup\(\{ kind: "inbox", id: inbox.id \}\)/);
+assert.match(review, /onOpenNote\(entry\)/);
 assert.doesNotMatch(notebook, /mistakes.length \? <p className="nb-scope-meta"/, "No distracting mistake shortcut under subject headings");
 assert.match(notebook, /\{metadata \? <small>\{metadata\}<\/small> : null\}/);
 assert.match(context, /if \(next === "notebook"\)/, "Explicit Notebook section navigation targets its home");
