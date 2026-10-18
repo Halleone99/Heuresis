@@ -5,6 +5,9 @@ const shell = readFileSync("src/App.tsx", "utf8");
 const context = readFileSync("src/components/workspace/WorkspaceContext.tsx", "utf8");
 const cards = readFileSync("src/components/workspace/SubjectCard.tsx", "utf8");
 const quick = readFileSync("src/components/workspace/QuickCapture.tsx", "utf8");
+const detached = readFileSync("src/components/workspace/DetachedNoteWorkspace.tsx", "utf8");
+const documentPage = readFileSync("src/components/workspace/DocumentPage.tsx", "utf8");
+const windowCss = readFileSync("src/components/workspace/note-window.css", "utf8");
 const css = readFileSync("src/components/workspace/workspace.css", "utf8");
 
 assert.match(notebook, /buttonLabel="New"/, "Single New action");
@@ -34,4 +37,10 @@ assert.match(shell, /workspace.goTo\(id\)/, "Sidebar and mobile section buttons 
 assert.match(shell, /workspace.goTo\(item.id\)/, "Command palette uses workspace navigation");
 assert.match(shell, /workspace.goTo\(SECTIONS\[Number\(event.code.slice\(5\)\) - 1\].id\)/, "Alt shortcuts use workspace navigation");
 assert.match(shell, /startupNotebook\.current = false;\s*workspace.goTo\("notebook"\);/, "Restored Notebook section starts at home");
-console.log("Notebook capture, home navigation and subject customisation checks passed.");
+assert.ok(!detached.includes("startInEditMode detached"), "Existing detached notes should open in reader mode");
+assert.ok(documentPage.includes("Boolean(newDoc) || startInEditMode"), "Brand-new notes remain editable");
+assert.ok(documentPage.includes('title="Edit (E)"'), "Reading mode must have an Edit button");
+assert.ok(documentPage.includes('workspace.writable && !detached ? <button type="button" className="nb-continue"'),
+  "Detached readers should not show a second inline Edit button");
+assert.ok(windowCss.includes(".nb-detached-root .nb-doc:not(.is-editing) .nb-doc-body"), "Reader uses a document sheet");
+console.log("Notebook capture, home navigation, subject customisation and detached-reader checks passed.");
