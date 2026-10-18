@@ -270,17 +270,20 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     {!filtersOpen && card ? <div className="sort-body">
       <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} onBlockedChange={setEnrichmentBlocked} />
       <div className="sort-card" data-card-id={card.id} aria-label="Complete flashcard">
+         <span className="sort-card-label">CARD {index + 1} OF {queue.length}</span>
         <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>
         {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
         {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
       </div>
       <div className="sort-panel">
+        <div className="sort-decision-intro"><small>2 · DECIDE</small><strong>What should happen to this card?</strong><p>Choose once to save and move to the next card.</p></div>
         {/* The four outcomes of sorting stay together, in a fixed place. */}
         <div className="sort-decision" role="group" aria-label="Decide what happens to this card">
-          <div className="sort-interest-panel"><div className="sort-panel-heading"><p className="eyebrow">LEARN IT</p><small>How important is it to you?</small></div>
+          <div className="sort-interest-panel"><div className="sort-panel-heading"><p className="eyebrow">LEARN IT</p><small>Choose a priority</small></div>
             <div className="sort-levels">{IMPORTANCE_ORDER.map((level) => <button key={level} type="button" data-level={level} disabled={busy || enrichmentBlocked} onClick={() => void learn(level)}
-              title={`${IMPORTANCE_HINT[level]} · adds the card to Review (key ${level[0].toUpperCase()})`}><b>{IMPORTANCE_LABEL[level]}</b><span>{IMPORTANCE_HINT[level]}</span><kbd>{level[0].toUpperCase()}</kbd></button>)}</div>
+              aria-label={`Learn as ${IMPORTANCE_LABEL[level]}; save and next`} title={`${IMPORTANCE_HINT[level]} · adds the card to Review (key ${level[0].toUpperCase()})`}><b>{IMPORTANCE_LABEL[level]}</b><span>{IMPORTANCE_HINT[level]}</span><kbd>{level[0].toUpperCase()}</kbd></button>)}</div>
             <small>Each adds the card to Review. Importance only nudges recommendations.</small></div>
+          <p className="sort-alternatives-label">Or keep it outside Review</p>
           <div className="sort-alternatives">
             <button className="sort-skip" disabled={busy || enrichmentBlocked} onClick={() => void keepReference()} title="Keep it to look up, without ever reviewing it (key R)"><BookOpen size={15} /> Reference <span>R</span></button>
             <button className="sort-skip" disabled={busy || enrichmentBlocked} onClick={() => void discard()} title="Remove it from this topic. Recoverable from Trash (key D)"><Trash2 size={15} /> Discard <span>D</span></button>
