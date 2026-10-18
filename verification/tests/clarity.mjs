@@ -322,7 +322,7 @@ const scenarios = {
     // Two independent editor windows must not share the same unsaved draft key.
     await page.locator(".nb-new-button").click();
     const firstWindow = page.waitForEvent("popup");
-    await page.locator('.nb-scope-head [role=menuitem]:has-text("New note in window")').click();
+    await page.locator('.nb-scope-head [role=menuitem]:has-text("New writing window")').click();
     const grammarWindow = await firstWindow;
     await grammarWindow.locator(".nb-title-input").waitFor();
     const secondWindow = grammarWindow.waitForEvent("popup");
