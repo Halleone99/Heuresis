@@ -7,9 +7,9 @@ import { QuickCapture } from "./QuickCapture";
 import { Toaster } from "./ui";
 import { WorkspaceProvider, useWorkspace, type CaptureMode } from "./WorkspaceContext";
 
-type FloatingSize = "bubble" | "compact" | "expanded";
+type FloatingSize = "bubble" | "compact";
 const DIMENSIONS: Record<FloatingSize, [number, number]> = {
-  bubble: [238, 98], compact: [492, 338], expanded: [560, 700],
+  bubble: [240, 76], compact: [560, 490],
 };
 const viewKey = (userId: string) => `heuresis.quick.view.v1:${userId}`;
 const pinKey = (userId: string) => `heuresis.quick.pin.v1:${userId}`;
@@ -18,7 +18,7 @@ const positionKey = "heuresis.quick.position.v1";
 function storedView(userId: string): FloatingSize {
   try {
     const value = localStorage.getItem(viewKey(userId));
-    return value === "expanded" || value === "bubble" ? value : "compact";
+    return value === "bubble" ? value : "compact";
   } catch { return "compact"; }
 }
 function savePref(key: string, value: string) {
@@ -33,36 +33,22 @@ function FloatingCaptureBody({ session }: { session: Session }) {
   });
   const [notice, setNotice] = useState("");
   const started = useMemo(() => Date.now(), []);
-  const lesson = workspace.currentLesson;
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
-  useEffect(() => {
-    const update = () => {
-      const began = workspace.memory.currentLesson?.startedAt;
-      setElapsedMinutes(began ? Math.max(0, Math.floor((Date.now() - new Date(began).getTime()) / 60000)) : 0);
-    };
-    update();
-    const interval = window.setInterval(update, 30_000);
-    return () => window.clearInterval(interval);
-  }, [workspace.memory.currentLesson?.startedAt]);
-  const allCaptured = useMemo(() => workspace.snapshot.entries
-    .filter((entry) => lesson ? entry.lesson_id === lesson.id : new Date(entry.created_at).getTime() >= started)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at)),
-  [lesson, started, workspace.snapshot.entries]);
-  const captured = allCaptured.slice(0, 18);
-  const elapsedText = elapsedMinutes >= 60
-    ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m`
-    : `${elapsedMinutes}m`;
+  // Show only captures made through this window session. All ideas remain in the
+  // shared server-backed Notebook Inbox, so closing the window never loses them.
+  const captured = useMemo(() => workspace.snapshot.entries
+    .filter((entry) => new Date(entry.created_at).getTime() >= started &&
+      workspace.snapshot.topics.some((topic) => topic.id === entry.topic_id &&
+        topic.parent_id === null && topic.name.trim().toLocaleLowerCase() === "inbox"))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 6),
+    [started, workspace.snapshot.entries, workspace.snapshot.topics]);
 
   const openCapture = (mode: CaptureMode = "note") => {
     setView((current) => current === "bubble" ? "compact" : current);
     workspace.openCapture({ mode });
   };
 
-  // The capture pane is the exact same durable, idempotent save path as
-  // Notebook. Only its containing window and controls differ.
+  // Same durable, idempotent Notebook save path; this window is only a fast entry point.
   useEffect(() => {
-    // Floating Capture streams continuously without changing the settings
-    // of the inline Capture window in the main app.
     if (view !== "bubble") workspace.openCapture({ mode: "note" });
     // Initialisation must run once per authenticated floating window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,22 +113,29 @@ function FloatingCaptureBody({ session }: { session: Session }) {
     await getCurrentWindow().startDragging();
   }
   async function hide() {
-    // Keeping the same window alive also preserves the draft and input.
+    // Hide the entire native window, NOT just the inner capture panel.
+    // Retaining this WebView also retains the typed draft when reopened.
     if (!("__TAURI_INTERNALS__" in window)) { setView("bubble"); return; }
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().hide();
   }
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      void hide().catch((error) => setNotice(String(error)));
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, []);
 
   return <div className="quick-floating-root" data-view={view}>
     <header className="quick-floating-bar">
       <button type="button" className="quick-floating-grip" onPointerDown={(event) => {
         if (event.button === 0) void drag().catch((error) => setNotice(String(error)));
       }} title="Drag to move Quick Capture" aria-label="Drag Quick Capture">
-        <CircleDot size={12}/><span>{lesson ? entryTitle(lesson) : "Quick Capture"}</span>
+        <CircleDot size={12}/><span>Quick Capture</span>
       </button>
-      <span className="quick-floating-count" title="Captures in this lesson or since opening">
-        {lesson ? `${elapsedText} · ` : ""}{allCaptured.length} captured
-      </span>
       <button type="button" className="quick-floating-icon" onClick={() => setPin((value) => !value)}
         title={pin ? "Unpin: allow other windows on top" : "Pin above other windows"}
         aria-label={pin ? "Unpin capture window" : "Pin capture window"}
@@ -151,36 +144,30 @@ function FloatingCaptureBody({ session }: { session: Session }) {
         aria-label={view === "bubble" ? "Open capture input" : "Collapse to bubble"}
         onClick={() => view === "bubble" ? openCapture() : setView("bubble")}>
         {view === "bubble" ? <Maximize2 size={14}/> : <Minimize2 size={14}/>}</button>
-      <button type="button" className="quick-floating-icon" title="Hide quick capture" aria-label="Hide quick capture"
+      <button type="button" className="quick-floating-icon" title="Close Quick Capture" aria-label="Close Quick Capture window"
         onClick={() => void hide().catch((error) => setNotice(String(error)))}><X size={14}/></button>
     </header>
     {view === "bubble" ? <button type="button" className="quick-floating-bubble" onClick={() => openCapture()}>
-      <NotebookPen size={15}/> {lesson ? `${elapsedText} · ` : ""}{allCaptured.length} captured · New
+      <NotebookPen size={15}/> Write an idea
     </button> : null}
     {/* Remains mounted in bubble mode so drafts are never lost on collapse. */}
     <div className="quick-floating-stage">
-      <QuickCapture floating/>
+      <QuickCapture floating onRequestClose={() => { void hide().catch((error) => setNotice(String(error))); }}/>
       {!workspace.capture ? <button type="button" className="quick-floating-reopen" onClick={() => openCapture()}>
         <NotebookPen size={15}/> New capture</button> : null}
     </div>
-    {view !== "bubble" ? <>
-      {view === "expanded" ? <section className="quick-floating-recent" aria-label="Captured during this lesson">
-        <div className="quick-floating-recent-head">
-          <strong>Running captures</strong><small>{lesson ? "Current lesson" : "Since window opened"}</small>
-        </div>
-        {!captured.length ? <p>Your captured lines appear here as you save them.</p> :
-          <ol>{captured.map((entry) => <li key={entry.id}>
-            <time>{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
-            <span>{entry.kind === "mistake" ? [entry.attempt, entry.correction].filter(Boolean).join(" → ") : entryTitle(entry)}</span>
-          </li>)}</ol>}
-      </section> : null}
-      <footer className="quick-floating-footer">
-        <span>{view === "compact" ? "Enter saves each line" : "Live lesson stream"}</span>
-        <button type="button" onClick={() => setView(view === "expanded" ? "compact" : "expanded")}>
-          {view === "expanded" ? "Compact" : "Expand history"}
-        </button>
-      </footer>
-    </> : null}
+    {view !== "bubble" ? <section className="quick-floating-recent" aria-label="Ideas saved during this session">
+      <div className="quick-floating-recent-head"><strong>Saved ideas</strong><small>Review later in Notebook → Captures</small></div>
+      {captured.length ? <ol>{captured.map((entry) => <li key={entry.id}>
+        <span className="quick-floating-recent-meta">
+          <time>{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+          {workspace.pathLabel(entry.topic_id)}
+        </span>
+        <span className="quick-floating-recent-preview">{entry.kind === "mistake"
+          ? [entry.attempt, entry.correction].filter(Boolean).join(" → ")
+          : (entry.body || entryTitle(entry)).trim()}</span>
+      </li>)}</ol> : <p>Each saved idea will appear here, with its destination.</p>}
+    </section> : null}
     {notice ? <p className="quick-floating-notice" role="alert">{notice}</p> : null}
     <Toaster/>
   </div>;
