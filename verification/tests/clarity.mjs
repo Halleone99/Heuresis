@@ -390,16 +390,18 @@ const scenarios = {
       'note','Roman Ideas',E'## Republic\\n\\nA mixed constitution.\\n\\n## Citizenship\\n\\nA civic status.','reference')`);
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar");
-    await page.click('.hw-sections button:has-text("Reference")');
-    await page.locator('.lit-reference-modes button:has-text("Works")').waitFor();
-    await page.locator('.rl-work:has-text("Roman Ideas")').waitFor();
-    check(await page.locator(".rl-work").count() >= 1, "Reference Library lists the saved work");
-    await page.locator('.rl-work:has-text("Roman Ideas")').click();
-    check(await page.locator(".rl-chapter").count() === 2, "Two headings become an ordered contents page");
-    await page.locator('.rl-chapter:has-text("Citizenship")').click();
-    check((await page.locator(".rl-page-head h1").innerText()) === "Citizenship", "chapter opens as readable document");
-    check((await page.locator(".rl-prose").innerText()).includes("A civic status."), "chapter content is rendered");
-    await page.locator('.rl-page-actions button:has-text("Edit reference")').click();
+    await page.click('.hw-sections button:has-text("Catalogue")');
+    await page.locator(".kc-search input").waitFor();
+    await page.locator(".kc-search input").fill("Roman Ideas");
+    await page.locator('.kc-story:has-text("Roman Ideas")').waitFor();
+    check(await page.locator(".kc-story").count() >= 1, "Catalogue finds the saved article");
+    await page.locator('.kc-story:has-text("Roman Ideas")').click();
+    check(await page.locator(".kc-reading-body section").count() === 2, "Two headings become sections in a readable article");
+    check(await page.locator(".kc-reading-rail a").count() === 2, "Article navigation links to its headings");
+    await page.locator('.kc-reading-rail a:has-text("Citizenship")').click();
+    check((await page.locator(".kc-reading-head h1").innerText()) === "Roman Ideas", "article title remains visible");
+    check((await page.locator(".kc-reading-body").innerText()).includes("A civic status."), "chapter content is rendered");
+    await page.locator('.kc-reading-tools button:has-text("Edit article")').click();
     await page.locator(".nb-title-input").waitFor();
     await page.locator(".nb-title-input").fill("Roman Ideas Revised");
     await page.locator('.nb-reference-chapter-action button:has-text("Add chapter")').click();
@@ -408,11 +410,11 @@ const scenarios = {
     await page.locator('.nb-doc-actions button:has-text("Done")').click();
     await page.waitForTimeout(650);
     check(await sql("select title from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'") === "Roman Ideas Revised",
-      "Reference edits save through the existing Notebook persistence path");
+      "Catalogue edits save through the existing Notebook persistence path");
     await page.locator('.nb-doc-actions button[aria-label="Close note"]').click();
-    await page.locator(".rl-titlepage h1").waitFor();
-    check((await page.locator(".rl-titlepage h1").innerText()) === "Roman Ideas Revised", "Closing the editor returns directly to the reference");
-    check(await page.locator(".rl-chapter").count() === 3, "New named chapter is preserved in the reference contents");
+    await page.locator(".kc-reading-head h1").waitFor();
+    check((await page.locator(".kc-reading-head h1").innerText()) === "Roman Ideas Revised", "Closing the editor returns to the article");
+    check(await page.locator(".kc-reading-body section").count() === 3, "New named section is preserved in the article");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {
