@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { BookOpen, BookPlus, ChevronRight, Clock3, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
+import { ReadingJournal } from "./ReadingJournal";
 import {
   bookDomain, bookMinutes, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
@@ -133,6 +134,7 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
           onClick={() => void execute(() => api.updateBook(selected.id, { notes: notesWithShelf(selected, bookShelf(selected) === "next" ? "library" : "next") }))}>
           {bookShelf(selected) === "next" ? "Remove from Next" : "Add to Next"}
         </button> : null}
+        <ReadingJournal key={selected.id} book={selected} api={api}/>
         <div className="lit-detail-stat"><Clock3 size={17}/><strong>{minutesLabel(bookMinutes(selected))}</strong><span>logged with this book</span></div>
         <div className="lit-form-row"><label className="lit-field">Add reading time (minutes)
             <input type="number" min="1" max="720" value={minutes} onChange={(event) => setMinutes(event.target.value)}/></label>
@@ -146,7 +148,7 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
           }}>Save progress</button></div>
         <div className="lit-form-actions">
           <button className="lit-button" onClick={() => { setForm({ title: selected.title, author: selected.author, status: selected.status, importance: selected.importance }); setEditId(selected.id); setSelectedId(null); }}>Edit book</button>
-          <button className="lit-button" onClick={() => { onOpenQuotations(selected.id); setSelectedId(null); }}><Quote size={14}/> {api.quotes.filter((quote) => quote.readingId === selected.id).length} quotations</button>
+          <button className="lit-button" onClick={() => { onOpenQuotations(selected.id); setSelectedId(null); }}><Quote size={14}/> Open all quotations</button>
         </div>
         {problem ? <p className="lit-feedback is-error" role="alert">{problem}</p> : null}
       </section></div> : null}
