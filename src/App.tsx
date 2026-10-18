@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Session } from "@supabase/supabase-js";
 import {
   ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
-  NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
+  Feather, NotebookPen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
@@ -518,10 +518,14 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             onClick={() => setSyncOpen(true)}>
             <span className="hw-sync-dot" aria-hidden="true"/>
           </button>
-          <button type="button" className="desktop-action desktop-search-action" onClick={openPalette} title={`Search notes, Study cards and commands · ${MOD_KEY}+K`}><Search size={14} /><span>Search</span><kbd>{MOD_KEY} K</kbd></button>
-          {section === "study" ? <button className="desktop-action desktop-topic-action" title="Create a Study topic" onClick={() => openNewTopic(activeCollection?.id ?? relatedCollection?.id ?? captureInboxCollection?.id ?? null)}><Plus size={14} /> Topic</button> : null}
-          {section === "study" && view !== "pack" ? <button className="desktop-action desktop-primary" onClick={() => openCapture()} title="Add Study cards to a topic"><Plus size={14} /> New card</button> : null}
-          <button className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")} title={`Capture a note or mistake for the Notebook (${MOD_KEY}+Shift+N)`}><NotebookPen size={14} /> <span>Capture</span></button>
+          <button type="button" className="desktop-action desktop-search-action" onClick={openPalette}
+            title={`Search notes, Study cards and commands (${MOD_KEY}+K)`} aria-label={`Search everywhere (${MOD_KEY}+K)`}>
+            <Search size={17} aria-hidden="true" />
+          </button>
+          <button type="button" className="desktop-action hw-capture-button" onClick={() => openNotebookCapture("note")}
+            title={`Quick Capture (${MOD_KEY}+Shift+N)`} aria-label="Open Quick Capture to save a note or mistake">
+            <Feather size={18} strokeWidth={1.9} aria-hidden="true" />
+          </button>
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
@@ -601,7 +605,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             ? <NotebookView key="knowledge-catalogue" referenceOnly onExitReference={() => setSection("notebook")} /> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-          {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+          {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
           {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
           {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
           {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}

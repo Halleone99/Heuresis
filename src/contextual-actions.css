@@ -49,9 +49,25 @@
 
 .desktop-content { padding-top: 26px; padding-bottom: 64px; }
 
-/* Creation actions: one structural action in context, one global Capture action in the header. */
-.desktop-topic-action { display: none; }
-.heuresis-desktop:has(.collection-page) .desktop-topic-action { display: inline-flex; }
+/* Workspace-specific creation stays beside the content it affects. */
+.collection-new-topic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--h-line-strong);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ws-surface) 85%, transparent);
+  color: var(--ws-text);
+  font: 600 11px Inter, system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.collection-new-topic:hover { background: var(--ws-raised); border-color: var(--ws-accent); }
+.library-empty .collection-new-topic { margin-top: 12px; }
 
 /* Header actions use the shared chrome styles. */
 
@@ -272,9 +288,6 @@
 @media (max-width: 760px) {
   .heuresis-wallpaper,
   .heuresis-veil { height: 240px; }
-  .heuresis-desktop:has(.collection-page) .desktop-topic-action { display: none; }
-  .desktop-header-actions > .desktop-action.desktop-primary { height: 36px; padding: 0 10px; }
-  .desktop-header-actions > .desktop-action.desktop-primary svg { margin-right: -2px; }
   .collection-overview-grid { grid-template-columns: 1fr; }
   .collection-overview-card { min-height: 170px; }
   .collection-page-head { align-items: flex-start; }

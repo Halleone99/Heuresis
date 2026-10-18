@@ -11,7 +11,7 @@ type Props = {
   packs: PackWithType[];
   archivedCount: number;
   onOpen: (pack: PackWithType) => void;
-  onCapture: (pack: PackWithType) => void;
+  onNewTopic: (collectionId: string) => void;
   onOpenCaptureInbox: (collection: Collection) => void;
   onEditPack: (pack: PackWithType) => void;
   onOpenNewWords: (collection: Collection) => void;
@@ -38,7 +38,7 @@ function newestOpen(packs: PackWithType[]) {
   }, null);
 }
 
-export default function LibraryView({ collections, packs, archivedCount, onOpen, onOpenCaptureInbox, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
+export default function LibraryView({ collections, packs, archivedCount, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
@@ -146,7 +146,9 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           </div>
         </header>
 
-        <div className="topics-intro"><div><p className="eyebrow">TOPICS</p><h2>Choose what you want to explore.</h2></div></div>
+        <div className="topics-intro"><div><p className="eyebrow">TOPICS</p><h2>Choose what you want to explore.</h2></div>
+          <button type="button" className="collection-new-topic" onClick={() => onNewTopic(activeCollection.id)}><Plus size={15} aria-hidden="true" /> New topic</button>
+        </div>
 
         {collectionPacks.length ? <div className="topic-grid">
           <article className="topic-card topic-card-inbox">
@@ -177,7 +179,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
               </div>
             </article>
           ))}
-        </div> : <div className="library-empty"><BookOpen size={22} /><strong>No topics yet.</strong><p>Create a topic to start building this collection.</p></div>}
+        </div> : <div className="library-empty"><BookOpen size={22} /><strong>No topics yet.</strong><p>Create a topic to start building this collection.</p><button type="button" className="collection-new-topic" onClick={() => onNewTopic(activeCollection.id)}><Plus size={15} aria-hidden="true" /> Create first topic</button></div>}
       </section>
     );
   }
