@@ -1,0 +1,64 @@
+/* Notebook note identity + compact organisation controls. */
+.nb-list-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 14px; margin:0 0 12px; }
+.nb-list-tools { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+.nb-list-search { display:flex; align-items:center; gap:7px; min-height:35px; padding:0 10px; background:var(--ws-surface); border:1px solid var(--ws-line-strong); border-radius:9px; color:var(--ws-muted); }
+.nb-list-search:focus-within { border-color:var(--ws-accent); }
+.nb-list-search input { width:clamp(120px,15vw,210px); min-height:32px; border:0; outline:0; background:transparent; color:var(--ws-ink); font:400 12.5px var(--ws-sans); }
+.nb-list-tools select { min-height:35px; max-width:170px; padding:0 24px 0 10px; border:1px solid var(--ws-line-strong); border-radius:9px; background:var(--ws-surface); color:var(--ws-ink); font:500 12.5px var(--ws-sans); cursor:pointer; }
+.nb-doc-list > .nb-doc-item { position:relative; }
+.nb-doc-list .nb-doc-row { display:grid; width:100%; grid-template-columns:34px minmax(0,1fr) 30px; gap:12px; align-items:start; padding:11px 6px; border:0; background:transparent; cursor:default; }
+.nb-doc-list .nb-doc-row:hover { background:var(--ws-accent-soft); }
+.nb-doc-list .nb-doc-open { display:grid; width:100%; min-width:0; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start; padding:3px 0 0; margin:0; text-align:left; border:0; background:transparent; color:inherit; cursor:pointer; }
+.nb-doc-list .nb-doc-open:focus-visible, .nb-identity-trigger:focus-visible { outline:2px solid var(--ws-accent); outline-offset:2px; border-radius:5px; }
+.nb-doc-list .nb-doc-open:hover .nb-doc-text strong { color:var(--ws-accent); }
+.nb-doc-list .nb-doc-row > .ws-menu { margin-top:2px; }
+.nb-doc-list .nb-doc-text { padding-top:0; }
+.nb-doc-list .nb-doc-meta { padding-top:1px; }
+.nb-identity { position:relative; width:34px; height:34px; z-index:1; }
+.nb-identity:has(.nb-identity-popover) { z-index:35; }
+.nb-identity-trigger { display:grid; place-items:center; width:34px; height:34px; padding:0; border:1px solid var(--ws-line); border-radius:9px; background:var(--ws-surface-2); color:var(--ws-muted); cursor:pointer; transition:transform .12s,border-color .12s; }
+.nb-identity-trigger:hover { border-color:var(--ws-accent-line); transform:translateY(-1px); }
+.nb-identity-emoji { font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; font-size:19px; line-height:1; white-space:nowrap; }
+.nb-accent-red { --nb-note-accent:#d56d79; }
+.nb-accent-amber { --nb-note-accent:#c99440; }
+.nb-accent-green { --nb-note-accent:#65a58a; }
+.nb-accent-blue { --nb-note-accent:#6a9acc; }
+.nb-accent-violet { --nb-note-accent:#a18acb; }
+.nb-doc-item:not(.nb-accent-none) .nb-identity-trigger, .nb-identity-trigger:not(.nb-accent-none) { border-color:var(--nb-note-accent); background:color-mix(in srgb,var(--nb-note-accent) 12%,var(--ws-surface-2)); }
+.nb-identity-popover { position:absolute; top:40px; left:0; width:min(328px,calc(100vw - 48px)); max-height:min(64vh,520px); overflow-y:auto; padding:14px; border:1px solid var(--ws-line-strong); border-radius:13px; background:var(--ws-raised); box-shadow:0 16px 44px rgba(0,0,0,.24); color:var(--ws-ink); text-align:left; }
+.nb-identity-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; font-size:13px; }
+.nb-identity-done { color:var(--ws-accent); background:transparent; border:0; cursor:pointer; font:600 12px var(--ws-sans); }
+.nb-identity-section { margin:10px 0 12px; }
+.nb-identity-caption { display:block; color:var(--ws-muted); font-size:11px; font-weight:600; margin-bottom:7px; }
+.nb-identity-grid { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:3px; }
+.nb-identity-grid button { display:grid; place-items:center; width:100%; min-height:32px; border:1px solid transparent; border-radius:7px; background:transparent; cursor:pointer; font-size:18px; }
+.nb-identity-grid button:hover { background:var(--ws-surface-2); border-color:var(--ws-line-strong); }
+.nb-identity-grid button.is-selected { border-color:var(--ws-accent); background:var(--ws-accent-soft); }
+.nb-identity-grid button:disabled { cursor:wait; opacity:.5; }
+.nb-identity-custom { display:flex; gap:5px; margin:12px 0; }
+.nb-identity-custom input { min-width:0; flex:1; min-height:33px; background:var(--ws-surface); border:1px solid var(--ws-line-strong); border-radius:7px; padding:0 8px; color:var(--ws-ink); font:400 12px var(--ws-sans); }
+.nb-identity-custom button { display:grid; place-items:center; min-height:33px; padding:0 9px; border:1px solid var(--ws-line-strong); border-radius:7px; background:var(--ws-surface); color:var(--ws-ink); cursor:pointer; font:500 11px var(--ws-sans); }
+.nb-identity-custom button:disabled { opacity:.5; cursor:not-allowed; }
+.nb-identity-colours { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+.nb-swatch { display:grid; place-items:center; width:27px; height:27px; padding:0; border:2px solid transparent; border-radius:50%; cursor:pointer; color:#fff; }
+.nb-swatch.is-selected { outline:2px solid var(--ws-ink); outline-offset:2px; }
+.nb-swatch-none { background:var(--ws-surface-2); border-color:var(--ws-line-strong); color:var(--ws-ink); }
+.nb-swatch-red { background:#d56d79; } .nb-swatch-amber { background:#c99440; }
+.nb-swatch-green { background:#65a58a; } .nb-swatch-blue { background:#6a9acc; }
+.nb-swatch-violet { background:#a18acb; }
+@media (max-width:900px) {
+  .nb-list-toolbar { align-items:stretch; }
+  .nb-list-tools { width:100%; }
+  .nb-list-search { flex:1 1 140px; }
+  .nb-list-search input { width:100%; }
+  .nb-list-tools select { flex:1 1 108px; min-width:0; }
+  .nb-doc-list .nb-doc-row { grid-template-columns:34px minmax(0,1fr) 28px; gap:9px; }
+  .nb-doc-list .nb-doc-open { grid-template-columns:minmax(0,1fr); gap:3px; }
+  .nb-doc-list .nb-doc-meta { display:flex; gap:8px; justify-content:flex-start; }
+}
+@media (max-width:480px) {
+  .nb-identity-popover { left:-10px; width:min(310px,calc(100vw - 32px)); }
+  .nb-list-tools select { max-width:none; }
+  .nb-doc-list .nb-doc-text strong { font-size:14px; }
+  .nb-doc-list .nb-doc-preview { -webkit-line-clamp:1; }
+}
