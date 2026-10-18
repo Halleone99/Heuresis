@@ -8,6 +8,7 @@ import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { exportCachedKnowledgeForRecovery } from "../../lib/offlineFetch";
 import { DocumentPage } from "./DocumentPage";
+import { CaptureReviewPage } from "./CaptureReviewPage";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
@@ -35,6 +36,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
+  const [captureReviewOpen, setCaptureReviewOpen] = useState(false);
   const [referencesOpen, setReferencesOpen] = useState(referenceOnly);
   const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
   const [creatingKind, setCreatingKind] = useState<"subject" | "topic" | null>(null);
@@ -51,6 +53,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     internalNavigation.current = true;
     if (options.push !== false) setHistory((stack) => [...stack.slice(-30), { topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null }]);
     setNewDoc(null);
+    setCaptureReviewOpen(false);
     setRailOpenMobile(false);
     updateMemory((current) => ({
       ...current,
@@ -194,6 +197,8 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
   else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
     onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
     onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true, stayInSection: referenceOnly }); }} />;
+  else if (captureReviewOpen) main = <CaptureReviewPage onBack={() => setCaptureReviewOpen(false)}
+    onOpenNote={(entry) => navigate({ topicId: entry.topic_id, docId: entry.id })} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.draftKey ?? newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.draftKey ?? newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
@@ -201,7 +206,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     onDetach={() => void openNoteWindow({ noteId: doc.id }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }))} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} />;
-  else main = <NotebookHome navigate={navigate} newAction={newAction} />;
+  else main = <NotebookHome navigate={navigate} newAction={newAction} onShowCaptures={() => setCaptureReviewOpen(true)} />;
 
   return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${referenceOnly ? "is-reference-standalone" : ""}`}>
     {!referenceOnly ? <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} /> : null}
@@ -560,11 +565,13 @@ function ScopePage({ scope, navigate, newAction }: {
 // ---------------------------------------------------------------------------
 // Notebook home: what to reopen, and the first-run path
 // ---------------------------------------------------------------------------
-function NotebookHome({ navigate, newAction }: { navigate: (location: NotebookLocation) => void; newAction: React.ReactNode }) {
+function NotebookHome({ navigate, newAction, onShowCaptures }: { navigate: (location: NotebookLocation) => void; newAction: React.ReactNode; onShowCaptures: () => void }) {
   const workspace = useWorkspace();
   const { snapshot } = workspace;
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
   const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
+  const inboxIds = new Set(snapshot.topics.filter(isInboxTopic).map((row) => row.id));
+  const pendingCaptures = snapshot.entries.filter((entry) => entry.kind !== "lesson" && inboxIds.has(entry.topic_id)).length;
   const [rescueBusy, setRescueBusy] = useState(false);
   async function exportDeviceCache() {
     if (rescueBusy) return;
@@ -591,8 +598,18 @@ function NotebookHome({ navigate, newAction }: { navigate: (location: NotebookLo
   return <div className="nb-scope nb-home">
     <header className="nb-scope-head">
       <div><span className="ws-eyebrow">{formatDay(localDateKey(new Date()))}</span><h1>Notebook</h1></div>
-      <div className="nb-scope-actions">{newAction}</div>
+      <div className="nb-scope-actions">
+        <button type="button" className="ws-button nb-capture-open" onClick={onShowCaptures}>
+          <ListChecks size={15}/> Captures{pendingCaptures ? ` · ${pendingCaptures}` : ""}
+        </button>
+        {newAction}
+      </div>
     </header>
+    {pendingCaptures ? <button type="button" className="nb-capture-summary" onClick={onShowCaptures}>
+      <span><strong>{pendingCaptures} {pendingCaptures === 1 ? "idea" : "ideas"} to organise</strong>
+        <small>Review what you captured, then file or convert it when ready.</small></span>
+      <ChevronRight size={17}/>
+    </button> : null}
     {subjects.length > 0 && snapshot.topics.length === 0 && snapshot.entries.length === 0 ? <div className="nb-home-recovery" role="status">
       <strong>Subjects are present, but their topics and notes are missing.</strong>
       <p>Do not clear this device's app data. You can export any older notes held in its offline cache. The recovery file does not restore or overwrite anything automatically.</p>
