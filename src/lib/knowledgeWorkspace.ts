@@ -248,6 +248,13 @@ export async function renameSubject(userId: string, id: string, rawName: string)
 }
 export async function deleteSubject(userId: string, id: string) {
   requireWritable();
+  // Check the server, not only this device's snapshot: subjects are shared
+  // with Notebook and Mistake Log and must never cascade-delete their contents.
+  const { count, error: checkError } = await db().from("knowledge_topics")
+    .select("id", { count: "exact", head: true }).eq("subject_id", id).eq("user_id", userId);
+  if (checkError) throw checkError;
+  if (count === null) throw new Error("Cannot verify that this subject is empty. Nothing was deleted.");
+  if (count > 0) throw new Error("This subject still has topics. Move or delete empty topics first; your knowledge has not been deleted.");
   const { error } = await db().from("knowledge_subjects").delete().eq("id", id).eq("user_id", userId);
   if (error) throw error;
 }
@@ -271,6 +278,17 @@ export async function updateTopic(userId: string, id: string, patch: { name?: st
 }
 export async function deleteTopic(userId: string, id: string) {
   requireWritable();
+  // Query ALL records including archived ones. Deleting a topic must never
+  // cascade-delete notes, mistakes, recall history or recoverable Trash.
+  const [children, contents] = await Promise.all([
+    db().from("knowledge_topics").select("id", { count: "exact", head: true }).eq("parent_id", id).eq("user_id", userId),
+    db().from("knowledge_records").select("id", { count: "exact", head: true }).eq("topic_id", id).eq("user_id", userId),
+  ]);
+  if (children.error) throw children.error;
+  if (contents.error) throw contents.error;
+  if (children.count === null || contents.count === null) throw new Error("Cannot verify that this topic is empty. Nothing was deleted.");
+  if (children.count > 0 || contents.count > 0)
+    throw new Error("This topic still has subtopics, notes, mistakes or archived records. Move the contents first; nothing was deleted.");
   const { error } = await db().from("knowledge_topics").delete().eq("id", id).eq("user_id", userId);
   if (error) throw error;
 }
