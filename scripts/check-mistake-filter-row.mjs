@@ -18,9 +18,9 @@ assert.match(page, /workspace\.addTopic\(creatingTopic\.subjectId, name, creatin
 assert.match(page, /workspace\.changeTopic\(topic\.id, \{ name \}\)/);
 assert.match(page, /workspace\.removeSubject\(subject\.id\)/);
 assert.match(page, /workspace\.removeTopic\(topic\.id\)/);
-assert.match(page, /Delete subject.*subject\.name/);
-assert.match(page, /Delete topic.*topic\.name/);
-assert.match(page, /Delete the subtopics first/);
+assert.match(page, /Delete empty subject.*subject\.name/);
+assert.match(page, /Delete empty topic.*topic\.name/);
+assert.match(page, /Move or delete the empty subtopics first/);
 assert.match(page, /This cannot be undone/);
 assert.match(page, /onDelete=\{onDelete\}/);
 const context = readFileSync("src/components/workspace/WorkspaceContext.tsx", "utf8");
@@ -29,6 +29,12 @@ assert.match(context, /const removeSubject = useCallback[\s\S]*deletedEntryIds[\
 assert.match(page, /accent_color: accent \|\| null/);
 assert.match(page, /title: title\.trim\(\)/);
 assert.match(page, /data-accent=\{entry\.accent_color \?\? "none"\}/);
+assert.match(page, /snapshot\.entries\.some\(\(entry\) => entry\.topic_id === topic\.id\)/, "Mistake Log cannot remove a topic with entries");
+assert.match(page, /snapshot\.topics\.some\(\(topic\) => topic\.subject_id === subject\.id\)/, "Mistake Log cannot remove non-empty subjects");
+const knowledge = readFileSync("src/lib/knowledgeWorkspace.ts", "utf8");
+assert.match(knowledge, /select\("id", \{ count: "exact", head: true \}\)\.eq\("topic_id", id\)/);
+assert.match(knowledge, /if \(children\.count > 0 \|\| contents\.count > 0\)/);
+assert.match(knowledge, /if \(count > 0\) throw new Error\("This subject still has topics/);
 assert.match(page, /selectedTopicId[\s\S]*subtreeIds/);
 const model = readFileSync("src/lib/knowledgeWorkspace.ts", "utf8");
 assert.match(model, /export type MistakeAccent/);
