@@ -42,6 +42,19 @@ assert.equal(memory.readMemory("b").progress.range,12);
 const app=readFileSync("src/App.tsx","utf8");
 const progress=readFileSync("src/components/workspace/ProgressView.tsx","utf8");
 const css=readFileSync("src/components/workspace/workspace.css","utf8");
+// Entering Study from the shell must open Library, not retain Connections/Catalogue.
+assert.match(app,/function navigateSection\(target: WorkspaceSection\) \{[\s\S]*?if \(target === "study"\) openLibrary\(\);[\s\S]*?workspace\.goTo\(target\);/);
+assert.equal((app.match(/onClick=\{\(\) => navigateSection\(id\)\}/g) ?? []).length,2,
+  "Desktop and mobile section buttons must use landing-page navigation");
+assert.match(app,/run: \(\) => navigateSection\(item\.id\)/,
+  "Command palette navigation must open section home");
+assert.match(app,/navigateSection\(SECTIONS\[Number\(event\.code\.slice\(5\)\) - 1\]\.id\)/,
+  "Alt+2 must open Study home");
+assert.match(app,/onOpenStudy=\{\(\) => navigateSection\("study"\)\}/,
+  "Overview entry point must open Study home");
+assert.match(app,/onOpenCard=\{\(hit\) => \{ const pack = packs\.find/,
+  "Direct search results should still open a specific topic");
+
 assert.match(app,/useSectionScroll\(section,[\s\S]*?session\.user\.id\)/);
 assert.match(app,/readSectionScroll\(userId\)/);
 assert.match(app,/writeSectionScroll\(userId, positions\.current\)/);
