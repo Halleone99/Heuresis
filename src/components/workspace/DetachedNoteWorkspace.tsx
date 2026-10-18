@@ -7,7 +7,7 @@ import { closeNoteWindow, openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import type { NotebookLocation, WorkspaceSection } from "../../lib/workspaceMemory";
 
-/** The detached editor deliberately has no app sidebar, Capture overlay or Study UI. */
+/** Existing detached notes open for reading; only new drafts start in edit mode. */
 export function DetachedNoteWorkspace({ userId }: { userId: string }) {
   const [section, setSection] = useState<WorkspaceSection>("notebook");
   return <WorkspaceProvider userId={userId} section={section} onSection={setSection}>
@@ -74,7 +74,7 @@ function DetachedNotePage() {
             : !entry && !newDoc ? <div className="nb-window-message">No note was selected.</div>
               : <DocumentPage key={request.noteId ?? request.draftKey} entry={entry} newDoc={newDoc}
                   onBack={close} onClose={close} navigate={navigate} onNewNote={openAnother}
-                  onCreated={created} startInEditMode detached />}
+                  onCreated={created} detached />}
     </main>
     {workspace.toasts.length ? <div className="nb-window-toasts" role="status">{workspace.toasts.map((item) =>
       <p key={item.id} className={item.tone === "error" ? "is-error" : ""}>{item.message}</p>)}</div> : null}
