@@ -67,6 +67,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Check rendered appearance
         run: node scripts/check-rendered-appearance.mjs
+      - name: Check Notebook formatting in Chromium and touch mode
+        run: node scripts/check-rich-editor-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
