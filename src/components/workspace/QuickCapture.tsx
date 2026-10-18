@@ -18,7 +18,7 @@ function looksLikeQuestion(text: string) {
   return /\?\s*$/.test(text.trim());
 }
 
-export function QuickCapture({ floating = false }: { floating?: boolean } = {}) {
+export function QuickCapture({ floating = false, onRequestClose }: { floating?: boolean; onRequestClose?: () => void } = {}) {
   const workspace = useWorkspace();
   const { capture: request, memory, updateMemory, currentLesson, userId } = workspace;
   const draftSurface = floating ? "floating" : "inline";
@@ -40,9 +40,11 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
   const { objectives } = usePersonalOsObjectives(userId);
 
   const mode = draft.mode as CaptureMode;
-  const attachToLesson = Boolean(currentLesson && memory.capture.attachToLesson && mode !== "lesson");
+  const attachToLesson = Boolean(!floating && currentLesson && memory.capture.attachToLesson && mode !== "lesson");
   const keepOpen = floating || memory.capture.keepOpen;
-  const stream = mode === "note" && (floating || Boolean(memory.capture.stream));
+  // Ideas in the floating window are captured deliberately, then organised later.
+  // Enter makes a new line; Ctrl+Enter saves the entire idea.
+  const stream = mode === "note" && !floating && Boolean(memory.capture.stream);
 
   // Remember where the user was typing so closing the panel puts them straight back there.
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -135,8 +137,9 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       workspace.toast("Draft kept — it will be here when you reopen Quick capture.");
     }
     setPicking(false);
-    workspace.closeCapture();
-  }, [draft, mode, userId, workspace]);
+    if (floating && onRequestClose) onRequestClose();
+    else workspace.closeCapture();
+  }, [draft, mode, userId, workspace, floating, onRequestClose]);
 
   const patch = (value: Partial<CaptureDraft>) => setDraft((current) => ({ ...current, ...value }));
   const setMode = (next: CaptureMode) => { patch({ mode: next, pendingId: undefined }); setError(""); };
@@ -184,7 +187,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     const destinationSubjectId = selectedSubjectId ?? unsorted?.id ?? (await workspace.addSubject("Unsorted")).id;
     let destination = topicId && workspace.topicById.get(topicId)?.subject_id === destinationSubjectId
       ? topicId : null;
-    if (!destination || (stream && !attachToLesson)) {
+    if (!destination || floating || (stream && !attachToLesson)) {
       destination = (await workspace.ensureInbox(destinationSubjectId)).id;
     }
     const lessonId = attachToLesson ? currentLesson?.id ?? null : null;
@@ -290,7 +293,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       if (event.key === "Escape" && !picking && !creatingSubject) { event.preventDefault(); close(); }
       if (mod && event.key === "Enter") { event.preventDefault(); void submit(); }
     }}>
-    <div className="qc-head">
+    {!floating ? <div className="qc-head">
       <div className="ws-segmented is-small" role="tablist" aria-label="Capture type">
         <button type="button" role="tab" aria-selected={mode === "note"} className={mode === "note" ? "is-active" : ""} onClick={() => setMode("note")} title={`${MOD_KEY}+Shift+N`}><NotebookPen size={13} /> Note</button>
         <button type="button" role="tab" aria-selected={mode === "mistake"} className={mode === "mistake" ? "is-active" : ""} onClick={() => setMode("mistake")} title={`${MOD_KEY}+Shift+M`}><TriangleAlert size={13} /> Mistake</button>
@@ -308,10 +311,20 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         {/* One pin icon; filled means on. A crossed-out pin read as an "unpin" action. */}
         <Pin size={15} fill={keepOpen ? "currentColor" : "none"} /></button> : null}
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
-    </div>
+    </div> : null}
+    {floating ? <div className="qc-floating-destination">
+      <label htmlFor="quick-capture-subject">Save idea to</label>
+      <select id="quick-capture-subject" aria-label="Save capture to subject Inbox" disabled={saving || !workspace.writable}
+        value={selectedSubjectId ?? ""}
+        onChange={(event) => { if (event.target.value) selectLanguage(event.target.value); }}>
+        {!subjects.length ? <option value="">Unsorted › Inbox</option> : null}
+        {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name} › Inbox</option>)}
+      </select>
+      <p>Save now. Organise later in Notebook → Captures.</p>
+    </div> : null}
 
     {noSubjects && workspace.loading ? <p className="qc-help qc-loading" role="status"><span className="ws-spinner is-small" aria-hidden="true" /> Loading your subjects… keep typing, the draft is kept.</p> : null}
-    {noSubjects && workspace.writable && !workspace.loading ? <div className="qc-first-run">
+    {!floating && noSubjects && workspace.writable && !workspace.loading ? <div className="qc-first-run">
       <strong>Capture first, organise later</strong>
       <p>You can save straight away in Unsorted › Inbox, or choose a subject below.</p>
       {creatingSubject ? <InlineNameForm label="Subject name" placeholder="Philosophy, German…" onCancel={() => setCreatingSubject(false)}
@@ -328,8 +341,8 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
     <div className="qc-body">
       {mode === "note" ? <>
         <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={stream ? 2 : 3} value={draft.text}
-          aria-label={stream ? "Stream capture" : "Quick note"}
-          placeholder={stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
+          aria-label={floating ? "Capture an idea" : stream ? "Stream capture" : "Quick note"}
+          placeholder={floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
           disabled={saving} onChange={(event) => patch({ text: event.target.value })}
           onKeyDown={(event) => {
             if (stream && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
@@ -337,7 +350,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
               void submit();
             }
           }} />
-        {stream ? <div className="qc-stream-meta">
+        {floating ? null : stream ? <div className="qc-stream-meta">
           <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : languageName ? `${languageName} › Inbox` : "Choose subject"}</span>
           <span><Kbd>Enter</Kbd> save · <Kbd>⇧ Enter</Kbd> newline</span>
           <small>Use a → b for mistakes, // for why, #g grammar, #v vocabulary, #e expressions; ? for questions.</small>
@@ -366,7 +379,7 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
       </>}
     </div>
 
-    <div className="qc-destination">
+    {!floating ? <div className="qc-destination">
       {subjects.length > 1 ? <div className="qc-language-choices" role="group" aria-label="Capture subject">
         <span className="qc-language-caption">Subject</span>
         {subjects.map((subject) => <button type="button" key={subject.id}
@@ -391,17 +404,17 @@ export function QuickCapture({ floating = false }: { floating?: boolean } = {}) 
         </button> : null}
       </div>
       {picking ? <div className="qc-picker"><TopicPicker value={topicId} onChange={(id) => { setTopicId(id); const subjectId = workspace.topicById.get(id)?.subject_id ?? null; updateMemory((current) => ({ ...current, capture: { ...current.capture, topicId: id, subjectId } })); setPicking(false); firstFieldRef.current?.focus(); }} onClose={() => setPicking(false)} /></div> : null}
-    </div>
+    </div> : null}
 
     {error ? <p className="ws-field-error qc-error" role="alert">{error}</p> : null}
     {flash ? <p className="qc-flash" role="status">{flash}</p> : null}
 
     <div className="qc-foot">
-      <span className="qc-hint">{stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}<Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</span>
-      {hasContent ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
-      <button type="button" className="ws-button is-primary" disabled={saving} onClick={() => void submit()}>
+      <span className="qc-hint">{floating ? <>Enter for a new line · <Kbd>{MOD_KEY} ↵</Kbd> to save</> : stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}{!floating ? <><Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</> : null}</span>
+      {hasContent && !floating ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
+      <button type="button" className="ws-button is-primary" disabled={saving || (floating && !(mode === "mistake" ? draft.attempt.trim() && draft.correction.trim() : draft.text.trim()))} onClick={() => void submit()}>
         {saving ? <><span className="ws-spinner is-small" aria-hidden="true" /> Saving…</>
-          : mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> Save</>}
+          : mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> {floating ? "Save idea" : "Save"}</>}
       </button>
     </div>
   </div>;
