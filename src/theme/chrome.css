@@ -236,3 +236,62 @@
 :root[data-theme] .hw-sync-indicator[data-sync-tone="syncing"] .hw-sync-dot { background: #8bbae2; }
 :root[data-theme] .hw-sync-indicator[data-sync-tone="offline"] .hw-sync-dot { background: #a9b5bc; }
 :root[data-theme] .hw-sync-indicator:focus-visible { outline: 2px solid var(--ws-chrome-text); outline-offset: 2px; }
+
+
+/* Single visible epsilon brand and sidebar toggle, approved 18 October. */
+:root[data-theme] .desktop-chrome {
+  padding-left: 17px;
+  border-bottom-color: rgba(255,255,255,.095);
+}
+:root[data-theme] .desktop-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+:root[data-theme] .desktop-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 8px;
+  background: linear-gradient(145deg, #a22940, #751626 80%);
+  color: #fff2f1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.17), 0 3px 8px rgba(0,0,0,.18);
+}
+:root[data-theme] .desktop-brand-mark svg { display: block; width: 24px; height: 24px; }
+:root[data-theme] .desktop-wordmark-name {
+  color: var(--ws-chrome-text);
+  font: 650 16px/1.2 var(--ws-sans);
+  letter-spacing: -.015em;
+}
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  margin-left: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ws-chrome-muted);
+  opacity: .55;
+  cursor: pointer;
+}
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle:hover,
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle:focus-visible {
+  opacity: 1;
+  background: rgba(255,255,255,.11);
+  color: var(--ws-chrome-text);
+}
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle:focus-visible {
+  outline: 2px solid var(--ws-chrome-text);
+  outline-offset: 2px;
+}
+
