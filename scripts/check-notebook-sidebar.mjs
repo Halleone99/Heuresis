@@ -31,6 +31,12 @@ assert.match(notebook, /<NotebookRail location=\{location\}/,
 assert.match(css, /@media \(min-width: 901px\) \{[\s\S]*?\.heuresis-desktop\[data-section="notebook"\] \.nb-rail,[\s\S]*?display: none !important;/);
 assert.match(css, /@media \(max-width: 900px\) \{\s*\.hw-notebook-tree \{ display: none !important; \}/);
 assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.hw-notebook-tree \{ display: none; \}/);
-// Peek on hover or keyboard focus only; :focus-within kept the overlay open after a click.
-assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.heuresis-section-sidebar:is\(:hover,:has\(:focus-visible\)\) \.hw-notebook-tree \{ display: flex; \}/);
+// A compact sidebar must never expand just because the pointer passes over it.
+assert.ok(!css.includes(".heuresis-section-sidebar:is(:hover"), "Hover does not open the sidebar");
+assert.ok(css.includes(".heuresis-section-sidebar:has(:focus-visible) .hw-notebook-tree"),
+  "Keyboard-visible focus can still reveal the topic tree");
+assert.ok(notebook.includes("lastRevealedTopicId.current === visibleTopicId"),
+  "Only a changed navigation destination reveals the selected topic");
+assert.ok(notebook.includes("if (!missing.length) return current;"),
+  "Refreshes cannot rebuild the expanded folder list");
 console.log("Notebook main sidebar integration and single-tree guards passed.");
