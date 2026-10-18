@@ -49,6 +49,9 @@ assert.ok(dialog.includes("workspace.patchEntry(row.id, { topic_id: destination 
 assert.ok(dialog.includes("workspace.patchEntry(row.id, { category: value })"));
 assert.ok(dialog.includes("workspace.addEntry({"));
 assert.ok(dialog.includes("Original lines stay intact"));
+assert.match(dialog, /onClick=\{prepareMistake\}/, "Can convert one idea to a mistake");
+assert.match(dialog, /await workspace\.addEntry\(\{[\s\S]*?kind: "mistake"/, "Conversion creates a proper Mistake Log record");
+assert.match(dialog, /original capture is preserved/, "Converting does not delete source ideas");
 assert.ok(dialog.includes("event.key === \"ArrowDown\""));
 assert.ok(context.includes('setCleanupTarget({ kind: "lesson", id: lessonId })'));
 assert.ok(app.includes("<LessonCleanupDialog target={workspace.cleanupTarget}"));
