@@ -112,7 +112,74 @@
 }
 .hw-capture-hint:hover { border-style: solid; color: var(--ws-ink); background: var(--ws-surface); }
 
-/* Header capture styles are shared in theme/chrome.css. */
+/* One universal Capture entry point: a restrained N1-style feather floating at
+   the horizontal centre of the left sidebar, never in the global toolbar. */
+.heuresis-desktop .hw-sidebar-capture-position {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 100%;
+  margin-top: auto;
+  padding: 16px 0 8px;
+}
+.heuresis-desktop .hw-sidebar-capture {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ws-chrome-text) 42%, transparent);
+  border-radius: 50%;
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--ws-chrome-text) 11%, var(--ws-chrome)),
+    color-mix(in srgb, var(--ws-chrome-accent) 9%, var(--ws-chrome)));
+  color: var(--ws-chrome-text);
+  box-shadow: 0 7px 18px rgba(0,0,0,.32),
+    0 0 21px color-mix(in srgb, var(--ws-chrome-accent) 14%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.07);
+  cursor: pointer;
+  transition: border-color .16s ease, box-shadow .16s ease,
+    background .16s ease, transform .16s ease;
+}
+.heuresis-desktop .hw-sidebar-capture:hover {
+  border-color: color-mix(in srgb, var(--ws-chrome-accent) 65%, var(--ws-chrome-text));
+  background: color-mix(in srgb, var(--ws-chrome-accent) 19%, var(--ws-chrome));
+  box-shadow: 0 8px 22px rgba(0,0,0,.34),
+    0 0 25px color-mix(in srgb, var(--ws-chrome-accent) 22%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.09);
+  transform: translateY(-2px);
+}
+.heuresis-desktop .hw-sidebar-capture:active { transform: translateY(0) scale(.97); }
+.heuresis-desktop .hw-sidebar-capture:focus-visible {
+  outline: 2px solid var(--ws-chrome-text);
+  outline-offset: 4px;
+}
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-capture-position { padding-block: 12px 6px; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-capture {
+  width: 46px;
+  height: 46px;
+}
+.heuresis-desktop[data-sidebar="rail"] .hw-sidebar-capture svg {
+  width: 22px;
+  height: 22px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .heuresis-desktop .hw-sidebar-capture { transition: none; }
+  .heuresis-desktop .hw-sidebar-capture:hover,
+  .heuresis-desktop .hw-sidebar-capture:active { transform: none; }
+}
+@media (forced-colors: active) {
+  .heuresis-desktop .hw-sidebar-capture {
+    border: 1px solid ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+    box-shadow: none;
+  }
+}
+
+
 
 /* Workspace sections own their padding (an older Study pass zeroes it globally). */
 .heuresis-desktop .desktop-content.is-workspace {
@@ -132,12 +199,9 @@
    search label below 980px, which left an empty search button. Keep its icon. */
 @media (max-width: 1100px) {
   .desktop-header-actions .desktop-search-action svg,
-  .desktop-header-actions .hw-capture-button svg { display: block; }
   .desktop-header-actions .desktop-search-action { min-width: 36px; justify-content: center; }
 }
 @media (max-width: 760px) {
-  .desktop-header-actions .hw-capture-button span { display: none; }
-  .desktop-header-actions .desktop-action.hw-capture-button { width: 38px; padding: 0; justify-content: center; }
 }
 .heuresis-desktop[data-section="notebook"] .desktop-content.is-workspace { padding: 0 !important; }
 
