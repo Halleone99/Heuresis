@@ -616,7 +616,8 @@ function ScopePage({ scope, navigate, newAction }: {
         <button type="button" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("unpin")}><PinOff size={14}/> Unpin</button>
         <button type="button" className="is-danger" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("delete")}><Trash2 size={14}/> Delete</button>
       </div> : null}
-      {shown.length ? <><ul className={`nb-doc-list nb-display-${view} ${selecting ? "is-selecting" : ""}`} aria-label={`${title} notes`}>
+      {shown.length ? <>{view === "details" ? <div className="nb-details-header" aria-hidden="true"><span>Name</span><span>Modified</span><span>Type</span></div> : null}
+      <ul className={`nb-doc-list nb-display-${view} ${selecting ? "is-selecting" : ""}`} aria-label={`${title} notes`}>
         {page.visible.map((entry) => {
           const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
           const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);
