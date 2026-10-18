@@ -38,9 +38,9 @@ assert.match(context, /if \(next === "notebook"\)/, "Explicit Notebook section n
 assert.match(context, /docId: null, topicId: null, subjectId: null/, "Notebook home clears the retained note and topic");
 assert.match(context, /if \(!options.stayInSection\) onSection\("notebook"\)/, "Direct document openings still bypass home reset");
 assert.match(context, /onSection\("notebook"\);\s*\}, \[onSection\]\);/, "Direct topic openings still bypass home reset");
-assert.match(shell, /workspace.goTo\(id\)/, "Sidebar and mobile section buttons navigate via the workspace");
-assert.match(shell, /workspace.goTo\(item.id\)/, "Command palette uses workspace navigation");
-assert.match(shell, /workspace.goTo\(SECTIONS\[Number\(event.code.slice\(5\)\) - 1\].id\)/, "Alt shortcuts use workspace navigation");
+assert.match(shell, /onClick=\{\(\) => navigateSection\(id\)\}/, "Sidebar and mobile section buttons share section navigation");
+assert.match(shell, /run: \(\) => navigateSection\(item.id\)/, "Command palette uses section navigation");
+assert.match(shell, /navigateSection\(SECTIONS\[Number\(event.code.slice\(5\)\) - 1\].id\)/, "Alt shortcuts use section navigation");
 assert.match(shell, /startupNotebook\.current = false;\s*workspace.goTo\("notebook"\);/, "Restored Notebook section starts at home");
 assert.ok(!detached.includes("startInEditMode detached"), "Existing detached notes should open in reader mode");
 assert.ok(documentPage.includes("Boolean(newDoc) || startInEditMode"), "Brand-new notes remain editable");
