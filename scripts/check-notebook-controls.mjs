@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const notebook = readFileSync("src/components/workspace/NotebookView.tsx", "utf8");
+const shell = readFileSync("src/App.tsx", "utf8");
+const context = readFileSync("src/components/workspace/WorkspaceContext.tsx", "utf8");
 const cards = readFileSync("src/components/workspace/SubjectCard.tsx", "utf8");
 const quick = readFileSync("src/components/workspace/QuickCapture.tsx", "utf8");
 const css = readFileSync("src/components/workspace/workspace.css", "utf8");
@@ -24,4 +26,12 @@ assert.match(notebook, /className="nb-topic-grid"/, "Subjects show topic cards")
 assert.match(notebook, /<div className="nb-scope-actions">\{newAction\}<\/div>/, "New is aligned with the home heading");
 assert.doesNotMatch(notebook, /mistakes.length \? <p className="nb-scope-meta"/, "No distracting mistake shortcut under subject headings");
 assert.match(notebook, /\{metadata \? <small>\{metadata\}<\/small> : null\}/);
-console.log("Notebook capture/subject customisation checks passed.");
+assert.match(context, /if \(next === "notebook"\)/, "Explicit Notebook section navigation targets its home");
+assert.match(context, /docId: null, topicId: null, subjectId: null/, "Notebook home clears the retained note and topic");
+assert.match(context, /if \(!options.stayInSection\) onSection\("notebook"\)/, "Direct document openings still bypass home reset");
+assert.match(context, /onSection\("notebook"\);\s*\}, \[onSection\]\);/, "Direct topic openings still bypass home reset");
+assert.match(shell, /workspace.goTo\(id\)/, "Sidebar and mobile section buttons navigate via the workspace");
+assert.match(shell, /workspace.goTo\(item.id\)/, "Command palette uses workspace navigation");
+assert.match(shell, /workspace.goTo\(SECTIONS\[Number\(event.code.slice\(5\)\) - 1\].id\)/, "Alt shortcuts use workspace navigation");
+assert.match(shell, /startupNotebook\.current = false;\s*workspace.goTo\("notebook"\);/, "Restored Notebook section starts at home");
+console.log("Notebook capture, home navigation and subject customisation checks passed.");
