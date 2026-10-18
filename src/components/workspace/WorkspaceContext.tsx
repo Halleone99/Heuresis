@@ -434,7 +434,17 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     return result.entry;
   }, [setSnapshotLocal, userId]);
 
-  const goTo = useCallback((next: WorkspaceSection) => onSection(next), [onSection]);
+  // Section navigation means "open Notebook home", never "resume the last note".
+  // Direct note/topic links below still set their target before changing section.
+  const goTo = useCallback((next: WorkspaceSection) => {
+    if (next === "notebook") {
+      setMemory((current) => {
+        if (!current.notebook.docId && !current.notebook.topicId && !current.notebook.subjectId) return current;
+        return { ...current, notebook: { ...current.notebook, docId: null, topicId: null, subjectId: null } };
+      });
+    }
+    onSection(next);
+  }, [onSection]);
   const openDocument = useCallback((id: string, options: { edit?: boolean; stayInSection?: boolean } = {}) => {
     const entry = snapshotRef.current.entries.find((row) => row.id === id);
     setMemory((current) => ({

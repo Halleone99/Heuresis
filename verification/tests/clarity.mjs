@@ -318,7 +318,19 @@ const scenarios = {
     await page.locator('.nb-doc-title:has-text("Today")').waitFor();
     check(await page.locator('.nb-doc-actions button:has-text("Open window")').count() === 1,
       "A saved note offers a separate writing window");
-    await page.locator('[aria-label="Close note"]').click();
+    // The Notebook section is a home button, including when it is already selected.
+    await page.locator('.hw-sections button:has-text("Notebook")').click();
+    await page.locator('.nb-home-subject:has-text("Philosophy")').waitFor();
+    check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
+    // Deep links have different semantics: Recently edited should still open the document.
+    await page.locator('.hw-sections button:has-text("Overview")').click();
+    await page.locator('.ov-list button').filter({ hasText: "Today's grammar" }).click();
+    await page.locator('.nb-doc-title:has-text("Today")').waitFor();
+    check(await page.locator(".nb-doc").count() === 1, "Overview opens a specific document, not Notebook home");
+    await page.locator('.hw-sections button:has-text("Notebook")').click();
+    await page.locator('.nb-home-subject:has-text("Philosophy")').waitFor();
+    await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
+    await page.locator('.nb-topic-card:has-text("Ethics")').click();
     // Two independent editor windows must not share the same unsaved draft key.
     await page.locator(".nb-new-button").click();
     const firstWindow = page.waitForEvent("popup");
