@@ -297,11 +297,11 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
     if (!subject) return;
     const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subjectId).map((topic) => topic.id));
     const entries = snapshot.entries.filter((entry) => topicIds.has(entry.topic_id)).length;
-    if (entries) {
-      workspace.toast(`${subject.name} still contains ${entries} ${entries === 1 ? "entry" : "entries"}. Move or delete them first.`, { tone: "error" });
+    if (entries || topicIds.size) {
+      workspace.toast(`${subject.name} still has ${topicIds.size} topic${topicIds.size === 1 ? "" : "s"} and ${entries} entr${entries === 1 ? "y" : "ies"}. Delete only empty topics first; nothing was removed.`, { tone: "error" });
       return;
     }
-    if (!await confirm({ title: `Delete ${subject.name}?`, body: topicIds.size ? `Its ${topicIds.size} empty ${topicIds.size === 1 ? "topic" : "topics"} will be removed too.` : "This subject is empty.", confirmLabel: "Delete subject", danger: true })) return;
+    if (!await confirm({ title: `Delete empty subject ${subject.name}?`, body: "This subject has no topics or notes. Deletion cannot be undone.", confirmLabel: "Delete subject", danger: true })) return;
     try {
       await workspace.removeSubject(subjectId);
       navigate({ topicId: null, docId: null, subjectId: null });
