@@ -3,7 +3,6 @@ import type { Session } from "@supabase/supabase-js";
 import { ChevronDown, ChevronRight, CircleDot, Maximize2, Minimize2, NotebookPen, Pin, X } from "lucide-react";
 import { AICheck } from "./AICheck";
 import AuthGate from "../AuthGate";
-import { entryTitle } from "../../lib/knowledgeWorkspace";
 import { QuickCapture } from "./QuickCapture";
 import { Toaster } from "./ui";
 import { WorkspaceProvider, useWorkspace, type CaptureMode } from "./WorkspaceContext";
@@ -160,6 +159,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
       <button type="button" className="quick-floating-recent-head qc-recent-collapse"
         aria-expanded={recentOpen} onClick={() => setRecentOpen((value) => !value)}>
         <strong>Recent captures</strong>
+        <small>Saved ideas</small>
         <span>{recentOpen ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}</span>
       </button>
       {recentOpen ? captured.length ? <ol>{captured.map((entry) => {
