@@ -1464,7 +1464,7 @@
 }
 
 
-/* Standalone native Quick Capture window: one Notebook capture save path. */
+/* Native idea Capture — one clear destination, composer, save and short receipt list. */
 body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   margin: 0; padding: 0; min-height: 100dvh; background: var(--ws-page); overflow: hidden;
 }
@@ -1473,41 +1473,53 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   overflow: hidden; background: var(--ws-page); color: var(--ws-text); font-family: var(--ws-sans);
 }
 .quick-floating-bar {
-  display: flex; align-items: center; gap: 5px; height: 39px; min-height: 39px;
-  padding: 0 8px; background: var(--ws-chrome); color: var(--ws-chrome-text);
+  display: flex; align-items: center; gap: 5px; height: 41px; min-height: 41px;
+  padding: 0 10px; background: var(--ws-chrome); color: var(--ws-chrome-text);
   border-bottom: 1px solid rgba(255,255,255,.12);
 }
 .quick-floating-grip {
   flex: 1; display: inline-flex; align-items: center; gap: 7px; min-width: 0;
-  height: 35px; padding: 0 6px; color: inherit; border: 0;
+  height: 36px; padding: 0 7px; color: inherit; border: 0;
   background: transparent; font: 600 12px/1.2 var(--ws-sans); cursor: grab;
   -webkit-user-select: none; user-select: none; touch-action: none;
 }
 .quick-floating-grip > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.quick-floating-count { flex: none; color: var(--ws-chrome-muted); font: 10px/1 var(--ws-mono); white-space: nowrap; }
 .quick-floating-icon {
-  flex: none; display: grid; place-items: center; width: 27px; height: 27px;
-  color: var(--ws-chrome-muted); border-radius: 6px; border: 0;
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px;
+  color: var(--ws-chrome-muted); border-radius: 7px; border: 0;
   background: transparent; cursor: pointer;
 }
 .quick-floating-icon:hover { color: var(--ws-chrome-text); background: rgba(255,255,255,.13); }
 .quick-floating-icon:focus-visible, .quick-floating-grip:focus-visible {
   outline: 2px solid var(--ws-chrome-text); outline-offset: 1px;
 }
-.quick-floating-root .quick-floating-stage { flex: 0 1 auto; min-height: 0; overflow: auto; }
+.quick-floating-root .quick-floating-stage { flex: none; min-height: 0; overflow: visible; }
 .quick-floating-root[data-view="bubble"] .quick-floating-stage { display: none; }
 .quick-floating-root .qc-panel {
-  position: relative; inset: auto; margin: 0; width: 100%; max-width: none;
-  max-height: none; border: 0; border-radius: 0; box-shadow: none;
-  background: var(--ws-surface); animation: none;
+  position: relative; inset: auto; margin: 0; width: 100%; max-width: none; max-height: none;
+  border: 0; border-radius: 0; box-shadow: none; background: var(--ws-surface); animation: none;
 }
-.quick-floating-root .qc-head { padding: 7px 11px 4px; }
-.quick-floating-root .qc-body { padding: 2px 12px 6px; }
-.quick-floating-root .qc-main-input { min-height: 61px; font-size: 15px; max-height: 28dvh; }
-.quick-floating-root .qc-destination { padding: 5px 0; margin: 0 12px; }
-.quick-floating-root .qc-foot { padding: 8px 11px; }
-.quick-floating-root .qc-stream-meta { gap: 3px; font-size: 10px; }
-.quick-floating-root .qc-stream-meta small { font-size: 10px; }
+.qc-floating-destination { display: grid; gap: 7px; padding: 15px 18px 11px; }
+.qc-floating-destination label { font: 600 10px/1.3 var(--ws-sans); text-transform: uppercase; letter-spacing: .09em; color: var(--ws-muted); }
+.qc-floating-destination select {
+  width: 100%; min-height: 39px; border: 1px solid var(--ws-line-strong); border-radius: 9px;
+  padding: 7px 11px; background: var(--ws-raised); color: var(--ws-ink);
+  font: 600 13px/1.3 var(--ws-sans); cursor: pointer;
+}
+.qc-floating-destination select:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.qc-floating-destination p { margin: 0; color: var(--ws-muted); font: 11px/1.45 var(--ws-sans); }
+.quick-floating-root .qc-body { padding: 4px 18px 12px; overflow: visible; }
+.quick-floating-root .qc-main-input {
+  box-sizing: border-box; display: block; padding: 13px 14px;
+  border: 1px solid var(--ws-line); border-radius: 11px;
+  background: var(--ws-raised); min-height: 132px; max-height: 185px; font-size: 15px;
+  line-height: 1.6; resize: vertical; field-sizing: fixed;
+}
+.quick-floating-root .qc-main-input:focus { border-color: var(--ws-accent-line); box-shadow: 0 0 0 2px var(--ws-accent-soft); }
+.quick-floating-root .qc-foot { padding: 8px 18px 14px; border-top: 0; }
+.quick-floating-root .qc-foot .ws-button.is-primary { min-height: 36px; padding: 0 15px; }
+.quick-floating-root .qc-hint { font-size: 11px; }
+.quick-floating-root .qc-flash, .quick-floating-root .qc-error { margin: 0 18px 6px; }
 .quick-floating-root .qc-picker { max-width: calc(100vw - 12px); z-index: 8; }
 .quick-floating-bubble {
   flex: 1; width: 100%; display: inline-flex; gap: 8px; align-items: center; justify-content: center;
@@ -1515,35 +1527,28 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   font: 600 12px/1.3 var(--ws-sans); cursor: pointer;
 }
 .quick-floating-reopen {
-  min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center;
+  min-height: 130px; width: 100%; display: flex; align-items: center; justify-content: center;
   gap: 9px; border: 0; background: var(--ws-surface); color: var(--ws-accent); cursor: pointer;
 }
-.quick-floating-footer {
-  flex: none; margin-top: auto; border-top: 1px solid var(--ws-line);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 5px 12px; color: var(--ws-muted); font-size: 10px;
-}
-.quick-floating-footer button { border: 0; background: transparent; color: var(--ws-accent); cursor: pointer; font: 600 11px var(--ws-sans); }
 .quick-floating-recent {
-  min-height: 0; flex: 1; padding: 10px 12px 4px; overflow: auto; background: var(--ws-page);
+  min-height: 0; flex: 1; padding: 13px 18px 10px; overflow-y: auto; background: var(--ws-page);
+  border-top: 1px solid var(--ws-line);
 }
-.quick-floating-recent-head { display: flex; justify-content: space-between; gap: 10px; }
+.quick-floating-recent-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .quick-floating-recent-head strong { font: 600 12px var(--ws-sans); color: var(--ws-ink); }
-.quick-floating-recent-head small { color: var(--ws-muted); font-size: 10px; }
-.quick-floating-recent > p { color: var(--ws-muted); font-size: 12px; }
-.quick-floating-recent ol { list-style: none; margin: 9px 0; padding: 0; display: grid; gap: 5px; }
-.quick-floating-recent li { display: flex; align-items: baseline; gap: 11px; padding: 7px 4px; border-bottom: 1px solid var(--ws-line); }
-.quick-floating-recent time { flex: none; font: 10px var(--ws-mono); color: var(--ws-muted); }
-.quick-floating-recent li span { min-width: 0; font: 12px/1.4 var(--ws-sans); color: var(--ws-text); overflow-wrap: anywhere; }
+.quick-floating-recent-head small { color: var(--ws-muted); font: 11px/1.4 var(--ws-sans); text-align: right; }
+.quick-floating-recent > p { color: var(--ws-muted); font: 12px/1.5 var(--ws-sans); }
+.quick-floating-recent ol { list-style: none; margin: 8px 0; padding: 0; display: grid; }
+.quick-floating-recent li { display: grid; gap: 4px; padding: 9px 2px; border-bottom: 1px solid var(--ws-line); }
+.quick-floating-recent-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; color: var(--ws-muted); font: 10px/1.35 var(--ws-sans); }
+.quick-floating-recent time { font: 10px var(--ws-mono); color: var(--ws-muted); }
+.quick-floating-recent-preview { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  font: 13px/1.45 var(--ws-sans); color: var(--ws-text); overflow-wrap: anywhere; white-space: pre-wrap; }
 .quick-floating-notice { margin: 0; padding: 6px 10px; color: var(--ws-bad); font-size: 11px; }
-.quick-floating-root[data-view="bubble"] .quick-floating-count { display: none; }
-.quick-floating-root[data-view="compact"] .qc-stream-meta small { display: none; }
 @media (max-width: 430px) {
-  .quick-floating-count { display: none; }
-  .quick-floating-root .qc-head { flex-wrap: wrap; }
   .quick-floating-root .qc-foot { flex-wrap: wrap; }
+  .quick-floating-recent-head { flex-wrap: wrap; }
 }
-
 
 /* Notebook breadcrumbs carry navigation on desktop; keep Back for touch devices. */
 @media (min-width: 901px) {
