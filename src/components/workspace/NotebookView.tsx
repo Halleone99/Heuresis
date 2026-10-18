@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2, Pin, PinOff, Search } from "lucide-react";
+import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -17,9 +17,11 @@ import { SubjectCard } from "./SubjectCard";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
+import "./notebook-views.css";
 
 type ListFilter = "all" | "notes" | "questions";
 type NoteSort = "updated" | "created" | "title" | "icon" | "colour";
+type NoteView = "cards" | "list" | "details";
 export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string; draftKey?: string } | null;
 
 function countLabel(count: number, singular: string) {
@@ -436,6 +438,21 @@ function ScopePage({ scope, navigate, newAction }: {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<NoteSort>("updated");
   const [iconFilter, setIconFilter] = useState("all");
+  // A reading preference belongs to the device, not to individual notes or the database.
+  const [view, setView] = useState<NoteView>(() => {
+    try {
+      const saved = window.localStorage.getItem("heuresis:notebook:view");
+      return saved === "cards" || saved === "list" || saved === "details" ? saved : "cards";
+    } catch { return "cards"; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("heuresis:notebook:view", view); } catch { /* Private browsing may forbid storage. */ }
+  }, [view]);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
+  const [selectionBusy, setSelectionBusy] = useState(false);
+  const [confirmElement, confirm] = useConfirm();
   // Never flatten a subject's notes onto an ancestor page.
   const docs = topic ? snapshot.entries.filter((entry) =>
     entry.topic_id === topic.id && isDocument(entry) && entry.category !== "reference") : [];
@@ -464,6 +481,53 @@ function ScopePage({ scope, navigate, newAction }: {
   const setFilter = (next: ListFilter) => updateMemory((current) =>
     ({ ...current, notebook: { ...current.notebook, filter: next } }));
   const title = topic?.name ?? subject?.name ?? "Notebook";
+  const selected = docs.filter((entry) => selectedIds.includes(entry.id));
+  const selectedVisibleCount = page.visible.filter((entry) => selectedIds.includes(entry.id)).length;
+  const toggleSelection = (id: string, extendRange = false) => {
+    setSelecting(true);
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      const ids = shown.map((entry) => entry.id);
+      const start = selectionAnchor ? ids.indexOf(selectionAnchor) : -1;
+      const end = ids.indexOf(id);
+      if (extendRange && start >= 0 && end >= 0) {
+        for (let i = Math.min(start, end); i <= Math.max(start, end); i++) next.add(ids[i]);
+      } else if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return [...next];
+    });
+    setSelectionAnchor(id);
+  };
+  const stopSelection = () => { setSelecting(false); setSelectedIds([]); setSelectionAnchor(null); };
+  const selectVisible = () => {
+    const visibleIds = page.visible.map((entry) => entry.id);
+    setSelectedIds((previous) => [...new Set([...previous, ...visibleIds])]);
+    setSelecting(true);
+  };
+  async function applyToSelection(action: "pin" | "unpin" | "delete") {
+    if (!selected.length || selectionBusy || !workspace.writable) return;
+    if (action === "delete") {
+      const approved = await confirm({
+        title: `Move ${selected.length} ${selected.length === 1 ? "note" : "notes"} to Trash?`,
+        body: "The selected notes will be removed from this topic. You can restore them from Trash.",
+        confirmLabel: "Move to Trash", danger: true,
+      });
+      if (!approved) return;
+    }
+    setSelectionBusy(true);
+    try {
+      const outcome = await Promise.allSettled(selected.map((entry) =>
+        action === "delete" ? workspace.removeEntry(entry.id, { undo: false }) :
+          workspace.patchEntry(entry.id, { pinned: action === "pin" })));
+      const failed = outcome.flatMap((result, index) => result.status === "rejected" ? [selected[index].id] : []);
+      const succeeded = selected.length - failed.length;
+      setSelectedIds(failed);
+      if (!failed.length) { setSelecting(false); setSelectionAnchor(null); }
+      if (succeeded) workspace.toast(action === "delete" ? `${succeeded} ${succeeded === 1 ? "note" : "notes"} moved to Trash.` :
+        `${succeeded} ${succeeded === 1 ? "note" : "notes"} ${action === "pin" ? "pinned" : "unpinned"}.`);
+      if (failed.length) workspace.toast(`Could not update ${failed.length} ${failed.length === 1 ? "note" : "notes"}. The failed items remain selected.`, { tone: "error" });
+    } finally { setSelectionBusy(false); }
+  }
 
   return <div className="nb-scope">
     <nav className="nb-crumbs" aria-label="Location">
@@ -483,6 +547,7 @@ function ScopePage({ scope, navigate, newAction }: {
       </div>
     </header>
 
+    {confirmElement}
     {children.length ? <div className="nb-topic-grid" aria-label={topic ? "Subtopics" : "Topics"}>
       {children.map((child) => {
         const subtree = new Set(workspace.subtreeIds(child.id));
@@ -526,27 +591,61 @@ function ScopePage({ scope, navigate, newAction }: {
             <option value="icon">By symbol</option>
             <option value="colour">By colour</option>
           </select>
+          <div className="nb-view-switch" role="group" aria-label="Note layout">
+            {([{ key: "cards", icon: <LayoutGrid size={16} />, label: "Cards" },
+              { key: "list", icon: <List size={16} />, label: "List" },
+              { key: "details", icon: <TableProperties size={16} />, label: "Details" }] as const).map((option) =>
+              <button key={option.key} type="button" title={`${option.label} view`}
+                aria-label={`${option.label} view`} aria-pressed={view === option.key}
+                className={view === option.key ? "is-active" : ""}
+                onClick={() => setView(option.key)}>{option.icon}<span>{option.label}</span></button>)}
+          </div>
+          {workspace.writable ? <button type="button" className={`nb-select-toggle ${selecting ? "is-active" : ""}`}
+            aria-pressed={selecting} onClick={() => selecting ? stopSelection() : setSelecting(true)}>
+            {selecting ? <X size={15}/> : <CheckSquare size={15}/>} {selecting ? "Done" : "Select"}
+          </button> : null}
         </div>
       </div>
-      {shown.length ? <><ul className="nb-doc-list">
+      {selecting ? <div className="nb-selection-bar" role="region" aria-label="Note selection">
+        <strong>{selected.length} selected</strong>
+        <button type="button" disabled={selectionBusy || !page.visible.length || selectedVisibleCount === page.visible.length}
+          onClick={selectVisible}>Select all visible</button>
+        <button type="button" disabled={!selected.length || selectionBusy} onClick={() => { setSelectedIds([]); setSelectionAnchor(null); }}>Clear</button>
+        <span className="nb-selection-spacer"/>
+        <button type="button" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("pin")}><Pin size={14}/> Pin</button>
+        <button type="button" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("unpin")}><PinOff size={14}/> Unpin</button>
+        <button type="button" className="is-danger" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("delete")}><Trash2 size={14}/> Delete</button>
+      </div> : null}
+      {shown.length ? <><ul className={`nb-doc-list nb-display-${view} ${selecting ? "is-selecting" : ""}`} aria-label={`${title} notes`}>
         {page.visible.map((entry) => {
           const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
           const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);
           const showKind = topic.name.trim().toLocaleLowerCase() !== kindLabel.toLocaleLowerCase();
           const metadata = [showKind ? kindLabel : null, captures ? `${captures} captured` : null].filter(Boolean).join(" · ");
-          return <li key={entry.id} className={`nb-doc-item nb-accent-${entry.accent_color ?? "none"}`}>
+          const isSelected = selectedIds.includes(entry.id);
+          return <li key={entry.id} className={`nb-doc-item nb-accent-${entry.accent_color ?? "none"} ${isSelected ? "is-selected" : ""}`}>
             <div className={`nb-doc-row ${isLesson(entry) ? "is-lesson" : ""}`}>
-              {workspace.writable ? <NoteIdentityPicker entry={entry} /> :
+              {selecting ? <button type="button" role="checkbox" aria-checked={isSelected}
+                className={`nb-doc-checkbox ${isSelected ? "is-checked" : ""}`}
+                aria-label={`Select ${entryTitle(entry)}`} onClick={() => toggleSelection(entry.id)}>
+                {isSelected ? <Check size={14}/> : null}
+              </button> : workspace.writable ? <NoteIdentityPicker entry={entry} /> :
                 <span className="nb-doc-icon" aria-hidden="true">{entry.icon || <KindIcon entry={entry} size={16}/>}</span>}
               <button type="button" className="nb-doc-open"
-                onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
+                aria-label={`${selecting ? isSelected ? "Deselect" : "Select" : "Open"} ${entryTitle(entry)}`}
+                onClick={(event) => {
+                  if (selecting || (workspace.writable && (event.ctrlKey || event.metaKey || event.shiftKey))) {
+                    event.preventDefault();
+                    toggleSelection(entry.id, event.shiftKey);
+                  } else navigate({ topicId: entry.topic_id, docId: entry.id });
+                }}>
                 <span className="nb-doc-text"><strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
                   {entryPreview(entry, 200) ? <span className="nb-doc-preview">{entryPreview(entry, 200)}</span> : null}
                 </span>
                 <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
-                  {metadata ? <small>{metadata}</small> : null}</span>
+                  <small>{metadata || "Note"}</small></span>
               </button>
-              {workspace.writable ? <RowMenu label={entryTitle(entry)} items={[
+              {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} items={[
                 { label: entry.pinned ? "Unpin note" : "Pin to top", icon: entry.pinned ? <PinOff size={14} /> : <Pin size={14} />,
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
