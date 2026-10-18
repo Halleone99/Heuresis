@@ -1,4 +1,4 @@
-import { CircleHelp, PanelRightClose, PanelRightOpen, Pin, Plus, SkipForward, X } from "lucide-react";
+import { CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pin, Plus, SkipForward, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fieldByRole,
@@ -226,7 +226,8 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(config.mode === "review");
+  const [leftContextOpen, setLeftContextOpen] = useState(config.mode === "review");
   const [detailsPinned, setDetailsPinned] = useState(() => { try { return localStorage.getItem(DETAILS_PIN_KEY) === "1"; } catch { return false; } });
   const [whyOpen, setWhyOpen] = useState(false);
   const [addingDim, setAddingDim] = useState<DimensionId | null>(null);
@@ -434,9 +435,9 @@ export default function CosmosWindow() {
     return () => { alive = false; };
   }, [card?.id, card?.updated_at]);
 
-  // Each new step starts clean; the Details drawer stays open only when kept open.
+  // Keep both Review side panels visible as the session progresses; only legacy Sort uses the pinned drawer.
   useEffect(() => {
-    if (!detailsPinned) setDetailsOpen(false);
+    if (mode === "sort" && !detailsPinned) setDetailsOpen(false);
     setWhyOpen(false);
     setAddingDim(null);
     setAddingText("");
@@ -689,7 +690,7 @@ export default function CosmosWindow() {
       if (event.key === "Escape" && !typing) {
         event.preventDefault();
         if (whyOpen) { setWhyOpen(false); return; }
-        if (detailsOpen && !detailsPinned) { setDetailsOpen(false); return; }
+        if (mode === "sort" && detailsOpen && !detailsPinned) { setDetailsOpen(false); return; }
         void closeSession().then(() => closeDesktopWindow());
         return;
       }
@@ -699,7 +700,8 @@ export default function CosmosWindow() {
         const grades: Record<string, StudyGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" };
         const grade = grades[event.key];
         if (revealed && grade) { event.preventDefault(); void answer(grade); return; }
-        if (revealed && event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
+        if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
+        if (event.key.toLowerCase() === "e") { event.preventDefault(); setLeftContextOpen((value) => !value); }
       } else {
         if (/^[1-5]$/.test(event.key)) { event.preventDefault(); void setInterest(Number(event.key)); }
         else if (event.key === "ArrowRight" || event.key === "Enter") { event.preventDefault(); void nextSort(); }
@@ -851,21 +853,35 @@ export default function CosmosWindow() {
     </section>;
   };
 
-  const renderDetails = () => {
-    if (!detailsOpen || !detailsAvailable) return null;
-    const filled = dimensions.filter((def) => countFor(def.id) > 0 || addingDim === def.id);
-    const empty = dimensions.filter((def) => countFor(def.id) === 0 && addingDim !== def.id);
-    return <aside className="cosmos-details" aria-label="Card details">
+  // Review uses both sides of the card again. Keep the material hidden until reveal,
+  // but keep the panel shells visible so the layout never jumps between questions.
+  const renderDetails = (side: "left" | "right" = "right") => {
+    const split = mode === "review";
+    const open = side === "left" ? leftContextOpen : detailsOpen;
+    if (!open || (!split && !detailsAvailable)) return null;
+    const chosen = split
+      ? dimensions.filter((def) => side === "left"
+        ? ["examples", "neighbours", "components", "structure"].includes(def.id)
+        : ["origin", "facts", "notes"].includes(def.id))
+      : dimensions;
+    const filled = chosen.filter((def) => countFor(def.id) > 0 || addingDim === def.id);
+    const empty = chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id);
+    return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
       <header className="cosmos-details-head">
-        <strong>Details</strong>
-        <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card — click to close it after each card" : "Keep open for every card"}
-          onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button>
-        <button type="button" aria-label="Close details" onClick={() => { setDetailsOpen(false); setDetailsPinned(false); try { localStorage.setItem(DETAILS_PIN_KEY, "0"); } catch { /* preference only */ } }}><PanelRightClose size={15} /></button>
+        <strong>{!split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
+        {!split ? <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card" : "Keep open for every card"}
+          onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button> : null}
+        <button type="button" aria-label={side === "left" ? "Close examples and connections" : "Close facts and notes"}
+          onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); }}><PanelRightClose size={15} /></button>
       </header>
       <div className="cosmos-details-body">
-        {filled.map(renderDimension)}
-        {!filled.length ? <p className="cosmos-empty">Nothing recorded yet. Add whatever makes this card easier to understand or remember.</p> : null}
-        {empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
+        {split && !revealed
+          ? <div className="cosmos-context-wait"><strong>After the answer</strong><p>Your examples, connections and notes appear here once you reveal the card.</p></div>
+          : <>
+            {filled.map(renderDimension)}
+            {!filled.length ? <p className="cosmos-empty">Nothing recorded yet. Add what helps you remember this card.</p> : null}
+            {empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
+          </>}
       </div>
     </aside>;
   };
@@ -893,6 +909,12 @@ export default function CosmosWindow() {
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
       {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentState ? ` · ${STATE_LABEL[currentState]}` : ""}</span> : <span className="cosmos-mode-note">{mode === "sort" ? "organisation · priority · badges" : ""}</span>}
       <span className="cosmos-spacer" />
+      {mode === "review" ? <div className="cosmos-panel-toggles" role="group" aria-label="Review side panels">
+        <button type="button" aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen((value) => !value)} title="Show or hide examples and connections (E)">
+          {leftContextOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />} Context</button>
+        <button type="button" aria-pressed={detailsOpen} onClick={() => setDetailsOpen((value) => !value)} title="Show or hide facts and notes (D)">
+          {detailsOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Notes</button>
+      </div> : null}
       {mode === "review" ? <label className="cosmos-method"><span>Answering</span>
         <select value={method} onChange={(event) => setMethod(event.target.value as ReviewMethod)} aria-label="How you answer">
           {(Object.keys(METHOD_LABEL) as ReviewMethod[]).map((value) => <option key={value} value={value}>{METHOD_LABEL[value]}</option>)}
@@ -907,11 +929,12 @@ export default function CosmosWindow() {
       <small>Recommendations weigh results in this direction, whether it has been tried, time since it was last seen, and importance (gently). Nothing is ever due.</small>
     </div> : null}
     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / queue.length) * 100)}%` }} /></div>
-    <section className="cosmos-stage"><div className="cosmos-work" data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
+    <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen ? "open" : "closed"} data-right={detailsOpen ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
+      {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
-        <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
+        {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
           title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
-          onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button>
+          onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
         {mode === "review" ? <RetentionPractice card={card} pack={pack} template={template} revealed={revealed} busy={busy} counts={counts} selectedActions={activeLearning}
           method={method} typed={typed} onTyped={setTyped} onSubmitTyped={() => void reveal()} onMark={markLearning} onNotice={setNotice} /> : null}
@@ -922,7 +945,7 @@ export default function CosmosWindow() {
             title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>{RESULT_LABEL[grade]} <small>{position + 1}</small></button>)}</div>
         </> : <span>{method === "type" ? "Type your answer, then Enter to show it." : method === "say" ? "Say the answer aloud, then show it (Space)." : method === "handwrite" ? "Write the answer by hand, then show it (Space)." : "Recall the answer, then show it (Space)."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
-      {renderDetails()}
+      {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
   </main>;
 }
