@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2, Pin, PinOff, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2, Pin, PinOff, Search } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
 } from "../../lib/knowledgeWorkspace";
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
+import { exportCachedKnowledgeForRecovery } from "../../lib/offlineFetch";
 import { DocumentPage } from "./DocumentPage";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
@@ -564,11 +565,41 @@ function NotebookHome({ navigate, newAction }: { navigate: (location: NotebookLo
   const { snapshot } = workspace;
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
   const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
+  const [rescueBusy, setRescueBusy] = useState(false);
+  async function exportDeviceCache() {
+    if (rescueBusy) return;
+    setRescueBusy(true);
+    try {
+      const { json, counts } = await exportCachedKnowledgeForRecovery(workspace.userId);
+      if (!counts.knowledge_topics && !counts.knowledge_records) {
+        workspace.toast("No older Notebook topics or notes were found in this device's cache. Check another installation or an earlier backup.", { tone: "error" });
+        return;
+      }
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `heuresis-recovery-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.append(anchor);
+        try { anchor.click(); } finally { anchor.remove(); }
+      } finally { window.setTimeout(() => URL.revokeObjectURL(url), 30_000); }
+      workspace.toast(`Recovery copy exported: ${counts.knowledge_topics} topics and ${counts.knowledge_records} records. This did not alter the database.`);
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+    finally { setRescueBusy(false); }
+  }
   return <div className="nb-scope nb-home">
     <header className="nb-scope-head">
       <div><span className="ws-eyebrow">{formatDay(localDateKey(new Date()))}</span><h1>Notebook</h1></div>
       <div className="nb-scope-actions">{newAction}</div>
     </header>
+    {subjects.length > 0 && snapshot.topics.length === 0 && snapshot.entries.length === 0 ? <div className="nb-home-recovery" role="status">
+      <strong>Subjects are present, but their topics and notes are missing.</strong>
+      <p>Do not clear this device's app data. You can export any older notes held in its offline cache. The recovery file does not restore or overwrite anything automatically.</p>
+      <button className="ws-button" type="button" disabled={rescueBusy} onClick={() => void exportDeviceCache()}>
+        <Download size={14} /> {rescueBusy ? "Checking device…" : "Export any cached notes"}
+      </button>
+    </div> : null}
     {subjects.length ? <div className="nb-home-subjects">
       {subjects.map((subject) => {
         const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subject.id).map((topic) => topic.id));
