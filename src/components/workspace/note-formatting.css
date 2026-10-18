@@ -22,32 +22,33 @@
 /* Reading mode: a chevron always belongs to the heading it controls. */
 .nb-prose .nb-fold { min-width: 0; }
 .nb-prose .nb-fold > .nb-fold-heading { margin: 1.35em 0 .4em; }
-.nb-prose .nb-fold-heading .nb-fold-toggle {
+.nb-prose .nb-fold-heading .nb-fold-title {
   display: flex;
-  width: 100%;
-  gap: 8px;
   align-items: baseline;
-  border: 0;
-  padding: 4px 0;
-  text-align: left;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
+  gap: 8px;
   font: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
 }
-.nb-prose .nb-fold-toggle > svg {
-  flex: 0 0 auto;
+.nb-prose .nb-fold-heading .nb-fold-toggle {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
   align-self: center;
+  border: 0;
+  border-radius: 5px;
+  padding: 0;
+  background: transparent;
   color: var(--ws-muted);
-  transform: rotate(90deg);
-  transition: transform .14s ease;
+  cursor: pointer;
 }
+.nb-prose .nb-fold-toggle > svg { transform: rotate(90deg); transition: transform .14s ease; }
 .nb-prose .nb-fold.is-closed > .nb-fold-heading svg { transform: rotate(0deg); }
-.nb-prose .nb-fold-toggle:hover > svg,
-.nb-prose .nb-fold-toggle:focus-visible > svg { color: var(--ws-accent); }
-.nb-prose .nb-fold-content { margin-left: 23px; }
+.nb-prose .nb-fold-toggle:hover,
+.nb-prose .nb-fold-toggle:focus-visible { color: var(--ws-accent); background: var(--ws-accent-soft); }
+.nb-prose .nb-fold-content { margin-left: 30px; }
 .nb-prose .nb-fold-content > .nb-gap { height: .9em; }
 .nb-prose .nb-fold-content > p { margin: 0; }
 
