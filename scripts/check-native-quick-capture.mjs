@@ -44,7 +44,18 @@ assert.match(quick, /if \(!destination \|\| floating \|\|/, "Floating ideas alwa
 assert.match(quick, /qc-floating-destination/, "Destination must be prominent at top");
 assert.match(floating, /aria-label="Close Quick Capture window"/);
 assert.match(floating, /getCurrentWindow\(\)\.hide\(\)/, "Close button hides the native window");
-assert.match(floating, /Saved ideas/, "Confirmation receipts must be visible beneath captured ideas");
+assert.match(floating, /<small>To clean<\\/small>/, "Capture list must identify the work awaiting clean-up");
+assert.match(floating, /captureReviewIds\\.has\\(entry\\.id\\)/,
+  "Ordinary Notebook notes must never be treated as captured ideas");
+assert.match(floating, /markCaptureCleaned\\(session\\.user\\.id, entry\\.id\\)/,
+  "Explicitly reviewed captures must leave the queue without deleting their notes");
+assert.match(floating, /\\{expanded \\? <div className="qc-recent-expanded">[\\s\\S]*?<AICheck text=\\{targetText\\}/,
+  "AI check must appear inside, not beside, the expanded capture");
+assert.match(provider, /queueCaptureForReview\\(userId, id\\)/,
+  "Quick Capture saves must register their own provenance");
+const review = read("src/components/workspace/CaptureReviewPage.tsx");
+assert.match(review, /captureReviewIds\\.has\\(entry\\.id\\)/,
+  "Notebook review must not pull unrelated Inbox notes into the capture queue");
 // Visual entry point stays unique and opens the existing Capture workflow.
 assert.equal((shell.match(/className="hw-sidebar-capture"/g) ?? []).length, 1,
   "Exactly one feather Capture action belongs in the desktop sidebar");
