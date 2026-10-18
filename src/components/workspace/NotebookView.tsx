@@ -85,15 +85,22 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     updateMemory((current) => ({ ...current, notebook: { ...current.notebook, topicId: null } }));
   }, [location.topicId, topic, updateMemory, workspace.loading]);
 
-  // Reveal a topic on navigation, not after a deliberate collapse.
-  const visibleTopicId = doc?.topic_id ?? topic?.id;
+  // Reveal the topic only when navigation changes. Background refreshes must
+  // never re-open a folder that was deliberately collapsed by the user.
+  const visibleTopicId = doc?.topic_id ?? topic?.id ?? null;
+  const lastRevealedTopicId = useRef<string | null>(null);
   useEffect(() => {
-    const topicId = visibleTopicId;
-    if (!topicId) return;
-    const path = workspace.topicPath(topicId);
+    if (lastRevealedTopicId.current === visibleTopicId) return;
+    lastRevealedTopicId.current = visibleTopicId;
+    if (!visibleTopicId) return;
+    const path = workspace.topicPath(visibleTopicId);
     const ids = [path.subject?.id, ...path.chain.slice(0, -1).map((item) => item.id)].filter(Boolean) as string[];
-    if (ids.every((id) => memory.notebook.expanded.includes(id))) return;
-    updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: Array.from(new Set([...current.notebook.expanded, ...ids])) } }));
+    if (!ids.length) return;
+    updateMemory((current) => {
+      const missing = ids.filter((id) => !current.notebook.expanded.includes(id));
+      if (!missing.length) return current;
+      return { ...current, notebook: { ...current.notebook, expanded: [...current.notebook.expanded, ...missing] } };
+    });
   }, [visibleTopicId, updateMemory, workspace.topicPath]);
 
   const closeDocument = useCallback((topicId: string) => {
