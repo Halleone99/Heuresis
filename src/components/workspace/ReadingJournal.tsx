@@ -18,7 +18,7 @@ type Entry = {
 const LABELS: Record<EntryKind, string> = {
   interesting: "Interesting", question: "Questions", reflection: "Reflections", quote: "Quotes",
 };
-const EMPTY: JournalDraft & { kind: EntryKind } = {
+const EMPTY: Omit<JournalDraft, "kind"> & { kind: EntryKind } = {
   kind: "interesting", text: "", reference: "", explanation: "",
 };
 
