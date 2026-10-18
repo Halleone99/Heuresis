@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Inbox, ListChecks, NotebookPen } from "lucide-react";
 import { entryPreview, entryTitle, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { isInboxTopic } from "../../lib/lessonCleanup";
+import { useCaptureReviewIds } from "../../lib/captureReviewQueue";
 import { useWorkspace } from "./WorkspaceContext";
 
 /**
@@ -12,12 +13,13 @@ export function CaptureReviewPage({ onBack, onOpenNote }: {
   onOpenNote: (entry: KnowledgeEntry) => void;
 }) {
   const workspace = useWorkspace();
+  const captureReviewIds = useCaptureReviewIds(workspace.userId);
   const inboxes = workspace.snapshot.topics.filter(isInboxTopic);
   const groups = inboxes.map((inbox) => ({
     inbox,
     subject: workspace.subjectById.get(inbox.subject_id),
     items: workspace.snapshot.entries
-      .filter((entry) => entry.topic_id === inbox.id && entry.kind !== "lesson")
+      .filter((entry) => entry.topic_id === inbox.id && entry.kind !== "lesson" && captureReviewIds.has(entry.id))
       .sort((a, b) => b.created_at.localeCompare(a.created_at)),
   })).filter((group) => group.items.length)
     .sort((a, b) => (a.subject?.name ?? "").localeCompare(b.subject?.name ?? ""));

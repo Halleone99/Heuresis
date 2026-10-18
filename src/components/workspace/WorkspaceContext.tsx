@@ -8,6 +8,7 @@ import {
 } from "../../lib/knowledgeWorkspace";
 import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync, subscribeReplayedRows } from "../../lib/offlineFetch";
 import type { CleanupTarget } from "../../lib/lessonCleanup";
+import { queueCaptureForReview } from "../../lib/captureReviewQueue";
 import { signalWorkspaceChange, subscribeWorkspaceChanges } from "../../lib/workspaceSignal";
 import { supabase } from "../../lib/supabase";
 import {
@@ -360,6 +361,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     const slow = window.setTimeout(() => toast("Still saving — your capture is kept on this device until it is stored."), 1800);
     try {
       const created = await addEntry(full);
+      queueCaptureForReview(userId, id);
       dropPending(id);
       return created;
     } catch (saveError) {
@@ -393,8 +395,17 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     void (async () => {
       let restored = 0;
       for (const item of pending) {
-        if (snapshotRef.current.entries.some((row) => row.id === item.input.id)) { dropPending(item.input.id); continue; }
-        try { await addEntry(item.input); dropPending(item.input.id); restored += 1; }
+        if (snapshotRef.current.entries.some((row) => row.id === item.input.id)) {
+          queueCaptureForReview(userId, item.input.id!);
+          dropPending(item.input.id);
+          continue;
+        }
+        try {
+          await addEntry(item.input);
+          queueCaptureForReview(userId, item.input.id!);
+          dropPending(item.input.id);
+          restored += 1;
+        }
         catch { /* stays pending for the next launch */ }
       }
       if (restored) toast(`${restored} earlier ${restored === 1 ? "capture was" : "captures were"} saved.`);

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { ChevronDown, ChevronRight, CircleDot, Maximize2, Minimize2, NotebookPen, Pin, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleDot, Maximize2, Minimize2, NotebookPen, Pin, X } from "lucide-react";
 import { AICheck } from "./AICheck";
+import { markCaptureCleaned, useCaptureReviewIds } from "../../lib/captureReviewQueue";
 import AuthGate from "../AuthGate";
 import { QuickCapture } from "./QuickCapture";
 import { Toaster } from "./ui";
@@ -35,11 +36,13 @@ function FloatingCaptureBody({ session }: { session: Session }) {
   const [recentOpen, setRecentOpen] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Recent saved notes and mistakes, not only items filed in an Inbox.
+  // Only Quick Capture records explicitly awaiting clean-up belong here.
+  // Ordinary Notebook notes (including notes created inside an Inbox) never appear.
+  const captureReviewIds = useCaptureReviewIds(session.user.id);
   const captured = useMemo(() => workspace.snapshot.entries
-    .filter((entry) => entry.kind !== "lesson")
+    .filter((entry) => entry.kind !== "lesson" && captureReviewIds.has(entry.id))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 12), [workspace.snapshot.entries]);
+    .slice(0, 12), [workspace.snapshot.entries, captureReviewIds]);
 
   const openCapture = (mode: CaptureMode = "note") => {
     setView((current) => current === "bubble" ? "compact" : current);
@@ -159,7 +162,7 @@ function FloatingCaptureBody({ session }: { session: Session }) {
       <button type="button" className="quick-floating-recent-head qc-recent-collapse"
         aria-expanded={recentOpen} onClick={() => setRecentOpen((value) => !value)}>
         <strong>Recent captures</strong>
-        <small>Saved ideas</small>
+        <small>To clean</small>
         <span>{recentOpen ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}</span>
       </button>
       {recentOpen ? captured.length ? <ol>{captured.map((entry) => {
@@ -178,16 +181,25 @@ function FloatingCaptureBody({ session }: { session: Session }) {
               {expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
               <span className="qc-recent-title">{heading}</span>
             </button>
-            <AICheck text={targetText} language={subject} context={entry.kind === "mistake" ? "mistake" : "note"} compact
-              onApply={(next) => workspace.patchEntry(entry.id, entry.kind === "mistake" ? { correction: next } : { body: next }).then(() => undefined)} />
+
           </div>
           <span className="quick-floating-recent-meta">
             <time>{new Date(entry.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
             {label} · {subject}
           </span>
-          {expanded ? <div className="qc-recent-full" aria-label="Full saved capture">{fullText}</div> : null}
+          {expanded ? <div className="qc-recent-expanded">
+            <div className="qc-recent-full" aria-label="Full saved capture">{fullText}</div>
+            <div className="qc-recent-actions">
+              <AICheck text={targetText} language={subject} context={entry.kind === "mistake" ? "mistake" : "note"} compact
+                onApply={(next) => workspace.patchEntry(entry.id, entry.kind === "mistake" ? { correction: next } : { body: next }).then(() => undefined)} />
+              <button type="button" className="qc-recent-reviewed" onClick={() => {
+                markCaptureCleaned(session.user.id, entry.id);
+                setExpandedId(null);
+              }}><Check size={12}/> Mark cleaned</button>
+            </div>
+          </div> : null}
         </li>;
-      })}</ol> : <p>No captures yet. Save one above to see it here.</p> : null}
+      })}</ol> : <p>Nothing to clean. New Quick Captures will appear here until you mark them cleaned.</p> : null}
     </section> : null}
     {notice ? <p className="quick-floating-notice" role="alert">{notice}</p> : null}
     <Toaster/>
