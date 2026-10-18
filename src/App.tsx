@@ -18,6 +18,7 @@ import SettingsModal from "./components/SettingsModal";
 import TopicModal from "./components/TopicModal";
 import { MistakeLog } from "./components/workspace/MistakeLog";
 import { NotebookView } from "./components/workspace/NotebookView";
+import { DetachedNoteWorkspace } from "./components/workspace/DetachedNoteWorkspace";
 import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree";
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
@@ -659,5 +660,10 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 }
 
 export default function App() {
-  return <AuthGate>{(session) => <HeuresisApp session={session} />}</AuthGate>;
+  // Detachable Notebook windows share authentication and persistence but no
+  // global navigation or capture overlay: they are genuine writing surfaces.
+  const detachedNote = new URLSearchParams(window.location.search).get("noteWindow") === "1";
+  return <AuthGate>{(session) => detachedNote
+    ? <DetachedNoteWorkspace userId={session.user.id} />
+    : <HeuresisApp session={session} />}</AuthGate>;
 }
