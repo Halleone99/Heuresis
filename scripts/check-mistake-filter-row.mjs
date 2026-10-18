@@ -51,4 +51,15 @@ assert.doesNotMatch(page, /ml-mode-grid|ml-languages-tabs|ml-filter-row|ml-stage
 assert.match(quick, /mode === "mistake" \? <>[\s\S]*<span>Mistake<\/span>[\s\S]*<span>Correction<\/span>/);
 assert.doesNotMatch(quick, /Type of mistake|Add why|What I said or wrote/);
 assert.match(css, /\.ml-simple-item/);
-console.log("Mistake Log organisation, editing and colour regression checks passed.");
+assert.match(page, /import \{ RichEditor, type RichEditorHandle \} from "\.\/RichEditor"/);
+assert.match(page, /import \{ RichText \} from "\.\/RichText"/);
+assert.match(page, /<RichEditor ref=\{explanationRef\}/);
+assert.match(page, /explanationRef\.current\?\.getMarkdown\(\)/, "Read the latest editor content at save, not a delayed state update");
+assert.match(page, /<RichText text=\{entry\.explanation\}/);
+assert.match(css, /\.ml-explanation-editor \.nb-editor/, "Rich editor should fit the compact Mistake Log");
+assert.match(css, /\.ml-entry-context\.nb-prose/, "Formatted note must render in compact reading mode");
+assert.doesNotMatch(page, /All mistakes\s*<span>\{mistakes\.length\}/);
+assert.doesNotMatch(page, /\{subjectCounts\.get\(subject\.id\)/);
+assert.doesNotMatch(page, /\{topic\.name\}<span>\{count\}/);
+assert.match(page, /attempt: attempt\.trim\(\), correction: correction\.trim\(\)/, "Recall fields remain plain text");
+console.log("Mistake Log organisation, formatting, clean navigation and colour regression checks passed.");
