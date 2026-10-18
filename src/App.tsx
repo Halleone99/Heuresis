@@ -498,7 +498,16 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}><span className="desktop-wordmark-name">Heuresis<span>.</span></span></button>
+        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}>
+          <span className="desktop-brand-mark" aria-hidden="true"><HeuresisMark /></span>
+          <span className="desktop-wordmark-name">Heuresis</span>
+        </button>
+        <button type="button" className="desktop-action hw-sidebar-header-toggle" onClick={toggleSidebar}
+            title={actualSidebarMode === "hidden" ? "Show sidebar (Ctrl+\\)" : "Toggle sidebar (Ctrl+\\)"}
+            aria-label={actualSidebarMode === "hidden" ? "Show navigation sidebar" : "Toggle navigation sidebar"}
+            aria-expanded={actualSidebarMode === "full"}>
+            <PanelLeftOpen size={16}/>
+          </button>
         {section === "study" ? <nav className="desktop-nav-group" aria-label="Study navigation">
           <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
           <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
@@ -507,12 +516,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </nav> : null}
         <span className="desktop-spacer" />
         <div className="desktop-header-actions">
-          <button type="button" className="desktop-action hw-sidebar-header-toggle" onClick={toggleSidebar}
-            title={actualSidebarMode === "hidden" ? "Show sidebar (Ctrl+\\)" : "Toggle sidebar (Ctrl+\\)"}
-            aria-label={actualSidebarMode === "hidden" ? "Show navigation sidebar" : "Toggle navigation sidebar"}
-            aria-expanded={actualSidebarMode === "full"}>
-            <PanelLeftOpen size={16}/>
-          </button>
           <button type="button" className="desktop-action hw-sync-indicator" data-sync-tone={syncTone}
             title={syncTitle} aria-label={`Synchronisation: ${syncLabel}. Show details.`}
             onClick={() => setSyncOpen(true)}>
@@ -561,19 +564,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
-          <div className="hw-sidebar-header">
-            <button type="button" className="hw-sidebar-brand"
-              onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }}
-              title="Heuresis — open home" aria-label="Heuresis — open home">
-              <span className="hw-sidebar-mark"><HeuresisMark/></span>
-              <span className="hw-sidebar-heading">Heuresis</span>
-            </button>
-            <button type="button" className="hw-sidebar-collapse" onClick={toggleSidebar}
-              title={actualSidebarMode === "full" ? "Collapse sidebar (Ctrl+\\)" : "Expand sidebar (Ctrl+\\)"}
-              aria-label={actualSidebarMode === "full" ? "Collapse sidebar" : "Expand sidebar"}>
-              {actualSidebarMode === "full" ? <PanelLeftClose size={16}/> : <PanelLeftOpen size={16}/>}
-            </button>
-          </div>
           <nav className="hw-sections">
             {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>

@@ -1,0 +1,235 @@
+/* Approved 18 October shell and Notebook design.
+   Keep the branding unique, preserve the three-state sidebar, and make
+   language subject cards identifiable without colouring the whole page. */
+
+:root[data-theme] .desktop-chrome {
+  padding-left: 17px;
+  border-bottom-color: rgba(255,255,255,.095);
+}
+:root[data-theme] .desktop-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+:root[data-theme] .desktop-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 8px;
+  background: linear-gradient(145deg, #a22940, #751626 80%);
+  color: #fff2f1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.17), 0 3px 8px rgba(0,0,0,.18);
+}
+:root[data-theme] .desktop-brand-mark svg { display: block; width: 24px; height: 24px; }
+:root[data-theme] .desktop-wordmark-name {
+  color: var(--ws-chrome-text);
+  font: 650 16px/1.2 var(--ws-sans);
+  letter-spacing: -.015em;
+}
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  margin-left: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ws-chrome-muted);
+  opacity: .55;
+  cursor: pointer;
+}
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle:hover,
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle:focus-visible {
+  opacity: 1;
+  background: rgba(255,255,255,.11);
+  color: var(--ws-chrome-text);
+}
+:root[data-theme] .desktop-action.hw-sidebar-header-toggle:focus-visible {
+  outline: 2px solid var(--ws-chrome-text);
+  outline-offset: 2px;
+}
+
+/* No second Heuresis masthead inside the sidebar. */
+.heuresis-desktop[data-sidebar] .heuresis-section-sidebar {
+  gap: 14px;
+  padding-top: 24px;
+  border-right-color: rgba(255,255,255,.095);
+  background: #14191e;
+}
+.heuresis-desktop[data-sidebar] .hw-sections { gap: 4px; }
+.heuresis-desktop[data-sidebar] .hw-sections button {
+  min-height: 43px;
+  gap: 13px;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: #bdc5d0;
+  font-size: 13.5px;
+}
+.heuresis-desktop[data-sidebar] .hw-sections button svg { width: 18px; height: 18px; }
+.heuresis-desktop[data-sidebar] .hw-sections button.active {
+  background: rgba(255,255,255,.085);
+  color: #f5f7fa;
+  box-shadow: inset 3px 0 0 #d5e1ef;
+  border-radius: 9px;
+}
+.heuresis-desktop[data-sidebar] .hw-sections button.active svg { color: #e3edf7; }
+.heuresis-desktop[data-sidebar] .hw-sections button:not(.active):hover { background: rgba(255,255,255,.065); }
+.heuresis-desktop[data-section="notebook"] .hw-notebook-tree {
+  border-top: 1px solid rgba(255,255,255,.10);
+  padding-top: 16px;
+  margin-top: 0;
+}
+.heuresis-desktop[data-section="notebook"] .hw-nb-heading {
+  color: #b2bdca;
+  letter-spacing: .12em;
+}
+.heuresis-desktop[data-section="notebook"] .hw-nb-home.is-active {
+  background: rgba(255,255,255,.10);
+  color: #f1f5f9;
+}
+@media (min-width:1101px) {
+  .heuresis-desktop[data-sidebar="full"] { --ws-sidebar: 264px; }
+  .heuresis-desktop[data-sidebar="full"] .heuresis-section-sidebar { width: 264px; padding-inline: 15px; }
+}
+.heuresis-desktop[data-sidebar="rail"] .hw-sections button { justify-content: center; padding: 0; }
+@media (max-width:1100px) {
+  .heuresis-desktop[data-sidebar="full"] .heuresis-section-sidebar { padding-top: 16px; }
+  .heuresis-desktop[data-sidebar="full"] .hw-sections button { padding-inline: 11px; }
+  .heuresis-desktop[data-sidebar="rail"] .hw-sections button { padding: 0; }
+}
+
+/* Notebook's wide editorial canvas. Subpages keep their existing behaviour. */
+.heuresis-desktop[data-section="notebook"] .nb-scope.nb-home {
+  width: 100%;
+  max-width: 1580px;
+  padding: clamp(30px, 5.1vw, 78px) clamp(30px, 7.35vw, 134px) 85px;
+}
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-head {
+  align-items: center;
+  gap: 24px;
+  margin: 0 0 34px;
+}
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-head .ws-eyebrow {
+  font: 500 10px/1.4 var(--ws-mono);
+  letter-spacing: .2em;
+}
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-head h1 {
+  margin-top: 12px;
+  font: 400 clamp(44px, 4vw, 56px)/1 var(--ws-display);
+  letter-spacing: -.02em;
+}
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-actions {
+  align-self: center;
+  gap: 12px;
+}
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-capture-open,
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-new-button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 9px;
+  font-size: 12.5px;
+  box-shadow: none;
+}
+.heuresis-desktop[data-section="notebook"] .nb-home .nb-new-button { min-width: 120px; }
+.heuresis-desktop[data-section="notebook"] .nb-home-subjects {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 17px;
+}
+
+/* Language tint lives on the book tile; the card itself stays restful. */
+.heuresis-desktop[data-section="notebook"] .nb-home-subject {
+  min-width: 0;
+  min-height: 116px;
+  border: 1px solid var(--ws-line);
+  border-radius: 13px;
+  background-color: var(--ws-surface);
+  box-shadow: 0 5px 16px rgba(0,0,0,.075);
+}
+:root[data-theme="dark"] .heuresis-desktop[data-section="notebook"] .nb-home-subject:not(.has-cover) {
+  background: linear-gradient(125deg, #2b3037, #282e35);
+  border-color: rgba(194,207,224,.13);
+}
+.heuresis-desktop[data-section="notebook"] .nb-home-subject:hover {
+  border-color: color-mix(in srgb, var(--nb-subject-accent) 45%, var(--ws-line));
+  box-shadow: 0 9px 24px rgba(0,0,0,.13);
+  transform: translateY(-2px);
+}
+.heuresis-desktop[data-section="notebook"] .nb-home-subject.has-colour:not(.has-cover) {
+  --nb-cover-ink: var(--ws-ink);
+  --nb-cover-secondary: var(--ws-muted);
+}
+.heuresis-desktop[data-section="notebook"] .nb-subject-open {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 23px;
+  min-height: 116px;
+  padding: 22px 24px;
+}
+.heuresis-desktop[data-section="notebook"] .nb-subject-icon {
+  flex: 0 0 62px;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 12px;
+  color: var(--nb-subject-accent);
+  background: color-mix(in srgb, var(--nb-subject-accent) 12%, transparent);
+}
+.heuresis-desktop[data-section="notebook"] .nb-subject-icon svg {
+  width: 33px;
+  height: 33px;
+  stroke-width: 1.7;
+}
+.heuresis-desktop[data-section="notebook"] .nb-subject-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+}
+.heuresis-desktop[data-section="notebook"] .nb-subject-open .nb-subject-copy strong {
+  color: var(--nb-cover-ink, var(--ws-ink));
+  font: 400 24px/1.15 var(--ws-display);
+  overflow-wrap: anywhere;
+}
+.heuresis-desktop[data-section="notebook"] .nb-subject-open .nb-subject-copy span {
+  color: var(--nb-cover-secondary, var(--ws-muted));
+  font: 400 12.5px/1.35 var(--ws-sans);
+}
+.heuresis-desktop[data-section="notebook"] .nb-home-subject:focus-within {
+  border-color: var(--nb-subject-accent);
+}
+@media(max-width:980px) {
+  .heuresis-desktop[data-section="notebook"] .nb-scope.nb-home {
+    padding: 45px clamp(20px, 4vw, 44px) 70px;
+  }
+  .heuresis-desktop[data-section="notebook"] .nb-home-subjects {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  }
+}
+@media(max-width:600px) {
+  .heuresis-desktop[data-section="notebook"] .nb-scope.nb-home { padding: 58px 18px 50px; }
+  .heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-head { gap: 16px; }
+  .heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-head h1 { font-size: 42px; }
+  .heuresis-desktop[data-section="notebook"] .nb-home .nb-scope-actions { width: 100%; margin: 0; flex-wrap: wrap; }
+  .heuresis-desktop[data-section="notebook"] .nb-home .nb-new-button { min-width: 90px; }
+  .heuresis-desktop[data-section="notebook"] .nb-home-subjects { grid-template-columns: 1fr; }
+  .heuresis-desktop[data-section="notebook"] .nb-subject-open { min-height: 103px; gap: 16px; padding: 18px; }
+  .heuresis-desktop[data-section="notebook"] .nb-subject-icon { flex-basis: 52px; width: 52px; height: 52px; }
+  .heuresis-desktop[data-section="notebook"] .nb-subject-icon svg { width: 28px; height: 28px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .heuresis-desktop[data-section="notebook"] .nb-home-subject { transition: none; }
+}

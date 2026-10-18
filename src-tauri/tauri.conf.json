@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Heuresis",
+        "title": "",
         "label": "main",
         "width": 1440,
         "height": 900,
@@ -24,11 +24,19 @@
         "maximized": false
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico", "icons/128x128.png", "icons/icon.png"]
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico",
+      "icons/128x128.png",
+      "icons/icon.png"
+    ]
   }
 }

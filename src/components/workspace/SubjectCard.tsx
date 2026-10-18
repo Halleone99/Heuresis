@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { ImagePlus, Pencil, Trash2, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { BookOpen, ImagePlus, Pencil, Trash2, X } from "lucide-react";
 import type { KnowledgeSubject } from "../../lib/knowledgeWorkspace";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { useWorkspace } from "./WorkspaceContext";
@@ -78,6 +78,7 @@ export function SubjectCard({ subject, topics, notes, onOpen }: {
 }) {
   const workspace = useWorkspace();
   const { userId } = workspace;
+  const defaultAccent = ({ chinese: "#d9828f", german: "#70a8dc", russian: "#82c49a" } as Record<string, string>)[subject.name.trim().toLocaleLowerCase()] ?? "#91a3b5";
   const [colour, setColour] = useState(() => readColour(userId, subject.id));
   const [cover, setCover] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -153,12 +154,16 @@ export function SubjectCard({ subject, topics, notes, onOpen }: {
   }
   return <>
     <div className={`nb-home-subject ${cover ? "has-cover" : ""} ${colour ? "has-colour" : ""}`}
-      style={{ backgroundColor: colour || undefined, backgroundImage: cover ? `linear-gradient(90deg, rgba(13,18,27,.83), rgba(13,18,27,.35)), url("${cover}")` : undefined }}>
+      style={{ "--nb-subject-accent": colour || defaultAccent,
+        backgroundImage: cover ? `linear-gradient(90deg, rgba(13,18,27,.86), rgba(13,18,27,.40)), url("${cover}")` : undefined } as CSSProperties}>
       <button type="button" className="nb-subject-open" onClick={clickCard}
         onDoubleClick={(event) => { event.preventDefault(); beginEdit(); }}
         title={`Open ${subject.name}; double-click to customise`}>
-        <strong>{subject.name}</strong>
-        <span>{topics} {topics === 1 ? "topic" : "topics"} · {notes} {notes === 1 ? "note" : "notes"}</span>
+        <span className="nb-subject-icon" aria-hidden="true"><BookOpen /></span>
+        <span className="nb-subject-copy">
+          <strong>{subject.name}</strong>
+          <span>{topics} {topics === 1 ? "topic" : "topics"} · {notes} {notes === 1 ? "note" : "notes"}</span>
+        </span>
       </button>
       {workspace.writable ? <button type="button" className="nb-subject-edit" onClick={beginEdit}
         aria-label={`Customise ${subject.name}`} title="Customise subject"><Pencil size={14} /></button> : null}
