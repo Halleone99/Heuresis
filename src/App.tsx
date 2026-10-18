@@ -24,7 +24,6 @@ import { OverviewView } from "./components/workspace/OverviewView";
 import { ProgressView } from "./components/workspace/ProgressView";
 import { ReadingView } from "./components/workspace/ReadingView";
 import { QuotationsView } from "./components/workspace/QuotationsView";
-import { ReferenceView } from "./components/workspace/ReferenceView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
 import TabletCaptureFab from "./components/TabletCaptureFab";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
@@ -75,7 +74,7 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "progress", label: "Progress", icon: BarChart3, key: "5" },
   { id: "reading", label: "Reading", icon: BookOpen, key: "6" },
   { id: "quotations", label: "Quotations", icon: Quote, key: "7" },
-  { id: "reference", label: "Reference", icon: LibraryBig, key: "8" },
+  { id: "reference", label: "Catalogue", icon: LibraryBig, key: "8" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -162,7 +161,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [cardQuery, setCardQuery] = useState("");
   const [view, setView] = useState<View>("library");
   const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
-  const [referenceMode, setReferenceMode] = useState<"works" | "topics">("works");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
@@ -594,13 +592,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
           {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
           {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
-          {section === "reference" && !workspace.loading && !workspace.error ? <div className="lit-reference-workspace">
-            <nav className="lit-reference-modes" role="group" aria-label="Reference views">
-              <button type="button" className={referenceMode === "works" ? "active" : ""} aria-pressed={referenceMode === "works"} onClick={() => setReferenceMode("works")}>Works</button>
-              <button type="button" className={referenceMode === "topics" ? "active" : ""} aria-pressed={referenceMode === "topics"} onClick={() => setReferenceMode("topics")}>Topics</button>
-            </nav>
-            {referenceMode === "works" ? <NotebookView key="reference-works" referenceOnly onExitReference={() => setReferenceMode("topics")} /> : <ReferenceView />}
-          </div> : null}
+          {section === "reference" && !workspace.loading && !workspace.error
+            ? <NotebookView key="knowledge-catalogue" referenceOnly onExitReference={() => setSection("notebook")} /> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onCapture={openCapture} onOpenCaptureInbox={openCaptureInbox} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
@@ -649,7 +642,7 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
-    ["Alt 1 – 8", "Overview · Study · Notebook · Mistake Log · Progress · Reading · Quotations · Reference"],
+    ["Alt 1 – 8", "Overview · Study · Notebook · Mistake Log · Progress · Reading · Quotations · Catalogue"],
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
     [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],
