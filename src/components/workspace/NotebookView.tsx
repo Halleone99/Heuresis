@@ -156,7 +156,17 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
       const target = doc?.topic_id ?? topic?.id ?? (currentSubjectId
         ? snapshot.topics.find((row) => row.subject_id === currentSubjectId && isInboxTopic(row))?.id ?? null : null);
       if (target) { startNewNote(target); return; }
-      if (!currentSubjectId) { workspace.toast("Choose a subject or topic for your note.", { tone: "error" }); return; }
+      if (!currentSubjectId) {
+        // From Notebook home, use the same Unsorted → Inbox destination as
+        // Quick Capture, but open the *document editor*, not the capture panel.
+        void (async () => {
+          const unsorted = snapshot.subjects.find((row) => row.name.trim().toLocaleLowerCase() === "unsorted")
+            ?? await workspace.addSubject("Unsorted");
+          const inbox = await workspace.ensureInbox(unsorted.id);
+          startNewNote(inbox.id);
+        })().catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+        return;
+      }
       void workspace.ensureInbox(currentSubjectId).then((inbox) => startNewNote(inbox.id))
         .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
     } },
