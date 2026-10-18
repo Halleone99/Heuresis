@@ -438,7 +438,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     collections: collections.length,
     topics: packs.length,
   }), [collections.length, packs]);
-  const dueCount = workspace.snapshot.entries.filter((entry) => isRecallDue(entry)).length;
 
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
   function openPack(pack: PackWithType, cardId: string | null = null) { setActivePackId(pack.id); setFocusCardId(cardId); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
@@ -568,7 +567,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); workspace.goTo(id); }} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
-              {id === "mistakes" && dueCount ? <small className="hw-badge" title={`${dueCount} due for recall`}>{dueCount}</small> : null}
             </button>)}
           </nav>
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookSidebarTree /> : null}
@@ -608,7 +606,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
           onClick={() => { if (id === "quotations") setQuoteSourceBookId(null); workspace.goTo(id); if (id === "study") openLibrary(); }}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
-          {id === "mistakes" && dueCount > 0 ? <i className="mobile-nav-due-dot" aria-label={`${dueCount} due`} /> : null}
         </button>)}
       </nav>
       <TabletCaptureFab onCapture={() => openNotebookCapture("note")} />
