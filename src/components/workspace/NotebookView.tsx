@@ -160,7 +160,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
       void workspace.ensureInbox(currentSubjectId).then((inbox) => startNewNote(inbox.id))
         .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
     } },
-    { label: "New note in window", icon: <FilePlus2 size={14}/>, run: () => {
+    { label: "New writing window", icon: <FilePlus2 size={14}/>, run: () => {
       const currentSubjectId = topic?.subject_id ?? subject?.id ?? null;
       const target = doc?.topic_id ?? topic?.id ?? (currentSubjectId
         ? snapshot.topics.find((row) => row.subject_id === currentSubjectId && isInboxTopic(row))?.id ?? null : null);
