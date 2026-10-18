@@ -21,6 +21,6 @@ assert.match(overview, /saveGoal\(selected, draft\)/);
 assert.match(overview, /workspace\.goTo\("progress"\)/);
 assert.match(css, /\.ov-heat-grid\{display:grid;/);
 assert.match(css, /\.ov-simple-grid\{display:grid;/);
-assert.match(app, /<OverviewView study=\{studySummary\} onOpenStudy=\{\(\) => setSection\("study"\)\} collections=\{collections\} packs=\{packs\}/);
+assert.match(app, /<OverviewView study=\{studySummary\} onOpenStudy=\{\(\) => navigateSection\("study"\)\} collections=\{collections\} packs=\{packs\}/);
 assert.match(app, /SECTIONS\.filter\(\(item\) => item\.id !== "progress"\)/);
 console.log("Simple Overview structure, heatmap sources, filtering, goals and Progress navigation passed.");
