@@ -48,7 +48,7 @@ assert.match(floating, /Saved ideas/, "Confirmation receipts must be visible ben
 // Visual entry point stays unique and opens the existing Capture workflow.
 assert.equal((shell.match(/className="hw-sidebar-capture"/g) ?? []).length, 1,
   "Exactly one feather Capture action belongs in the desktop sidebar");
-assert.match(shell, /<aside className="heuresis-section-sidebar"[\s\S]*?className="hw-sidebar-capture" onClick=\{\(\) => openNotebookCapture\("note"\)\}/,
+assert.match(shell, /<aside className="heuresis-section-sidebar"[^>]*>[\s\S]*?className="hw-sidebar-capture" onClick=\{\(\) => openNotebookCapture\("note"\)\}/,
   "Sidebar Capture must continue opening the established native Quick Capture workflow");
 assert.doesNotMatch(shell, /className="desktop-action hw-capture-button"/,
   "No duplicate feather in top-right toolbar");
