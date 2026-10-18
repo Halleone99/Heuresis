@@ -316,14 +316,10 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       const mod = event.ctrlKey || event.metaKey;
       if (event.key === "Escape" && !picking && !creatingSubject) { event.preventDefault(); close(); }
-      if (mod && event.key === "Enter") { event.preventDefault(); void submit(); }
+      if (mod && event.key === "Enter" && captureStyle !== "flashcard") { event.preventDefault(); void submit(); }
     }}>
     {!floating ? <div className="qc-head">
-      <div className="ws-segmented is-small" role="tablist" aria-label="Capture type">
-        <button type="button" role="tab" aria-selected={mode === "note"} className={mode === "note" ? "is-active" : ""} onClick={() => setMode("note")} title={`${MOD_KEY}+Shift+N`}><NotebookPen size={13} /> Note</button>
-        <button type="button" role="tab" aria-selected={mode === "mistake"} className={mode === "mistake" ? "is-active" : ""} onClick={() => setMode("mistake")} title={`${MOD_KEY}+Shift+M`}><TriangleAlert size={13} /> Mistake</button>
-
-      </div>
+      <strong className="qc-head-title">Quick Capture</strong>
       <span className="qc-head-spacer" />
       {mode === "note" && !floating ? <button type="button" className={`qc-stream-toggle ${stream ? "is-active" : ""}`} aria-pressed={stream}
         title={stream ? "Switch to structured note capture" : "Rapid continuous capture: Enter saves"}
