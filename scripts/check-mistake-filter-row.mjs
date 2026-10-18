@@ -62,4 +62,7 @@ assert.doesNotMatch(page, /All mistakes\s*<span>\{mistakes\.length\}/);
 assert.doesNotMatch(page, /\{subjectCounts\.get\(subject\.id\)/);
 assert.doesNotMatch(page, /\{topic\.name\}<span>\{count\}/);
 assert.match(page, /attempt: attempt\.trim\(\), correction: correction\.trim\(\)/, "Recall fields remain plain text");
+const app = readFileSync("src/App.tsx", "utf8");
+assert.doesNotMatch(app, /const dueCount =/, "No redundant due-count calculation for the navigation");
+assert.doesNotMatch(app, /id === "mistakes" && dueCount/, "Navigation no longer shows a mistake total or due-count badge");
 console.log("Mistake Log organisation, formatting, clean navigation and colour regression checks passed.");
