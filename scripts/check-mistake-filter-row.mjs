@@ -34,6 +34,17 @@ const model = readFileSync("src/lib/knowledgeWorkspace.ts", "utf8");
 assert.match(model, /export type MistakeAccent/);
 assert.match(model, /accent_color: MistakeAccent \| null/);
 assert.match(css, /\.ml-organised-layout/);
+assert.match(page, /<OrganiserActions label=\{subject\.name\}/, "One options menu for each subject");
+assert.match(page, /<OrganiserActions label=\{topic\.name\}/, "One options menu for each topic");
+assert.doesNotMatch(page, /className="ws-icon-button ml-nav-tool"/, "No repeated action icons beside each row");
+assert.match(page, /className="ml-nav-menu" role="menu"/, "Menus are accessible");
+assert.match(page, /<Portal><div ref=\{menu\}/, "Menus escape the scroll clipping container");
+assert.match(page, /aria-label="Hide subjects"/, "Can hide the organiser");
+assert.match(page, /className="ml-organiser-restore"/, "A visible reopen control remains");
+assert.match(page, /heuresis\.mistakes\.organiser\.v1:/, "Panel choice persists by user");
+assert.match(css, /\.ml-organised-layout\.is-organiser-hidden/, "Hidden panel releases its column");
+assert.match(css, /\.ml-nav-menu/, "Actions dropdown has styling");
+
 assert.match(css, /\.ml-accent-choice/);
 assert.match(page, /function RecallSession\(/);
 assert.doesNotMatch(page, /ml-mode-grid|ml-languages-tabs|ml-filter-row|ml-stage|Complete history|New mode|Practise due/);

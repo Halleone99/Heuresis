@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronRight, FolderPlus, GraduationCap, Pin, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pin, Pencil, Plus, Trash2, X } from "lucide-react";
 import { friendlyError, type KnowledgeEntry, type KnowledgeSubject, type KnowledgeTopic, type MistakeAccent } from "../../lib/knowledgeWorkspace";
 import { EmptyState, InlineNameForm, Kbd, MOD_KEY, Portal, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
@@ -27,6 +27,15 @@ export function MistakeLog() {
   const [creatingSubject, setCreatingSubject] = useState(false);
   const [creatingTopic, setCreatingTopic] = useState<{ subjectId: string; parentId: string | null } | null>(null);
   const [renaming, setRenaming] = useState<{ kind: "subject" | "topic"; id: string } | null>(null);
+  const [actionsId, setActionsId] = useState<string | null>(null);
+  const [organiserOpen, setOrganiserOpen] = useState(() => {
+    try { return localStorage.getItem("heuresis.mistakes.organiser.v1:" + workspace.userId) !== "closed"; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("heuresis.mistakes.organiser.v1:" + workspace.userId, organiserOpen ? "open" : "closed"); }
+    catch { /* Sidebar preference is optional. */ }
+  }, [organiserOpen, workspace.userId]);
   const [visibleCount, setVisibleCount] = useState(60);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -151,14 +160,18 @@ export function MistakeLog() {
         }}><Plus size={16} /> Add mistake</button>
       </div> : null}
     </header>
-    <div className="ml-organised-layout">
-      <aside className="ml-organiser" aria-label="Mistake subjects and topics">
+    <div className={"ml-organised-layout" + (!organiserOpen ? " is-organiser-hidden" : "")}>
+      {organiserOpen ? <aside className="ml-organiser" aria-label="Mistake subjects and topics">
         <div className="ml-nav-header">
           <span>Subjects</span>
-          {workspace.writable ? <button className="ws-icon-button" type="button"
-            aria-label="New subject" title="New subject" onClick={() => {
-              setCreatingSubject(true); setCreatingTopic(null); setRenaming(null);
-            }}><Plus size={17} /></button> : null}
+          <div className="ml-nav-header-actions">
+            {workspace.writable ? <button className="ws-icon-button" type="button"
+              aria-label="New subject" title="New subject" onClick={() => {
+                setCreatingSubject(true); setCreatingTopic(null); setRenaming(null); setActionsId(null);
+              }}><Plus size={17} /></button> : null}
+            <button className="ws-icon-button" type="button" title="Hide subjects" aria-label="Hide subjects"
+              onClick={() => { setOrganiserOpen(false); setActionsId(null); }}><PanelLeftClose size={16} /></button>
+          </div>
         </div>
         {creatingSubject ? <div className="ml-inline-create">
           <InlineNameForm label="New subject" placeholder="German, Work, History…"
@@ -192,16 +205,13 @@ export function MistakeLog() {
             : <div className="ml-nav-row">
               <button type="button" className={"ml-nav-label" + (selectedSubjectId === subject.id && !selectedTopicId ? " is-active" : "")}
                 onClick={() => select(subject.id, null)}>{subject.name}<span>{subjectCounts.get(subject.id) ?? 0}</span></button>
-              {workspace.writable ? <>
-                <button className="ws-icon-button ml-nav-tool" type="button" title="Add topic"
-                  aria-label={"Add topic to " + subject.name} onClick={() => {
-                    setCreatingTopic({ subjectId: subject.id, parentId: null }); setCreatingSubject(false);
-                  }}><FolderPlus size={15} /></button>
-                <button className="ws-icon-button ml-nav-tool" type="button" title="Rename subject"
-                  aria-label={"Rename " + subject.name} onClick={() => setRenaming({ kind: "subject", id: subject.id })}><Pencil size={13} /></button>
-                <button className="ws-icon-button ml-nav-tool is-danger" type="button" title="Delete subject"
-                  aria-label={"Delete subject " + subject.name} onClick={() => void removeSubject(subject)}><Trash2 size={13} /></button>
-              </> : null}
+              {workspace.writable ? <OrganiserActions label={subject.name} open={actionsId === "subject:" + subject.id}
+                onToggle={(open) => setActionsId(open ? "subject:" + subject.id : null)}
+                items={[
+                  { label: "Add topic", icon: <FolderPlus size={14} />, run: () => { setCreatingTopic({ subjectId: subject.id, parentId: null }); setCreatingSubject(false); setRenaming(null); } },
+                  { label: "Rename", icon: <Pencil size={14} />, run: () => { setRenaming({ kind: "subject", id: subject.id }); setCreatingTopic(null); } },
+                  { label: "Delete subject", icon: <Trash2 size={14} />, danger: true, run: () => void removeSubject(subject) },
+                ]} /> : null}
             </div>}
           <TopicBranch subjectId={subject.id} parentId={null} depth={0}
             selectedTopicId={selectedTopicId} selectedSubjectId={selectedSubjectId}
@@ -209,11 +219,15 @@ export function MistakeLog() {
             onCreate={(parentId) => {
               setCreatingTopic({ subjectId: subject.id, parentId }); setCreatingSubject(false);
             }}
-            onDelete={removeTopic} renaming={renaming} setRenaming={setRenaming} />
+            onDelete={removeTopic} renaming={renaming} setRenaming={setRenaming}
+            actionsId={actionsId} setActionsId={setActionsId} />
         </div>)}
         {!subjects.length ? <p className="ml-nav-hint">Add a subject to organise mistakes. You can also save without one.</p> : null}
-      </aside>
+      </aside> : null}
       <main className="ml-simple-list" ref={listRef}>
+        {!organiserOpen ? <button type="button" className="ml-organiser-restore" onClick={() => setOrganiserOpen(true)}>
+          <PanelLeftOpen size={16} /> Subjects <span>{selectedTitle ? "· " + selectedTitle : ""}</span>
+        </button> : null}
         {selectedTitle ? <div className="ml-current-filter">
           <span>{workspace.pathLabel(selectedTopicId ?? undefined) || selectedTitle}</span>
           <button type="button" onClick={() => select(null, null)}>Show all <X size={13} /></button>
@@ -236,8 +250,60 @@ export function MistakeLog() {
   </div>;
 }
 
+type OrganiserAction = { label: string; icon: React.ReactNode; run: () => void; danger?: boolean };
+
+/** The menu escapes the scrollable organiser so bottom rows never clip actions. */
+function OrganiserActions({ label, items, open, onToggle }: {
+  label: string; items: OrganiserAction[]; open: boolean; onToggle: (open: boolean) => void;
+}) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) { setPosition(null); return; }
+    const rect = trigger.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 172;
+    const height = items.length * 36 + 12;
+    setPosition({
+      top: Math.max(8, Math.min(rect.bottom + 3, window.innerHeight - height - 8)),
+      left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+    });
+    const closeOutside = (event: MouseEvent) => {
+      if (!trigger.current?.contains(event.target as Node) && !menu.current?.contains(event.target as Node)) onToggle(false);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onToggle(false); trigger.current?.focus(); }
+    };
+    const onScroll = () => onToggle(false);
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", onEscape);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", onEscape);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [open, onToggle, items.length]);
+
+  return <>
+    <button ref={trigger} className="ws-icon-button ml-nav-more" type="button" aria-label={"Options for " + label}
+      aria-haspopup="menu" aria-expanded={open} title={"Options for " + label}
+      onClick={() => onToggle(!open)}><MoreHorizontal size={16} /></button>
+    {open && position ? <Portal><div ref={menu} className="ml-nav-menu" role="menu"
+      aria-label={"Options for " + label} style={{ top: position.top, left: position.left }}>
+      {items.map((item) => <button key={item.label} type="button" role="menuitem"
+        className={item.danger ? "is-danger" : ""}
+        onClick={() => { onToggle(false); item.run(); }}>{item.icon}{item.label}</button>)}
+    </div></Portal> : null}
+  </>;
+}
+
 function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTopicId, mistakes, onSelect,
-  onCreate, onDelete, renaming, setRenaming }: {
+  onCreate, onDelete, renaming, setRenaming, actionsId, setActionsId }: {
   subjectId: string; parentId: string | null; depth: number;
   selectedSubjectId: string | null; selectedTopicId: string | null; mistakes: KnowledgeEntry[];
   onSelect: (subjectId: string | null, topicId: string | null) => void;
@@ -245,6 +311,8 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
   onDelete: (topic: KnowledgeTopic) => void;
   renaming: { kind: "subject" | "topic"; id: string } | null;
   setRenaming: (value: { kind: "subject" | "topic"; id: string } | null) => void;
+  actionsId: string | null;
+  setActionsId: (value: string | null) => void;
 }) {
   const workspace = useWorkspace();
   return <>{workspace.childrenOf(parentId, subjectId).map((topic: KnowledgeTopic) => {
@@ -262,18 +330,18 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
             onClick={() => onSelect(subjectId, topic.id)}>
             <ChevronRight size={12} /> {topic.name}<span>{count}</span>
           </button>
-          {workspace.writable ? <>
-            <button className="ws-icon-button ml-nav-tool" type="button" title="Add subtopic"
-              aria-label={"Add subtopic to " + topic.name} onClick={() => onCreate(topic.id)}><Plus size={13}/></button>
-            <button className="ws-icon-button ml-nav-tool" type="button" title="Rename topic"
-              aria-label={"Rename topic " + topic.name} onClick={() => setRenaming({ kind: "topic", id: topic.id })}><Pencil size={12}/></button>
-            <button className="ws-icon-button ml-nav-tool is-danger" type="button" title="Delete topic"
-              aria-label={"Delete topic " + topic.name} onClick={() => onDelete(topic)}><Trash2 size={12}/></button>
-          </> : null}
+          {workspace.writable ? <OrganiserActions label={topic.name} open={actionsId === "topic:" + topic.id}
+            onToggle={(open) => setActionsId(open ? "topic:" + topic.id : null)}
+            items={[
+              { label: "Add subtopic", icon: <Plus size={14} />, run: () => onCreate(topic.id) },
+              { label: "Rename", icon: <Pencil size={14} />, run: () => setRenaming({ kind: "topic", id: topic.id }) },
+              { label: "Delete topic", icon: <Trash2 size={14} />, danger: true, run: () => onDelete(topic) },
+            ]} /> : null}
         </div>}
       <TopicBranch subjectId={subjectId} parentId={topic.id} depth={depth + 1}
         selectedSubjectId={selectedSubjectId} selectedTopicId={selectedTopicId} mistakes={mistakes}
-        onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} renaming={renaming} setRenaming={setRenaming} />
+        onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} renaming={renaming} setRenaming={setRenaming}
+        actionsId={actionsId} setActionsId={setActionsId} />
     </div>;
   })}</>;
 }
