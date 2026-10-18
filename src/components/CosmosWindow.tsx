@@ -226,8 +226,8 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
-  const [detailsOpen, setDetailsOpen] = useState(config.mode === "review");
-  const [leftContextOpen, setLeftContextOpen] = useState(config.mode === "review");
+  const [detailsOpen, setDetailsOpen] = useState(() => config.mode === "review" && window.innerWidth >= 1180);
+  const [leftContextOpen, setLeftContextOpen] = useState(() => config.mode === "review" && window.innerWidth >= 1180);
   const [detailsPinned, setDetailsPinned] = useState(() => { try { return localStorage.getItem(DETAILS_PIN_KEY) === "1"; } catch { return false; } });
   const [whyOpen, setWhyOpen] = useState(false);
   const [addingDim, setAddingDim] = useState<DimensionId | null>(null);
