@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, FilePlus2, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, Trash2, Pin, PinOff, Search } from "lucide-react";
 import {
   entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -7,6 +7,7 @@ import {
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { DocumentPage } from "./DocumentPage";
+import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { ReferenceLibrary } from "./ReferenceLibrary";
@@ -16,6 +17,7 @@ import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePers
 import { useWorkspace } from "./WorkspaceContext";
 
 type ListFilter = "all" | "notes" | "questions";
+type NoteSort = "updated" | "created" | "title" | "icon" | "colour";
 export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string; draftKey?: string } | null;
 
 function countLabel(count: number, singular: string) {
@@ -425,8 +427,10 @@ function ScopePage({ scope, navigate, newAction }: {
   const path = topic ? workspace.topicPath(topic.id) : { subject, chain: [] };
   const children = workspace.childrenOf(topic?.id ?? null, subjectId);
   const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
-  // Never flatten all the subject's notes into the subject landing page.
-  // Notes belong on their immediate topic page, not on an ancestor page.
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<NoteSort>("updated");
+  const [iconFilter, setIconFilter] = useState("all");
+  // Never flatten a subject's notes onto an ancestor page.
   const docs = topic ? snapshot.entries.filter((entry) =>
     entry.topic_id === topic.id && isDocument(entry) && entry.category !== "reference") : [];
   const counts = {
@@ -434,9 +438,23 @@ function ScopePage({ scope, navigate, newAction }: {
     notes: docs.filter((entry) => !isOpenQuestion(entry)).length,
     questions: docs.filter(isOpenQuestion).length,
   };
-  const shown = docs.filter((entry) => filter === "all" || (filter === "questions" ? isOpenQuestion(entry) : !isOpenQuestion(entry)))
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || docSortKey(b).localeCompare(docSortKey(a)));
-  const page = useProgressiveList(shown, `${topic?.id ?? subjectId}|${filter}`);
+  const icons = [...new Set(docs.map((entry) => entry.icon).filter((icon): icon is string => Boolean(icon)))].sort((a, b) => a.localeCompare(b));
+  const query = search.trim().toLocaleLowerCase();
+  const shown = docs.filter((entry) => {
+    if (filter !== "all" && (filter === "questions") !== isOpenQuestion(entry)) return false;
+    if (iconFilter === "none" && entry.icon) return false;
+    if (iconFilter !== "all" && iconFilter !== "none" && entry.icon !== iconFilter) return false;
+    return !query || entryTitle(entry).toLocaleLowerCase().includes(query) || entry.body.toLocaleLowerCase().includes(query);
+  }).sort((a, b) => {
+    const pinned = Number(b.pinned) - Number(a.pinned);
+    if (pinned) return pinned;
+    if (sort === "title") return entryTitle(a).localeCompare(entryTitle(b));
+    if (sort === "icon") return (a.icon ?? "￿").localeCompare(b.icon ?? "￿") || entryTitle(a).localeCompare(entryTitle(b));
+    if (sort === "colour") return (a.accent_color ?? "￿").localeCompare(b.accent_color ?? "￿") || entryTitle(a).localeCompare(entryTitle(b));
+    if (sort === "created") return a.created_at.localeCompare(b.created_at);
+    return docSortKey(b).localeCompare(docSortKey(a));
+  });
+  const page = useProgressiveList(shown, `${topic?.id ?? subjectId}|${filter}|${search}|${sort}|${iconFilter}`);
   const setFilter = (next: ListFilter) => updateMemory((current) =>
     ({ ...current, notebook: { ...current.notebook, filter: next } }));
   const title = topic?.name ?? subject?.name ?? "Notebook";
@@ -477,12 +495,32 @@ function ScopePage({ scope, navigate, newAction }: {
         Use New → New topic to organise your notes. Quick captures can go into an Inbox.
       </EmptyState> : null
     ) : docs.length ? <>
-      <div className="ws-segmented" role="tablist" aria-label="Show notes">
-        {(["all", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
-          aria-selected={filter === key} className={`${filter === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`}
-          onClick={() => setFilter(key)}>
-          {key === "all" ? "All" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
-        </button>)}
+      <div className="nb-list-toolbar">
+        <div className="ws-segmented" role="tablist" aria-label="Show notes">
+          {(["all", "notes", "questions"] as ListFilter[]).map((key) => <button type="button" role="tab" key={key}
+            aria-selected={filter === key} className={`${filter === key ? "is-active" : ""} ${counts[key] === 0 ? "is-zero" : ""}`}
+            onClick={() => setFilter(key)}>
+            {key === "all" ? "All" : key === "notes" ? "Notes" : "Questions"}<small>{counts[key]}</small>
+          </button>)}
+        </div>
+        <div className="nb-list-tools">
+          <label className="nb-list-search"><Search size={15} aria-hidden="true" />
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
+              placeholder="Find a note…" aria-label="Search notes in this topic" />
+          </label>
+          <select aria-label="Filter notes by symbol" value={iconFilter} onChange={(event) => setIconFilter(event.target.value)}>
+            <option value="all">All symbols</option>
+            <option value="none">No symbol</option>
+            {icons.map((icon) => <option key={icon} value={icon}>{icon} · {docs.filter((entry) => entry.icon === icon).length}</option>)}
+          </select>
+          <select aria-label="Sort notes" value={sort} onChange={(event) => setSort(event.target.value as NoteSort)}>
+            <option value="updated">Recently edited</option>
+            <option value="created">Oldest first</option>
+            <option value="title">Title A–Z</option>
+            <option value="icon">By symbol</option>
+            <option value="colour">By colour</option>
+          </select>
+        </div>
       </div>
       {shown.length ? <><ul className="nb-doc-list">
         {page.visible.map((entry) => {
@@ -490,20 +528,28 @@ function ScopePage({ scope, navigate, newAction }: {
           const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);
           const showKind = topic.name.trim().toLocaleLowerCase() !== kindLabel.toLocaleLowerCase();
           const metadata = [showKind ? kindLabel : null, captures ? `${captures} captured` : null].filter(Boolean).join(" · ");
-          return <li key={entry.id}>
-            <button type="button" className={`nb-doc-row ${isLesson(entry) ? "is-lesson" : ""}`}
-              onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
-              <span className="nb-doc-icon"><KindIcon entry={entry} size={16}/></span>
-              <span className="nb-doc-text"><strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
-                {entryPreview(entry, 200) ? <span className="nb-doc-preview">{entryPreview(entry, 200)}</span> : null}
-              </span>
-              <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
-                {metadata ? <small>{metadata}</small> : null}</span>
-            </button>
+          return <li key={entry.id} className={`nb-doc-item nb-accent-${entry.accent_color ?? "none"}`}>
+            <div className={`nb-doc-row ${isLesson(entry) ? "is-lesson" : ""}`}>
+              {workspace.writable ? <NoteIdentityPicker entry={entry} /> :
+                <span className="nb-doc-icon" aria-hidden="true">{entry.icon || <KindIcon entry={entry} size={16}/>}</span>}
+              <button type="button" className="nb-doc-open"
+                onClick={() => navigate({ topicId: entry.topic_id, docId: entry.id })}>
+                <span className="nb-doc-text"><strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
+                  {entryPreview(entry, 200) ? <span className="nb-doc-preview">{entryPreview(entry, 200)}</span> : null}
+                </span>
+                <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
+                  {metadata ? <small>{metadata}</small> : null}</span>
+              </button>
+              {workspace.writable ? <RowMenu label={entryTitle(entry)} items={[
+                { label: entry.pinned ? "Unpin note" : "Pin to top", icon: entry.pinned ? <PinOff size={14} /> : <Pin size={14} />,
+                  run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
+                { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
+              ]} /> : null}
+            </div>
           </li>;
         })}
       </ul><ShowMore remaining={page.remaining} onMore={page.showMore} label="notes"/></> :
-      <p className="ws-muted nb-topic-empty-filter">No notes match this filter.</p>}
+      <p className="ws-muted nb-topic-empty-filter">No notes match these filters. Try another symbol or search.</p>}
     </> : !children.length ? <EmptyState icon={<FilePlus2 size={22}/>} title="No notes here yet">
       Use New → New note to capture something here.
     </EmptyState> : null}
