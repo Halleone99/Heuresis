@@ -305,11 +305,41 @@ const scenarios = {
 
     check(true, "New topic creates a topic inside the chosen subject");
     await page.locator('.nb-crumbs button:has-text("Notebook")').click();
+    await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
+    await page.locator('.nb-topic-card:has-text("Ethics")').click();
     await page.locator(".nb-new-button").click();
     await page.locator('.nb-scope-head [role=menuitem]:has-text("New note")').click();
-    await page.waitForSelector(".qc-panel");
-    check(true, "New note opens quick capture");
-    await page.locator('.qc-panel button[aria-label="Close quick capture"]').click();
+    await page.waitForSelector(".nb-title-input");
+    check(await page.locator(".qc-panel").count() === 0, "New note does not open Quick Capture");
+    check(await page.locator('.nb-toolbar [aria-label="Bold"]').count() === 1, "New note opens the rich-text editor");
+    await page.locator(".nb-title-input").fill("Today's grammar");
+    await page.locator('.nb-editor[contenteditable="true"]').fill("今天是星期日。 Jīntiān shì xīngqīrì.");
+    await page.locator('.nb-doc-actions button:has-text("Done")').click();
+    await page.locator('.nb-doc-title:has-text("Today")').waitFor();
+    check(await page.locator('.nb-doc-actions button:has-text("Open window")').count() === 1,
+      "A saved note offers a separate writing window");
+    await page.locator('[aria-label="Close note"]').click();
+    // Two independent editor windows must not share the same unsaved draft key.
+    await page.locator(".nb-new-button").click();
+    const firstWindow = page.waitForEvent("popup");
+    await page.locator('.nb-scope-head [role=menuitem]:has-text("New note in window")').click();
+    const grammarWindow = await firstWindow;
+    await grammarWindow.locator(".nb-title-input").waitFor();
+    const secondWindow = grammarWindow.waitForEvent("popup");
+    await grammarWindow.locator('.nb-window-actions button:has-text("New note")').click();
+    const helpWindow = await secondWindow;
+    await helpWindow.locator(".nb-title-input").waitFor();
+    check(grammarWindow.url() !== helpWindow.url(), "separate windows use separate note identities");
+    await grammarWindow.locator(".nb-title-input").fill("Grammar notes");
+    await grammarWindow.locator('.nb-editor[contenteditable="true"]').fill("了 marks completion.");
+    await helpWindow.locator(".nb-title-input").fill("Sentence help");
+    await helpWindow.locator('.nb-editor[contenteditable="true"]').fill("请再说一遍。");
+    await grammarWindow.locator('.nb-doc-actions button:has-text("Done")').click();
+    await helpWindow.locator('.nb-doc-actions button:has-text("Done")').click();
+    await grammarWindow.locator('.nb-doc-title:has-text("Grammar notes")').waitFor();
+    await helpWindow.locator('.nb-doc-title:has-text("Sentence help")').waitFor();
+    await grammarWindow.close(); await helpWindow.close();
+    await page.locator('.nb-crumbs button:has-text("Notebook")').click();
     console.log("NB77: double click German");
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
     await page.waitForSelector(".nb-cover-dialog");
