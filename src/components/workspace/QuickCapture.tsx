@@ -8,6 +8,8 @@ import { resolveCaptureContext } from "../../lib/captureContext";
 import { InlineNameForm, Kbd, MOD_KEY, TopicPicker, formatDay } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
+import { AICheck } from "./AICheck";
+import { QuickFlashcard } from "./QuickFlashcard";
 
 const EMPTY_DRAFT = (mode: CaptureMode): CaptureDraft => ({
   mode, text: "", category: "note", categoryTouched: false, attempt: "", correction: "", explanation: "", lessonTitle: "", updatedAt: "",
@@ -27,6 +29,8 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     return saved ? { ...saved, mode: saved.mode === "lesson" ? "note" : saved.mode } : EMPTY_DRAFT("note");
   });
   const [topicId, setTopicId] = useState<string | null>(null);
+  const [captureStyle, setCaptureStyle] = useState<"raw" | "notepad" | "mistake" | "flashcard">("raw");
+  const [forceNoCategory, setForceNoCategory] = useState(false);
   const [picking, setPicking] = useState(false);
   const [openLesson, setOpenLesson] = useState(true);
   const [lessonDate, setLessonDate] = useState(localDateKey(new Date()));
@@ -84,6 +88,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
   const [handledRequest, setHandledRequest] = useState<typeof request>(null);
   if (request && request !== handledRequest) {
     setHandledRequest(request);
+    setCaptureStyle(request.mode === "mistake" ? "mistake" : "raw");
     setError(""); setFlash(""); setPicking(false);
     setDraft((current) => {
       const stored = captureDraftHasContent(current) ? current : readCaptureDraft(userId, draftSurface) ?? current;
@@ -142,13 +147,32 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
   }, [draft, mode, userId, workspace, floating, onRequestClose]);
 
   const patch = (value: Partial<CaptureDraft>) => setDraft((current) => ({ ...current, ...value }));
+  function formatSelection(prefix: string, suffix: string) {
+    const field = firstFieldRef.current;
+    if (!(field instanceof HTMLTextAreaElement)) return;
+    const start = field.selectionStart, end = field.selectionEnd;
+    const replacement = prefix + draft.text.slice(start, end) + suffix;
+    patch({ text: draft.text.slice(0, start) + replacement + draft.text.slice(end) });
+    window.requestAnimationFrame(() => { field.focus(); field.setSelectionRange(start + prefix.length, end + prefix.length); });
+  }
+  function switchCaptureStyle(style: "raw" | "notepad" | "mistake" | "flashcard") {
+    setCaptureStyle(style);
+    if (style !== "flashcard") setMode(style === "mistake" ? "mistake" : "note");
+    setError("");
+  }
+  function noCategory() {
+    if (attachToLesson) { setError("Detach the active lesson before choosing No category."); return; }
+    setForceNoCategory(true);
+    setTopicId(null);
+    updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: null, topicId: null } }));
+  }
   const setMode = (next: CaptureMode) => { patch({ mode: next, pendingId: undefined }); setError(""); };
   const category: NoteCategory = draft.categoryTouched ? (draft.category ?? "note") : looksLikeQuestion(draft.text) ? "question" : (draft.category ?? "note");
 
   const destinationLabel = topicId ? workspace.pathLabel(topicId) : "";
   const subjects = workspace.snapshot.subjects;
   const lessonSubjectId = currentLesson ? workspace.topicById.get(currentLesson.topic_id)?.subject_id ?? null : null;
-  const selectedSubjectId = (attachToLesson ? lessonSubjectId : null)
+  const selectedSubjectId = forceNoCategory ? null : ((attachToLesson ? lessonSubjectId : null)
     ?? (topicId ? workspace.topicById.get(topicId)?.subject_id ?? null : null)
     ?? (memory.capture.subjectId && workspace.subjectById.has(memory.capture.subjectId) ? memory.capture.subjectId : null)
     ?? resolveCaptureContext({
@@ -156,10 +180,11 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
       savedSubjectId: memory.capture.subjectId, savedTopicId: memory.capture.topicId,
       notebookSubjectId: memory.notebook.subjectId, notebookTopicId: memory.notebook.topicId,
       documentTopicId: memory.notebook.docId ? workspace.entryById.get(memory.notebook.docId)?.topic_id : null,
-    }).subjectId;
+    }).subjectId);
   const languageName = subjects.find((subject) => subject.id === selectedSubjectId)?.name ?? null;
   function selectLanguage(subjectId: string) {
     if (saving) return;
+    setForceNoCategory(false);
     if (attachToLesson && lessonSubjectId && subjectId !== lessonSubjectId) {
       setError("This capture is attached to an active lesson. Detach it before switching language.");
       return;
@@ -312,15 +337,25 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         <Pin size={15} fill={keepOpen ? "currentColor" : "none"} /></button> : null}
       <button type="button" className="ws-icon-button" aria-label="Close quick capture" title="Close (Esc) — the draft is kept" onClick={() => close()}><X size={16} /></button>
     </div> : null}
-    {floating ? <div className="qc-floating-destination">
+    {mode !== "lesson" ? <div className="qc-kind-row">
+      <span>Capture as</span>
+      <select aria-label="Capture type" value={captureStyle} disabled={saving}
+        onChange={(event) => switchCaptureStyle(event.target.value as typeof captureStyle)}>
+        <option value="raw">Raw</option>
+        <option value="flashcard">Flashcard</option>
+        <option value="mistake">Mistake Log</option>
+        <option value="notepad">Notepad</option>
+      </select>
+    </div> : null}
+    {floating && captureStyle !== "flashcard" ? <div className="qc-floating-destination">
       <label htmlFor="quick-capture-subject">Save idea to</label>
       <select id="quick-capture-subject" aria-label="Save capture to subject Inbox" disabled={saving || !workspace.writable}
         value={selectedSubjectId ?? ""}
-        onChange={(event) => { if (event.target.value) selectLanguage(event.target.value); }}>
-        {!subjects.length ? <option value="">Unsorted › Inbox</option> : null}
+        onChange={(event) => { if (event.target.value) selectLanguage(event.target.value); else noCategory(); }}>
+        <option value="">No category</option>
         {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name} › Inbox</option>)}
       </select>
-      <p>Save now. Organise later in Notebook → Captures.</p>
+
     </div> : null}
 
     {noSubjects && workspace.loading ? <p className="qc-help qc-loading" role="status"><span className="ws-spinner is-small" aria-hidden="true" /> Loading your subjects… keep typing, the draft is kept.</p> : null}
@@ -339,8 +374,10 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     </div> : null}
 
     <div className="qc-body">
-      {mode === "note" ? <>
-        <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={stream ? 2 : 3} value={draft.text}
+      {captureStyle === "flashcard" && mode !== "lesson" ? <QuickFlashcard
+        userId={userId} subjectName={languageName ?? "No category"}
+        onSaved={() => workspace.toast("Flashcard saved to Study.")} /> : mode === "note" ? <>
+        <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={captureStyle === "notepad" ? 6 : stream ? 2 : 3} value={draft.text}
           aria-label={floating ? "Capture an idea" : stream ? "Stream capture" : "Quick note"}
           placeholder={floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
           disabled={saving} onChange={(event) => patch({ text: event.target.value })}
@@ -350,6 +387,11 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
               void submit();
             }
           }} />
+        <div className="qc-editor-tools" role="toolbar" aria-label="Text formatting and checking">
+          <button type="button" aria-label="Bold selection" title="Bold selection" onClick={() => formatSelection("**", "**")}><strong>B</strong></button>
+          <button type="button" aria-label="Italic selection" title="Italic selection" onClick={() => formatSelection("*", "*")}><em>I</em></button>
+          <AICheck text={draft.text} language={languageName ?? "Unknown"} onApply={(next) => patch({ text: next })} compact />
+        </div>
         {floating ? null : stream ? <div className="qc-stream-meta">
           <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : languageName ? `${languageName} › Inbox` : "Choose subject"}</span>
           <span><Kbd>Enter</Kbd> save · <Kbd>⇧ Enter</Kbd> newline</span>
@@ -365,6 +407,8 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         <label className="qc-field"><span>Correction</span>
           <textarea rows={2} value={draft.correction} placeholder="What is the correct version?"
             onChange={(event) => patch({ correction: event.target.value })} /></label>
+        <AICheck text={draft.correction} language={languageName ?? "Unknown"} context="mistake"
+          onApply={(next) => patch({ correction: next })} compact />
       </> : <>
         <label className="qc-field"><span>Lesson</span>
           <input ref={(node) => { if (node) firstFieldRef.current = node; }} value={draft.lessonTitle} maxLength={200}
@@ -379,7 +423,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
       </>}
     </div>
 
-    {!floating ? <div className="qc-destination">
+    {!floating && captureStyle !== "flashcard" ? <div className="qc-destination">
       {subjects.length > 1 ? <div className="qc-language-choices" role="group" aria-label="Capture subject">
         <span className="qc-language-caption">Subject</span>
         {subjects.map((subject) => <button type="button" key={subject.id}
@@ -409,13 +453,13 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     {error ? <p className="ws-field-error qc-error" role="alert">{error}</p> : null}
     {flash ? <p className="qc-flash" role="status">{flash}</p> : null}
 
-    <div className="qc-foot">
+    {captureStyle !== "flashcard" || mode === "lesson" ? <div className="qc-foot">
       <span className="qc-hint">{floating ? <>Enter for a new line · <Kbd>{MOD_KEY} ↵</Kbd> to save</> : stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}{!floating ? <><Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</> : null}</span>
       {hasContent && !floating ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
       <button type="button" className="ws-button is-primary" disabled={saving || (floating && !(mode === "mistake" ? draft.attempt.trim() && draft.correction.trim() : draft.text.trim()))} onClick={() => void submit()}>
         {saving ? <><span className="ws-spinner is-small" aria-hidden="true" /> Saving…</>
           : mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> {floating ? "Save idea" : "Save"}</>}
       </button>
-    </div>
+    </div> : null}
   </div>;
 }
