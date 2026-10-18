@@ -3,6 +3,8 @@ import { Check, ChevronRight, FolderPlus, GraduationCap, MoreHorizontal, PanelLe
 import { friendlyError, type KnowledgeEntry, type KnowledgeSubject, type KnowledgeTopic, type MistakeAccent } from "../../lib/knowledgeWorkspace";
 import { EmptyState, InlineNameForm, Kbd, MOD_KEY, Portal, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
+import { RichEditor, type RichEditorHandle } from "./RichEditor";
+import { RichText } from "./RichText";
 
 const ACCENTS: Array<{ value: MistakeAccent | ""; label: string }> = [
   { value: "", label: "None" },
@@ -43,15 +45,6 @@ export function MistakeLog() {
     .filter((entry) => entry.kind === "mistake")
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.created_at.localeCompare(a.created_at)),
     [snapshot.entries]);
-
-  const subjectCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const mistake of mistakes) {
-      const subjectId = workspace.topicById.get(mistake.topic_id)?.subject_id;
-      if (subjectId) counts.set(subjectId, (counts.get(subjectId) ?? 0) + 1);
-    }
-    return counts;
-  }, [mistakes, workspace.topicById]);
 
   const topicTreeIds = useMemo(() => selectedTopicId ? new Set(workspace.subtreeIds(selectedTopicId)) : null,
     [selectedTopicId, workspace.subtreeIds]);
@@ -195,7 +188,7 @@ export function MistakeLog() {
             }} />
         </div> : null}
         <button type="button" className={"ml-nav-all" + (!selectedSubjectId ? " is-active" : "")}
-          onClick={() => select(null, null)}>All mistakes <span>{mistakes.length}</span></button>
+          onClick={() => select(null, null)}>All mistakes</button>
         {subjects.map((subject) => <div key={subject.id} className="ml-nav-group">
           {renaming?.kind === "subject" && renaming.id === subject.id
             ? <InlineNameForm label="Rename subject" initial={subject.name} submitLabel="Rename"
@@ -204,7 +197,7 @@ export function MistakeLog() {
               }} />
             : <div className="ml-nav-row">
               <button type="button" className={"ml-nav-label" + (selectedSubjectId === subject.id && !selectedTopicId ? " is-active" : "")}
-                onClick={() => select(subject.id, null)}>{subject.name}<span>{subjectCounts.get(subject.id) ?? 0}</span></button>
+                onClick={() => select(subject.id, null)}>{subject.name}</button>
               {workspace.writable ? <OrganiserActions label={subject.name} open={actionsId === "subject:" + subject.id}
                 onToggle={(open) => setActionsId(open ? "subject:" + subject.id : null)}
                 items={[
@@ -215,7 +208,7 @@ export function MistakeLog() {
             </div>}
           <TopicBranch subjectId={subject.id} parentId={null} depth={0}
             selectedTopicId={selectedTopicId} selectedSubjectId={selectedSubjectId}
-            mistakes={mistakes} onSelect={select}
+            onSelect={select}
             onCreate={(parentId) => {
               setCreatingTopic({ subjectId: subject.id, parentId }); setCreatingSubject(false);
             }}
@@ -302,10 +295,10 @@ function OrganiserActions({ label, items, open, onToggle }: {
   </>;
 }
 
-function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTopicId, mistakes, onSelect,
+function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTopicId, onSelect,
   onCreate, onDelete, renaming, setRenaming, actionsId, setActionsId }: {
   subjectId: string; parentId: string | null; depth: number;
-  selectedSubjectId: string | null; selectedTopicId: string | null; mistakes: KnowledgeEntry[];
+  selectedSubjectId: string | null; selectedTopicId: string | null;
   onSelect: (subjectId: string | null, topicId: string | null) => void;
   onCreate: (parentId: string) => void;
   onDelete: (topic: KnowledgeTopic) => void;
@@ -316,8 +309,6 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
 }) {
   const workspace = useWorkspace();
   return <>{workspace.childrenOf(parentId, subjectId).map((topic: KnowledgeTopic) => {
-    const subtree = new Set(workspace.subtreeIds(topic.id));
-    const count = mistakes.filter((entry) => subtree.has(entry.topic_id)).length;
     return <div className="ml-nav-topic-group" key={topic.id}>
       {renaming?.kind === "topic" && renaming.id === topic.id
         ? <InlineNameForm label="Rename topic" initial={topic.name} submitLabel="Rename"
@@ -328,7 +319,7 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
           <button type="button" className={"ml-nav-label ml-nav-topic" +
             (selectedSubjectId === subjectId && selectedTopicId === topic.id ? " is-active" : "")}
             onClick={() => onSelect(subjectId, topic.id)}>
-            <ChevronRight size={12} /> {topic.name}<span>{count}</span>
+            <ChevronRight size={12} /> {topic.name}
           </button>
           {workspace.writable ? <OrganiserActions label={topic.name} open={actionsId === "topic:" + topic.id}
             onToggle={(open) => setActionsId(open ? "topic:" + topic.id : null)}
@@ -339,7 +330,7 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
             ]} /> : null}
         </div>}
       <TopicBranch subjectId={subjectId} parentId={topic.id} depth={depth + 1}
-        selectedSubjectId={selectedSubjectId} selectedTopicId={selectedTopicId} mistakes={mistakes}
+        selectedSubjectId={selectedSubjectId} selectedTopicId={selectedTopicId}
         onSelect={onSelect} onCreate={onCreate} onDelete={onDelete} renaming={renaming} setRenaming={setRenaming}
         actionsId={actionsId} setActionsId={setActionsId} />
     </div>;
@@ -379,7 +370,7 @@ function MistakeItem({ entry, highlighted, onEdit }: {
           {entry.correction || "Add the correct version"}
         </p>
       </div>
-      {entry.explanation ? <p className="ml-entry-context">{entry.explanation}</p> : null}
+      {entry.explanation ? <div className="ml-entry-context-wrap"><RichText text={entry.explanation} className="ml-entry-context is-compact" /></div> : null}
       <small className="ml-entry-path">{workspace.pathLabel(entry.topic_id)}</small>
     </div>
     {workspace.writable ? <div className="ml-simple-actions">
@@ -406,6 +397,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
   const [correction, setCorrection] = useState(entry?.correction ?? "");
   const [title, setTitle] = useState(entry?.title ?? "");
   const [explanation, setExplanation] = useState(entry?.explanation ?? "");
+  const explanationRef = useRef<RichEditorHandle>(null);
   const [accent, setAccent] = useState<MistakeAccent | "">(entry?.accent_color ?? "");
   const [notesOpen, setNotesOpen] = useState(Boolean(entry?.explanation));
   const [busy, setBusy] = useState(false);
@@ -441,12 +433,12 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
       if (entry) {
         await workspace.patchEntry(entry.id, {
           attempt: attempt.trim(), correction: correction.trim(), title: title.trim(),
-          explanation: explanation.trim(), accent_color: accent || null, topic_id: resolvedTopic,
+          explanation: (explanationRef.current?.getMarkdown() ?? explanation).trim(), accent_color: accent || null, topic_id: resolvedTopic,
         });
       } else {
         await workspace.addEntry({
           kind: "mistake", topicId: resolvedTopic, title: title.trim(),
-          attempt: attempt.trim(), correction: correction.trim(), explanation: explanation.trim(),
+          attempt: attempt.trim(), correction: correction.trim(), explanation: (explanationRef.current?.getMarkdown() ?? explanation).trim(),
           accentColor: accent || null,
         });
       }
@@ -512,13 +504,12 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
       </div>
     </fieldset>
     <details className="ml-edit-notes" open={notesOpen} onToggle={(event) => setNotesOpen(event.currentTarget.open)}>
-      <summary>Additional note <small>(optional)</small></summary>
-      <label className="ws-field">
-        <span>Context or explanation</span>
-        <textarea rows={3} maxLength={10000} value={explanation}
-          placeholder="A reminder, context, or why the correction matters…"
-          onChange={(event) => setExplanation(event.target.value)} />
-      </label>
+      <summary>Explanation &amp; examples <small>— optional · bold, colour, highlights &amp; lists</small></summary>
+      <div className="ml-explanation-editor">
+        <RichEditor ref={explanationRef} resetKey={entry?.id ?? "new-mistake"} value={explanation}
+          ariaLabel="Formatted explanation" placeholder="Why was this wrong? Add a rule, memorable example or short explanation."
+          onChange={setExplanation} onSave={() => void save()} onDone={() => void save()} />
+      </div>
     </details>
     {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
     <div className="ml-simple-edit-actions">
