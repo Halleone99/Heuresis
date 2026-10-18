@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
+import { removeEntryFromNotes, saveEntryToNotes, type JournalDraft } from "./readingJournal";
 
 /** Same rows as Personal OS Reading. There is no second book or quotation store. */
 export type ReadingStatus = "To read" | "Reading" | "Read" | "Abandoned";
@@ -200,5 +201,36 @@ export function useReadingLibrary(userId: string) {
     if (writeError) throw writeError;
     setQuotes((current) => current.filter((item) => item.id !== id));
   };
-  return { books, quotes, loading, error, reload, addBook, updateBook, logMinutes, setProgress, addQuote, updateQuote, removeQuote };
+  // Journal entries share the existing book record rather than requiring another table.
+  // Compare updated_at on each write to avoid silently overwriting concurrent edits.
+  const patchJournal = async (bookId: string, change: (notes: string) => string) => {
+    const db = client();
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const { data: latest, error: readError } = await db.from("capital_reading_items")
+        .select("notes,updated_at").eq("user_id", userId).eq("id", bookId).single();
+      if (readError) throw readError;
+      const row = latest as { notes: string | null; updated_at: string | null };
+      const updatedNotes = change(row.notes ?? "");
+      let write = db.from("capital_reading_items").update({
+        notes: updatedNotes, updated_at: new Date().toISOString(),
+      }).eq("user_id", userId).eq("id", bookId);
+      write = row.updated_at ? write.eq("updated_at", row.updated_at) : write.is("updated_at", null);
+      const { data, error: writeError } = await write.select("*").maybeSingle();
+      if (writeError) throw writeError;
+      if (data) {
+        const book = bookFromRow(data as BookRow);
+        setBooks((current) => current.map((item) => item.id === bookId ? book : item));
+        return book;
+      }
+    }
+    throw new Error("This book was changed elsewhere. Please try saving your entry again.");
+  };
+  const saveJournalEntry = (bookId: string, draft: JournalDraft, entryId?: string) => {
+    // Allocate the ID once so a retry cannot create duplicate entries.
+    const newId = crypto.randomUUID();
+    return patchJournal(bookId, (notes) => saveEntryToNotes(notes, draft, entryId, newId));
+  };
+  const removeJournalEntry = (bookId: string, entryId: string) =>
+    patchJournal(bookId, (notes) => removeEntryFromNotes(notes, entryId));
+  return { books, quotes, loading, error, reload, addBook, updateBook, logMinutes, setProgress, addQuote, updateQuote, removeQuote, saveJournalEntry, removeJournalEntry };
 }
