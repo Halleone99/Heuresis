@@ -2156,8 +2156,10 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .ml-nav-group { margin-top: 4px; }
 .ml-nav-row { min-width: 0; display: flex; align-items: center; gap: 1px; }
 .ml-nav-row .ml-nav-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ml-nav-row .ml-nav-tool { flex: none; width: 22px; height: 24px; opacity: .2; }
+.ml-nav-row .ml-nav-tool { flex: none; width: 22px; height: 28px; opacity: .66; }
 .ml-nav-row:hover .ml-nav-tool, .ml-nav-row:focus-within .ml-nav-tool { opacity: 1; }
+.ml-nav-row .ml-nav-tool.is-danger:hover, .ml-nav-row .ml-nav-tool.is-danger:focus-visible { color: #c8555c; }
+.ml-nav-row .ml-nav-tool:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
 .ml-nav-topic { padding-block: 7px; font-size: 12px; color: var(--ws-muted); }
 .ml-nav-topic svg { flex: none; opacity: .42; }
 .ml-nav-topic-group { min-width: 0; }
