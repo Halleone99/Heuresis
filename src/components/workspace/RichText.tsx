@@ -151,11 +151,14 @@ function FoldView({ node, resolve, rubyPinyin }: { node: FoldNode; resolve?: Lin
   const Heading = node.heading.type === "h2" ? "h2" : "h3";
   return <section className={`nb-fold ${open ? "is-open" : "is-closed"}`}>
     <Heading className="nb-fold-heading">
-      <button type="button" className="nb-fold-toggle" aria-expanded={open}
-        title={open ? "Collapse section" : "Expand section"} onClick={() => setOpen((value) => !value)}>
-        <ChevronRight size={15} aria-hidden="true"/>
+      <span className="nb-fold-title">
+        <button type="button" className="nb-fold-toggle" aria-expanded={open}
+          aria-label={open ? "Collapse section" : "Expand section"}
+          title={open ? "Collapse section" : "Expand section"} onClick={() => setOpen((value) => !value)}>
+          <ChevronRight size={15} aria-hidden="true"/>
+        </button>
         <span><InlineText text={node.heading.text} resolve={resolve}/></span>
-      </button>
+      </span>
     </Heading>
     {open ? <div className="nb-fold-content">{node.children.map((child, index) =>
       <FoldView key={index} node={child} resolve={resolve} rubyPinyin={rubyPinyin}/>)}</div> : null}
