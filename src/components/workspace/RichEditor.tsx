@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Pilcrow, Quote, Redo2, Scale, Strikethrough, Undo2 } from "lucide-react";
-import { editorToMarkdown, markdownToEditorHtml, type CalloutVariant } from "../../lib/noteFormat";
+import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Palette, ChevronsUpDown, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Pilcrow, Quote, Redo2, Scale, Strikethrough, Undo2 } from "lucide-react";
+import { editorToMarkdown, markdownToEditorHtml, type CalloutVariant, NOTE_COLOURS, type NoteColour } from "../../lib/noteFormat";
 
 export type RichEditorHandle = { getMarkdown: () => string; focus: (where?: "start" | "end") => void; setMarkdown: (value: string) => void };
 
@@ -42,6 +42,18 @@ function ensureTrailingParagraph(root: HTMLElement | null) {
 }
 
 const BLOCK_TAG = /^(P|DIV|H[1-6]|UL|OL|BLOCKQUOTE|HR|PRE)$/;
+
+/** Folding is editor-only presentation: hidden content remains in the DOM and saves. */
+function updateFolds(root: HTMLElement) {
+  let foldedLevel: number | null = null;
+  for (const child of Array.from(root.children) as HTMLElement[]) {
+    const level = /^H[23]$/.test(child.tagName) ? Number(child.tagName[1]) : null;
+    if (level !== null && foldedLevel !== null && level <= foldedLevel) foldedLevel = null;
+    const hidden = foldedLevel !== null;
+    child.toggleAttribute("data-fold-hidden", hidden);
+    if (!hidden && level !== null && child.dataset.folded === "true") foldedLevel = level;
+  }
+}
 
 type SavedCaret = { node: Node; offset: number } | null;
 function saveCaret(): SavedCaret {
@@ -129,6 +141,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const composing = useRef(false);
   const emitTimer = useRef<number | null>(null);
   const [source, setSource] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
   const [active, setActive] = useState<{ block: BlockKind; bold: boolean; italic: boolean; mark: boolean }>({ block: "p", bold: false, italic: false, mark: false });
@@ -186,7 +199,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     latest.current = value;
     setSourceText(value);
     setEmpty(!value.trim());
-    if (rootRef.current) { rootRef.current.innerHTML = markdownToEditorHtml(value); ensureTrailingParagraph(rootRef.current); }
+    if (rootRef.current) { rootRef.current.innerHTML = markdownToEditorHtml(value); ensureTrailingParagraph(rootRef.current); updateFolds(rootRef.current); }
     try { exec("defaultParagraphSeparator", "p"); exec("styleWithCSS", "false"); } catch { /* optional */ }
     if (autoFocus) window.requestAnimationFrame(() => placeCaret(value.trim() ? "end" : "start"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -249,6 +262,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     const caret = saveCaret();
     if (hoistNestedBlocks(root)) restoreCaret(caret);
     ensureTrailingParagraph(root);
+    updateFolds(root);
     emit();
     refreshActive();
   }, [emit, placeCaret, refreshActive, source]);
@@ -313,6 +327,39 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     if (!text) return;
     exec("insertHTML", `<mark>${escapeHtml(text)}</mark>`);
   }), [closest, run]);
+
+  /** Apply a named colour to one selected phrase without changing adjacent lines. */
+  const applyColour = useCallback((mode: "ink" | "tone" | "clear", colour?: NoteColour) => {
+    run(() => {
+      const root = rootRef.current;
+      const selection = window.getSelection();
+      if (!root || !selection?.rangeCount || selection.isCollapsed) return;
+      const range = selection.getRangeAt(0);
+      if (!root.contains(range.commonAncestorContainer)) return;
+      const selected = selection.toString();
+      // Block-level selections cannot be wrapped in an inline span safely.
+      if (!selected.trim() || /[\r\n]/.test(selected)) return;
+      const holder = document.createElement("div");
+      holder.appendChild(range.cloneContents());
+      if (holder.querySelector("p,div,h1,h2,h3,li,ol,ul,blockquote")) return;
+      const fragment = holder.innerHTML || escapeHtml(selected);
+      const html = mode === "clear" ? escapeHtml(selected) :
+        mode === "ink" ? `<span data-ink="${colour}">${fragment}</span>` :
+          `<mark data-tone="${colour}">${fragment}</mark>`;
+      exec("insertHTML", html);
+    });
+    setPaletteOpen(false);
+  }, [run]);
+
+  const foldAll = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const headings = Array.from(root.children).filter((node) => /^H[23]$/.test(node.tagName)) as HTMLElement[];
+    if (!headings.length) return;
+    const shouldFold = headings.some((heading) => heading.dataset.folded !== "true");
+    headings.forEach((heading) => { heading.dataset.folded = String(shouldFold); });
+    updateFolds(root);
+  }, []);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (composing.current || event.nativeEvent.isComposing) return;
@@ -382,6 +429,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       const caret = saveCaret();
       if (hoistNestedBlocks(root)) restoreCaret(caret);
       ensureTrailingParagraph(root);
+      updateFolds(root);
     }
     emit();
   }
@@ -421,8 +469,9 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   }
 
   function toggleSource() {
+    setPaletteOpen(false);
     if (source) {
-      if (rootRef.current) { rootRef.current.innerHTML = markdownToEditorHtml(sourceText); ensureTrailingParagraph(rootRef.current); }
+      if (rootRef.current) { rootRef.current.innerHTML = markdownToEditorHtml(sourceText); ensureTrailingParagraph(rootRef.current); updateFolds(rootRef.current); }
       setSource(false);
       window.requestAnimationFrame(() => placeCaret("end"));
     } else {
@@ -450,6 +499,24 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         {tool("Italic", `${MOD}+I`, <Italic size={15} />, () => run(() => exec("italic")), active.italic)}
         {tool("Strikethrough", "", <Strikethrough size={15} />, () => run(() => exec("strikeThrough")))}
         {tool("Highlight", `${MOD}+Shift+H`, <Highlighter size={15} />, toggleMark, active.mark)}
+        <div className="nb-colour-anchor">
+          <button type="button" aria-label="Text and highlight colours" aria-expanded={paletteOpen} title="Text and highlight colours" disabled={source}
+            className={paletteOpen ? "is-active" : ""}
+            onMouseDown={(event) => event.preventDefault()} onClick={() => setPaletteOpen((open) => !open)}><Palette size={15}/></button>
+          {paletteOpen && !source ? <div className="nb-colour-popover" aria-label="Colours">
+            <div className="nb-colour-row"><span>Text</span>{NOTE_COLOURS.map((colour) =>
+              <button key={colour} type="button" className="nb-colour-swatch" data-swatch={colour}
+                aria-label={`${colour} text`} title={`${colour} text`}
+                onMouseDown={(event) => event.preventDefault()} onClick={() => applyColour("ink", colour)}/>)}</div>
+            <div className="nb-colour-row"><span>Highlight</span>{NOTE_COLOURS.map((colour) =>
+              <button key={colour} type="button" className="nb-colour-swatch" data-swatch={colour}
+                aria-label={`${colour} highlight`} title={`${colour} highlight`}
+                onMouseDown={(event) => event.preventDefault()} onClick={() => applyColour("tone", colour)}/>)}</div>
+            <button type="button" className="nb-colour-clear" onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyColour("clear")}>Remove selected colour</button>
+            <span className="nb-colour-help">Select a phrase first</span>
+          </div> : null}
+        </div>
       </div>
       <div className="nb-toolbar-group">
         {tool("Bulleted list", `${MOD}+Shift+8`, <List size={15} />, () => setBlock("ul"), active.block === "ul")}
@@ -466,6 +533,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         <button type="button" className={active.block === "tip" ? "is-active" : ""} disabled={source} title="Tip block — a hint or memory aid"
           onMouseDown={(event) => { event.preventDefault(); setBlock("tip"); }}><Lightbulb size={14} /><span>Tip</span></button>
         {tool("Divider", "", <Minus size={15} />, () => run(() => exec("insertHorizontalRule")))}
+        {tool("Collapse or expand all headings", "", <ChevronsUpDown size={15}/>, foldAll)}
       </div>
       <span className="nb-toolbar-spacer" />
       <div className="nb-toolbar-group">
@@ -482,6 +550,18 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         role="textbox" aria-multiline="true" aria-label={ariaLabel} spellCheck
         hidden={source}
         onInput={handleInput} onKeyDown={handleKeyDown} onPaste={handlePaste}
+        onMouseDown={(event) => {
+          const root = rootRef.current;
+          const target = event.target;
+          if (!root || !(target instanceof Element)) return;
+          const heading = target.closest("h2,h3") as HTMLElement | null;
+          if (!heading || heading.parentElement !== root) return;
+          // The arrow occupies the first 22px; clicking the words still edits the heading.
+          if (event.clientX - heading.getBoundingClientRect().left > 22) return;
+          event.preventDefault();
+          heading.dataset.folded = String(heading.dataset.folded !== "true");
+          updateFolds(root);
+        }}
         onDrop={(event) => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
         onCompositionStart={() => { composing.current = true; }}
         onCompositionEnd={() => { composing.current = false; emit(); }} />

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, ChevronRight, Copy } from "lucide-react";
 import { CALLOUTS, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
 
 export type LinkResolver = (target: string) => { exists: boolean; open: () => void };
@@ -21,10 +21,12 @@ function PinyinAware({ text }: { text: string }) {
 
 function InlineText({ text, resolve }: { text: string; resolve?: LinkResolver }) {
   return <>{parseInline(text).map((part, index) => {
-    if (part.type === "strong") return <strong key={index}><PinyinAware text={part.text} /></strong>;
-    if (part.type === "em") return <em key={index}><PinyinAware text={part.text} /></em>;
-    if (part.type === "mark") return <mark key={index}><PinyinAware text={part.text} /></mark>;
-    if (part.type === "strike") return <s key={index}><PinyinAware text={part.text} /></s>;
+    if (part.type === "strong") return <strong key={index}><InlineText text={part.text} resolve={resolve} /></strong>;
+    if (part.type === "em") return <em key={index}><InlineText text={part.text} resolve={resolve} /></em>;
+    if (part.type === "mark") return <mark key={index}><InlineText text={part.text} resolve={resolve} /></mark>;
+    if (part.type === "strike") return <s key={index}><InlineText text={part.text} resolve={resolve} /></s>;
+    if (part.type === "colour") return <span key={index} data-ink={part.colour}><InlineText text={part.text} resolve={resolve}/></span>;
+    if (part.type === "tint") return <mark key={index} data-tone={part.colour}><InlineText text={part.text} resolve={resolve}/></mark>;
     if (part.type === "link") {
       const link = resolve?.(part.target);
       return <button type="button" key={index} className={`nb-wikilink ${link?.exists ? "" : "is-missing"}`}
@@ -120,10 +122,55 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
   }
 }
 
-export function RichText({ text, resolve, className = "", rubyPinyin = false }: { text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean }) {
+type FoldNode = { kind: "item"; block: Block } | {
+  kind: "section"; heading: Extract<Block, { type: "h2" | "h3" }>; children: FoldNode[];
+};
+
+/** Section headings fold their following text, with subheadings nested naturally. */
+function groupHeadings(blocks: Block[]): FoldNode[] {
+  const root: FoldNode[] = [];
+  let firstLevel: FoldNode[] = root;
+  let secondLevel: FoldNode[] | null = null;
+  for (const block of blocks) {
+    if (block.type === "h2") {
+      const section: FoldNode = { kind: "section", heading: block, children: [] };
+      root.push(section); firstLevel = section.children; secondLevel = null;
+    } else if (block.type === "h3") {
+      const section: FoldNode = { kind: "section", heading: block, children: [] };
+      firstLevel.push(section); secondLevel = section.children;
+    } else {
+      (secondLevel ?? firstLevel).push({ kind: "item", block });
+    }
+  }
+  return root;
+}
+
+function FoldView({ node, resolve, rubyPinyin }: { node: FoldNode; resolve?: LinkResolver; rubyPinyin: boolean }) {
+  const [open, setOpen] = useState(true);
+  if (node.kind === "item") return <BlockView block={node.block} resolve={resolve} rubyPinyin={rubyPinyin}/>;
+  const Heading = node.heading.type === "h2" ? "h2" : "h3";
+  return <section className={`nb-fold ${open ? "is-open" : "is-closed"}`}>
+    <Heading className="nb-fold-heading">
+      <span className="nb-fold-title">
+        <button type="button" className="nb-fold-toggle" aria-expanded={open}
+          aria-label={open ? "Collapse section" : "Expand section"}
+          title={open ? "Collapse section" : "Expand section"} onClick={() => setOpen((value) => !value)}>
+          <ChevronRight size={15} aria-hidden="true"/>
+        </button>
+        <span><InlineText text={node.heading.text} resolve={resolve}/></span>
+      </span>
+    </Heading>
+    {open ? <div className="nb-fold-content">{node.children.map((child, index) =>
+      <FoldView key={index} node={child} resolve={resolve} rubyPinyin={rubyPinyin}/>)}</div> : null}
+  </section>;
+}
+
+export function RichText({ text, resolve, className = "", rubyPinyin = false, collapsible = false }: { text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean }) {
   const blocks = parseBlocks(text);
   return <div className={`nb-prose ${className}`}>
-    {blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin} />)}
+    {collapsible ? groupHeadings(blocks).map((node, index) =>
+      <FoldView key={index} node={node} resolve={resolve} rubyPinyin={rubyPinyin}/>) :
+      blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin}/>)}
   </div>;
 }
 

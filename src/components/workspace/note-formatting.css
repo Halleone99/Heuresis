@@ -1,0 +1,113 @@
+/* Notebook note formatting: colours and reversible heading folds.
+   Stored notes use named-colour Markdown extensions; folds are display-only. */
+.nb-prose [data-ink="red"] { color: #b94a59 !important; }
+.nb-prose [data-ink="blue"] { color: #3775b9 !important; }
+.nb-prose [data-ink="green"] { color: #287f62 !important; }
+.nb-prose [data-ink="amber"] { color: #ab711a !important; }
+.nb-prose [data-ink="purple"] { color: #8262b4 !important; }
+
+.nb-prose mark[data-tone] {
+  color: var(--ws-ink);
+  padding: 0 2px;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.nb-prose mark[data-tone="red"] { background: color-mix(in srgb, #db6672 24%, var(--ws-raised)); }
+.nb-prose mark[data-tone="blue"] { background: color-mix(in srgb, #5995db 24%, var(--ws-raised)); }
+.nb-prose mark[data-tone="green"] { background: color-mix(in srgb, #57ae7c 24%, var(--ws-raised)); }
+.nb-prose mark[data-tone="amber"] { background: color-mix(in srgb, #e7b34e 33%, var(--ws-raised)); }
+.nb-prose mark[data-tone="purple"] { background: color-mix(in srgb, #a389d3 25%, var(--ws-raised)); }
+
+/* Reading mode: a chevron always belongs to the heading it controls. */
+.nb-prose .nb-fold { min-width: 0; }
+.nb-prose .nb-fold > .nb-fold-heading { margin: 1.35em 0 .4em; }
+.nb-prose .nb-fold-heading .nb-fold-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.nb-prose .nb-fold-heading .nb-fold-toggle {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  align-self: center;
+  border: 0;
+  border-radius: 5px;
+  padding: 0;
+  background: transparent;
+  color: var(--ws-muted);
+  cursor: pointer;
+}
+.nb-prose .nb-fold-toggle > svg { transform: rotate(90deg); transition: transform .14s ease; }
+.nb-prose .nb-fold.is-closed > .nb-fold-heading svg { transform: rotate(0deg); }
+.nb-prose .nb-fold-toggle:hover,
+.nb-prose .nb-fold-toggle:focus-visible { color: var(--ws-accent); background: var(--ws-accent-soft); }
+.nb-prose .nb-fold-content { margin-left: 30px; }
+.nb-prose .nb-fold-content > .nb-gap { height: .9em; }
+.nb-prose .nb-fold-content > p { margin: 0; }
+
+/* Editing mode: click the small arrow gutter, not the heading's words. */
+.nb-editor > h2, .nb-editor > h3 { position: relative; padding-left: 24px; }
+.nb-editor > :is(h2,h3)::before {
+  content: "▾";
+  position: absolute;
+  top: 1px;
+  left: 0;
+  width: 22px;
+  text-align: center;
+  color: var(--ws-muted);
+  font: 15px/1.4 var(--ws-sans);
+  cursor: pointer;
+  user-select: none;
+}
+.nb-editor > :is(h2,h3)[data-folded="true"]::before { content: "▸"; }
+.nb-editor > [data-fold-hidden] { display: none !important; }
+
+/* A single unobtrusive palette for text and highlight colours. */
+.nb-colour-anchor { position: relative; }
+.nb-colour-popover {
+  position: absolute;
+  z-index: 95;
+  left: -72px;
+  top: calc(100% + 12px);
+  min-width: 278px;
+  padding: 13px 14px 11px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 11px;
+  background: var(--ws-raised);
+  color: var(--ws-text);
+  box-shadow: var(--ws-shadow-2);
+}
+.nb-colour-row { display: flex; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 10px; }
+.nb-colour-row > span { flex: 1; font-size: 11px; font-weight: 650; }
+.nb-toolbar .nb-colour-swatch {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--ws-raised);
+  border-radius: 50%;
+  background: var(--swatch) !important;
+  box-shadow: 0 0 0 1px var(--ws-line-strong);
+}
+.nb-colour-swatch[data-swatch="red"] { --swatch: #ca5663; }
+.nb-colour-swatch[data-swatch="blue"] { --swatch: #4c83bc; }
+.nb-colour-swatch[data-swatch="green"] { --swatch: #32896c; }
+.nb-colour-swatch[data-swatch="amber"] { --swatch: #ca922b; }
+.nb-colour-swatch[data-swatch="purple"] { --swatch: #8b6dbd; }
+.nb-toolbar .nb-colour-swatch:hover { transform: scale(1.12); }
+.nb-toolbar .nb-colour-clear { display: inline-flex; height: 24px; padding: 0 4px; font-size: 11px; }
+.nb-colour-help { color: var(--ws-muted); font-size: 10px; margin-left: 9px; }
+@media (max-width: 560px) {
+  .nb-colour-popover { left: -110px; min-width: 262px; }
+  .nb-prose .nb-fold-content { margin-left: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-prose .nb-fold-toggle > svg { transition: none; }
+}

@@ -7,6 +7,7 @@
  *   > [!example]  > [!rule]  > [!correction]  > [!tip]  callout blocks
  *   ---                      divider
  *   **bold**  *italic*  ==highlight==  ~~struck out~~  [[Link to another note]]
+ *   {color:blue}text{/color}  {bg:amber}text{/bg}  (safe named colours)
  *
  * Every line maps to one block, so the text round-trips through the editor
  * without reflowing what the user wrote. Unknown syntax is kept verbatim.
@@ -22,10 +23,14 @@ export type Block =
   | { type: "callout"; variant: CalloutVariant; lines: string[] }
   | { type: "hr" };
 
+export const NOTE_COLOURS = ["red", "blue", "green", "amber", "purple"] as const;
+export type NoteColour = typeof NOTE_COLOURS[number];
+
 export type Inline =
   | { type: "text"; text: string }
   | { type: "strong" | "em" | "mark" | "strike"; text: string }
-  | { type: "link"; target: string; label: string };
+  | { type: "link"; target: string; label: string }
+  | { type: "colour" | "tint"; colour: NoteColour; text: string };
 
 export const CALLOUTS: Record<CalloutVariant, string> = {
   example: "Example", rule: "Rule", correction: "Correction", tip: "Tip",
@@ -100,7 +105,7 @@ export function parseBlocks(markdown: string): Block[] {
   return blocks;
 }
 
-const INLINE_RE = /\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~/g;
+const INLINE_RE = /\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
 
 export function parseInline(text: string): Inline[] {
   const result: Inline[] = [];
@@ -113,6 +118,8 @@ export function parseInline(text: string): Inline[] {
     else if (match[3] !== undefined) result.push({ type: "link", target: match[3].trim(), label: (match[4] ?? match[3]).trim() });
     else if (match[5] !== undefined) result.push({ type: "em", text: match[5] });
     else if (match[6] !== undefined) result.push({ type: "strike", text: match[6] });
+    else if (match[7] !== undefined) result.push({ type: "colour", colour: match[7] as NoteColour, text: match[8] });
+    else if (match[9] !== undefined) result.push({ type: "tint", colour: match[9] as NoteColour, text: match[10] });
     last = start + match[0].length;
   }
   if (last < text.length) result.push({ type: "text", text: text.slice(last) });
@@ -150,8 +157,8 @@ export function pinyinSegments(text: string): Array<{ text: string; pinyin: bool
   return segments.length ? segments : [{ text: normalized, pinyin: false }];
 }
 
-export function inlinePlain(text: string) {
-  return parseInline(text).map((part) => part.type === "link" ? part.label : part.text).join("");
+export function inlinePlain(text: string): string {
+  return parseInline(text).map((part) => part.type === "link" ? part.label : part.type === "text" ? part.text : inlinePlain(part.text)).join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -168,12 +175,14 @@ function pinyinHtml(text: string) {
   ).join("");
 }
 /** Wiki links stay as literal [[text]] while editing so they cannot drift out of sync. */
-function inlineHtml(text: string) {
+function inlineHtml(text: string): string {
   return parseInline(text).map((part) => {
-    if (part.type === "strong") return `<strong>${pinyinHtml(part.text)}</strong>`;
-    if (part.type === "em") return `<em>${pinyinHtml(part.text)}</em>`;
-    if (part.type === "mark") return `<mark>${pinyinHtml(part.text)}</mark>`;
-    if (part.type === "strike") return `<s>${pinyinHtml(part.text)}</s>`;
+    if (part.type === "strong") return `<strong>${inlineHtml(part.text)}</strong>`;
+    if (part.type === "em") return `<em>${inlineHtml(part.text)}</em>`;
+    if (part.type === "mark") return `<mark>${inlineHtml(part.text)}</mark>`;
+    if (part.type === "strike") return `<s>${inlineHtml(part.text)}</s>`;
+    if (part.type === "colour") return `<span data-ink="${part.colour}">${inlineHtml(part.text)}</span>`;
+    if (part.type === "tint") return `<mark data-tone="${part.colour}">${inlineHtml(part.text)}</mark>`;
     if (part.type === "link") return escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`);
     return pinyinHtml(part.text);
   }).join("");
@@ -244,7 +253,11 @@ function inlineMarkdown(node: Node): string {
   if (element.tagName === "BR") return "\n";
   if (["UL", "OL", "SCRIPT", "STYLE"].includes(element.tagName)) return "";
   let inner = Array.from(element.childNodes).map(inlineMarkdown).join("");
-  if (isMark(element)) inner = wrap("==", inner);
+  const ink = element.getAttribute("data-ink");
+  const tone = element.getAttribute("data-tone");
+  if (ink && NOTE_COLOURS.includes(ink as NoteColour)) inner = inner.trim() ? `{color:${ink}}${inner}{/color}` : inner;
+  if (tone && NOTE_COLOURS.includes(tone as NoteColour)) inner = inner.trim() ? `{bg:${tone}}${inner}{/bg}` : inner;
+  else if (isMark(element)) inner = wrap("==", inner);
   if (isStrike(element)) inner = wrap("~~", inner);
   if (isItalic(element) && !isBold(element)) inner = wrap("*", inner);
   if (isBold(element)) inner = wrap("**", inner);
