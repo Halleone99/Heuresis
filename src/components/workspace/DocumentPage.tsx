@@ -14,6 +14,7 @@ import { FlashcardDialog } from "./FlashcardDialog";
 import type { NewDocRequest } from "./NotebookView";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText, type LinkResolver } from "./RichText";
+import { NoteReadingViews, NoteViewSwitcher, type NotebookReadMode } from "./NoteReadingViews";
 import { KindIcon, Kbd, MOD_KEY, TopicPicker, entryKindLabel, formatDay, formatLongDay, formatTime, relativeTime, useConfirm, usePopover } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -56,6 +57,24 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     try { localStorage.setItem(`heuresis.notebook.ruby.v1:${userId}`, String(rubyPinyin)); }
     catch { /* Optional reading preference. */ }
   }, [rubyPinyin, userId]);
+  const [readMode, setReadMode] = useState<NotebookReadMode>(() => {
+    try {
+      const saved = localStorage.getItem("heuresis.notebook.readmode.v1:" + userId);
+      return saved === "canvas" || saved === "study" ? saved : "document";
+    } catch { return "document"; }
+  });
+  const [canvasColumns, setCanvasColumns] = useState<2 | 3>(() => {
+    try { return localStorage.getItem("heuresis.notebook.columns.v1:" + userId) === "3" ? 3 : 2; }
+    catch { return 2; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("heuresis.notebook.readmode.v1:" + userId, readMode); }
+    catch { /* Preferences are optional. */ }
+  }, [readMode, userId]);
+  useEffect(() => {
+    try { localStorage.setItem("heuresis.notebook.columns.v1:" + userId, String(canvasColumns)); }
+    catch { /* Preferences are optional. */ }
+  }, [canvasColumns, userId]);
   const [confirmElement, confirm] = useConfirm();
   const editorRef = useRef<RichEditorHandle>(null);
   const entryIdRef = useRef<string | null>(entry?.id ?? null);
@@ -354,7 +373,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         : save.kind === "error" ? save.message ?? "Could not save"
           : save.kind === "invalid" ? save.message ?? "" : entryIdRef.current ? "All changes saved" : "Not saved yet";
 
-  return <article className={`nb-doc ${editing ? "is-editing" : ""} ${lesson ? "is-lesson" : ""}`} aria-label={title || "New note"}>
+  return <article className={`nb-doc ${editing ? "is-editing" : ""} ${lesson ? "is-lesson" : ""} ${!editing ? "is-" + readMode : ""}`} aria-label={title || "New note"}>
     {confirmElement}
     {flashcardTarget ? <FlashcardDialog entry={flashcardTarget} onClose={() => setFlashcardTarget(null)} /> : null}
     <div className="nb-doc-bar">
@@ -368,6 +387,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         </>}
       </nav>
       <div className="nb-doc-actions">
+        {!editing ? <NoteViewSwitcher mode={readMode} onChange={setReadMode} /> : null}
         {editing ? <>
           <span className={`nb-save-state is-${save.kind}`} role="status" aria-live="polite">
             {save.kind === "saving" ? <span className="ws-spinner is-small" /> : save.kind === "local" || save.kind === "saved" || save.kind === "idle" ? <Check size={13} /> : null}
@@ -467,7 +487,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           <Languages size={14}/> Pinyin above Hanzi
         </button>
       </div> : null}
-      {draft.body.trim() ? <RichText text={draft.body} resolve={resolveLink} className="nb-reading" rubyPinyin={rubyPinyin} collapsible />
+      {draft.body.trim() ? <NoteReadingViews text={draft.body} mode={readMode} resolve={resolveLink} rubyPinyin={rubyPinyin} columns={canvasColumns} onColumnsChange={setCanvasColumns} />
         : <p className="ws-muted nb-doc-empty">{lesson ? "No lesson notes written yet." : "This note is empty."}</p>}
       {workspace.writable && !detached ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}
     </div>}
