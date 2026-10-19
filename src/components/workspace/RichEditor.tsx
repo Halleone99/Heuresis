@@ -468,7 +468,9 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     range.selectNodeContents(block);
     selection?.removeAllRanges();
     selection?.addRange(range);
-    const applied = exec("insertHTML", html);
+    // Chromium can treat a same-text insertion as a no-op and leave <mark> intact.
+    // A neutral wrapper forces it to replace the styled nodes while retaining Undo.
+    const applied = exec("insertHTML", `<span>${html}</span>`);
     if (applied) restoreInlineSelection(block, start, end);
     return applied;
   }, [selectedInline]);
