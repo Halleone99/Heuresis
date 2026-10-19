@@ -100,3 +100,10 @@
  .sort-modal .sort-note-panel textarea { min-height:100px; }
 }
 @media(prefers-reduced-motion:reduce) { .sort-modal .sort-enrich-item-tools { transition:none; } }
+
+/* A supplied example is one sentence / reading / translation, not three forms. */
+.sort-modal .sort-enrich-example { display:grid; gap:1px; margin:0 2px 4px; padding:9px 6px 11px; border-bottom:1px solid var(--ws-line); }
+.sort-modal .sort-enrich-example p { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; font:400 12px/1.5 var(--ws-sans); color:var(--ws-muted); }
+.sort-modal .sort-enrich-example p:first-child { color:var(--ws-ink); font-size:13.5px; font-weight:600; }
+.sort-modal .sort-enrich-example p:nth-child(2) { color:var(--ws-accent); }
+.sort-modal .sort-enrich-example small { display:block; font-size:10px; color:var(--ws-muted); }
