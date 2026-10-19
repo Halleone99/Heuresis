@@ -83,6 +83,24 @@ try {
   await page.getByRole("button", { name: "Text and highlight colours" }).click();
   await page.getByRole("button", { name: "blue highlight" }).click();
   await waitForText(page, "{bg:blue}Hello{/bg}");
+  // Removing an applied highlight must unwrap the coloured element, not just
+  // replace its text within the old <mark>. Keep previous bold/italic intact.
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Text and highlight colours" }).click();
+  await page.getByRole("button", { name: "Remove selected colour" }).click();
+  await page.waitForFunction(() => {
+    const markdown = document.querySelector('[data-testid="markdown"]')?.textContent ?? "";
+    const last = document.querySelector(".nb-editor p:nth-of-type(3)");
+    return markdown.includes("**你好**") && markdown.includes("*Nǐ hǎo*")
+      && !markdown.includes("{bg:blue}") && last?.textContent === "Hello"
+      && last?.querySelector("mark") === null;
+  }, null, { timeout: 6000 });
+  await page.locator(".nb-editor").click();
+  await page.keyboard.press("Control+z");
+  await waitForText(page, "{bg:blue}Hello{/bg}");
+  await page.keyboard.press("Control+y");
+  await page.waitForFunction(() => !(document.querySelector('[data-testid="markdown"]')?.textContent ?? "").includes("{bg:blue}"));
+
   // Tables must be real editable grids and round-trip to the persisted Markdown.
   const tablePage = await context.newPage();
   await tablePage.goto(url);
