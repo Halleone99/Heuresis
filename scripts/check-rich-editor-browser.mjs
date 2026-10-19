@@ -83,6 +83,30 @@ try {
   await page.getByRole("button", { name: "Text and highlight colours" }).click();
   await page.getByRole("button", { name: "blue highlight" }).click();
   await waitForText(page, "{bg:blue}Hello{/bg}");
+  // Tables must be real editable grids and round-trip to the persisted Markdown.
+  const tablePage = await context.newPage();
+  await tablePage.goto(url);
+  await tablePage.locator('.nb-editor[contenteditable="true"]').waitFor();
+  await tablePage.getByRole("button", { name: "Insert table" }).click();
+  await tablePage.getByText("Study reference", { exact: true }).click();
+  assert.equal(await tablePage.locator('.nb-editor table[data-table-style="study"]').count(), 1, "Study layout was not inserted");
+  assert.equal(await tablePage.locator('.nb-editor table thead th').count(), 5, "Study layout should have five columns");
+  await waitForText(tablePage, "{table:study}");
+  await tablePage.locator('.nb-editor table tbody tr:first-child td:first-child').click();
+  await tablePage.keyboard.type("Nominativ");
+  await waitForText(tablePage, "Nominativ");
+  await tablePage.keyboard.press("Tab");
+  assert.equal(await tablePage.evaluate(() => {
+    const selection = window.getSelection();
+    const node = selection?.anchorNode;
+    const cell = node instanceof Element ? node.closest("td") : node?.parentElement?.closest("td");
+    return cell?.cellIndex;
+  }), 1, "Tab should move to the next table cell");
+  await tablePage.getByRole("button", { name: "Insert table" }).click();
+  await tablePage.getByText("Comparison", { exact: true }).click();
+  assert.equal(await tablePage.locator('.nb-editor table[data-table-style="striped"]').count(), 1, "Restyling a table should not duplicate it");
+  await waitForText(tablePage, "{table:striped}");
+  await tablePage.close();
   await context.close();
 
   const touch = await browser.newContext({ viewport: { width: 820, height: 1100 }, hasTouch: true, isMobile: true });
