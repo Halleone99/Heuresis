@@ -184,7 +184,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
                 <button type="button" disabled={blocked} onClick={() => void removeText(block.id)} aria-label="Remove detail" title="Remove detail"><X size={13}/></button>
               </div>
             </div>
-            : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration" /> : <p>Image unavailable</p>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
+            : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration" /> : <span>Image unavailable</span>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
           {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item editable">
             <p><strong>{row.term}</strong>{row.reading ? " · " + row.reading : ""}<small>{row.relation_type} · {row.meaning}</small></p>
             <button type="button" disabled={blocked} onClick={() => void unlink(row)} aria-label="Remove related word"><X size={13} /></button>
