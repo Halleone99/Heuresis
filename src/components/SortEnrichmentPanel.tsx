@@ -1,5 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Pencil, Plus, X } from "lucide-react";
+import { RichText } from "./workspace/RichText";
+import { RichEditor, type RichEditorHandle } from "./workspace/RichEditor";
 import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
 import { signHeuresisCardImages } from "../lib/cardMedia";
@@ -59,18 +61,14 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   const conceptual = /philosoph|history|psycholog|concept|theor|politic|econom/i.test(pack.title + " " + (pack.cardType?.name ?? ""));
   const labels = conceptual ? conceptLabels : languageLabels;
   const structuredWords = !conceptual;
-  const order: Dimension[] = ["examples", "neighbours", "components", "structure", "origin", "facts", "notes"];
+  // Quick notes live on the right; retain a legacy Notes section only for existing saved blocks.
+  const order: Dimension[] = ["examples", "neighbours", "components", "structure", "origin", "facts",
+    ...(parseBlocks(card.data).some((block) => block.dim === "notes") ? ["notes" as Dimension] : [])];
   const [data, setData] = useState(card.data);
   const blocks = useMemo(() => parseBlocks(data), [data]);
-  // Open existing information automatically: otherwise every card looks empty until clicked.
-  const [expanded, setExpanded] = useState<Dimension | null>(() => {
-    const existing = parseBlocks(card.data);
-    return order.find((dim) =>
-      existing.some((block) => block.dim === dim)
-      || (dim === "notes" && Boolean(card.note?.trim()))
-      || (pack.cardType?.field_schema ?? []).some((field) => dimensionForField(field) === dim && Boolean(fieldText(card.data, field.key)))
-    ) ?? "examples";
-  });
+  const [expanded, setExpanded] = useState<Dimension[]>(["examples", "neighbours"]);
+  const detailEditor = useRef<RichEditorHandle>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState<Dimension | null>(null);
   const [mode, setMode] = useState<"text" | "word">("text");
   const [draft, setDraft] = useState("");
@@ -106,11 +104,13 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   }, [data]);
 
   function stopAdding() {
-    setAdding(null); setDraft(""); setWord(""); setReading(""); setMeaning("");
+    setAdding(null); setEditingId(null); setDraft(""); setWord(""); setReading(""); setMeaning("");
   }
-  function openAdd(dim: Dimension, kind: "text" | "word") {
+  function openAdd(dim: Dimension, kind: "text" | "word", existing?: TextBlock) {
     if (blocked) return;
-    setExpanded(dim); setAdding(dim); setMode(kind); setError("");
+    setExpanded((items) => items.includes(dim) ? items : [...items, dim]);
+    setAdding(dim); setMode(kind); setEditingId(existing?.id ?? null);
+    setDraft(existing?.text ?? ""); setError("");
   }
   async function writeBlocks(next: Block[]) {
     const saved = await patchCardData(card.id, { [BLOCKS_KEY]: next.map((block) => JSON.stringify(block)) });
@@ -118,10 +118,12 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
     onChanged();
   }
   async function saveText() {
-    if (!adding || !draft.trim() || busy) return;
+    const text = detailEditor.current?.getMarkdown() ?? draft;
+    if (!adding || !text.trim() || busy) return;
     setBusy(true); setError("");
     try {
-      await writeBlocks([...blocks, { id: crypto.randomUUID(), type: "text", text: draft.trim(), dim: adding }]);
+      const next: TextBlock = { id: editingId ?? crypto.randomUUID(), type: "text", text: text.trim(), dim: adding };
+      await writeBlocks(editingId ? blocks.map((block) => block.id === editingId ? next : block) : [...blocks, next]);
       stopAdding();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save this detail."); }
     finally { setBusy(false); }
