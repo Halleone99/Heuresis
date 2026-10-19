@@ -125,8 +125,18 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const persist = useCallback(async (): Promise<"saved" | "invalid" | "error" | "busy"> => {
     if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
     if (savingRef.current) { againRef.current = true; return "busy"; }
-    let release: () => void = () => undefined;
-    inflightRef.current = new Promise<void>((resolve) => { release = resolve; });
+    // The editor sends debounced updates for ordinary typing. A deliberate
+    // Save (Ctrl+S, Done, or navigation) must read the live DOM immediately;
+    // otherwise a last keystroke can miss the save window.
+    const liveBody = editorRef.current?.getMarkdown();
+    if (liveBody !== undefined && liveBody !== draftRef.current.body) {
+      draftRef.current = { ...draftRef.current, body: liveBody };
+      setDraft(draftRef.current);
+      writeDocumentDraft(userId, draftIdRef.current, {
+        title: draftRef.current.title, body: liveBody, savedAt: new Date().toISOString(),
+        baseUpdatedAt: liveEntry?.updated_at ?? "",
+      });
+    }
     const current = draftRef.current;
     if (!isDirty(current)) { setSave((state) => state.kind === "error" || state.kind === "invalid" ? state : { kind: state.at ? "saved" : "idle", at: state.at }); return "saved"; }
     const kind = liveEntry?.kind ?? "note";
@@ -134,6 +144,9 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       setSave({ kind: "invalid", message: entryIdRef.current ? "A note needs some text. Write something, or delete the note." : "Start writing — the note is saved as soon as it has text." });
       return "invalid";
     }
+    // Only create a pending save promise once there is real work to await.
+    let release: () => void = () => undefined;
+    inflightRef.current = new Promise<void>((resolve) => { release = resolve; });
     savingRef.current = true;
     setSave({ kind: "saving" });
     try {
