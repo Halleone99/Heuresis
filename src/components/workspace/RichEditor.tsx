@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Palette, ChevronsUpDown, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Pilcrow, Quote, Redo2, Scale, Strikethrough, Undo2 } from "lucide-react";
-import { editorToMarkdown, markdownToEditorHtml, type CalloutVariant, NOTE_COLOURS, type NoteColour } from "../../lib/noteFormat";
+import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Palette, ChevronsUpDown, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Pilcrow, Quote, Redo2, Scale, Strikethrough, Table2, Undo2 } from "lucide-react";
+import { editorToMarkdown, markdownToEditorHtml, type CalloutVariant, NOTE_COLOURS, type NoteColour, type TableStyle } from "../../lib/noteFormat";
 
 export type RichEditorHandle = { getMarkdown: () => string; focus: (where?: "start" | "end") => void; setMarkdown: (value: string) => void };
 
@@ -41,7 +41,7 @@ function ensureTrailingParagraph(root: HTMLElement | null) {
   }
 }
 
-const BLOCK_TAG = /^(P|DIV|H[1-6]|UL|OL|BLOCKQUOTE|HR|PRE)$/;
+const BLOCK_TAG = /^(P|DIV|H[1-6]|UL|OL|BLOCKQUOTE|HR|PRE|TABLE)$/;
 
 /** Folding is editor-only presentation: hidden content remains in the DOM and saves. */
 function updateFolds(root: HTMLElement) {
@@ -142,6 +142,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const emitTimer = useRef<number | null>(null);
   const [source, setSource] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [tableOpen, setTableOpen] = useState(false);
   const [colourHint, setColourHint] = useState("");
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
@@ -390,6 +391,28 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     else setColourHint("Select a word or one complete line in the note first.");
   }, [run]);
 
+  /** Insert a real table (or restyle the table under the caret) without
+   * converting it into plain-text pipes when the note is saved. */
+  const insertTable = useCallback((style: TableStyle, columns: number) => {
+    run(() => {
+      const existing = closest("TABLE");
+      if (existing) { existing.setAttribute("data-table-style", style); return; }
+      const headers = Array.from({ length: columns }, (_, i) => i === 0 ? "Heading" : "Column " + i);
+      const row = Array.from({ length: columns }, () => " ");
+      const markdown = (style === "plain" ? "" : "{table:" + style + "}\\n") +
+        "| " + headers.join(" | ") + " |\\n" +
+        "| " + headers.map(() => "---").join(" | ") + " |\\n" +
+        Array.from({ length: 3 }, () => "| " + row.join(" | ") + " |").join("\\n");
+      exec("insertHTML", markdownToEditorHtml(markdown));
+      const root = rootRef.current;
+      const tables = root?.querySelectorAll("table");
+      const inserted = tables?.[tables.length - 1];
+      const first = inserted?.querySelector("th,td");
+      if (first) caretInto(first);
+    });
+    setTableOpen(false);
+  }, [closest, run]);
+
   const foldAll = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -414,6 +437,31 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     if (mod && event.shiftKey && event.code === "KeyH") { event.preventDefault(); toggleMark(); return; }
     if (mod && !event.shiftKey && (event.code === "KeyB" || event.code === "KeyI")) {
       event.preventDefault(); run(() => exec(event.code === "KeyB" ? "bold" : "italic")); return;
+    }
+    if (event.key === "Tab" && (closest("TD") || closest("TH"))) {
+      event.preventDefault();
+      run(() => {
+        const cell = closest("TD") ?? closest("TH");
+        const table = closest("TABLE");
+        if (!cell || !table) return;
+        const cells = Array.from(table.querySelectorAll("th,td"));
+        const position = cells.indexOf(cell);
+        let next = cells[position + (event.shiftKey ? -1 : 1)];
+        if (!next && !event.shiftKey) {
+          const body = table.querySelector("tbody") ?? table.appendChild(document.createElement("tbody"));
+          const count = table.querySelector("tr")?.children.length ?? 3;
+          const row = document.createElement("tr");
+          for (let n = 0; n < count; n++) {
+            const td = document.createElement("td");
+            td.appendChild(document.createElement("br"));
+            row.appendChild(td);
+          }
+          body.appendChild(row);
+          next = row.firstElementChild as HTMLElement;
+        }
+        if (next) caretInto(next);
+      });
+      return;
     }
     if (event.key === "Tab" && (closest("LI"))) {
       event.preventDefault(); run(() => exec(event.shiftKey ? "outdent" : "indent")); return;
@@ -561,6 +609,26 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         {tool("Bulleted list", `${MOD}+Shift+8`, <List size={15} />, () => setBlock("ul"), active.block === "ul")}
         {tool("Numbered list", `${MOD}+Shift+7`, <ListOrdered size={15} />, () => setBlock("ol"), active.block === "ol")}
         {tool("Quotation", "", <Quote size={15} />, () => setBlock("quote"), active.block === "quote")}
+      </div>
+      <div className="nb-toolbar-group">
+        <div className="nb-table-anchor">
+          <button type="button" aria-label="Insert table" aria-expanded={tableOpen}
+            title="Insert or style a table" disabled={source} className={tableOpen ? "is-active" : ""}
+            onMouseDown={(event) => event.preventDefault()} onClick={() => { setPaletteOpen(false); setTableOpen((open) => !open); }}>
+            <Table2 size={15}/>
+          </button>
+          {tableOpen && !source ? <div className="nb-table-popover" aria-label="Table layouts">
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertTable("plain", 3)}>
+              <span>Simple <small>3 columns · clean grid</small></span>
+            </button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertTable("striped", 4)}>
+              <span>Comparison <small>4 columns · alternating rows</small></span>
+            </button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertTable("study", 5)}>
+              <span>Study reference <small>5 columns · highlighted labels</small></span>
+            </button>
+          </div> : null}
+        </div>
       </div>
       <div className="nb-toolbar-group nb-toolbar-blocks">
         <button type="button" className={active.block === "example" ? "is-active" : ""} disabled={source} title="Example block — sentence, reading, translation on separate lines"
