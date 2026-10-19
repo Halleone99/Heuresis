@@ -87,7 +87,9 @@ try {
   // Clicking Highlight must REMOVE the tint rather than nest another mark.
   await select(page, 2, "Hello", true);
   await page.getByRole("button", { name: "Highlight", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\nHello");
+  await page.waitForTimeout(350);
+  console.log("Highlight removal diagnostic:", JSON.stringify({ markdown: await page.locator('[data-testid="markdown"]').textContent(), html: await page.locator(".nb-editor p").nth(2).innerHTML(), selection: await page.evaluate(() => window.getSelection()?.toString()) }));
+  await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\nHello", undefined, { timeout: 4000 });
   await select(page, 2, "Hello");
   await page.getByRole("button", { name: "Highlight", exact: true }).click();
   await waitForText(page, "==Hello==");
