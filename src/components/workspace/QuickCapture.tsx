@@ -375,9 +375,18 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         onSaved={() => workspace.toast("Flashcard saved to Study.")} /> : mode === "note" ? <>
         <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={captureStyle === "notepad" ? 6 : stream ? 2 : 3} value={draft.text}
           aria-label={floating ? "Capture an idea" : stream ? "Stream capture" : "Quick note"}
-          placeholder={captureStyle === "notepad" ? "Write freely. Enter adds a new line; save when you are ready." : floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
+          placeholder={captureStyle === "notepad" ? "Write freely. Enter adds a new line; Ctrl+Enter saves." : floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
           disabled={saving} onChange={(event) => patch({ text: event.target.value })}
           onKeyDown={(event) => {
+            // Notepad behaves like a text editor: Enter inserts a newline.
+            // Ctrl/Cmd+Enter or Ctrl/Cmd+S explicitly saves the note.
+            if (captureStyle === "notepad" && (event.ctrlKey || event.metaKey) &&
+                (event.key === "Enter" || event.code === "KeyS") &&
+                !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+              event.preventDefault();
+              void submit();
+              return;
+            }
             if (stream && captureStyle !== "notepad" && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
               event.preventDefault();
               void submit();
