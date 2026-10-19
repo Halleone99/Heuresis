@@ -612,7 +612,7 @@
 .nb-prose:lang(zh), .nb-prose :lang(zh) { line-height: 1.85; }
 .nb-prose > * { margin: 0; }
 .nb-prose p { margin: 0; min-height: 1.75em; }
-.nb-prose .nb-gap { height: .9em; }
+.nb-prose .nb-gap { height: 1.75em; } /* Match a blank editable paragraph in reading mode. */
 .nb-prose h2 { margin: 1.5em 0 .45em; color: var(--ws-ink); font: 400 1.62em/1.2 var(--ws-display); letter-spacing: -.01em; }
 .nb-prose h3 { margin: 1.35em 0 .35em; color: var(--ws-ink); font: 600 .78em/1.4 var(--ws-sans); letter-spacing: .09em; text-transform: uppercase; }
 .nb-prose > h2:first-child, .nb-prose > h3:first-child { margin-top: .2em; }
@@ -660,6 +660,7 @@
 .nb-wikilink.is-missing { color: var(--ws-muted); border-bottom-style: dashed; border-bottom-color: var(--ws-line-strong); }
 .nb-prose.is-compact { font-size: 15px; line-height: 1.6; }
 .nb-prose.is-compact p { min-height: 1.6em; }
+.nb-prose.is-compact .nb-gap { height: 1.6em; }
 
 /* Editor */
 .nb-doc-editor { margin-top: 14px; }
