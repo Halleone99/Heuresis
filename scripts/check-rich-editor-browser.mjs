@@ -108,7 +108,7 @@ try {
   await waitForText(page, "{bg:blue}**Hello**{/bg}");
   await select(page, 2, "Hello", true);
   await page.getByRole("button", { name: "Text and highlight colours" }).click();
-  await page.getByRole("button", { name: "Remove selected colour" }).click();
+  await page.getByRole("button", { name: "Remove highlight / text colour" }).click();
   await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\n**Hello**");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await waitForText(page, "{bg:blue}**Hello**{/bg}");
