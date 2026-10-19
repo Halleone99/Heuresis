@@ -224,7 +224,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
       if (mode === "note") {
         if (!draft.text.trim()) { setError("Write something first."); return; }
         if (draft.text.length > LIMITS.body) { setError("That note is too long for a quick capture."); return; }
-        const parsed = stream ? parseCaptureLine(draft.text) : null;
+        const parsed = stream && captureStyle !== "notepad" ? parseCaptureLine(draft.text) : null;
         const sent = { ...draft };
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() }, draftSurface);
@@ -375,10 +375,10 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         onSaved={() => workspace.toast("Flashcard saved to Study.")} /> : mode === "note" ? <>
         <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={captureStyle === "notepad" ? 6 : stream ? 2 : 3} value={draft.text}
           aria-label={floating ? "Capture an idea" : stream ? "Stream capture" : "Quick note"}
-          placeholder={floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
+          placeholder={captureStyle === "notepad" ? "Write freely. Enter adds a new line; save when you are ready." : floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
           disabled={saving} onChange={(event) => patch({ text: event.target.value })}
           onKeyDown={(event) => {
-            if (stream && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+            if (stream && captureStyle !== "notepad" && event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
               event.preventDefault();
               void submit();
             }
@@ -388,7 +388,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
           <button type="button" aria-label="Italic selection" title="Italic selection" onClick={() => formatSelection("*", "*")}><em>I</em></button>
           <AICheck text={draft.text} language={languageName ?? "Unknown"} onApply={(next) => patch({ text: next })} compact />
         </div>
-        {floating ? null : stream ? <div className="qc-stream-meta">
+        {floating ? null : stream && captureStyle !== "notepad" ? <div className="qc-stream-meta">
           <span>{draft.text.trim() ? parseCaptureLine(draft.text).preview : "Note"} → {attachToLesson && currentLesson ? entryTitle(currentLesson) : languageName ? `${languageName} › Inbox` : "Choose subject"}</span>
           <span><Kbd>Enter</Kbd> save · <Kbd>⇧ Enter</Kbd> newline</span>
           <small>Use a → b for mistakes, // for why, #g grammar, #v vocabulary, #e expressions; ? for questions.</small>
