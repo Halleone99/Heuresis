@@ -418,7 +418,22 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
           replaceRange.selectNode(decorated);
           selection.removeAllRanges();
           selection.addRange(replaceRange);
-          applied = exec("insertHTML", replacement);
+          // Chromium can inherit the old mark even when its entire element
+          // was selected. Insert a detectable fragment, then lift it out of
+          // that inherited wrapper so the colour really disappears.
+          applied = exec("insertHTML", '<span data-heuresis-clear="true">' + replacement + '</span>');
+          const inserted = root.querySelector('[data-heuresis-clear="true"]');
+          if (inserted) {
+            const inherited = inserted.parentElement?.closest("mark,span[data-ink]") as HTMLElement | null;
+            inserted.replaceWith(...Array.from(inserted.childNodes));
+            if (inherited && root.contains(inherited)) inherited.replaceWith(...Array.from(inherited.childNodes));
+          } else if (root.contains(decorated)) {
+            // WebView fallback when insertHTML silently left the old mark intact.
+            const holder = document.createElement("div");
+            holder.innerHTML = replacement;
+            decorated.replaceWith(...Array.from(holder.childNodes));
+            applied = true;
+          }
           return;
         }
       }
