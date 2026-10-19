@@ -341,55 +341,163 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     if (!wrapper.contains(window.getSelection()?.anchorNode ?? null)) caretInto(block, true);
   }), [closest, currentBlock, run]);
 
-  const toggleMark = useCallback(() => run(() => {
-    const mark = closest("MARK");
+  /**
+   * Split the current inline selection into before / selected / after fragments.
+   * Cloning the entire ancestor chain keeps bold, italic and other inline styles
+   * when a selection starts inside a <mark> or a coloured <span>.
+   */
+  const selectedInline = useCallback(() => {
+    const root = rootRef.current;
     const selection = window.getSelection();
-    if (mark && selection) {
+    if (!root || !selection?.rangeCount || selection.isCollapsed) return null;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.commonAncestorContainer)) return null;
+
+    const blocks = Array.from(root.querySelectorAll<HTMLElement>("p,h1,h2,h3,li,td,th"))
+      .filter((block) => range.intersectsNode(block))
+      .filter((block, _, all) => !all.some((other) => other !== block && block.contains(other)));
+    if (blocks.length !== 1) return null;
+    const block = blocks[0];
+
+    // Selecting a whole paragraph may put the Range endpoints outside it.
+    // Work inside the paragraph to avoid accidentally replacing the next line.
+    if (!block.contains(range.startContainer) || !block.contains(range.endContainer)) {
+      if (selection.toString().trim() !== (block.textContent ?? "").trim()) return null;
+      range.selectNodeContents(block);
+    }
+    const before = document.createRange();
+    before.selectNodeContents(block);
+    before.setEnd(range.startContainer, range.startOffset);
+    const start = before.toString().length;
+    const length = range.toString().length;
+    if (!length || !range.toString().trim()) return null;
+    const end = start + length;
+
+    const pieces: [DocumentFragment, DocumentFragment, DocumentFragment] = [
+      document.createDocumentFragment(), document.createDocumentFragment(), document.createDocumentFragment(),
+    ];
+    let position = 0;
+    const split = (node: Node): [Node | null, Node | null, Node | null] => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const value = node.textContent ?? "";
+        const begin = position;
+        position += value.length;
+        const texts = [
+          value.slice(0, Math.max(0, Math.min(value.length, start - begin))),
+          value.slice(Math.max(0, start - begin), Math.max(0, Math.min(value.length, end - begin))),
+          value.slice(Math.max(0, Math.min(value.length, end - begin))),
+        ];
+        return texts.map((part) => part ? document.createTextNode(part) : null) as [Node | null, Node | null, Node | null];
+      }
+      if (!(node instanceof Element)) return [null, null, null];
+      if (!node.childNodes.length) {
+        const result: [Node | null, Node | null, Node | null] = [null, null, null];
+        result[position < start ? 0 : position >= end ? 2 : 1] = node.cloneNode(true);
+        return result;
+      }
+      const copies = [node.cloneNode(false), node.cloneNode(false), node.cloneNode(false)];
+      for (const child of Array.from(node.childNodes)) {
+        const sections = split(child);
+        sections.forEach((part, index) => { if (part) copies[index].appendChild(part); });
+      }
+      return copies.map((copy) => copy.hasChildNodes() ? copy : null) as [Node | null, Node | null, Node | null];
+    };
+    for (const child of Array.from(block.childNodes)) {
+      split(child).forEach((part, index) => { if (part) pieces[index].appendChild(part); });
+    }
+    return { block, pieces, start, end };
+  }, []);
+
+  const stripInline = (fragment: DocumentFragment, mode: "mark" | "ink" | "all") => {
+    const selector = mode === "mark" ? "mark" : mode === "ink" ? "span[data-ink]" : "mark,span[data-ink]";
+    for (const wrapper of Array.from(fragment.querySelectorAll<HTMLElement>(selector)).reverse()) {
+      wrapper.replaceWith(...Array.from(wrapper.childNodes));
+    }
+  };
+
+  const restoreInlineSelection = (block: HTMLElement, start: number, end: number) => {
+    if (!block.isConnected) return;
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    let position = 0;
+    let first: { node: Node; offset: number } | null = null;
+    let last: { node: Node; offset: number } | null = null;
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const length = (node.textContent ?? "").length;
+      if (!first && start <= position + length) first = { node, offset: Math.max(0, start - position) };
+      if (!last && end <= position + length) last = { node, offset: Math.max(0, end - position) };
+      position += length;
+      if (first && last) break;
+    }
+    if (!first || !last) return;
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(first.node, first.offset);
+    range.setEnd(last.node, last.offset);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  };
+
+  /** Transform only the selected text, preserving unrelated inline formatting. */
+  const formatSelection = useCallback((mode: "toggle-mark" | "ink" | "tone" | "clear", colour?: NoteColour) => {
+    const selected = selectedInline();
+    if (!selected) return false;
+    const { block, pieces, start, end } = selected;
+    const middle = pieces[1];
+    const hasMark = Boolean(middle.querySelector("mark"));
+    if (mode === "toggle-mark") {
+      if (hasMark) stripInline(middle, "mark");
+      else {
+        const mark = document.createElement("mark");
+        mark.append(...Array.from(middle.childNodes));
+        middle.appendChild(mark);
+      }
+    } else if (mode === "clear") {
+      stripInline(middle, "all");
+    } else {
+      stripInline(middle, mode === "ink" ? "ink" : "mark");
+      const wrapper = document.createElement(mode === "ink" ? "span" : "mark");
+      if (mode === "ink") wrapper.setAttribute("data-ink", colour ?? "");
+      else wrapper.setAttribute("data-tone", colour ?? "");
+      wrapper.append(...Array.from(middle.childNodes));
+      middle.appendChild(wrapper);
+    }
+    const html = pieces.map((part) => {
+      const holder = document.createElement("div");
+      holder.appendChild(part);
+      return holder.innerHTML;
+    }).join("");
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const applied = exec("insertHTML", html);
+    if (applied) restoreInlineSelection(block, start, end);
+    return applied;
+  }, [selectedInline]);
+
+  const toggleMark = useCallback(() => run(() => {
+    // A collapsed caret inside a highlight removes that highlight too.
+    const selection = window.getSelection();
+    if (selection?.isCollapsed) {
+      const mark = closest("MARK");
+      if (!mark) return;
       const range = document.createRange();
       range.selectNodeContents(mark);
       selection.removeAllRanges();
       selection.addRange(range);
-      exec("insertHTML", mark.innerHTML || escapeHtml(mark.textContent ?? ""));
-      return;
     }
-    const text = selection?.toString() ?? "";
-    if (!text) return;
-    exec("insertHTML", `<mark>${escapeHtml(text)}</mark>`);
-  }), [closest, run]);
+    formatSelection("toggle-mark");
+  }), [closest, formatSelection, run]);
 
-  /** Apply a named colour to one selected phrase without changing adjacent lines. */
+  /** Apply, replace or remove colour without discarding bold/italic formatting. */
   const applyColour = useCallback((mode: "ink" | "tone" | "clear", colour?: NoteColour) => {
     let applied = false;
-    run(() => {
-      const root = rootRef.current;
-      const selection = window.getSelection();
-      if (!root || !selection?.rangeCount || selection.isCollapsed) return;
-      const range = selection.getRangeAt(0);
-      if (!root.contains(range.commonAncestorContainer)) return;
-      let selected = selection.toString();
-      if (!selected.trim()) return;
-      // Double/triple-click or dragging a complete paragraph may include its
-      // trailing newline. Restrict that selection to the text *inside* the
-      // paragraph so the colour can be applied without damaging nearby blocks.
-      const holder = document.createElement("div");
-      holder.appendChild(range.cloneContents());
-      if (/[\r\n]/.test(selected) || holder.querySelector("p,div,h1,h2,h3,li,ol,ul,blockquote")) {
-        const blocks = Array.from(root.querySelectorAll("p,h1,h2,h3,li")).filter((block) => range.intersectsNode(block));
-        if (blocks.length !== 1 || selected.trim() !== (blocks[0].textContent ?? "").trim()) return;
-        range.selectNodeContents(blocks[0]);
-        selected = selection.toString();
-        holder.replaceChildren(range.cloneContents());
-      }
-      if (holder.querySelector("p,div,h1,h2,h3,li,ol,ul,blockquote")) return;
-      const fragment = holder.innerHTML || escapeHtml(selected);
-      const html = mode === "clear" ? escapeHtml(selected) :
-        mode === "ink" ? `<span data-ink="${colour}">${fragment}</span>` :
-          `<mark data-tone="${colour}">${fragment}</mark>`;
-      applied = exec("insertHTML", html);
-    });
+    run(() => { applied = formatSelection(mode, colour); });
     if (applied) { setPaletteOpen(false); setColourHint(""); }
     else setColourHint("Select a word or one complete line in the note first.");
-  }, [run]);
+  }, [formatSelection, run]);
 
   /** Insert a real table (or restyle the table under the caret) without
    * converting it into plain-text pipes when the note is saved. */
