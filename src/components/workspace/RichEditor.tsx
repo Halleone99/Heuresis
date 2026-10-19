@@ -399,10 +399,10 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       if (existing) { existing.setAttribute("data-table-style", style); return; }
       const headers = Array.from({ length: columns }, (_, i) => i === 0 ? "Heading" : "Column " + i);
       const row = Array.from({ length: columns }, () => " ");
-      const markdown = (style === "plain" ? "" : "{table:" + style + "}\\n") +
-        "| " + headers.join(" | ") + " |\\n" +
-        "| " + headers.map(() => "---").join(" | ") + " |\\n" +
-        Array.from({ length: 3 }, () => "| " + row.join(" | ") + " |").join("\\n");
+      const markdown = (style === "plain" ? "" : "{table:" + style + "}\n") +
+        "| " + headers.join(" | ") + " |\n" +
+        "| " + headers.map(() => "---").join(" | ") + " |\n" +
+        Array.from({ length: 3 }, () => "| " + row.join(" | ") + " |").join("\n");
       exec("insertHTML", markdownToEditorHtml(markdown));
       const root = rootRef.current;
       const tables = root?.querySelectorAll("table");
