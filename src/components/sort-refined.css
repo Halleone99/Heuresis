@@ -1,0 +1,102 @@
+
+/* Sort: three calm working surfaces — knowledge / flashcard / decision. */
+.sort-backdrop .sort-modal { width:min(1530px,98vw) !important; height:min(865px,96dvh) !important; border-radius:18px; }
+.sort-modal .sort-body { grid-template-columns:minmax(255px,.92fr) minmax(330px,1.72fr) minmax(300px,.88fr) !important; min-height:0; }
+.sort-modal .sort-topbar { height:66px; padding:0 22px; background:var(--ws-surface); }
+.sort-modal .sort-topbar .eyebrow { font-size:10px; letter-spacing:.1em; }
+.sort-modal .sort-topbar strong { font-size:21px; }
+.sort-modal .sort-topbar > span { font-size:11px; font-variant-numeric:tabular-nums; }
+.sort-modal .sort-card { padding:36px 28px; border-right:1px solid var(--ws-line); background:radial-gradient(ellipse at 50% 42%, color-mix(in srgb,var(--ws-accent) 10%,transparent),transparent 65%); }
+.sort-modal .sort-card > strong { font-family:var(--ws-sans),sans-serif; font-weight:600; line-height:1.2; letter-spacing:-.03em; font-size:clamp(39px,4.2vw,72px); }
+.sort-modal .sort-card > em { font:400 clamp(16px,1.7vw,23px)/1.5 var(--ws-sans),sans-serif; margin-top:17px; color:var(--ws-accent); }
+.sort-modal .sort-card > p { font:400 clamp(22px,2.2vw,32px)/1.4 'Libre Caslon Display',Georgia,serif; margin-top:28px; padding-top:23px; border-top:1px solid var(--ws-line); width:min(340px,100%); }
+.sort-modal .sort-enrichment { background:transparent; border-right:1px solid var(--ws-line); }
+.sort-modal .sort-enrich-list { padding:14px 18px 28px; }
+.sort-modal .sort-enrich-section { border-bottom:1px solid var(--ws-line); }
+.sort-modal .sort-enrich-heading { padding:10px 3px; min-height:43px; }
+.sort-modal .sort-enrich-heading > span { flex:none; font-size:13px; font-weight:650; }
+.sort-modal .sort-enrich-heading > b { margin-right:auto; font:400 11px var(--ws-mono); }
+.sort-modal .sort-enrich-contents { gap:0; padding:0 2px 11px; }
+.sort-modal .sort-enrich-item { padding:9px 6px; border:0; border-radius:0; background:transparent; border-bottom:1px solid color-mix(in srgb,var(--ws-text) 7%,transparent); font-size:12px; line-height:1.5; }
+.sort-modal .sort-enrich-item:last-of-type { border-bottom:0; }
+.sort-modal .sort-enrich-item:hover { background:color-mix(in srgb,var(--ws-accent) 4%,transparent); }
+.sort-modal .sort-enrich-field small { font:500 10px/1.5 var(--ws-sans); color:var(--ws-muted); margin:0 0 3px; }
+.sort-modal .sort-enrich-field > p { white-space:pre-wrap; color:var(--ws-text); overflow-wrap:anywhere; }
+.sort-modal .sort-enrich-item.editable { align-items:center; position:relative; gap:8px; }
+.sort-modal .sort-enrich-item.editable > .nb-prose { flex:1; min-width:0; }
+.sort-modal .sort-enrich-rich.nb-prose { font:400 12px/1.5 var(--ws-sans); white-space:pre-wrap; }
+.sort-modal .sort-enrich-rich.nb-prose p { margin:0; min-height:0; }
+.sort-modal .sort-enrich-rich.nb-prose p:first-child { color:var(--ws-ink); font-size:13.5px; font-weight:600; }
+.sort-modal .sort-enrich-rich.nb-prose p:nth-child(2) { color:var(--ws-accent); }
+.sort-modal .sort-enrich-rich.nb-prose p:nth-child(n+3) { color:var(--ws-muted); }
+.sort-modal .sort-enrich-item-tools { display:flex; align-items:center; gap:1px; opacity:.18; transition:opacity .15s; }
+.sort-modal .sort-enrich-item:hover .sort-enrich-item-tools,
+.sort-modal .sort-enrich-item:focus-within .sort-enrich-item-tools { opacity:1; }
+.sort-modal .sort-enrich-item-tools button { display:grid; place-items:center; width:27px; height:27px; border-radius:6px; color:var(--ws-muted); }
+.sort-modal .sort-enrich-item-tools button:hover { background:var(--ws-accent-soft); color:var(--ws-text); }
+.sort-modal .sort-enrich-add-actions { margin:4px 0 1px; gap:14px; }
+.sort-modal .sort-enrich-add-actions button { border:0; background:transparent; padding:5px 2px; color:var(--ws-accent); font-size:12px; }
+.sort-modal .sort-enrich-add-actions button:hover:not(:disabled) { background:transparent; color:var(--ws-ink); text-decoration:underline; }
+.sort-modal .sort-enrich-editor { padding:9px 3px 12px; }
+.sort-modal .sort-enrich-editor .nb-editor-shell { margin:0; }
+.sort-modal .sort-enrich-editor .nb-toolbar { position:relative; top:auto; z-index:15; margin:0; padding:4px 5px; border-radius:8px 8px 0 0; box-shadow:none; justify-content:flex-start; }
+.sort-modal .sort-enrich-editor .nb-toolbar-group[hidden] { display:none !important; }
+.sort-modal .sort-enrich-editor .nb-toolbar-group { border:0; }
+.sort-modal .sort-enrich-editor .nb-toolbar button { min-width:28px; height:28px; padding:0 6px; }
+.sort-modal .sort-enrich-editor .nb-editor-surface { background:var(--ws-surface-2); border:1px solid var(--ws-line-strong); border-top:0; border-radius:0 0 8px 8px; padding:5px 9px; }
+.sort-modal .sort-enrich-editor .nb-editor { min-height:95px; max-height:220px; overflow-y:auto; padding:2px 0 8px; font:400 13px/1.5 var(--ws-sans); }
+.sort-modal .sort-enrich-editor .nb-editor p { margin:0; min-height:1.5em; }
+.sort-modal .sort-enrich-editor .nb-placeholder { left:0; top:4px; font:italic 12px/1.5 var(--ws-sans); }
+.sort-modal .sort-enrich-editor .nb-colour-popover { z-index:45; }
+.sort-modal .sort-enrich-editor-actions { margin-top:2px; }
+.sort-modal .sort-enrich-editor-actions button { min-height:31px; }
+/* Only one primary decision: rate 1–5, then Save & next. */
+.sort-modal .sort-panel { gap:0; padding:0; display:flex; flex-direction:column; overflow-y:auto; background:transparent; }
+.sort-modal .sort-panel > :is(.sort-interest-panel,.sort-tags-control,.sort-note-panel) { padding:20px 18px 22px; border-bottom:1px solid var(--ws-line); }
+.sort-modal .sort-panel h3 { margin:0; display:flex; align-items:center; gap:7px; color:var(--ws-ink); font:650 14px/1.3 var(--ws-sans); }
+.sort-modal .sort-panel h3 small { margin:0 0 0 auto; color:var(--ws-muted); font:400 11px var(--ws-sans); }
+.sort-modal .sort-rating { margin-top:12px; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; }
+.sort-modal .sort-rating button { min-height:43px; padding:0; border:1px solid var(--ws-line-strong); border-radius:9px; color:var(--ws-text); background:var(--ws-surface-2); font:600 17px var(--ws-sans); cursor:pointer; }
+.sort-modal .sort-rating button:hover:not(:disabled) { background:var(--ws-raised); border-color:var(--ws-accent); }
+.sort-modal .sort-rating button.selected { background:var(--ws-accent); color:var(--ws-on-primary); border-color:var(--ws-accent); }
+.sort-modal .sort-rating button:focus-visible { outline:2px solid var(--ws-accent); outline-offset:2px; }
+.sort-modal .sort-rating-caption { display:block; margin-top:9px; font-size:11px; color:var(--ws-muted); }
+.sort-modal .sort-side-heading { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.sort-modal .sort-side-heading > button { flex:none; font:500 11px var(--ws-sans); cursor:pointer; background:transparent; border:1px solid var(--ws-line-strong); padding:6px 9px; border-radius:7px; color:var(--ws-text); }
+.sort-modal .sort-side-heading > button:hover { background:var(--ws-raised); }
+.sort-modal .sort-selected-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.sort-modal .sort-selected-tags button { display:flex; align-items:center; gap:7px; min-height:28px; padding:4px 9px; border:1px solid var(--ws-accent-line); border-radius:7px; background:var(--ws-accent-soft); color:var(--ws-accent); font:500 11px var(--ws-sans); cursor:pointer; }
+.sort-modal .sort-tags-empty { display:block; color:var(--ws-muted); font-size:11px; margin-top:11px; }
+.sort-modal .sort-tags { margin-top:12px; display:grid; gap:8px; }
+.sort-modal .sort-note-panel textarea { display:block; width:100%; min-height:138px; margin-top:12px; padding:12px; resize:vertical; border:1px solid var(--ws-line-strong); border-radius:9px; background:var(--ws-surface-2); color:var(--ws-text); font:400 13px/1.55 var(--ws-sans); }
+.sort-modal .sort-note-panel textarea:focus { outline:2px solid var(--ws-accent-soft); border-color:var(--ws-accent); }
+.sort-modal .sort-panel-actions { margin-top:auto; padding:20px 18px; display:grid; gap:9px; }
+.sort-modal .sort-save-next { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:47px; border:1px solid var(--ws-accent); border-radius:9px; background:var(--ws-accent); color:var(--ws-on-primary); cursor:pointer; font:600 13px var(--ws-sans); }
+.sort-modal .sort-save-next:hover:not(:disabled) { filter:brightness(1.06); }
+.sort-modal .sort-save-next:disabled { opacity:.45; cursor:not-allowed; }
+.sort-modal .sort-more-toggle { display:flex; align-items:center; justify-content:center; gap:5px; border:0; background:transparent; padding:5px; color:var(--ws-muted); font:400 11px var(--ws-sans); cursor:pointer; }
+.sort-modal .sort-more-toggle svg.is-open { transform:rotate(180deg); }
+.sort-modal .sort-more-actions { display:flex; flex-direction:column; gap:3px; border:1px solid var(--ws-line); border-radius:8px; padding:5px; }
+.sort-modal .sort-more-actions button { display:flex; align-items:center; gap:9px; min-height:33px; border:0; border-radius:6px; padding:6px 9px; text-align:left; color:var(--ws-text); background:transparent; cursor:pointer; font-size:11px; }
+.sort-modal .sort-more-actions button:hover { background:var(--ws-raised); }
+.sort-modal .sort-error { margin:10px 18px; }
+@media(max-width:1000px) {
+ .sort-modal .sort-body { grid-template-columns:minmax(210px,.85fr) minmax(270px,1.2fr) minmax(235px,.9fr) !important; }
+ .sort-modal .sort-panel > :is(.sort-interest-panel,.sort-tags-control,.sort-note-panel) { padding:16px 12px; }
+ .sort-modal .sort-panel-actions { padding:14px 12px; }
+ .sort-modal .sort-enrich-list { padding:9px 10px 16px; }
+}
+@media(max-width:780px) {
+ .sort-modal .sort-body { grid-template-columns:minmax(215px,1fr) minmax(260px,1.3fr) !important; overflow:auto; }
+ .sort-modal .sort-card { min-height:350px; }
+ .sort-modal .sort-panel { grid-column:1 / -1; border-top:1px solid var(--ws-line); overflow:visible; }
+ .sort-modal .sort-enrichment { max-height:420px; }
+}
+@media(max-width:600px) {
+ .sort-modal .sort-body { display:flex; flex-direction:column; }
+ .sort-modal .sort-card { order:-1; min-height:260px; }
+ .sort-modal .sort-enrichment { order:0; max-height:none; overflow:visible; }
+ .sort-modal .sort-panel { order:1; }
+ .sort-modal .sort-note-panel textarea { min-height:100px; }
+}
+@media(prefers-reduced-motion:reduce) { .sort-modal .sort-enrich-item-tools { transition:none; } }
