@@ -755,7 +755,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         {tool("Redo", `${MOD}+Shift+Z`, <Redo2 size={15} />, () => run(() => exec("redo")))}
         <button type="button" className={source ? "is-active" : ""} aria-pressed={source} title="Edit the plain text source"
           onMouseDown={(event) => event.preventDefault()} onClick={toggleSource}><Code2 size={15} /></button>
-      </div> : null>
+      </div> : null}
       {extraTools}
     </div>
     <div className="nb-editor-surface">
