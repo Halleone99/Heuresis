@@ -381,8 +381,49 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         holder.replaceChildren(range.cloneContents());
       }
       if (holder.querySelector("p,div,h1,h2,h3,li,ol,ul,blockquote")) return;
+      if (mode === "clear") {
+        // Replacing only the text inside a <mark> makes Chromium inherit the
+        // parent's highlight again. Replace the *decorated element* instead:
+        // marked prefix + unmarked selection + marked suffix. This is one
+        // insertHTML transaction, so native Undo remains available.
+        const decorated = Array.from(root.querySelectorAll("mark,span[data-ink]") as NodeListOf<HTMLElement>)
+          .find((node) => range.intersectsNode(node) && (node.textContent ?? "").trim());
+        if (decorated) {
+          const selectedPart = document.createRange();
+          selectedPart.selectNodeContents(decorated);
+          if (decorated.contains(range.startContainer))
+            selectedPart.setStart(range.startContainer, range.startOffset);
+          if (decorated.contains(range.endContainer))
+            selectedPart.setEnd(range.endContainer, range.endOffset);
+          const before = document.createRange();
+          before.selectNodeContents(decorated);
+          before.setEnd(selectedPart.startContainer, selectedPart.startOffset);
+          const after = document.createRange();
+          after.selectNodeContents(decorated);
+          after.setStart(selectedPart.endContainer, selectedPart.endOffset);
+          const wrap = (fragment: DocumentFragment) => {
+            if (!fragment.textContent?.length) return "";
+            const remaining = decorated.cloneNode(false) as HTMLElement;
+            remaining.appendChild(fragment);
+            return remaining.outerHTML;
+          };
+          const plain = document.createElement("div");
+          plain.appendChild(selectedPart.cloneContents());
+          // Strip coloured wrappers but leave bold, italic, and other styles.
+          for (const node of Array.from(plain.querySelectorAll("mark,span[data-ink]")).reverse()) {
+            node.replaceWith(...Array.from(node.childNodes));
+          }
+          const replacement = wrap(before.cloneContents()) + plain.innerHTML + wrap(after.cloneContents());
+          const replaceRange = document.createRange();
+          replaceRange.selectNode(decorated);
+          selection.removeAllRanges();
+          selection.addRange(replaceRange);
+          applied = exec("insertHTML", replacement);
+          return;
+        }
+      }
       const fragment = holder.innerHTML || escapeHtml(selected);
-      const html = mode === "clear" ? escapeHtml(selected) :
+      const html = mode === "clear" ? fragment :
         mode === "ink" ? `<span data-ink="${colour}">${fragment}</span>` :
           `<mark data-tone="${colour}">${fragment}</mark>`;
       applied = exec("insertHTML", html);
