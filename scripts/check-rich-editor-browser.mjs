@@ -83,6 +83,35 @@ try {
   await page.getByRole("button", { name: "Text and highlight colours" }).click();
   await page.getByRole("button", { name: "blue highlight" }).click();
   await waitForText(page, "{bg:blue}Hello{/bg}");
+  // Regression: selecting the whole styled element starts outside <mark>.
+  // Clicking Highlight must REMOVE the tint rather than nest another mark.
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\nHello");
+  await select(page, 2, "Hello");
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await waitForText(page, "==Hello==");
+  await select(page, 2, "ell");
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await waitForText(page, "==H==ell==o==");
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\nHello");
+
+  // Colour removal must preserve unrelated bold formatting and allow Undo.
+  await select(page, 2, "Hello");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await waitForText(page, "**Hello**");
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Text and highlight colours" }).click();
+  await page.getByRole("button", { name: "blue highlight" }).click();
+  await waitForText(page, "{bg:blue}**Hello**{/bg}");
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Text and highlight colours" }).click();
+  await page.getByRole("button", { name: "Remove selected colour" }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\n**Hello**");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await waitForText(page, "{bg:blue}**Hello**{/bg}");
   // Tables must be real editable grids and round-trip to the persisted Markdown.
   const tablePage = await context.newPage();
   await tablePage.goto(url);
