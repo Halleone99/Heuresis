@@ -88,7 +88,7 @@ try {
   await tablePage.goto(url);
   await tablePage.locator('.nb-editor[contenteditable="true"]').waitFor();
   await tablePage.getByRole("button", { name: "Insert table" }).click();
-  await tablePage.getByText("Study reference", { exact: true }).click();
+  await tablePage.getByRole("button", { name: /Study reference/ }).click();
   assert.equal(await tablePage.locator('.nb-editor table[data-table-style="study"]').count(), 1, "Study layout was not inserted");
   assert.equal(await tablePage.locator('.nb-editor table thead th').count(), 5, "Study layout should have five columns");
   await waitForText(tablePage, "{table:study}");
@@ -103,7 +103,7 @@ try {
     return cell?.cellIndex;
   }), 1, "Tab should move to the next table cell");
   await tablePage.getByRole("button", { name: "Insert table" }).click();
-  await tablePage.getByText("Comparison", { exact: true }).click();
+  await tablePage.getByRole("button", { name: /Comparison/ }).click();
   assert.equal(await tablePage.locator('.nb-editor table[data-table-style="striped"]').count(), 1, "Restyling a table should not duplicate it");
   await waitForText(tablePage, "{table:striped}");
   await tablePage.close();
