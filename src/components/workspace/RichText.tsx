@@ -93,6 +93,11 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
     case "h2": return <h2><InlineText text={block.text} resolve={resolve} /></h2>;
     case "h3": return <h3><InlineText text={block.text} resolve={resolve} /></h3>;
     case "hr": return <hr />;
+    case "table": return <div className="nb-table-scroll"><table className="nb-table" data-table-style={block.style}>
+      <thead><tr>{block.headers.map((cell, i) => <th scope="col" key={i}><InlineText text={cell} resolve={resolve}/></th>)}</tr></thead>
+      <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, colIndex) =>
+        <td key={colIndex}><InlineText text={cell} resolve={resolve}/></td>)}</tr>)}</tbody>
+    </table></div>;
     case "ul": case "ol": return <>{renderList(block.items, resolve)}</>;
     case "quote": return <blockquote>{parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} rubyPinyin={rubyPinyin} />)}</blockquote>;
     case "callout": {
