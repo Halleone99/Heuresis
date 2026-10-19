@@ -162,7 +162,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
       const fields = (pack.cardType?.field_schema ?? []).flatMap((field) => {
         if (dimensionForField(field) !== dim) return [];
         const value = fieldText(data, field.key);
-        return value ? [{ label: field.label, value, key: field.key }] : [];
+        return value ? [{ label: field.label, value, key: field.key, role: field.role ?? "" }] : [];
       });
       const owned = blocks.filter((block) => block.dim === dim);
       const rows = dim === "neighbours" && structuredWords ? related : [];
@@ -173,9 +173,16 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
           <span>{labels[dim]}</span>{count > 0 ? <b>{count}</b> : null}<ChevronDown size={14} className={open ? "open" : ""} />
         </button>
         {open ? <div className="sort-enrich-contents">
-          {fields.map((field) => <div key={field.key} className="sort-enrich-item sort-enrich-field">
-            <small>{field.label}</small><p>{field.value}</p>
-          </div>)}
+          {dim === "examples" && fields.some((field) => field.role === "example")
+            ? <div className="sort-enrich-example">
+              {["example", "example_reading", "example_translation"].flatMap((role) => fields.filter((field) => field.role === role)).map((field) =>
+                <p key={field.key}>{field.value}</p>)}
+              {fields.filter((field) => !["example", "example_reading", "example_translation"].includes(field.role)).map((field) =>
+                <p key={field.key}><small>{field.label}</small>{field.value}</p>)}
+            </div>
+            : fields.map((field) => <div key={field.key} className="sort-enrich-item sort-enrich-field">
+              <small>{field.label}</small><p>{field.value}</p>
+            </div>)}
           {owned.map((block) => block.type === "text"
             ? <div className="sort-enrich-item editable" key={block.id}>
               <RichText text={block.text} className="sort-enrich-rich" />
