@@ -49,7 +49,7 @@
 .nb-prose .nb-fold-toggle:hover,
 .nb-prose .nb-fold-toggle:focus-visible { color: var(--ws-accent); background: var(--ws-accent-soft); }
 .nb-prose .nb-fold-content { margin-left: 30px; }
-.nb-prose .nb-fold-content > .nb-gap { height: .9em; }
+.nb-prose .nb-fold-content > .nb-gap { height: 1.75em; }
 .nb-prose .nb-fold-content > p { margin: 0; }
 
 /* Editing mode: click the small arrow gutter, not the heading's words. */
