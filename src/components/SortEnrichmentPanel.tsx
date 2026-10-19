@@ -158,7 +158,6 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   }
 
   return <aside className="sort-enrichment" aria-label="Enrich this flashcard">
-    <header className="sort-enrich-head"><small>1 · CONTEXT (OPTIONAL)</small><strong>Card knowledge</strong><span>Read or add examples, connections and notes before deciding.</span></header>
     <div className="sort-enrich-list">{order.map((dim) => {
       const fields = (pack.cardType?.field_schema ?? []).flatMap((field) => {
         if (dimensionForField(field) !== dim) return [];
@@ -167,19 +166,25 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
       });
       const owned = blocks.filter((block) => block.dim === dim);
       const rows = dim === "neighbours" && structuredWords ? related : [];
-      const note = dim === "notes" && card.note?.trim() ? card.note : null;
-      const count = fields.length + owned.length + rows.length + (note ? 1 : 0);
-      const open = expanded === dim;
+      const count = fields.length + owned.length + rows.length;
+      const open = expanded.includes(dim);
       return <section className="sort-enrich-section" key={dim}>
-        <button type="button" className="sort-enrich-heading" aria-expanded={open} onClick={() => setExpanded(open ? null : dim)} disabled={Boolean(adding && blocked)}>
+        <button type="button" className="sort-enrich-heading" aria-expanded={open} onClick={() => setExpanded((items) => open ? items.filter((item) => item !== dim) : [...items, dim])} disabled={Boolean(adding && blocked)}>
           <span>{labels[dim]}</span>{count > 0 ? <b>{count}</b> : null}<ChevronDown size={14} className={open ? "open" : ""} />
         </button>
         {open ? <div className="sort-enrich-contents">
-          {note ? <p className="sort-enrich-item"><small>Card note</small>{note}</p> : null}
-          {fields.map((field) => <p key={field.key} className="sort-enrich-item"><small>{field.label}</small>{field.value}</p>)}
+          {fields.map((field) => <div key={field.key} className="sort-enrich-item sort-enrich-field">
+            <small>{field.label}</small><p>{field.value}</p>
+          </div>)}
           {owned.map((block) => block.type === "text"
-            ? <div className="sort-enrich-item editable" key={block.id}><p>{block.text}</p><button type="button" disabled={blocked} onClick={() => void removeText(block.id)} aria-label="Remove detail"><X size={13} /></button></div>
-            : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <p>Image unavailable</p>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
+            ? <div className="sort-enrich-item editable" key={block.id}>
+              <RichText text={block.text} className="sort-enrich-rich" />
+              <div className="sort-enrich-item-tools">
+                <button type="button" disabled={blocked} onClick={() => openAdd(dim, "text", block)} aria-label="Edit detail" title="Edit detail"><Pencil size={13}/></button>
+                <button type="button" disabled={blocked} onClick={() => void removeText(block.id)} aria-label="Remove detail" title="Remove detail"><X size={13}/></button>
+              </div>
+            </div>
+            : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration" /> : <p>Image unavailable</p>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
           {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item editable">
             <p><strong>{row.term}</strong>{row.reading ? " · " + row.reading : ""}<small>{row.relation_type} · {row.meaning}</small></p>
             <button type="button" disabled={blocked} onClick={() => void unlink(row)} aria-label="Remove related word"><X size={13} /></button>
@@ -191,10 +196,14 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
               <textarea aria-label="Meaning" rows={2} placeholder="Meaning" value={meaning} onChange={(event) => setMeaning(event.target.value)} />
               <div className="sort-enrich-relations">{(["related", "synonym", "antonym"] as RelationType[]).map((kind) =>
                 <button key={kind} type="button" className={relation === kind ? "selected" : ""} onClick={() => setRelation(kind)}>{kind === "synonym" ? "Synonym" : kind === "antonym" ? "Antonym" : "Related"}</button>)}</div>
-            </> : <textarea autoFocus aria-label={"Add to " + labels[dim]} rows={3} placeholder={"Add to " + labels[dim]} value={draft} onChange={(event) => setDraft(event.target.value)} />}
-            <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !draft.trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
+            </> : <RichEditor ref={detailEditor} resetKey={editingId ?? card.id + ":" + dim}
+              value={draft} compactToolbar ariaLabel={"Write " + labels[dim].toLowerCase()}
+              placeholder={dim === "examples" ? "Sentence, pinyin, translation…" : "Add a useful detail…"}
+              onChange={setDraft} onSave={() => void saveText()} onDone={() => void saveText()}
+              onEscape={stopAdding} autoFocus />}
+            <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !(detailEditor.current?.getMarkdown() ?? draft).trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
           </div> : <div className="sort-enrich-add-actions">
-            <button type="button" onClick={() => openAdd(dim, "text")} disabled={blocked}><Plus size={13} /> Add detail</button>
+            <button type="button" onClick={() => openAdd(dim, "text")} disabled={blocked}><Plus size={13} /> {dim === "examples" ? "Add example" : dim === "components" ? "Add part" : "Add detail"}</button>
             {dim === "neighbours" && structuredWords ? <button type="button" onClick={() => openAdd(dim, "word")} disabled={blocked}><Plus size={13} /> Link word</button> : null}
           </div>}
         </div> : null}
