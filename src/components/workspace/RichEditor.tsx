@@ -15,6 +15,7 @@ type Props = {
   onDone?: () => void;
   ariaLabel?: string;
   extraTools?: ReactNode;
+  compactToolbar?: boolean;
 };
 
 type BlockKind = "p" | "h2" | "h3" | "ul" | "ol" | "quote" | CalloutVariant;
@@ -130,7 +131,7 @@ function normaliseQuote(quote: HTMLElement) {
 }
 
 export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEditor(
-  { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools }, handleRef,
+  { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools, compactToolbar = false }, handleRef,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
@@ -680,18 +681,18 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       title={shortcut ? `${label} (${shortcut})` : label} disabled={source}
       onMouseDown={(event) => event.preventDefault()} onClick={onPress}>{icon}</button>;
 
-  return <div className={`nb-editor-shell ${source ? "is-source" : ""}`}>
+  return <div className={`nb-editor-shell ${source ? "is-source" : ""} ${compactToolbar ? "is-compact-toolbar" : ""}`}>
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
-      <div className="nb-toolbar-group">
+      {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
         {tool("Heading", `${MOD}+Alt+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
         {tool("Subheading", `${MOD}+Alt+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
-      </div>
+      </div> : null}
       <div className="nb-toolbar-group">
         {tool("Bold", `${MOD}+B`, <Bold size={15} />, () => run(() => exec("bold")), active.bold)}
         {tool("Italic", `${MOD}+I`, <Italic size={15} />, () => run(() => exec("italic")), active.italic)}
-        {tool("Strikethrough", "", <Strikethrough size={15} />, () => run(() => exec("strikeThrough")))}
-        {tool("Highlight", `${MOD}+Shift+H`, <Highlighter size={15} />, toggleMark, active.mark)}
+        {!compactToolbar ? tool("Strikethrough", "", <Strikethrough size={15} />, () => run(() => exec("strikeThrough"))) : null}
+        {!compactToolbar ? tool("Highlight", `${MOD}+Shift+H`, <Highlighter size={15} />, toggleMark, active.mark) : null}
         <div className="nb-colour-anchor">
           <button type="button" aria-label="Text and highlight colours" aria-expanded={paletteOpen} title="Text and highlight colours" disabled={source}
             className={paletteOpen ? "is-active" : ""}
@@ -711,12 +712,12 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
           </div> : null}
         </div>
       </div>
-      <div className="nb-toolbar-group">
+      {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Bulleted list", `${MOD}+Shift+8`, <List size={15} />, () => setBlock("ul"), active.block === "ul")}
         {tool("Numbered list", `${MOD}+Shift+7`, <ListOrdered size={15} />, () => setBlock("ol"), active.block === "ol")}
         {tool("Quotation", "", <Quote size={15} />, () => setBlock("quote"), active.block === "quote")}
-      </div>
-      <div className="nb-toolbar-group">
+      </div> : null}
+      {!compactToolbar ? <div className="nb-toolbar-group">
         <div className="nb-table-anchor">
           <button type="button" aria-label="Insert table" aria-expanded={tableOpen}
             title="Insert or style a table" disabled={source} className={tableOpen ? "is-active" : ""}
@@ -735,8 +736,8 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
             </button>
           </div> : null}
         </div>
-      </div>
-      <div className="nb-toolbar-group nb-toolbar-blocks">
+      </div> : null}
+      <div className="nb-toolbar-group nb-toolbar-blocks" hidden={compactToolbar}>
         <button type="button" className={active.block === "example" ? "is-active" : ""} disabled={source} title="Example block — sentence, reading, translation on separate lines"
           onMouseDown={(event) => event.preventDefault()} onClick={() => setBlock("example")}><MessageSquareText size={14} /><span>Example</span></button>
         <button type="button" className={active.block === "rule" ? "is-active" : ""} disabled={source} title="Rule block — a grammar rule or pattern"
@@ -748,13 +749,13 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         {tool("Divider", "", <Minus size={15} />, () => run(() => exec("insertHorizontalRule")))}
         {tool("Collapse or expand all headings", "", <ChevronsUpDown size={15}/>, foldAll)}
       </div>
-      <span className="nb-toolbar-spacer" />
-      <div className="nb-toolbar-group">
+      {!compactToolbar ? <span className="nb-toolbar-spacer" /> : null}
+      {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Undo", `${MOD}+Z`, <Undo2 size={15} />, () => run(() => exec("undo")))}
         {tool("Redo", `${MOD}+Shift+Z`, <Redo2 size={15} />, () => run(() => exec("redo")))}
         <button type="button" className={source ? "is-active" : ""} aria-pressed={source} title="Edit the plain text source"
           onMouseDown={(event) => event.preventDefault()} onClick={toggleSource}><Code2 size={15} /></button>
-      </div>
+      </div> : null>
       {extraTools}
     </div>
     <div className="nb-editor-surface">
