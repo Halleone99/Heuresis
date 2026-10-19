@@ -12,13 +12,14 @@ writeFileSync(dir + "/fixture.tsx", [
   'import React, { useState } from "react";',
   'import { createRoot } from "react-dom/client";',
   'import { RichEditor } from "../../src/components/workspace/RichEditor";',
+  'import { RichText } from "../../src/components/workspace/RichText";',
   'import "../../src/components/workspace/workspace.css";',
   'import "../../src/components/workspace/note-formatting.css";',
   'function Demo() {',
   'const [text, setText] = useState("你好\\nNǐ hǎo\\nHello");',
   'return <div className="heuresis-desktop" style={{maxWidth:800,margin:24}}>',
   '<RichEditor value={"你好\\nNǐ hǎo\\nHello"} resetKey="regression" onChange={setText} />',
-  '<pre data-testid="markdown">{text}</pre></div>;',
+  '<pre data-testid="markdown">{text}</pre><div data-testid="reader"><RichText text={"First\\n\\nSecond"} /></div></div>;',
   '}',
   'createRoot(document.getElementById("root")!).render(<Demo />);',
 ].join("\n"));
@@ -73,6 +74,23 @@ try {
   const page = await context.newPage();
   await page.goto(url);
   await page.locator('.nb-editor[contenteditable="true"]').waitFor();
+  // A deliberate empty line must have the same physical height in reading
+  // and editing modes; otherwise notes unexpectedly reflow after Done.
+  const spacing = await page.evaluate(() => {
+    const readGap = document.querySelector('[data-testid="reader"] .nb-gap');
+    const editor = document.querySelector(".nb-editor");
+    const line = editor && document.querySelector(".nb-editor p");
+    if (!readGap || !line || !editor) return null;
+    const empty = document.createElement("p");
+    empty.innerHTML = "<br>";
+    editor.append(empty);
+    const result = { reading: readGap.getBoundingClientRect().height, editing: empty.getBoundingClientRect().height };
+    empty.remove();
+    return result;
+  });
+  assert(spacing && Math.abs(spacing.reading - spacing.editing) < 1,
+    "Reading-mode blank lines should match the editor's paragraph height: " + JSON.stringify(spacing));
+
   await select(page, 0, "你好");
   await page.getByRole("button", { name: "Bold", exact: true }).click();
   await waitForText(page, "**你好**");
