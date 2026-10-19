@@ -88,6 +88,11 @@ try {
   await select(page, 2, "Hello", true);
   await page.getByRole("button", { name: "Text and highlight colours" }).click();
   await page.getByRole("button", { name: "Remove selected colour" }).click();
+  console.log("After highlight removal:", JSON.stringify(await page.evaluate(() => ({
+    markdown: document.querySelector('[data-testid="markdown"]')?.textContent,
+    html: document.querySelector('.nb-editor')?.innerHTML,
+    selection: window.getSelection()?.toString(),
+  }))));
   await page.waitForFunction(() => {
     const markdown = document.querySelector('[data-testid="markdown"]')?.textContent ?? "";
     const last = document.querySelector(".nb-editor p:nth-of-type(3)");
