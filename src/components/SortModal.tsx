@@ -228,6 +228,11 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       if (event.ctrlKey || event.metaKey || event.altKey || !card || busy || enrichmentBlocked || filtersOpen) return;
       const key = event.key.toLowerCase();
       if (/^[1-5]$/.test(key)) { event.preventDefault(); setImportance(Number(key)); return; }
+      // Retain older Sort keyboard actions for existing users, without
+      // crowding the new interface with shortcut labels.
+      if (key === "c" || key === "u" || key === "p") {
+        event.preventDefault(); void learn(key === "c" ? 5 : key === "u" ? 3 : 1); return;
+      }
       if (event.key === "Enter" && importance !== null) { event.preventDefault(); void learn(importance); return; }
       if (key === "r") { event.preventDefault(); void keepReference(); return; }
       if (key === "d" || event.key === "Delete") { event.preventDefault(); void discard(); return; }
