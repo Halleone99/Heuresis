@@ -87,7 +87,7 @@ try {
   // replace its text within the old <mark>. Keep previous bold/italic intact.
   await select(page, 2, "Hello", true);
   await page.getByRole("button", { name: "Text and highlight colours" }).click();
-  await page.getByRole("button", { name: "Remove selected colour" }).click();
+  await page.getByRole("button", { name: "Remove highlight / text colour" }).click();
   console.log("After highlight removal:", JSON.stringify(await page.evaluate(() => ({
     markdown: document.querySelector('[data-testid="markdown"]')?.textContent,
     html: document.querySelector('.nb-editor')?.innerHTML,
@@ -105,6 +105,41 @@ try {
   await waitForText(page, "{bg:blue}Hello{/bg}");
   await page.keyboard.press("Control+y");
   await page.waitForFunction(() => !(document.querySelector('[data-testid="markdown"]')?.textContent ?? "").includes("{bg:blue}"));
+
+  // The toolbar toggles existing highlights off, even when the Range selects
+  // the whole mark from its containing paragraph, or only part of a word.
+  await select(page, 2, "Hello");
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await waitForText(page, "==Hello==");
+  await select(page, 2, "ell");
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await waitForText(page, "==H==ell==o==");
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Highlight", exact: true }).click();
+  await page.waitForFunction(() => {
+    const last = document.querySelector(".nb-editor p:nth-of-type(3)");
+    const markdown = document.querySelector('[data-testid="markdown"]')?.textContent ?? "";
+    return last?.textContent === "Hello" && last?.querySelector("mark") === null
+      && !markdown.includes("==");
+  }, null, { timeout: 6000 });
+
+  // Clearing a coloured highlight leaves nested bold formatting intact.
+  await select(page, 2, "Hello");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await waitForText(page, "**Hello**");
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Text and highlight colours" }).click();
+  await page.getByRole("button", { name: "blue highlight" }).click();
+  await waitForText(page, "{bg:blue}**Hello**{/bg}");
+  await select(page, 2, "Hello", true);
+  await page.getByRole("button", { name: "Text and highlight colours" }).click();
+  await page.getByRole("button", { name: "Remove highlight / text colour" }).click();
+  await page.waitForFunction(() => {
+    const markdown = document.querySelector('[data-testid="markdown"]')?.textContent ?? "";
+    return markdown.includes("**Hello**") && !markdown.includes("{bg:blue}");
+  }, null, { timeout: 6000 });
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await waitForText(page, "{bg:blue}**Hello**{/bg}");
 
   // Tables must be real editable grids and round-trip to the persisted Markdown.
   const tablePage = await context.newPage();
