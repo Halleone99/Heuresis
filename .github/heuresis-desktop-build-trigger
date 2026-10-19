@@ -1,3 +1,4 @@
-Build Heuresis Windows ARM64 after consolidated appearance fixes.
-Source main: c7ae69b36d78c3725a13990142e9ef6a0b6dfd80
-Header single-source CSS and 8-palette Chromium smoke checks passed; Windows runtime visual acceptance pending.
+Build Heuresis Windows ARM64 with editable notebook tables.
+Source main: f6e75508b02faed23a07ac5eb748152f28d673ea
+Verified: Check Heuresis workflow green (TypeScript build + Chromium editor tests) on 2026-10-19.
+Includes: Simple, Comparison and Study table layouts; German article declensions note saved in database.
