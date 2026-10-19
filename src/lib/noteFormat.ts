@@ -15,13 +15,15 @@
 
 export type CalloutVariant = "example" | "rule" | "correction" | "tip";
 export type ListItem = { text: string; depth: number; ordered: boolean };
+export type TableStyle = "plain" | "striped" | "study";
 export type Block =
   | { type: "p"; text: string }
   | { type: "h2" | "h3"; text: string }
   | { type: "ul" | "ol"; items: ListItem[] }
   | { type: "quote"; lines: string[] }
   | { type: "callout"; variant: CalloutVariant; lines: string[] }
-  | { type: "hr" };
+  | { type: "hr" }
+  | { type: "table"; style: TableStyle; headers: string[]; rows: string[][] };
 
 export const NOTE_COLOURS = ["red", "blue", "green", "amber", "purple"] as const;
 export type NoteColour = typeof NOTE_COLOURS[number];
@@ -39,6 +41,18 @@ const CALLOUT_RE = /^>\s?\[!(example|rule|correction|tip)\]\s*$/i;
 const LIST_RE = /^(\s*)([-*•]|\d+[.)])\s+(.*)$/;
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+const TABLE_STYLE_RE = /^\{table:(plain|striped|study)\}\s*$/;
+function tableCells(line: string): string[] {
+  const clean = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return clean.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, "|"));
+}
+function tableDivider(line: string, width: number) {
+  const cells = tableCells(line);
+  return cells.length === width && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+function tableLine(cells: string[]) {
+  return "| " + cells.map((cell) => cell.replace(/\|/g, "\\|").replace(/\n/g, " ")).join(" | ") + " |";
+}
 
 function indentDepth(indent: string) {
   const width = indent.replace(/\t/g, "  ").length;
@@ -50,6 +64,27 @@ export function parseBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    // A standard Markdown grid is a single editable block. The optional style
+    // marker belongs to the table, not to a separate visible paragraph.
+    const styleMatch = line.match(TABLE_STYLE_RE);
+    const headerIndex = styleMatch ? index + 1 : index;
+    const header = lines[headerIndex];
+    const divider = lines[headerIndex + 1];
+    if (header && divider && header.includes("|")) {
+      const headers = tableCells(header);
+      if (headers.length >= 2 && tableDivider(divider, headers.length)) {
+        const rows: string[][] = [];
+        index = headerIndex + 1;
+        while (index + 1 < lines.length && lines[index + 1].includes("|")) {
+          const cells = tableCells(lines[index + 1]);
+          if (cells.length !== headers.length) break;
+          rows.push(cells);
+          index += 1;
+        }
+        blocks.push({ type: "table", style: (styleMatch?.[1] ?? "plain") as TableStyle, headers, rows });
+        continue;
+      }
+    }
     const callout = line.match(CALLOUT_RE);
     if (callout) {
       const body: string[] = [];
@@ -191,6 +226,13 @@ function paragraphHtml(text: string) {
   const inner = inlineHtml(text);
   return `<p>${inner || "<br>"}</p>`;
 }
+function tableHtml(block: Extract<Block, { type: "table" }>) {
+  const head = "<thead><tr>" + block.headers.map((cell) => "<th scope=\"col\">" + (inlineHtml(cell) || "<br>") + "</th>").join("") + "</tr></thead>";
+  const body = "<tbody>" + block.rows.map((row) =>
+    "<tr>" + row.map((cell) => "<td>" + (inlineHtml(cell) || "<br>") + "</td>").join("") + "</tr>"
+  ).join("") + "</tbody>";
+  return '<table class="nb-table" data-table-style="' + block.style + '">' + head + body + "</table>";
+}
 function listHtml(items: ListItem[]) {
   let html = "";
   const stack: Array<"ul" | "ol"> = [];
@@ -219,6 +261,7 @@ export function markdownToEditorHtml(markdown: string): string {
       case "quote": return `<blockquote>${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
       case "callout": return `<blockquote data-callout="${block.variant}">${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
       case "hr": return "<hr>";
+      case "table": return tableHtml(block);
       default: return paragraphHtml(block.text);
     }
   }).join("");
@@ -274,7 +317,7 @@ function blockLines(element: HTMLElement): string[] {
   return cleaned.split("\n");
 }
 
-const BLOCK_TAGS = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "BLOCKQUOTE", "HR", "PRE"]);
+const BLOCK_TAGS = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "BLOCKQUOTE", "HR", "PRE", "TABLE"]);
 
 function listLines(list: HTMLElement, depth: number, out: string[]) {
   let counter = 0;
@@ -312,6 +355,21 @@ function serializeChildren(root: HTMLElement): string[] {
     if (tag === "H1" || tag === "H2") out.push(`# ${blockLines(node).join(" ").trim()}`.trimEnd());
     else if (/^H[3-6]$/.test(tag)) out.push(`## ${blockLines(node).join(" ").trim()}`.trimEnd());
     else if (tag === "HR") out.push("---");
+    else if (tag === "TABLE") {
+      const table = node as HTMLTableElement;
+      const style = table.getAttribute("data-table-style");
+      if (style === "striped" || style === "study") out.push("{table:" + style + "}");
+      const trs = Array.from(table.querySelectorAll("tr"));
+      const rowText = (row: HTMLTableRowElement) => Array.from(row.cells).map((cell) =>
+        Array.from(cell.childNodes).map(inlineMarkdown).join("").replace(/\n/g, " ").trim()
+      );
+      const headers = trs.length ? rowText(trs[0]) : [];
+      if (headers.length) {
+        out.push(tableLine(headers));
+        out.push(tableLine(headers.map(() => "---")));
+        for (const row of trs.slice(1)) out.push(tableLine(rowText(row)));
+      }
+    }
     else if (tag === "UL" || tag === "OL") listLines(node, 0, out);
     else if (tag === "BLOCKQUOTE") {
       const variant = node.getAttribute("data-callout");
