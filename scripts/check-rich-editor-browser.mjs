@@ -86,9 +86,23 @@ try {
   // Regression: selecting the whole styled element starts outside <mark>.
   // Clicking Highlight must REMOVE the tint rather than nest another mark.
   await select(page, 2, "Hello", true);
+  const beforeRemoval = await page.evaluate(() => {
+    const root = document.querySelector(".nb-editor");
+    const range = window.getSelection().getRangeAt(0);
+    window.__editorCommands = [];
+    const original = document.execCommand.bind(document);
+    document.execCommand = (...args) => {
+      const result = original(...args);
+      window.__editorCommands.push({ command: args[0], html: args[2], result });
+      return result;
+    };
+    return { selection: range.toString(), common: range.commonAncestorContainer.nodeName,
+      intersects: [...root.querySelectorAll("p,h1,h2,h3,li,td,th")].map(el => [el.tagName, el.textContent, range.intersectsNode(el)]) };
+  });
+  console.log("Before removal:", JSON.stringify(beforeRemoval));
   await page.getByRole("button", { name: "Highlight", exact: true }).click();
   await page.waitForTimeout(350);
-  console.log("Highlight removal diagnostic:", JSON.stringify({ markdown: await page.locator('[data-testid="markdown"]').textContent(), html: await page.locator(".nb-editor p").nth(2).innerHTML(), selection: await page.evaluate(() => window.getSelection()?.toString()) }));
+  console.log("Highlight removal diagnostic:", JSON.stringify({ markdown: await page.locator('[data-testid="markdown"]').textContent(), html: await page.locator(".nb-editor p").nth(2).innerHTML(), selection: await page.evaluate(() => window.getSelection()?.toString()), commands: await page.evaluate(() => window.__editorCommands) }));
   await page.waitForFunction(() => document.querySelector('[data-testid="markdown"]')?.textContent?.trim() === "**你好**\n*Nǐ hǎo*\nHello", undefined, { timeout: 4000 });
   await select(page, 2, "Hello");
   await page.getByRole("button", { name: "Highlight", exact: true }).click();
