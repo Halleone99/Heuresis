@@ -129,10 +129,6 @@ function normaliseQuote(quote: HTMLElement) {
   if (!quote.firstChild) quote.appendChild(Object.assign(document.createElement("p"), { innerHTML: "<br>" }));
 }
 
-function escapeHtml(text: string) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEditor(
   { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools }, handleRef,
 ) {
@@ -708,7 +704,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
                 aria-label={`${colour} highlight`} title={`${colour} highlight`}
                 onMouseDown={(event) => event.preventDefault()} onClick={() => applyColour("tone", colour)}/>)}</div>
             <button type="button" className="nb-colour-clear" onMouseDown={(event) => event.preventDefault()}
-              onClick={() => applyColour("clear")}>Remove selected colour</button>
+              onClick={() => applyColour("clear")}>Remove highlight / text colour</button>
             <span className="nb-colour-help" role="status">{colourHint || "Select a phrase first"}</span>
           </div> : null}
         </div>
