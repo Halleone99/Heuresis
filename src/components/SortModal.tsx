@@ -114,12 +114,26 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     finally { setBusy(false); }
   }
 
+  async function saveQuickNote() {
+    if (card && noteDraft.trim() !== (card.note ?? "").trim()) await saveCardNote(card.id, noteDraft);
+  }
+
+  async function closeSort() {
+    if (busy || enrichmentBlocked) return;
+    if (card && noteDraft.trim() !== (card.note ?? "").trim()) {
+      setBusy(true); setMessage("");
+      try { await saveQuickNote(); onChanged(); onClose(); }
+      catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the quick note."); }
+      finally { setBusy(false); }
+    } else onClose();
+  }
+
   async function learn(rank: number) {
     if (!card || busy || enrichmentBlocked) return;
     setBusy(true); setMessage("");
     try {
       // Store the exact 1–5 value. Older Sort screens collapsed 1/2 and 4/5.
-      if (noteDraft.trim() !== (card.note ?? "").trim()) await saveCardNote(card.id, noteDraft);
+      await saveQuickNote();
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
       setLastRemoval(null);
@@ -133,6 +147,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     if (!card || busy || enrichmentBlocked) return;
     setBusy(true); setMessage("");
     try {
+      await saveQuickNote();
       await setCardRetention(card.id, "reference");
       setReferences((value) => value + 1);
       setLastRemoval({ kind: "reference", card });
@@ -146,6 +161,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     if (!card || busy || enrichmentBlocked) return;
     setBusy(true); setMessage("");
     try {
+      await saveQuickNote();
       await discardCard(card);
       setDiscarded((value) => value + 1);
       setLastRemoval({ kind: "discard", card });
@@ -177,10 +193,16 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     finally { setBusy(false); }
   }
 
-  function later() {
+  async function later() {
     if (busy || enrichmentBlocked || !card) return;
-    setLastRemoval(null);
-    setIndex((current) => current + 1);
+    setBusy(true); setMessage("");
+    try {
+      await saveQuickNote();
+      setLastRemoval(null);
+      setIndex((current) => current + 1);
+      onChanged();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the quick note."); }
+    finally { setBusy(false); }
   }
 
   useEffect(() => {
@@ -197,7 +219,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       // Escape works from the filter's search field too (it closes the filter first),
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
-        if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen) setFiltersOpen(false); else onClose(); }
+        if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen) setFiltersOpen(false); else void closeSort(); }
         return;
       }
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog')) return;
@@ -225,7 +247,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       <div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div>
       <span>{filtersOpen ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
       <div className="sort-topbar-actions">
-        <button type="button" disabled={busy || enrichmentBlocked} onClick={onClose} aria-label="Close sort"><X size={18} /></button>
+        <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void closeSort()} aria-label="Close sort"><X size={18} /></button>
       </div>
     </header>
     {filtersOpen && unsorted.length ? <div className="sort-setup">
