@@ -2355,3 +2355,16 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .ml-accent-choice { padding: 6px 7px; }
   .ml-simple-item { padding-left: 18px; }
 }
+
+/* Knowledge-first Overview: quiet content previews and directly browsable subjects. */
+.ov-library-intro { max-width: 650px; margin: 8px 0 0; color: var(--ws-muted); font-size: 13.5px; line-height: 1.6; }
+.ov-library-notes .ov-list-main { gap: 4px; }
+.ov-library-notes .ov-list button { align-items: flex-start; padding: 13px 2px; }
+.ov-library-notes .ov-list-main strong { white-space: normal; }
+.ov-library-notes .ov-list-main small { white-space: normal; }
+.ov-library-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--ws-text); font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.ov-library-empty p { color: var(--ws-muted); font-size: 13px; line-height: 1.6; }
+.ov-library-subjects { display: flex; flex-wrap: wrap; gap: 7px; }
+.ov-library-subjects button { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--ws-line); border-radius: 9px; padding: 10px 12px; background: var(--ws-surface-2); color: var(--ws-ink); font-size: 12.5px; cursor: pointer; transition: background .18s ease, border-color .18s ease; }
+.ov-library-subjects button svg { opacity: .5; }
+.ov-library-subjects button:hover, .ov-library-subjects button:focus-visible { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
