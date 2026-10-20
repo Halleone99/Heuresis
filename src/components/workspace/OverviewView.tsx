@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, BookOpen, LibraryBig, NotebookPen, Quote, TriangleAlert } from "lucide-react";
-import { entryPreview, entryTitle } from "../../lib/knowledgeWorkspace";
+import { entryTitle } from "../../lib/knowledgeWorkspace";
 import { KindIcon } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
@@ -58,7 +58,7 @@ export function OverviewView({ onOpenStudy }: { onOpenStudy: () => void }) {
             <span className="ov-list-main">
               <strong>{entryTitle(entry)}</strong>
               <small>{workspace.pathLabel(entry.topic_id)}</small>
-              {entryPreview(entry, 140) ? <span className="ov-library-preview">{entryPreview(entry, 140)}</span> : null}
+              {entry.description.trim() ? <span className="ov-library-preview">{entry.description}</span> : null}
             </span>
             <ArrowRight size={14} aria-hidden="true"/>
           </button></li>
