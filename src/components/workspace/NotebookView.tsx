@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
 import {
-  entryPreview, entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
+  entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
   type KnowledgeEntry, type KnowledgeTopic,
 } from "../../lib/knowledgeWorkspace";
 import type { NotebookLocation } from "../../lib/workspaceMemory";
@@ -453,6 +453,8 @@ function ScopePage({ scope, navigate, newAction }: {
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [confirmElement, confirm] = useConfirm();
+  const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; value: string } | null>(null);
+  const [descriptionSaving, setDescriptionSaving] = useState(false);
   // Never flatten a subject's notes onto an ancestor page.
   const docs = topic ? snapshot.entries.filter((entry) =>
     entry.topic_id === topic.id && isDocument(entry) && entry.category !== "reference") : [];
@@ -467,7 +469,7 @@ function ScopePage({ scope, navigate, newAction }: {
     if (filter !== "all" && (filter === "questions") !== isOpenQuestion(entry)) return false;
     if (iconFilter === "none" && entry.icon) return false;
     if (iconFilter !== "all" && iconFilter !== "none" && entry.icon !== iconFilter) return false;
-    return !query || entryTitle(entry).toLocaleLowerCase().includes(query) || entry.body.toLocaleLowerCase().includes(query);
+    return !query || entryTitle(entry).toLocaleLowerCase().includes(query) || entry.description.toLocaleLowerCase().includes(query) || entry.body.toLocaleLowerCase().includes(query);
   }).sort((a, b) => {
     const pinned = Number(b.pinned) - Number(a.pinned);
     if (pinned) return pinned;
@@ -527,6 +529,20 @@ function ScopePage({ scope, navigate, newAction }: {
         `${succeeded} ${succeeded === 1 ? "note" : "notes"} ${action === "pin" ? "pinned" : "unpinned"}.`);
       if (failed.length) workspace.toast(`Could not update ${failed.length} ${failed.length === 1 ? "note" : "notes"}. The failed items remain selected.`, { tone: "error" });
     } finally { setSelectionBusy(false); }
+  }
+
+  async function saveDescription() {
+    if (!descriptionEditor || descriptionSaving) return;
+    setDescriptionSaving(true);
+    try {
+      await workspace.patchEntry(descriptionEditor.id, { description: descriptionEditor.value });
+      setDescriptionEditor(null);
+      workspace.toast("Description saved.");
+    } catch (error) {
+      workspace.toast(`Could not save description: ${friendlyError(error)}`, { tone: "error" });
+    } finally {
+      setDescriptionSaving(false);
+    }
   }
 
   return <div className="nb-scope">
@@ -641,7 +657,7 @@ function ScopePage({ scope, navigate, newAction }: {
                   } else navigate({ topicId: entry.topic_id, docId: entry.id });
                 }}>
                 <span className="nb-doc-text"><strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
-                  {entryPreview(entry, 200) ? <span className="nb-doc-preview">{entryPreview(entry, 200)}</span> : null}
+                  {entry.description.trim() ? <span className="nb-doc-preview">{entry.description}</span> : null}
                 </span>
                 <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
                   <small>{metadata || "Note"}</small></span>
@@ -649,9 +665,23 @@ function ScopePage({ scope, navigate, newAction }: {
               {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} items={[
                 { label: entry.pinned ? "Unpin note" : "Pin to top", icon: entry.pinned ? <PinOff size={14} /> : <Pin size={14} />,
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
+                { label: "Edit description", icon: <Pencil size={14} />, run: () => setDescriptionEditor({ id: entry.id, value: entry.description }) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
               ]} /> : null}
             </div>
+            {descriptionEditor?.id === entry.id ? <form className="nb-description-editor" aria-label={`Description for ${entryTitle(entry)}`}
+              onSubmit={(event) => { event.preventDefault(); void saveDescription(); }}
+              onKeyDown={(event) => { if (event.key === "Escape" && !descriptionSaving) { event.stopPropagation(); setDescriptionEditor(null); } }}>
+              <label htmlFor={`nb-description-${entry.id}`}>Short description</label>
+              <textarea id={`nb-description-${entry.id}`} autoFocus rows={2} maxLength={240}
+                placeholder="What is this note about?" value={descriptionEditor.value} disabled={descriptionSaving}
+                onChange={(event) => setDescriptionEditor({ id: entry.id, value: event.target.value })} />
+              <div className="nb-description-actions">
+                <small>{descriptionEditor.value.length}/240</small>
+                <button type="button" disabled={descriptionSaving} onClick={() => setDescriptionEditor(null)}>Cancel</button>
+                <button type="submit" disabled={descriptionSaving}>{descriptionSaving ? "Saving…" : "Save description"}</button>
+              </div>
+            </form> : null}
           </li>;
         })}
       </ul><ShowMore remaining={page.remaining} onMore={page.showMore} label="notes"/></> :
