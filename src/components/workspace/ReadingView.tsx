@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { BookOpen, BookPlus, ChevronRight, Clock3, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
+import { BookOpen, BookPlus, ChevronRight, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
 import { ReadingJournal } from "./ReadingJournal";
 import {
-  bookDomain, bookMinutes, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
+  bookDomain, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
 } from "../../lib/readingBridge";
 
@@ -13,9 +13,6 @@ const TABS: Array<{ id: Tab; title: string }> = [
 ];
 const EMPTY: BookDraft = { title: "", author: "", status: "To read", importance: 2 };
 const STATUSES: ReadingStatus[] = ["To read", "Reading", "Read", "Abandoned"];
-function minutesLabel(value: number) {
-  return value >= 60 ? `${Math.floor(value / 60)} h ${String(value % 60).padStart(2, "0")} min` : `${value} min`;
-}
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 4).map((word) => word[0]?.toUpperCase()).join("");
 }
@@ -36,7 +33,6 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
-  const [minutes, setMinutes] = useState("30");
   const [pageValue, setPageValue] = useState("");
   const selected = api.books.find((book) => book.id === selectedId) ?? null;
 
@@ -61,7 +57,7 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
     finally { setBusy(false); }
   }
   function openBook(book: ReadingBook) {
-    setSelectedId(book.id); setProblem(""); setMinutes("30");
+    setSelectedId(book.id); setProblem("");
     const progress = bookProgress(book);
     setPageValue(progress ? `${progress.page}/${progress.pages}` : "");
   }
@@ -84,14 +80,13 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
   return <div className="lit-page">
     <header className="lit-page-head">
       <div><span className="lit-eyebrow">PERSONAL LIBRARY</span><h1>Reading</h1>
-        <p>Your existing collection, reading history and next books — shared with Personal OS.</p></div>
+        <p>Your collection of books, reflections and passages — shared with Personal OS.</p></div>
       <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> Add book</button>
     </header>
     <div className="lit-summary">
       <div><BookOpen size={17}/><strong>{counts.current}</strong><span>reading now</span></div>
       <div><LibraryBig size={17}/><strong>{api.books.length}</strong><span>in your collection</span></div>
       <div><Quote size={17}/><strong>{api.quotes.length}</strong><span>saved quotations</span></div>
-      <div><Clock3 size={17}/><strong>{minutesLabel(api.books.reduce((sum, book) => sum + bookMinutes(book), 0))}</strong><span>logged reading</span></div>
     </div>
     <div className="lit-toolbar">
       <div className="lit-tabs" role="tablist" aria-label="Reading shelves">
@@ -112,7 +107,7 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
             <BookCover book={book} index={index}/>
             <div className="lit-book-description"><span className="lit-mini-label">{bookDomain(book) || book.status}</span>
               <h2>{book.title}</h2><p>{book.author || "Author not recorded"}</p>
-              <div className="lit-card-bottom"><span>{minutesLabel(bookMinutes(book))} read</span><ChevronRight size={16}/></div>
+              <div className="lit-card-bottom"><span>Open book</span><ChevronRight size={16}/></div>
               {progress ? <div className="lit-progress-bar" title={`Page ${progress.page} of ${progress.pages}`}><i style={{ width: `${progress.page / progress.pages * 100}%` }}/></div> : null}
             </div>
           </button>;
@@ -135,10 +130,6 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
           {bookShelf(selected) === "next" ? "Remove from Next" : "Add to Next"}
         </button> : null}
         <ReadingJournal key={selected.id} book={selected} api={api}/>
-        <div className="lit-detail-stat"><Clock3 size={17}/><strong>{minutesLabel(bookMinutes(selected))}</strong><span>logged with this book</span></div>
-        <div className="lit-form-row"><label className="lit-field">Add reading time (minutes)
-            <input type="number" min="1" max="720" value={minutes} onChange={(event) => setMinutes(event.target.value)}/></label>
-          <button className="lit-button" disabled={busy} onClick={() => void execute(() => api.logMinutes(selected, Number(minutes)))}>Log time</button></div>
         <div className="lit-form-row"><label className="lit-field">Page progress (e.g. 45/250)
             <input value={pageValue} placeholder="Page / total pages" onChange={(event) => setPageValue(event.target.value)}/></label>
           <button className="lit-button" disabled={busy} onClick={() => {
