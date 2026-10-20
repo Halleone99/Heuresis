@@ -8,7 +8,7 @@ const css = readFileSync("src/components/workspace/workspace.css", "utf8");
 
 assert.match(overview, /PERSONAL KNOWLEDGE LIBRARY/);
 assert.match(overview, /Notes to revisit/);
-assert.match(overview, /entryPreview\(entry, 140\)/);
+assert.match(overview, /entry\.description\.trim\(\)/, "Overview previews should use the saved note description");
 assert.match(overview, /Filter notes by subject/);
 assert.match(overview, /openSubject\(subject.id\)/);
 const subjectHandler = overview.slice(overview.indexOf("function openSubject"), overview.indexOf("return <div className="));
