@@ -20,7 +20,9 @@ assert.match(library, /className="collection-new-topic" onClick=\{\(\) => onNewT
 assert.equal(overview.includes('Recent lessons'), false);
 assert.equal(overview.includes('Questions to clarify'), false);
 assert.equal(overview.includes('className="ov-empty-line"'), false);
-assert.ok(overview.includes('<ActivityHeatmap'));
+assert.ok(!overview.includes('<ActivityHeatmap'), "Overview must be knowledge-first, not an activity dashboard");
+assert.ok(overview.includes('Notes to revisit'));
+assert.ok(overview.includes('Browse subjects'));
 assert.ok(notebook.includes('<div className="ws-segmented" role="tablist"'));
 assert.equal(notebook.includes('<span>{counts.all - counts.lessons}'), false);
 console.log("Workspace duplication checks passed.");
