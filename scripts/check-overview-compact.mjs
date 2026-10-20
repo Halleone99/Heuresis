@@ -11,6 +11,9 @@ assert.match(overview, /Notes to revisit/);
 assert.match(overview, /entryPreview\(entry, 140\)/);
 assert.match(overview, /Filter notes by subject/);
 assert.match(overview, /openSubject\(subject.id\)/);
+const subjectHandler = overview.slice(overview.indexOf("function openSubject"), overview.indexOf("return <div className="));
+assert.ok(subjectHandler.indexOf('workspace.goTo("notebook")') < subjectHandler.indexOf("workspace.updateMemory("),
+  "Subject navigation must set the Notebook location after its home reset");
 for (const unwanted of ["ActivityHeatmap", "loadStudyActivity", "loadPersonalOsAnkiDays", "Learning activity", "View progress", "Objectives", "saveGoal", "GOAL_PREFIX"]) {
   assert.ok(!overview.includes(unwanted), "Overview should not track " + unwanted);
 }
