@@ -21,7 +21,7 @@
 .lit-button.is-danger { background:#9a3d39; color:#fff; border-color:transparent; }
 .lit-button:disabled { opacity:.47; cursor:not-allowed; }
 .lit-page :is(button,input,select,textarea):focus-visible { outline:2px solid var(--ws-accent,#987a43); outline-offset:2px; }
-.lit-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:22px; }
+.lit-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:22px; }
 .lit-summary>div { display:grid; grid-template-columns:auto 1fr; gap:4px 11px; border:1px solid var(--lit-line);
  border-radius:11px; background:var(--lit-paper); padding:16px; align-items:center; }
 .lit-summary svg { grid-row:span 2; color:var(--ws-accent,#9f7e3d); }
