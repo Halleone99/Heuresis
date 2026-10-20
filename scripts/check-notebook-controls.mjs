@@ -48,4 +48,15 @@ assert.ok(documentPage.includes('title="Edit (E)"'), "Reading mode must have an 
 assert.ok(documentPage.includes('workspace.writable && !detached ? <button type="button" className="nb-continue"'),
   "Detached readers should not show a second inline Edit button");
 assert.ok(windowCss.includes(".nb-detached-root .nb-doc:not(.is-editing) .nb-doc-body"), "Reader uses a document sheet");
-console.log("Notebook capture, home navigation, subject customisation and detached-reader checks passed.");
+const knowledge = readFileSync("src/lib/knowledgeWorkspace.ts", "utf8");
+const descriptionMigration = readFileSync("supabase/migrations/20261020215600_notebook_note_descriptions.sql", "utf8");
+assert.match(notebook, /label: "Edit description"/, "Card menu provides description editing");
+assert.match(notebook, /workspace\.patchEntry\(descriptionEditor\.id, \{ description: descriptionEditor\.value \}\)/, "Description is persisted separately");
+assert.match(notebook, /entry\.description\.trim\(\) \? <span className="nb-doc-preview">\{entry\.description\}<\/span>/,
+  "Card previews must display only the authored description");
+assert.doesNotMatch(notebook, /entryPreview\(entry/, "Cards must not use automatically extracted body excerpts");
+assert.match(knowledge, /description: contentStr\(row\.description\)/, "Descriptions survive reload");
+assert.match(knowledge, /description: repairPinyinToneMarks\(input\.description \?\? ""\)/, "Descriptions are initialised on new records");
+assert.match(descriptionMigration, /ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT ''/, "Descriptions are backed by a database column");
+assert.match(descriptionMigration, /char_length\(description\) <= 240/, "Descriptions have a short length limit");
+console.log("Notebook capture, home navigation, subject customisation and detached-reader and note-description checks passed.");
