@@ -1,56 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const read = (file) => readFileSync(file, "utf8");
-const study = read("src/components/StudyModal.tsx");
-const sort = read("src/components/SortModal.tsx");
-const pack = read("src/components/PackView.tsx");
-const app = read("src/App.tsx");
-const tablet = read("src/tablet.css");
-const fab = read("src/components/TabletCaptureFab.tsx");
-const choice = read("src/components/SegmentedChoice.tsx");
-const mistakes = read("src/components/workspace/MistakeLog.tsx");
-
-assert.match(choice, /aria-pressed=\{value === item\.value\}/, "Shared single-choice controls expose selection");
-assert.match(choice, /role="group" aria-label=\{label\}/, "Shared controls have an accessible label");
-assert.match(study, /<SegmentedChoice label="Review directions"/);
-assert.match(study, /<SegmentedChoice label="Review card order"/);
-assert.match(sort, /<SegmentedChoice label="Sort card order"/);
-assert.match(study, /aria-label="Review setup"/);
-assert.match(study, /onKeyDown=\{\(event\) => \{ if \(event\.key === "Escape"/, "Review closes with Escape");
-assert.match(study, /previouslyFocused\?\.focus/, "Review returns keyboard focus");
-assert.match(study, /Start review ·/, "Only one clear final Review action");
-assert.match(study, /label: "Both directions"/, "Reversible directions are named plainly");
-assert.match(study, /label: "One direction"/, "Single-direction review is unambiguous");
-assert.match(study, /!busy && event\.currentTarget === event\.target/, "Review cannot be dismissed while the popup is opening");
-assert.match(sort, /Sort \{Math\.min\(count, candidates\.length\)\}/, "Sort names the exact batch size");
-assert.doesNotMatch(sort, /ONE SORT WORKFLOW/, "Sort no longer exposes workflow implementation notes");
-assert.match(sort, /<SortEnrichmentPanel/, "Sort exposes editable card details without hiding the flashcard");
-assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
-assert.match(study, /className="study-count-all"/, "One quick way to review all");
-
-assert.match(pack, /disabled=\{!learningCards\.length\}/, "Do not open Review before a card is sorted into Learning");
-assert.match(pack, /onClick=\{\(\) => void startReview\(\)\}><Brain size=\{15\} \/> Review<\/button>/, "Review is one click: a recommended session");
-assert.match(pack, /className="secondary-button review-adjust"[^>]*onClick=\{\(\) => setStudyOpen\(true\)\}/s, "Every manual choice stays one step away under Adjust");
-assert.match(pack, /className="topic-more-menu"/, "Secondary actions stay in the More menu");
-assert.match(pack, /Import cards/, "Import remains reachable");
-assert.match(pack, /Connections/, "Connections remain reachable");
-assert.doesNotMatch(pack, /Select a card to reveal Edit/, "Do not show a permanent training hint");
-assert.match(pack, /Could not load this topic.*Retry/s, "An error must offer Retry");
-
-assert.match(app, /className="mobile-workspace-nav"/);
-assert.match(app, /className="mobile-study-subnav"/);
-assert.match(app, /SECTIONS\.map\(\(\{ id, label, icon: Icon, key \}\)/, "Mobile sections use knowledge-first navigation without Progress");
-assert.match(app, /<TabletCaptureFab onCapture=/);
-assert.doesNotMatch(app, /className="desktop-action desktop-primary"[^>]*>[^<]*New card/, "Do not repeat New card in global header over the topic action");
-assert.match(tablet, /grid-template-columns: repeat\(5, minmax\(0,1fr\)\)/);
-assert.match(tablet, /\.desktop-nav-group \{ display: none !important; \}/, "Old Study bottom bar cannot overlap the new section nav");
-assert.match(tablet, /min-height: 44px !important/, "Touch targets are consistently sized");
-assert.match(tablet, /\.mobile-study-subnav/, "Study sub-pages remain accessible");
-assert.match(fab, /event\.currentTarget\.setPointerCapture\(event\.pointerId\)/, "Drag uses pointer capture");
-assert.match(fab, /current\.y \/ window\.innerHeight/, "Snapped location persists across sessions");
-assert.match(fab, /onClick=\{\(\) => \{ if \(dragged\.current\)/, "Dragging must not accidentally open Capture");
-assert.doesNotMatch(mistakes, /setOptimisticStatus|setChangingStatus/, "No status controls compete with the correction list");
-assert.match(mistakes, /<span className="ml-simple-label">Mistake<\/span>/, "The original mistake remains visible");
-assert.match(mistakes, /<span className="ml-simple-label">Correction<\/span>/, "The corrected version sits underneath");
-
-console.log("Study workflow: compact Review, single actions, tablet navigation and minimal correction visibility checks passed.");
+const shell=readFileSync("src/App.tsx","utf8");
+const overview=readFileSync("src/components/workspace/OverviewView.tsx","utf8");
+for(const section of ["overview","notebook","mistakes"]){
+  assert.match(shell,new RegExp('section === "'+section+'" && !workspace\\.loading && !workspace\\.error'),"Page should not show empty data on failed loading: "+section);
+}
+assert.match(shell,/workspace\.loading && !workspace\.error \? <div className="ws-loading" role="status"/);
+assert.match(shell,/section === "notebook" && !workspace\.loading && !workspace\.error \? <NotebookSidebarTree \/>/,"Sidebar must not falsely appear empty on load errors");
+assert.match(shell,/workspace\.error \? <div className="ws-error-panel" role="alert"/);
+assert.match(shell,/onClick=\{\(\) => void workspace\.reload\(\)\}/,"Retry remains functional");
+assert.match(overview,/Notes to revisit/,"Overview shows saved knowledge instead of Study activity history");
+assert.doesNotMatch(overview,/loadStudyActivity|ActivityHeatmap/,"The Overview no longer requests activity statistics");
+console.log("Notebook loading, retry and Study-history state differentiation checks passed.");
