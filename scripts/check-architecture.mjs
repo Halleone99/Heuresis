@@ -68,7 +68,7 @@ if (search.includes('.eq("role", "main")') || !search.includes('role: "main" | "
 }
 
 // --- Heuresis is a knowledge library, not a productivity dashboard. ---
-const sectionIds = [...app.matchAll(/\\{ id: "(overview|study|notebook|mistakes|reading|quotations|reference)", label:/g)].map((match) => match[1]);
+const sectionIds = [...app.matchAll(/\{ id: "(overview|study|notebook|mistakes|reading|quotations|reference)", label:/g)].map((match) => match[1]);
 if (sectionIds.join(",") !== "overview,study,notebook,mistakes,reading,quotations,reference") {
   throw new Error("Heuresis navigation should lead to knowledge, practice, reading and quotations, without Progress.");
 }
