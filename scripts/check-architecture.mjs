@@ -67,10 +67,10 @@ if (search.includes('.eq("role", "main")') || !search.includes('role: "main" | "
   throw new Error("Global search must deliberately include both main and related card identities.");
 }
 
-// --- Learning workspace (Notebook, lessons, Mistake Log, Progress) ---
-const sectionIds = [...app.matchAll(/\{ id: "(overview|study|notebook|mistakes|progress)", label:/g)].map((match) => match[1]);
-if (sectionIds.join(",") !== "overview,study,notebook,mistakes,progress") {
-  throw new Error("Heuresis must keep exactly five top-level sections: Overview, Study, Notebook, Mistake Log, Progress.");
+// --- Heuresis is a knowledge library, not a productivity dashboard. ---
+const sectionIds = [...app.matchAll(/\\{ id: "(overview|study|notebook|mistakes|reading|quotations|reference)", label:/g)].map((match) => match[1]);
+if (sectionIds.join(",") !== "overview,study,notebook,mistakes,reading,quotations,reference") {
+  throw new Error("Heuresis navigation should lead to knowledge, practice, reading and quotations, without Progress.");
 }
 
 if (knowledge.includes('.from("knowledge_entries")') || /\.from\("knowledge_entries"\)\s*\.(insert|update|upsert|delete)/.test(personalOs)) {
