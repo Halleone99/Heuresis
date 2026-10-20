@@ -25,11 +25,12 @@ export function OverviewView({ onOpenStudy }: { onOpenStudy: () => void }) {
     .slice(0, 5), [snapshot.entries, selected, workspace.topicById]);
 
   function openSubject(subjectId: string) {
+    // Going to Notebook resets its location. Select the subject afterwards.
+    workspace.goTo("notebook");
     workspace.updateMemory((current) => ({
       ...current,
       notebook: { ...current.notebook, subjectId, topicId: null, docId: null },
     }));
-    workspace.goTo("notebook");
   }
 
   return <div className="ov-page ov-simple ov-library">
