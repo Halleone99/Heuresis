@@ -65,7 +65,7 @@ function write(key: string, value: unknown) {
 export function readSection(): WorkspaceSection {
   try {
     const stored = localStorage.getItem(SECTION_KEY);
-    return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "progress" || stored === "overview" || stored === "reading" || stored === "quotations" || stored === "reference" ? stored : "overview";
+    return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "overview" || stored === "reading" || stored === "quotations" || stored === "reference" ? stored : "overview";
   } catch { return "overview"; }
 }
 export function writeSection(section: WorkspaceSection) {
