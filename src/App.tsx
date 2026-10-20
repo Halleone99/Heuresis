@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  ArchiveRestore, BarChart3, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
+  ArchiveRestore, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
   Feather, NotebookPen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
@@ -21,7 +21,6 @@ import { NotebookView } from "./components/workspace/NotebookView";
 import { DetachedNoteWorkspace } from "./components/workspace/DetachedNoteWorkspace";
 import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree";
 import { OverviewView } from "./components/workspace/OverviewView";
-import { ProgressView } from "./components/workspace/ProgressView";
 import { ReadingView } from "./components/workspace/ReadingView";
 import { QuotationsView } from "./components/workspace/QuotationsView";
 import { QuickCapture } from "./components/workspace/QuickCapture";
@@ -71,10 +70,9 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "study", label: "Study", icon: BookOpen, key: "2" },
   { id: "notebook", label: "Notebook", icon: NotebookPen, key: "3" },
   { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
-  { id: "progress", label: "Progress", icon: BarChart3, key: "5" },
-  { id: "reading", label: "Reading", icon: BookOpen, key: "6" },
-  { id: "quotations", label: "Quotations", icon: Quote, key: "7" },
-  { id: "reference", label: "Catalogue", icon: LibraryBig, key: "8" },
+  { id: "reading", label: "Reading", icon: BookOpen, key: "5" },
+  { id: "quotations", label: "Quotations", icon: Quote, key: "6" },
+  { id: "reference", label: "Catalogue", icon: LibraryBig, key: "7" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -391,7 +389,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         openPalette();
         return;
       }
-      if (event.altKey && !mod && /^Digit[1-8]$/.test(event.code)) {
+      if (event.altKey && !mod && /^Digit[1-7]$/.test(event.code)) {
         event.preventDefault();
         navigateSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
         return;
@@ -440,12 +438,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     "--heuresis-background-position": background.settings.position,
     "--heuresis-background-fit": background.settings.fit,
   };
-  const studySummary = useMemo(() => ({
-    cards: packs.reduce((sum, pack) => sum + (pack.card_count ?? 0), 0),
-    collections: collections.length,
-    topics: packs.length,
-  }), [collections.length, packs]);
-
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
   function openPack(pack: PackWithType, cardId: string | null = null) { setActivePackId(pack.id); setFocusCardId(cardId); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
   function openCapture(pack: PackWithType | null = null, collectionId: string | null = null) {
@@ -561,7 +553,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
           <nav className="hw-sections">
-            {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
+            {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>
               <Icon size={16} /><span>{label}</span>
             </button>)}
@@ -588,10 +580,9 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
           {section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
-          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView study={studySummary} onOpenStudy={() => navigateSection("study")} collections={collections} packs={packs} /> : null}
+          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView onOpenStudy={() => navigateSection("study")} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
-          {section === "progress" && !workspace.loading && !workspace.error ? <ProgressView /> : null}
           {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
           {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
           {section === "reference" && !workspace.loading && !workspace.error
@@ -606,7 +597,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
-        {SECTIONS.filter((item) => item.id !== "progress").map(({ id, label, icon: Icon }) => <button type="button" key={id}
+        {SECTIONS.map(({ id, label, icon: Icon }) => <button type="button" key={id}
           aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
           onClick={() => navigateSection(id)}>
           <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
@@ -643,7 +634,7 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
-    ["Alt 1 – 8", "Overview · Study · Notebook · Mistake Log · Progress · Reading · Quotations · Catalogue"],
+    ["Alt 1 – 7", "Overview · Study · Notebook · Mistake Log · Reading · Quotations · Catalogue"],
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
     [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],
