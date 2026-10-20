@@ -30,7 +30,7 @@ export type KnowledgeTopic = {
 };
 export type KnowledgeEntry = {
   id: string; user_id: string; topic_id: string; kind: KnowledgeKind;
-  title: string; body: string; attempt: string; correction: string; explanation: string;
+  title: string; body: string; description: string; attempt: string; correction: string; explanation: string;
   accent_color: MistakeAccent | null;
   icon?: string | null;
   status: MistakeStatus | null; category: NoteCategory | null; mistake_mode_id: string | null;
@@ -49,12 +49,12 @@ export type KnowledgeSnapshot = {
 export type EntryInput = {
   /** Optional client id, so a retried capture can never be stored twice. */
   id?: string;
-  kind: KnowledgeKind; topicId: string; title?: string; body?: string;
+  kind: KnowledgeKind; topicId: string; title?: string; body?: string; description?: string;
   attempt?: string; correction?: string; explanation?: string; accentColor?: MistakeAccent | null; icon?: string | null;
   category?: NoteCategory | null; mistakeModeId?: string | null; lessonId?: string | null; lessonDate?: string | null;
 };
 export type EntryPatch = Partial<Pick<KnowledgeEntry,
-  "topic_id" | "title" | "body" | "attempt" | "correction" | "explanation" | "accent_color" | "status" | "category" | "mistake_mode_id"
+  "topic_id" | "title" | "body" | "description" | "attempt" | "correction" | "explanation" | "accent_color" | "status" | "category" | "mistake_mode_id"
   | "lesson_id" | "lesson_date" | "icon" | "pinned" | "recall_streak" | "last_recalled_at" | "recall_due_at">>;
 
 export const EMPTY_SNAPSHOT: KnowledgeSnapshot = { subjects: [], topics: [], entries: [], practice: [] };
@@ -62,11 +62,11 @@ export const LEGACY_LESSON_PREFIX = "Lesson · ";
 export const CATEGORY_LABELS: Record<NoteCategory, string> = {
   note: "Note", question: "Question", grammar: "Grammar", vocabulary: "Vocabulary", phrase: "Expression", reference: "Reference",
 };
-export const LIMITS = { name: 120, title: 200, body: 50000, attempt: 5000, correction: 5000, explanation: 10000, answer: 5000 };
+export const LIMITS = { name: 120, title: 200, description: 240, body: 50000, attempt: 5000, correction: 5000, explanation: 10000, answer: 5000 };
 
 const PAGE_SIZE = 1000;
 const SCHEMA_KEY = "heuresis.knowledge.schema.v2";
-const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "attempt", "correction", "explanation", "accent_color", "icon", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
+const CONTENT_FIELDS: Array<keyof EntryPatch> = ["topic_id", "title", "body", "description", "attempt", "correction", "explanation", "accent_color", "icon", "status", "category", "mistake_mode_id", "lesson_id", "lesson_date"];
 
 let schemaLevel: SchemaLevel = readStoredSchema();
 
@@ -174,7 +174,7 @@ export function normaliseEntry(row: Record<string, unknown>): KnowledgeEntry {
   const category = typeof row.category === "string" && CATEGORIES.has(row.category as NoteCategory) ? row.category as NoteCategory : null;
   return {
     id: str(row.id), user_id: str(row.user_id), topic_id: str(row.topic_id), kind,
-    title: contentStr(row.title), body: contentStr(row.body), attempt: contentStr(row.attempt), correction: contentStr(row.correction),
+    title: contentStr(row.title), body: contentStr(row.body), description: contentStr(row.description), attempt: contentStr(row.attempt), correction: contentStr(row.correction),
     explanation: contentStr(row.explanation),
     accent_color: typeof row.accent_color === "string" && MISTAKE_ACCENTS.has(row.accent_color as MistakeAccent) ? row.accent_color as MistakeAccent : null,
     icon: typeof row.icon === "string" && row.icon.trim().length <= 32 ? row.icon.trim() || null : null,
@@ -298,9 +298,10 @@ function limit(value: string, max: number, label: string) {
   return value;
 }
 
-export function validateEntry(entry: Pick<KnowledgeEntry, "kind" | "title" | "body" | "attempt" | "correction" | "explanation">) {
+export function validateEntry(entry: Pick<KnowledgeEntry, "kind" | "title" | "body" | "description" | "attempt" | "correction" | "explanation">) {
   limit(entry.title, LIMITS.title, "The title");
   limit(entry.body, LIMITS.body, "A note");
+  limit(entry.description, LIMITS.description, "The description");
   limit(entry.attempt, LIMITS.attempt, "The attempt");
   limit(entry.correction, LIMITS.correction, "The correction");
   limit(entry.explanation, LIMITS.explanation, "The explanation");
@@ -317,6 +318,7 @@ export async function createEntry(userId: string, input: EntryInput): Promise<Kn
     id: input.id ?? crypto.randomUUID(), user_id: userId, topic_id: input.topicId, kind,
     title: repairPinyinToneMarks(input.title ?? "").trim(),
     body: kind === "mistake" ? "" : repairPinyinToneMarks(input.body ?? "").replace(/\s+$/, ""),
+    description: repairPinyinToneMarks(input.description ?? "").replace(/\s+/g, " ").trim(),
     attempt: kind === "mistake" ? repairPinyinToneMarks(input.attempt ?? "").trim() : "",
     correction: kind === "mistake" ? repairPinyinToneMarks(input.correction ?? "").trim() : "",
     explanation: kind === "mistake" ? repairPinyinToneMarks(input.explanation ?? "").trim() : "",
@@ -349,8 +351,10 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
   requireWritable();
   const changed: EntryPatch = {};
   for (const [key, value] of Object.entries(patch) as Array<[keyof EntryPatch, unknown]>) {
-    const normalized = typeof value === "string" && ["title", "body", "attempt", "correction", "explanation"].includes(key)
-      ? repairPinyinToneMarks(value) : value;
+    const normalized = key === "description" && typeof value === "string"
+      ? repairPinyinToneMarks(value).replace(/\s+/g, " ").trim()
+      : typeof value === "string" && ["title", "body", "attempt", "correction", "explanation"].includes(key)
+        ? repairPinyinToneMarks(value) : value;
     if (current[key] !== normalized) (changed as Record<string, unknown>)[key] = normalized;
   }
   if (!Object.keys(changed).length) return current;
