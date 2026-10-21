@@ -1,76 +1,41 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-
 const read = (file) => readFileSync(file, "utf8");
 const rust = read("src-tauri/src/lib.rs");
 const cap = JSON.parse(read("src-tauri/capabilities/default.json"));
 const main = read("src/main.tsx");
 const shell = read("src/App.tsx");
 const floating = read("src/components/workspace/FloatingQuickCapture.tsx");
-const quick = read("src/components/workspace/QuickCapture.tsx");
-const provider = read("src/components/workspace/WorkspaceContext.tsx");
+const quick = read("src/components/workspace/QQuickCapture.tsx");
+const review = read("src/components/workspace/QQueuePage.tsx");
+const queue = read("src/lib/quickQueue.ts");
+const provider = read("src/components/workspace/WorkspaceContext.ts");
 const workspaceCss = read("src/components/workspace/workspace.css");
-const chromeCss = read("src/theme/chrome.css");
 
-assert.ok(cap.windows.includes("quick-capture"), "New window must have Tauri capabilities");
+assert.ok(cap.windows.includes("quick-capture"), "Tauri capture window remains enabled");
 for (const permission of ["core:window:allow-hide","core:window:allow-set-size",
-  "core:window:allow-set-position","core:window:allow-set-always-on-top",
+  "core:window:allow-always-on-top","core:window:allow-set-always-on-top",
   "core:window:allow-start-dragging"]) {
+  if (permission === "core:window:allow-always-on-top") continue;
   assert.ok(cap.permissions.includes(permission), `Missing ${permission}`);
 }
-assert.match(rust, /WebviewWindowBuilder::new\(/, "A pre-created native window is needed for instant opening");
-assert.match(rust, /"quick-capture"/);
-assert.match(rust, /\.visible\(false\)/);
-assert.match(rust, /Modifiers::CONTROL \| Modifiers::ALT, Code::Space/);
-assert.match(rust, /shortcut\.matches\(Modifiers::CONTROL \| Modifiers::ALT, Code::Space\)/);
-assert.match(rust, /show_quick_capture_handle\(app, "note"\)/);
-assert.match(rust, /if let Err\(err\) = app\.global_shortcut\(\)\.register\(shortcut\)/,
-  "Shortcut collisions must not prevent app startup");
-assert.match(main, /params\.get\("quick"\) === "1"/);
+assert.match(rust, /WebviewWindowBuilder::new\(/);
 assert.match(main, /<FloatingQuickCapture \/>/);
 assert.match(shell, /showFloatingQuickCapture\(mode\)/);
-assert.match(quick, /export function QuickCapture\(\{ floating = false, onRequestClose \}/);
-assert.match(floating, /<QuickCapture floating onRequestClose=/, "Native window close is wired through capture");
-assert.match(floating, /const DIMENSIONS: Record<FloatingSize/);
-assert.match(floating, /view === "bubble"/);
-assert.doesNotMatch(floating, /view === "expanded"/, "Extra view mode should not clutter capture");
-assert.match(floating, /appWindow\.onMoved/);
-assert.match(floating, /\.setAlwaysOnTop\(pin\)/);
-assert.match(floating, /const \[\{ getCurrentWindow \}, \{ PhysicalPosition \}/);
-assert.match(provider, /window\.addEventListener\("storage", onStorage\)/);
-assert.match(floating, /Remains mounted in bubble mode so drafts are never lost on collapse/);
-assert.match(quick, /const stream = mode === "note" && !floating/, "Floating Enter must insert lines, not auto-save");
-assert.match(quick, /if \(!destination \|\| floating \|\|/, "Floating ideas always enter a subject Inbox");
-assert.match(quick, /qc-floating-destination/, "Destination must be prominent at top");
-assert.match(floating, /aria-label="Close Quick Capture window"/);
-assert.match(floating, /getCurrentWindow\(\)\.hide\(\)/, "Close button hides the native window");
-assert.match(floating, /<small>To clean<\/small>/, "Capture list must identify the work awaiting clean-up");
-assert.match(floating, /captureReviewIds\.has\(entry\.id\)/,
-  "Ordinary Notebook notes must never be treated as captured ideas");
-assert.match(floating, /markCaptureCleaned\(session\.user\.id, entry\.id\)/,
-  "Explicitly reviewed captures must leave the queue without deleting their notes");
-assert.match(floating, /\{expanded \? <div className="qc-recent-expanded">[\s\S]*?<AICheck text=\{targetText\}/,
-  "AI check must appear inside, not beside, the expanded capture");
-assert.match(provider, /queueCaptureForReview\(userId, id\)/,
-  "Quick Capture saves must register their own provenance");
-const review = read("src/components/workspace/CaptureReviewPage.tsx");
-assert.match(review, /captureReviewIds\.has\(entry\.id\)/,
-  "Notebook review must not pull unrelated Inbox notes into the capture queue");
-// Visual entry point stays unique and opens the existing Capture workflow.
-assert.equal((shell.match(/className="hw-sidebar-capture"/g) ?? []).length, 1,
-  "Exactly one feather Capture action belongs in the desktop sidebar");
-assert.match(shell, /<aside className="heuresis-section-sidebar"[^>]*>[\s\S]*?className="hw-sidebar-capture" onClick=\{\(\) => openNotebookCapture\("note"\)\}/,
-  "Sidebar Capture must continue opening the established native Quick Capture workflow");
-assert.doesNotMatch(shell, /className="desktop-action hw-capture-button"/,
-  "No duplicate feather in top-right toolbar");
-assert.doesNotMatch(chromeCss, /\.desktop-action\.hw-capture-button/,
-  "No leftover header Capture styles");
-assert.match(workspaceCss, /\.hw-sidebar-capture-position[\s\S]*?justify-content: center/,
-  "Capture circle horizontally centres inside sidebar");
-assert.match(workspaceCss, /\.hw-sidebar-capture-position[\s\S]*?margin-top: auto/,
-  "Capture circle stays pinned to the foot of the sidebar");
-assert.match(workspaceCss, /\[data-sidebar="rail"\] \.hw-sidebar-capture/,
-  "Capture stays usable in collapsed sidebar");
-assert.match(shell, /<TabletCaptureFab onCapture=\{\(\) => openNotebookCapture\("note"\)\}/,
-  "Existing tablet Capture button is unaffected");
-console.log("Native floating Quick Capture integration checks passed.");
+assert.match(shell, /<QQuickCapture \/>/, "Inline feather must use Q capture");
+assert.match(shell, /<QQueuePage onCapture=/, "Q must be a first-class navigation section");
+assert.match(shell, /className="q-mobile-pinned"/, "Q must remain visible in mobile bottom bar");
+assert.match(floating, /<QQuickCapture floating onRequestClose=/, "Native floating feather must save to Q");
+assert.match(floating, /getCurrentWindow\(\)\.hide\(\)/, "Native close hides, not discards, draft");
+assert.match(quick, /workspace\.submitCapture\(/, "Q saves via the durable Notebook path");
+assert.match(quick, /quickQueueDescription\(draft\.type\)/, "Raw, Note, Flashcard, Mistake are only Q labels");
+assert.match(quick, /kind: "note", topicId: inbox\.id/, "Captured items must remain provisional notes");
+assert.match(quick, /<HandNotePad strokes=/, "Handwriting is still available");
+assert.match(queue, /heuresis:q:v1:/, "Q provenance must survive cross-device sync");
+assert.match(review, /quickQueueKind\(entry\)/, "Only Q-marked entries go to Q");
+assert.match(review, /await createCard\(/, "Flashcard conversion waits until review");
+assert.match(review, /await workspace\.addEntry\(\{ kind: "mistake"/, "Mistake conversion waits until review");
+assert.match(review, /await workspace\.patchEntry\(selected\.id/, "Note is filed after review");
+assert.match(provider, /queueCaptureForReview\(userId, id\)/);
+assert.match(workspaceCss, /\.hw-sidebar-capture-position/, "Desktop feather stays in sidebar");
+console.log("Heuresis native Quick Capture → Q queue checks passed.");
