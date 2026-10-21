@@ -13,6 +13,8 @@
  * without reflowing what the user wrote. Unknown syntax is kept verbatim.
  */
 
+import { decodeHandNote, HAND_NOTE_PREFIX, HAND_NOTE_SIZE } from "./handNote";
+
 export type CalloutVariant = "example" | "rule" | "correction" | "tip";
 export type ListItem = { text: string; depth: number; ordered: boolean };
 export type TableStyle = "plain" | "striped" | "study";
@@ -23,6 +25,7 @@ export type Block =
   | { type: "quote"; lines: string[] }
   | { type: "callout"; variant: CalloutVariant; lines: string[] }
   | { type: "hr" }
+  | { type: "handnote"; encoded: string }
   | { type: "table"; style: TableStyle; headers: string[]; rows: string[][] };
 
 export const NOTE_COLOURS = ["red", "blue", "green", "amber", "purple"] as const;
@@ -64,6 +67,10 @@ export function parseBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    if (line.startsWith(HAND_NOTE_PREFIX) && /^[A-Za-z0-9+/=]+$/.test(line.slice(HAND_NOTE_PREFIX.length))) {
+      blocks.push({ type: "handnote", encoded: line.slice(HAND_NOTE_PREFIX.length) });
+      continue;
+    }
     // A standard Markdown grid is a single editable block. The optional style
     // marker belongs to the table, not to a separate visible paragraph.
     const styleMatch = line.match(TABLE_STYLE_RE);
@@ -261,6 +268,10 @@ export function markdownToEditorHtml(markdown: string): string {
       case "quote": return `<blockquote>${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
       case "callout": return `<blockquote data-callout="${block.variant}">${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
       case "hr": return "<hr>";
+      case "handnote": {
+        const paths = decodeHandNote(block.encoded).map((stroke) => `<path d="${stroke.d}" stroke="${stroke.color}" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
+        return `<div data-handnote="${block.encoded}" contenteditable="false" style="margin:10px 0;max-width:100%;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:white"><svg viewBox="0 0 ${HAND_NOTE_SIZE.width} ${HAND_NOTE_SIZE.height}" role="img" aria-label="Handwritten note" style="width:100%;display:block;max-height:350px">${paths}</svg></div>`;
+      }
       case "table": return tableHtml(block);
       default: return paragraphHtml(block.text);
     }
@@ -355,6 +366,7 @@ function serializeChildren(root: HTMLElement): string[] {
     if (tag === "H1" || tag === "H2") out.push(`# ${blockLines(node).join(" ").trim()}`.trimEnd());
     else if (/^H[3-6]$/.test(tag)) out.push(`## ${blockLines(node).join(" ").trim()}`.trimEnd());
     else if (tag === "HR") out.push("---");
+    else if (tag === "DIV" && node.hasAttribute("data-handnote")) out.push(HAND_NOTE_PREFIX + node.getAttribute("data-handnote"));
     else if (tag === "TABLE") {
       const table = node as HTMLTableElement;
       const style = table.getAttribute("data-table-style");
