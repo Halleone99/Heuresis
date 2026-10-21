@@ -14,7 +14,7 @@ export function decodeHandNote(encoded: string): HandStroke[] {
     if (data.version !== 1 || !Array.isArray(data.strokes) || data.strokes.length > 1000) return [];
     if (!data.strokes.every((stroke) => {
       const row = stroke as HandStroke;
-      return typeof row?.d === "string" && row.d.length <= 30000 &&
+      return typeof row?.d === "string" && row.d.length <= 50000 &&
         /^[ML0-9 .-]+$/.test(row.d) && HAND_NOTE_COLOURS.includes(row.color as typeof HAND_NOTE_COLOURS[number]);
     })) return [];
     return data.strokes as HandStroke[];
