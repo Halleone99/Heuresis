@@ -65,7 +65,7 @@ export function HandNotePad({ strokes, onChange, disabled = false }: {
     <div role="toolbar" aria-label="Handwriting tools" style={{ display: "flex", alignItems: "center", gap: 9 }}>
       <span style={{ marginRight: "auto", fontSize: 12, opacity: .76 }}>Draw with finger, mouse or stylus</span>
       {HAND_NOTE_COLOURS.map((colour) => <button key={colour} type="button" disabled={disabled}
-        aria-label={colour === HAND_NOTE_COLOURS[0] ? "Black ink" : colour === HAND_NOTE_COLOURS[1] ? "Blue ink" : "Red ink"}
+        aria-label={colour === HAND_NOTE_COLOURS[0] ? "Black ink" : colour === HAND_NOTE_COLOURS[1] ? "Blue ink" : colour === HAND_NOTE_COLOURS[2] ? "Red ink" : colour === HAND_NOTE_COLOURS[3] ? "Green ink" : "Wine ink"}
         aria-pressed={ink === colour} title="Pen colour" onClick={() => setInk(colour)}
         style={{ width: 22, height: 22, borderRadius: "50%", background: colour, cursor: "pointer",
           border: ink === colour ? "3px solid #b9c6d8" : "2px solid transparent", boxShadow: ink === colour ? "0 0 0 1px #61758b" : "none" }} />)}
