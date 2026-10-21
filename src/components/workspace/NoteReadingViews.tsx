@@ -4,7 +4,7 @@ import { splitNoteSections } from "../../lib/noteSections";
 import { RichText, type LinkResolver } from "./RichText";
 
 export type NotebookReadMode = "document" | "canvas" | "study";
-type Props = { text: string; mode: NotebookReadMode; resolve?: LinkResolver; rubyPinyin: boolean; columns: 2 | 3; onColumnsChange: (columns: 2 | 3) => void };
+type Props = { text: string; mode: NotebookReadMode; resolve?: LinkResolver; rubyPinyin: boolean; columns: 2 | 3; onColumnsChange: (columns: 2 | 3) => void; foldStorageKey?: string };
 
 const modes: { mode: NotebookReadMode; label: string; description: string; icon: typeof FileText }[] = [
   { mode: "document", label: "Document", description: "Continuous Word-like page", icon: FileText },
@@ -22,14 +22,14 @@ export function NoteViewSwitcher({ mode, onChange }: { mode: NotebookReadMode; o
   </div>;
 }
 
-export function NoteReadingViews({ text, mode, resolve, rubyPinyin, columns, onColumnsChange }: Props) {
+export function NoteReadingViews({ text, mode, resolve, rubyPinyin, columns, onColumnsChange, foldStorageKey }: Props) {
   const sections = useMemo(() => splitNoteSections(text), [text]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   useEffect(() => { setIndex(0); setRevealed(false); }, [mode, text]);
   const selected = sections[Math.min(index, sections.length - 1)];
 
-  if (mode === "document") return <RichText text={text} resolve={resolve} className="nb-reading" rubyPinyin={rubyPinyin} collapsible />;
+  if (mode === "document") return <RichText key={foldStorageKey} text={text} resolve={resolve} className="nb-reading" rubyPinyin={rubyPinyin} collapsible foldStorageKey={foldStorageKey} />;
 
   if (mode === "canvas") return <div className="nb-canvas">
     <div className="nb-canvas-heading">
