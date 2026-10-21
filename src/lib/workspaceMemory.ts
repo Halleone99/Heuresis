@@ -13,6 +13,8 @@ export type CurrentLesson = { id: string; startedAt: string };
 export type CaptureDraft = {
   mode: Exclude<KnowledgeKind, "lesson"> | "lesson";
   text: string; category: NoteCategory | null; categoryTouched: boolean; mistakeModeId?: string | null;
+  /** Editable vector strokes from the Quick Capture handwriting pad. */
+  handStrokes?: import("./handNote").HandStroke[];
   attempt: string; correction: string; explanation: string;
   lessonTitle: string; updatedAt: string;
   /** Stable identity of a capture awaiting confirmation; prevents duplicate retries. */
@@ -119,7 +121,7 @@ export function writeCaptureDraft(userId: string, draft: CaptureDraft | null, su
 }
 export function captureDraftHasContent(draft: CaptureDraft | null) {
   if (!draft) return false;
-  return Boolean(draft.text.trim() || draft.attempt.trim() || draft.correction.trim() || draft.explanation.trim());
+  return Boolean(draft.text.trim() || draft.handStrokes?.length || draft.attempt.trim() || draft.correction.trim() || draft.explanation.trim());
 }
 
 export function readDocumentDraft(userId: string, id: string) {
