@@ -1,6 +1,9 @@
 #[cfg(desktop)]
 use tauri::{Emitter, Manager};
 
+#[cfg(desktop)]
+mod local_backup;
+
 /// The quick Notebook capture window stays alive, hidden at launch, so the
 /// global shortcut can raise it without constructing another WebView.
 #[cfg(desktop)]
@@ -28,7 +31,13 @@ pub fn run() {
     let builder = tauri::Builder::default();
 
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![show_quick_capture]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        show_quick_capture,
+        local_backup::local_backup_status,
+        local_backup::local_backup_begin,
+        local_backup::local_backup_media_chunk,
+        local_backup::local_backup_finish,
+    ]);
 
     builder
         .setup(|app| {
