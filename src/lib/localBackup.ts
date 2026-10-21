@@ -59,8 +59,18 @@ async function entireTable(table: string, userId: string): Promise<TableRow[]> {
     // This header forbids falling back to an incomplete local cache.
     let query = supabase.from(table).select("*").eq("user_id", userId);
     if (table === "page_backgrounds") query = query.eq("page_key", "heuresis");
-    const { data, error } = await query
-      .order(table === "page_backgrounds" ? "page_key" : "id", { ascending: true })
+    // Four join/stat tables have no "id" column. Composite keys must also
+    // have deterministic ordering so pagination never misses/repeats rows.
+    const sortKeys: Record<string, string[]> = {
+      heuresis_card_tags: ["card_id", "tag_id"],
+      heuresis_card_stats: ["card_id"],
+      heuresis_pack_stats: ["pack_id"],
+      page_backgrounds: ["page_key"],
+    };
+    const keys = sortKeys[table] ?? ["id"];
+    let ordered = query.order(keys[0], { ascending: true });
+    for (const key of keys.slice(1)) ordered = ordered.order(key, { ascending: true });
+    const { data, error } = await ordered
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
       .setHeader(NETWORK_ONLY_HEADER, "1");
     if (error) throw new Error(`Cannot back up ${table}: ${error.message}`);
