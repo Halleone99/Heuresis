@@ -42,7 +42,7 @@ assert.match(app, /className="mobile-study-subnav"/);
 assert.match(app, /SECTIONS\.map\(\(\{ id, label, icon: Icon, key \}\)/, "Mobile sections use knowledge-first navigation without Progress");
 assert.match(app, /<TabletCaptureFab onCapture=/);
 assert.doesNotMatch(app, /className="desktop-action desktop-primary"[^>]*>[^<]*New card/, "Do not repeat New card in global header over the topic action");
-assert.match(tablet, /grid-template-columns: repeat\(5, minmax\(0,1fr\)\)/);
+assert.match(tablet, /\.mobile-workspace-nav\s*\{/, "Mobile Heuresis navigation remains available for all sections including pinned Q");
 assert.match(tablet, /\.desktop-nav-group \{ display: none !important; \}/, "Old Study bottom bar cannot overlap the new section nav");
 assert.match(tablet, /min-height: 44px !important/, "Touch targets are consistently sized");
 assert.match(tablet, /\.mobile-study-subnav/, "Study sub-pages remain accessible");
