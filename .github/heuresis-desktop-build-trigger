@@ -1,4 +1,4 @@
-Build latest Heuresis Windows Tauri installer from main.
-Source main: e010475bd256afed7ba2d17fc6da15e5e872db1f
-Requested 2026-10-21: automatic complete daily Windows Documents backups of all Heuresis knowledge, Study cards, Reading, quotations, metadata and private media; 7 daily + 4 weekly + 3 monthly versions; manual account action; safe incomplete staging and integrity checks.
-Run frontend/Windows Rust CI and inspect the generated installer before delivery. This file is a build request, not evidence of a verified installer.
+Build latest Heuresis Windows Tauri installer from main, including the local backup feature.
+Source main: eb84756f6f8a76b29675490a62f88d90a3e818dd
+Requested 2026-10-21: automatic complete daily local snapshots in Windows Documents; all Heuresis Notebook, Study, Reading, quotations, review data and private card/background images; 7 daily + 4 weekly + 3 monthly retained versions.
+Verify frontend build, Windows Rust tests, actual backup creation and installer before release. A trigger is not evidence of build success.
