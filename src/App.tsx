@@ -23,7 +23,8 @@ import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree"
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ReadingView } from "./components/workspace/ReadingView";
 import { QuotationsView } from "./components/workspace/QuotationsView";
-import { QuickCapture } from "./components/workspace/QuickCapture";
+import { QQuickCapture } from "./components/workspace/QQuickCapture";
+import { QQueuePage } from "./components/workspace/QQueuePage";
 import TabletCaptureFab from "./components/TabletCaptureFab";
 import { OfflineRecoveryDialog } from "./components/workspace/OfflineRecoveryDialog";
 import { SyncStatusDialog } from "./components/workspace/SyncStatusDialog";
@@ -39,6 +40,8 @@ import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickC
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
 import { entryTitle, friendlyError, isRecallDue } from "./lib/knowledgeWorkspace";
 import { isInboxTopic } from "./lib/lessonCleanup";
+import { quickQueueKind } from "./lib/quickQueue";
+import { useCaptureReviewIds } from "./lib/captureReviewQueue";
 import { exportKnowledgeJson } from "./lib/knowledgeBackup";
 import { ensureDailyLocalBackup, supportsLocalBackup } from "./lib/localBackup";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
@@ -74,6 +77,7 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "reading", label: "Reading", icon: BookOpen, key: "5" },
   { id: "quotations", label: "Quotations", icon: Quote, key: "6" },
   { id: "reference", label: "Catalogue", icon: LibraryBig, key: "7" },
+  { id: "queue", label: "Q", icon: Feather, key: "8" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -145,6 +149,8 @@ function HeuresisApp({ session }: { session: Session }) {
 
 function HeuresisShell({ session, section, setSection }: { session: Session; section: WorkspaceSection; setSection: (section: WorkspaceSection) => void }) {
   const workspace = useWorkspace();
+  const qReviewIds = useCaptureReviewIds(session.user.id);
+  const qCount = workspace.snapshot.entries.filter((entry) => quickQueueKind(entry) || qReviewIds.has(entry.id)).length;
   // A newly launched app should not reopen yesterday's last viewed document
   // merely because Notebook was the previously selected section.
   const startupNotebook = useRef(section === "notebook");
@@ -437,7 +443,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         openPalette();
         return;
       }
-      if (event.altKey && !mod && /^Digit[1-7]$/.test(event.code)) {
+      if (event.altKey && !mod && /^Digit[1-8]$/.test(event.code)) {
         event.preventDefault();
         navigateSection(SECTIONS[Number(event.code.slice(5)) - 1].id);
         return;
@@ -608,7 +614,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           <nav className="hw-sections">
             {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>
-              <Icon size={16} /><span>{label}</span>
+              {id === "queue" ? <strong className="q-nav-letter">Q</strong> : <Icon size={16}/>}<span>{label}</span>{id === "queue" && qCount > 0 ? <span className="q-nav-badge">{qCount}</span> : null}
             </button>)}
           </nav>
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookSidebarTree /> : null}
@@ -636,6 +642,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView onOpenStudy={() => navigateSection("study")} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
+          {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
           {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
           {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
           {section === "reference" && !workspace.loading && !workspace.error
@@ -650,14 +657,21 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
-        {SECTIONS.map(({ id, label, icon: Icon }) => <button type="button" key={id}
-          aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
-          onClick={() => navigateSection(id)}>
-          <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
-        </button>)}
+        <div className="q-mobile-scroll">
+          {SECTIONS.filter((item) => item.id !== "queue").map(({ id, label, icon: Icon }) => <button type="button" key={id}
+            aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
+            onClick={() => navigateSection(id)}>
+            <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
+          </button>)}
+        </div>
+        <button type="button" className={`q-mobile-pinned ${section === "queue" ? "is-active" : ""}`}
+          aria-current={section === "queue" ? "page" : undefined} onClick={() => navigateSection("queue")}>
+          <strong className="q-nav-letter">Q</strong><span>Q</span>
+          {qCount > 0 ? <b className="q-nav-badge">{qCount}</b> : null}
+        </button>
       </nav>
       <TabletCaptureFab onCapture={() => openNotebookCapture("note")} />
-      <QuickCapture />
+      <QQuickCapture />
       {workspace.cleanupTarget ? <LessonCleanupDialog target={workspace.cleanupTarget} onClose={workspace.closeCleanup} /> : null}
       {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
       {syncOpen ? <SyncStatusDialog state={syncState} onClose={() => setSyncOpen(false)}
