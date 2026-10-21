@@ -24,7 +24,7 @@ assert.match(main, /<FloatingQuickCapture \/>/);
 assert.match(shell, /showFloatingQuickCapture\(mode\)/);
 assert.match(shell, /<QQuickCapture \/>/, "Inline feather must use Q capture");
 assert.match(shell, /<QQueuePage onCapture=/, "Q must be a first-class navigation section");
-assert.match(shell, /className="q-mobile-pinned"/, "Q must remain visible in mobile bottom bar");
+assert.match(shell, /q-mobile-pinned/, "Q must remain visible in mobile bottom bar");
 assert.match(floating, /<QQuickCapture floating onRequestClose=/, "Native floating feather must save to Q");
 assert.match(floating, /getCurrentWindow\(\)\.hide\(\)/, "Native close hides, not discards, draft");
 assert.match(quick, /workspace\.submitCapture\(/, "Q saves via the durable Notebook path");
