@@ -7,7 +7,7 @@
  */
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { heuresisCardImagePaths } from "./cardMedia";
-import { getOfflineSyncState, NETWORK_ONLY_HEADER } from "./offlineFetch";
+import { getOfflineSyncState, NETWORK_ONLY_HEADER, refreshOfflinePendingCount } from "./offlineFetch";
 import { supabase } from "./supabase";
 
 const FORMAT = "heuresis-complete-local-v1";
@@ -154,6 +154,7 @@ export function ensureDailyLocalBackup(userId: string): Promise<BackupResult> {
       return { path: status.directory + "\\Heuresis-" + day, alreadyExists: true };
     }
     if (!navigator.onLine) throw new Error("Connect to the Internet to create a complete daily backup.");
+    await refreshOfflinePendingCount();
     const pending = getOfflineSyncState();
     if (pending.pending > 0 || pending.legacyPending > 0 || pending.held > 0)
       throw new Error("Synchronise or review pending offline changes before creating a complete backup.");
