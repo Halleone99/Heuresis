@@ -11,7 +11,7 @@ import { getOfflineSyncState, NETWORK_ONLY_HEADER } from "./offlineFetch";
 import { supabase } from "./supabase";
 
 const FORMAT = "heuresis-complete-local-v1";
-const BUCKET = "heuresis-card-media";
+const MEDIA_BUCKETS = ["heuresis-card-media", "page-background-media"] as const;
 const PAGE_SIZE = 800;
 const MAX_PAGES = 500;
 const MEDIA_CHUNK_SIZE = 256 * 1024;
@@ -25,6 +25,7 @@ export const BACKUP_TABLES = [
   "heuresis_card_stats", "heuresis_pack_stats", "heuresis_sessions",
   "heuresis_card_events", "heuresis_card_state_changes",
   "capital_reading_items", "capital_reading_quotes", "capital_reading_history",
+  "page_backgrounds",
 ] as const;
 
 type TableRow = Record<string, unknown>;
@@ -56,8 +57,20 @@ async function entireTable(table: string, userId: string): Promise<TableRow[]> {
   const rows: TableRow[] = [];
   for (let page = 0; page < MAX_PAGES; page += 1) {
     // This header forbids falling back to an incomplete local cache.
-    const { data, error } = await supabase.from(table).select("*")
-      .eq("user_id", userId).order("id", { ascending: true })
+    let query = supabase.from(table).select("*").eq("user_id", userId);
+    if (table === "page_backgrounds") query = query.eq("page_key", "heuresis");
+    // Four join/stat tables have no "id" column. Composite keys must also
+    // have deterministic ordering so pagination never misses/repeats rows.
+    const sortKeys: Record<string, string[]> = {
+      heuresis_card_tags: ["card_id", "tag_id"],
+      heuresis_card_stats: ["card_id"],
+      heuresis_pack_stats: ["pack_id"],
+      page_backgrounds: ["page_key"],
+    };
+    const keys = sortKeys[table] ?? ["id"];
+    let ordered = query.order(keys[0], { ascending: true });
+    for (const key of keys.slice(1)) ordered = ordered.order(key, { ascending: true });
+    const { data, error } = await ordered
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
       .setHeader(NETWORK_ONLY_HEADER, "1");
     if (error) throw new Error(`Cannot back up ${table}: ${error.message}`);
@@ -67,49 +80,57 @@ async function entireTable(table: string, userId: string): Promise<TableRow[]> {
   throw new Error(`The ${table} table exceeded the safe page limit; no incomplete backup was published.`);
 }
 
-async function mediaPathsForAccount(userId: string, cardRows: TableRow[]): Promise<string[]> {
+async function mediaPathsForAccount(userId: string, cardRows: TableRow[], backgroundRows: TableRow[]): Promise<string[]> {
   if (!supabase) throw new Error("The database is not configured.");
   const result = new Set<string>();
-  // Include every referenced card/workspace image, even if a listing omits it.
   for (const row of cardRows) {
     const data = row.data as Record<string, string | string[] | null> | undefined;
-    if (data) for (const path of heuresisCardImagePaths([{ data }])) result.add(path);
+    if (data) for (const path of heuresisCardImagePaths([{ data }])) {
+      result.add("heuresis-card-media/" + path);
+    }
   }
-
-  // Also include every image under this user's private bucket prefix, including
-  // older/unlinked images. Paths stay in their original form for later recovery.
+  for (const row of backgroundRows) {
+    if (typeof row.storage_path === "string" && row.storage_path)
+      result.add("page-background-media/" + row.storage_path);
+  }
   let visited = 0;
-  async function walk(prefix: string, depth: number): Promise<void> {
+  async function walk(bucket: string, prefix: string, depth: number): Promise<void> {
     if (depth > 7) throw new Error("Media folder depth exceeded backup limit.");
     for (let page = 0; page < MAX_PAGES; page += 1) {
-      const { data, error } = await supabase!.storage.from(BUCKET).list(prefix, {
+      const { data, error } = await supabase!.storage.from(bucket).list(prefix, {
         limit: PAGE_SIZE, offset: page * PAGE_SIZE, sortBy: { column: "name", order: "asc" },
       });
-      if (error) throw new Error(`Could not list all media in ${prefix}: ${error.message}`);
+      if (error) throw new Error(`Cannot list all ${bucket} files in ${prefix}: ${error.message}`);
       for (const item of data ?? []) {
-        if (!item.name || item.name === "." || item.name === ".." || item.name.includes("/")) {
-          throw new Error("Unsafe name returned in media listing.");
-        }
+        if (!item.name || item.name === "." || item.name === ".." || item.name.includes("/"))
+          throw new Error("Unsafe media listing path.");
         visited += 1;
         if (visited > 100000) throw new Error("Too many media objects; backup aborted safely.");
         const path = prefix + "/" + item.name;
-        if (item.id) result.add(path);
-        else await walk(path, depth + 1);
+        if (item.id) result.add(bucket + "/" + path);
+        else await walk(bucket, path, depth + 1);
       }
       if ((data?.length ?? 0) < PAGE_SIZE) return;
     }
     throw new Error("Media listing exceeded safe pagination limit.");
   }
-  await walk(userId, 0);
-  for (const path of result) {
-    if (!path.startsWith(userId + "/")) throw new Error("An image path belongs to another account.");
+  for (const bucket of MEDIA_BUCKETS) await walk(bucket, userId, 0);
+  for (const item of result) {
+    const [bucket, ...segments] = item.split("/");
+    if (!(MEDIA_BUCKETS as readonly string[]).includes(bucket) || segments[0] !== userId)
+      throw new Error("A media path belongs to another account.");
   }
   return [...result].sort();
 }
 
 async function writeMedia(userId: string, day: string, mediaPath: string): Promise<void> {
   if (!supabase) throw new Error("The database is not configured.");
-  const { data, error } = await supabase.storage.from(BUCKET).download(mediaPath);
+  const split = mediaPath.indexOf("/");
+  const bucket = mediaPath.slice(0, split);
+  const objectPath = mediaPath.slice(split + 1);
+  if (split < 0 || !(MEDIA_BUCKETS as readonly string[]).includes(bucket))
+    throw new Error("Unknown backup media bucket.");
+  const { data, error } = await supabase.storage.from(bucket).download(objectPath);
   if (error || !data) throw new Error(`Could not download ${mediaPath}: ${error?.message ?? "empty response"}`);
   const bytes = new Uint8Array(await data.arrayBuffer());
   if (!bytes.length) throw new Error(`Empty media file: ${mediaPath}`);
@@ -144,7 +165,7 @@ export function ensureDailyLocalBackup(userId: string): Promise<BackupResult> {
     // Read sequentially to keep memory/traffic predictable. Never silently skip
     // a table, archived record, Study relation or session history.
     for (const table of BACKUP_TABLES) tables[table] = await entireTable(table, userId);
-    const mediaPaths = await mediaPathsForAccount(userId, tables.heuresis_cards);
+    const mediaPaths = await mediaPathsForAccount(userId, tables.heuresis_cards, tables.page_backgrounds);
     const snapshot = {
       format: FORMAT, day, user_id: userId, created_at: new Date().toISOString(),
       tables, media_paths: mediaPaths,
