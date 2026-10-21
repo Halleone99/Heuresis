@@ -5,7 +5,9 @@
   padding: 0; border-radius: 18px; border: 1px solid var(--ws-line);
   background: var(--ws-surface); color: var(--ws-ink); box-shadow: 0 20px 60px #0002;
 }
-.q-capture-head { padding: 13px 17px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--ws-line); }
+.q-capture-head { padding: 13px 17px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--ws-line);
+ cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+.q-capture-head:active {cursor:grabbing}
 .q-capture-head span {display:flex; align-items:center;gap:9px;font-weight:700;font-size:15px}
 .q-capture-head button {border:0;background:transparent;color:var(--ws-muted);padding:5px}
 .q-capture-types {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:13px 16px 9px}
@@ -73,17 +75,31 @@
 .q-confirm button{border:1px solid var(--ws-line);border-radius:8px;padding:6px 12px;background:var(--ws-surface)}
 .q-caption{font-size:13px;color:var(--ws-muted);margin:0}
 .q-filter-empty{font-size:12px;padding:18px;color:var(--ws-muted)}
-/* Existing Heuresis seven destinations stay scrollable; Q is always visible. */
+/* One centred bottom bar: Q is the eighth peer, not a detached right rail. */
 .mobile-workspace-nav .q-mobile-scroll{display:contents}
 .mobile-workspace-nav .q-nav-letter{font:italic 700 23px Georgia,serif;line-height:20px}
 .mobile-workspace-nav .q-nav-badge{position:absolute;top:2px;right:2px;border-radius:10px;min-width:16px;padding:2px 4px;
   background:var(--ws-primary);color:var(--ws-on-primary);font:700 9px var(--ws-sans)}
 @media(pointer:coarse) and (max-width:900px){
- .mobile-workspace-nav{justify-content:stretch}
- .mobile-workspace-nav .q-mobile-scroll{display:flex;min-width:0;flex:1;overflow-x:auto;scrollbar-width:none}
- .mobile-workspace-nav .q-mobile-scroll>button{min-width:57px;flex:0 0 57px}
- .mobile-workspace-nav .q-mobile-pinned{flex:0 0 51px;min-width:51px;border-left:1px solid color-mix(in srgb,var(--ws-chrome-text) 15%,transparent)}
+ .mobile-workspace-nav {justify-content:center !important; align-items:stretch; gap:1px; overflow-x:hidden}
+ .mobile-workspace-nav .q-mobile-scroll{display:contents !important}
+ .mobile-workspace-nav .q-mobile-scroll>button,
+ .mobile-workspace-nav .q-mobile-pinned {
+   flex:0 1 66px; min-width:44px; max-width:66px; border-left:0 !important;
+ }
+ .mobile-workspace-nav .q-mobile-pinned {padding:0}
+ .mobile-workspace-nav .q-nav-badge {right:0}
  .q-page{padding-bottom:calc(105px + env(safe-area-inset-bottom))}
+ /* Moveable Quick Capture rests above the bar; its editor can scroll independently. */
+ .q-capture-panel:not(.is-floating) {
+   right:10px; left:auto; bottom:calc(75px + env(safe-area-inset-bottom));
+   max-height:calc(100dvh - 175px); width:min(620px,calc(100vw - 20px));
+ }
+ .q-capture-panel:not(.is-floating) .q-capture-editor{min-height:0}
+}
+@media(pointer:coarse) and (max-width:375px) {
+ .mobile-workspace-nav{justify-content:flex-start !important; overflow-x:auto; scrollbar-width:none}
+ .mobile-workspace-nav .q-mobile-scroll>button,.mobile-workspace-nav .q-mobile-pinned{flex:0 0 45px; min-width:45px}
 }
 @media(max-width:720px){
  .q-grid{grid-template-columns:1fr}
