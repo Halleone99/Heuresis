@@ -500,7 +500,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           <Languages size={14}/> Pinyin above Hanzi
         </button>
       </div> : null}
-      {draft.body.trim() ? <NoteReadingViews text={draft.body} mode={readMode} resolve={resolveLink} rubyPinyin={rubyPinyin} columns={canvasColumns} onColumnsChange={setCanvasColumns} />
+      {draft.body.trim() ? <NoteReadingViews text={draft.body} mode={readMode} resolve={resolveLink} rubyPinyin={rubyPinyin} columns={canvasColumns} onColumnsChange={setCanvasColumns}\n        foldStorageKey={liveEntry?.id ? `heuresis.notebook.collapsed.v1:${userId}:${liveEntry.id}` : undefined} />
         : <p className="ws-muted nb-doc-empty">{lesson ? "No lesson notes written yet." : "This note is empty."}</p>}
       {workspace.writable && !detached ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}
     </div>}
