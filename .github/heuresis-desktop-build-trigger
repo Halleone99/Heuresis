@@ -1,4 +1,4 @@
-Build Heuresis Windows ARM64 from latest main source.
-Source main: 1ae8b32e2bebc3a9e12a912d47d429cc51517c49
-Requested 2026-10-21: include handwriting Quick Capture, saved vector notes, persistent notebook heading folds, user-authored descriptions, and centred mobile navigation.
-The installer must be verified by GitHub Actions before use; do not treat this trigger as proof of a successful build.
+Build latest Heuresis Windows Tauri installer from main.
+Source main: e010475bd256afed7ba2d17fc6da15e5e872db1f
+Requested 2026-10-21: automatic complete daily Windows Documents backups of all Heuresis knowledge, Study cards, Reading, quotations, metadata and private media; 7 daily + 4 weekly + 3 monthly versions; manual account action; safe incomplete staging and integrity checks.
+Run frontend/Windows Rust CI and inspect the generated installer before delivery. This file is a build request, not evidence of a verified installer.
