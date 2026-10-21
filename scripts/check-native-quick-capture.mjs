@@ -9,7 +9,7 @@ const floating = read("src/components/workspace/FloatingQuickCapture.tsx");
 const quick = read("src/components/workspace/QQuickCapture.tsx");
 const review = read("src/components/workspace/QQueuePage.tsx");
 const queue = read("src/lib/quickQueue.ts");
-const provider = read("src/components/workspace/WorkspaceContext.ts");
+const provider = read("src/components/workspace/WorkspaceContext.tsx");
 const workspaceCss = read("src/components/workspace/workspace.css");
 
 assert.ok(cap.windows.includes("quick-capture"), "Tauri capture window remains enabled");
