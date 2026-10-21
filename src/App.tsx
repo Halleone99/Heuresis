@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Session } from "@supabase/supabase-js";
 import {
   ArchiveRestore, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
-  Feather, NotebookPen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
+  Feather, HardDriveDownload, NotebookPen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
@@ -40,6 +40,7 @@ import { listCollections, listPacks, type Collection, type PackWithType } from "
 import { entryTitle, friendlyError, isRecallDue } from "./lib/knowledgeWorkspace";
 import { isInboxTopic } from "./lib/lessonCleanup";
 import { exportKnowledgeJson } from "./lib/knowledgeBackup";
+import { ensureDailyLocalBackup, supportsLocalBackup } from "./lib/localBackup";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "./lib/sectionScroll";
 import { supabase } from "./lib/supabase";
@@ -218,6 +219,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
   const background = useHeuresisBackground();
+  const backupRunningRef = useRef(false);
+  const [localBackupNotice, setLocalBackupNotice] = useState("");
 
   async function reload(silent = false) {
     if (!silent) setLoading(true);
@@ -295,6 +298,50 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     });
   }, [workspace]);
 
+  async function runLocalBackup(manual = false) {
+    if (!supportsLocalBackup() || backupRunningRef.current) return;
+    backupRunningRef.current = true;
+    try {
+      const result = await ensureDailyLocalBackup(session.user.id);
+      setLocalBackupNotice("Daily backup ready");
+      if (manual) {
+        setNotice(`Local backup ${result.alreadyExists ? "already exists" : "created"}: ${result.path}`);
+        workspace.toast("Your complete local backup is saved in Documents / Heuresis / Backups.");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setLocalBackupNotice(`Backup needs attention: ${message}`);
+      if (manual) workspace.toast(`Local backup failed: ${message}`, { tone: "error" });
+    } finally {
+      backupRunningRef.current = false;
+    }
+  }
+
+  // The native Windows app makes one complete copy per local calendar day,
+  // on launch, reconnection or while left running. Browser/Android are untouched.
+  useEffect(() => {
+    if (!supportsLocalBackup()) return;
+    let lastAttempt = 0;
+    const check = () => {
+      if (Date.now() - lastAttempt < 30_000) return;
+      lastAttempt = Date.now();
+      void runLocalBackup(false);
+    };
+    const start = window.setTimeout(check, 3000);
+    const interval = window.setInterval(check, 60 * 60_000);
+    window.addEventListener("online", check);
+    const onFocus = () => { if (document.visibilityState === "visible") check(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearTimeout(start);
+      window.clearInterval(interval);
+      window.removeEventListener("online", check);
+      window.removeEventListener("focus", onFocus);
+    };
+    // One scheduler per signed-in account. Individual attempts are deduplicated.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.user.id]);
+
   async function downloadKnowledge() {
     try {
       const contents = await exportKnowledgeJson(session.user.id);
@@ -356,6 +403,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     { id: "focus", label: "Toggle focus mode", detail: "Hide or restore navigation", keywords: "fullscreen distraction", run: toggleFocus },
     { id: "sync", label: "Sync now", detail: "Synchronise your Study and Notebook data", keywords: "refresh offline", run: () => void runSync(false) },
     { id: "trash", label: "Open Trash", detail: "Restore deleted notes, lessons and mistakes", keywords: "deleted recovery", run: () => setTrashOpen(true) },
+    { id: "local-backup", label: "Create local Heuresis backup", detail: "Save the complete library and images to Documents on this PC", keywords: "backup local windows files offline", run: () => void runLocalBackup(true) },
     { id: "export", label: "Export Notebook as JSON", detail: "Download your Notebook and recall history", keywords: "backup archive download", run: () => void downloadKnowledge() },
   ];
 
@@ -522,6 +570,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
               <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Sync now</button>
+              {supportsLocalBackup() ? <button title={localBackupNotice || "Automatic daily backup of the complete Heuresis library"}
+                onClick={() => { void runLocalBackup(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <HardDriveDownload size={14} /> Back up Heuresis to PC
+              </button> : null}
+              {supportsLocalBackup() && localBackupNotice ? <small role="status">{localBackupNotice}</small> : null}
               <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending + syncState.held ? ` (${syncState.legacyPending + syncState.held})` : ""}
               </button>
