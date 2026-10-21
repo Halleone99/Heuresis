@@ -548,7 +548,7 @@ html, body, #root {
   .desktop-action.hw-capture-button { display: none !important; /* Floating touch button replaces this duplicate. */ }
   .mobile-workspace-nav {
     position: fixed; z-index: 76; bottom: 0; left: 0; right: 0;
-    display: grid; grid-template-columns: repeat(5, minmax(0,1fr));
+    display: flex; justify-content: center; align-items: stretch; gap: 2px;
     height: calc(65px + env(safe-area-inset-bottom));
     padding: 4px max(6px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(6px, env(safe-area-inset-right));
     border-top: 1px solid color-mix(in srgb, var(--ws-chrome-text) 15%, transparent);
@@ -556,7 +556,7 @@ html, body, #root {
     box-shadow: 0 -9px 24px rgba(0,0,0,.12);
   }
   .mobile-workspace-nav button {
-    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    position: relative; display: flex; flex: 0 1 88px; flex-direction: column; align-items: center; justify-content: center;
     gap: 5px; min-width: 0; min-height: 52px; border: 0; border-radius: 9px;
     background: transparent; color: var(--ws-chrome-muted);
     font: 600 10px/1.1 var(--ws-sans); cursor: pointer;
