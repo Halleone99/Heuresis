@@ -1,6 +1,6 @@
 /** Compact, portable vector handwriting inside an ordinary Heuresis note body. */
 export type HandStroke = { d: string; color: string };
-export const HAND_NOTE_SIZE = { width: 900, height: 520 } as const;
+export const HAND_NOTE_SIZE = { width: 900, height: 700 } as const;
 export const HAND_NOTE_COLOURS = ["#202938", "#2563eb", "#c2410c"] as const;
 export const HAND_NOTE_PREFIX = "::handnote:v1:";
 
