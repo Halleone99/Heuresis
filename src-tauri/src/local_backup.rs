@@ -129,8 +129,8 @@ pub fn local_backup_begin(app: tauri::AppHandle, user_id: String, day: String, s
     ensure_day(&day)?;
     let dir = folder(&app, &user_id)?;
     if snapshot.get("format").and_then(Value::as_str) != Some(FORMAT)
-        || snapshot.get("user_id").and_then(Value::as_str) != Some(&user_id)
-        || snapshot.get("day").and_then(Value::as_str) != Some(&day)
+        || snapshot.get("user_id").and_then(Value::as_str) != Some(user_id.as_str())
+        || snapshot.get("day").and_then(Value::as_str) != Some(day.as_str())
         || snapshot.get("tables").and_then(Value::as_object).is_none()
         || snapshot.get("media_paths").and_then(Value::as_array).is_none()
     {
@@ -172,8 +172,8 @@ pub fn local_backup_finish(app: tauri::AppHandle, user_id: String, day: String) 
     let snapshot: Value = serde_json::from_slice(&fs::read(stage.join("snapshot.json")).map_err(|e| e.to_string())?)
         .map_err(|e| format!("Backup JSON invalid: {e}"))?;
     if snapshot.get("format").and_then(Value::as_str) != Some(FORMAT)
-        || snapshot.get("user_id").and_then(Value::as_str) != Some(&user_id)
-        || snapshot.get("day").and_then(Value::as_str) != Some(&day) {
+        || snapshot.get("user_id").and_then(Value::as_str) != Some(user_id.as_str())
+        || snapshot.get("day").and_then(Value::as_str) != Some(day.as_str()) {
         return Err("Backup contents do not match this account/date.".into());
     }
     let tables = snapshot.get("tables").and_then(Value::as_object).ok_or("Missing backup tables.")?;
