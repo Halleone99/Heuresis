@@ -82,7 +82,7 @@ export function QQueuePage({ onCapture }: { onCapture: () => void }) {
       const target = topicId || (subjectId ? (await workspace.ensureInbox(subjectId)).id : "");
       if (kind === "raw" || kind === "note" || (hasStrokes && kind !== "note")) {
         if (!target) throw new Error("Choose a collection before filing the note.");
-        await workspace.patchEntry(selected.id, { kind: undefined as never, topic_id: target, body, description: "" });
+        await workspace.patchEntry(selected.id, { topic_id: target, body, description: "" });
       } else if (kind === "mistake") {
         if (!target) throw new Error("Choose a collection for the Mistake Log.");
         const [wrong, correct] = quickQueuePair("mistake", body);
