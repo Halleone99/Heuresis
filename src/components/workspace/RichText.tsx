@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Copy } from "lucide-react";
 import { CALLOUTS, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
 
@@ -128,7 +128,7 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
 }
 
 type FoldNode = { kind: "item"; block: Block } | {
-  kind: "section"; heading: Extract<Block, { type: "h2" | "h3" }>; children: FoldNode[];
+  kind: "section"; id: string; heading: Extract<Block, { type: "h2" | "h3" }>; children: FoldNode[];
 };
 
 /** Section headings fold their following text, with subheadings nested naturally. */
@@ -136,12 +136,22 @@ function groupHeadings(blocks: Block[]): FoldNode[] {
   const root: FoldNode[] = [];
   let firstLevel: FoldNode[] = root;
   let secondLevel: FoldNode[] | null = null;
+  let parentId = "";
+  const occurrences = new Map<string, number>();
+  // A heading's ID survives inserting or removing unrelated sections.
+  const headingId = (scope: string, block: Extract<Block, { type: "h2" | "h3" }>) => {
+    const base = `${scope}/${block.type}:${block.text.trim().toLowerCase()}`;
+    const count = (occurrences.get(base) ?? 0) + 1;
+    occurrences.set(base, count);
+    return `${base}#${count}`;
+  };
   for (const block of blocks) {
     if (block.type === "h2") {
-      const section: FoldNode = { kind: "section", heading: block, children: [] };
-      root.push(section); firstLevel = section.children; secondLevel = null;
+      const id = headingId("", block);
+      const section: FoldNode = { kind: "section", id, heading: block, children: [] };
+      root.push(section); firstLevel = section.children; secondLevel = null; parentId = id;
     } else if (block.type === "h3") {
-      const section: FoldNode = { kind: "section", heading: block, children: [] };
+      const section: FoldNode = { kind: "section", id: headingId(parentId, block), heading: block, children: [] };
       firstLevel.push(section); secondLevel = section.children;
     } else {
       (secondLevel ?? firstLevel).push({ kind: "item", block });
@@ -150,32 +160,56 @@ function groupHeadings(blocks: Block[]): FoldNode[] {
   return root;
 }
 
-function FoldView({ node, resolve, rubyPinyin }: { node: FoldNode; resolve?: LinkResolver; rubyPinyin: boolean }) {
-  const [open, setOpen] = useState(true);
+function FoldView({ node, resolve, rubyPinyin, closedSections, onToggle }: {
+  node: FoldNode; resolve?: LinkResolver; rubyPinyin: boolean;
+  closedSections: ReadonlySet<string>; onToggle: (id: string) => void;
+}) {
   if (node.kind === "item") return <BlockView block={node.block} resolve={resolve} rubyPinyin={rubyPinyin}/>;
+  const open = !closedSections.has(node.id);
   const Heading = node.heading.type === "h2" ? "h2" : "h3";
   return <section className={`nb-fold ${open ? "is-open" : "is-closed"}`}>
     <Heading className="nb-fold-heading">
       <span className="nb-fold-title">
         <button type="button" className="nb-fold-toggle" aria-expanded={open}
           aria-label={open ? "Collapse section" : "Expand section"}
-          title={open ? "Collapse section" : "Expand section"} onClick={() => setOpen((value) => !value)}>
+          title={open ? "Collapse section" : "Expand section"} onClick={() => onToggle(node.id)}>
           <ChevronRight size={15} aria-hidden="true"/>
         </button>
         <span><InlineText text={node.heading.text} resolve={resolve}/></span>
       </span>
     </Heading>
     {open ? <div className="nb-fold-content">{node.children.map((child, index) =>
-      <FoldView key={index} node={child} resolve={resolve} rubyPinyin={rubyPinyin}/>)}</div> : null}
+      <FoldView key={child.kind === "section" ? child.id : index} node={child} resolve={resolve} rubyPinyin={rubyPinyin}
+        closedSections={closedSections} onToggle={onToggle}/>)}</div> : null}
   </section>;
 }
 
-export function RichText({ text, resolve, className = "", rubyPinyin = false, collapsible = false }: { text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean }) {
+export function RichText({ text, resolve, className = "", rubyPinyin = false, collapsible = false, foldStorageKey }: {
+  text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean; foldStorageKey?: string;
+}) {
+  const [closedSections, setClosedSections] = useState<Set<string>>(() => {
+    if (!foldStorageKey) return new Set();
+    try {
+      const saved: unknown = JSON.parse(window.localStorage.getItem(foldStorageKey) ?? "[]");
+      return new Set(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === "string") : []);
+    } catch { return new Set(); }
+  });
+  useEffect(() => {
+    if (!foldStorageKey) return;
+    try { window.localStorage.setItem(foldStorageKey, JSON.stringify([...closedSections])); }
+    catch { /* A browser may deny local storage; folding still works until navigation. */ }
+  }, [closedSections, foldStorageKey]);
+  const toggleSection = (id: string) => setClosedSections((previous) => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
   const blocks = parseBlocks(text);
   return <div className={`nb-prose ${className}`}>
     {collapsible ? groupHeadings(blocks).map((node, index) =>
-      <FoldView key={index} node={node} resolve={resolve} rubyPinyin={rubyPinyin}/>) :
+      <FoldView key={node.kind === "section" ? node.id : index} node={node} resolve={resolve} rubyPinyin={rubyPinyin}
+        closedSections={closedSections} onToggle={toggleSection}/>) :
       blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin}/>)}
   </div>;
 }
-
