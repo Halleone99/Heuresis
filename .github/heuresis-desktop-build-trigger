@@ -1,4 +1,4 @@
-Build Heuresis Windows ARM64 with editable notebook tables.
-Source main: f6e75508b02faed23a07ac5eb748152f28d673ea
-Verified: Check Heuresis workflow green (TypeScript build + Chromium editor tests) on 2026-10-19.
-Includes: Simple, Comparison and Study table layouts; German article declensions note saved in database.
+Build Heuresis Windows ARM64 from latest main source.
+Source main: 1ae8b32e2bebc3a9e12a912d47d429cc51517c49
+Requested 2026-10-21: include handwriting Quick Capture, saved vector notes, persistent notebook heading folds, user-authored descriptions, and centred mobile navigation.
+The installer must be verified by GitHub Actions before use; do not treat this trigger as proof of a successful build.
