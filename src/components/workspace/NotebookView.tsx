@@ -506,6 +506,23 @@ function ScopePage({ scope, navigate, newAction }: {
     setSelectedIds((previous) => [...new Set([...previous, ...visibleIds])]);
     setSelecting(true);
   };
+  async function removeSingleNote(entry: KnowledgeEntry) {
+    if (!workspace.writable) return;
+    const approved = await confirm({
+      title: `Move “${entryTitle(entry)}” to Trash?`,
+      body: "You can restore this note from Trash.",
+      confirmLabel: "Move to Trash",
+      danger: true,
+    });
+    if (!approved) return;
+    try {
+      await workspace.removeEntry(entry.id, { undo: false });
+      workspace.toast(`“${entryTitle(entry)}” moved to Trash.`);
+    } catch (error) {
+      workspace.toast(friendlyError(error), { tone: "error" });
+    }
+  }
+
   async function applyToSelection(action: "pin" | "unpin" | "delete") {
     if (!selected.length || selectionBusy || !workspace.writable) return;
     if (action === "delete") {
@@ -667,6 +684,7 @@ function ScopePage({ scope, navigate, newAction }: {
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
                 { label: "Edit description", icon: <Pencil size={14} />, run: () => setDescriptionEditor({ id: entry.id, value: entry.description }) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
+                { label: "Delete note", icon: <Trash2 size={14} />, danger: true, run: () => void removeSingleNote(entry) },
               ]} /> : null}
             </div>
             {descriptionEditor?.id === entry.id ? <form className="nb-description-editor" aria-label={`Description for ${entryTitle(entry)}`}
