@@ -118,14 +118,14 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
   // Layout effect: focus lands before the next keystroke is processed, so nothing
   // typed straight after the shortcut is lost.
   useLayoutEffect(() => {
-    if (!request) return;
+    if (!request || captureStyle === "handnote") return;
     const field = firstFieldRef.current;
     if (field && document.activeElement !== field) {
       field.focus();
       const length = field.value.length;
       try { field.setSelectionRange(length, length); } catch { /* date inputs */ }
     }
-  }, [request, mode, focusNonce, saving]);
+  }, [request, mode, captureStyle, focusNonce, saving]);
 
   // Persist the draft so closing the panel (or the app) never loses a half-typed thought.
   useEffect(() => {
@@ -279,7 +279,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     // Clear only what was just saved; text typed in another mode stays as a draft.
     setDraft((current) => {
       const next = current.mode === "note"
-        ? { ...current, text: "", handStrokes: [], category: "note" as const, categoryTouched: false, pendingId: undefined }
+        ? { ...current, text: "", handStrokes: captureStyle === "handnote" ? [] : current.handStrokes, category: "note" as const, categoryTouched: false, pendingId: undefined }
         : { ...current, attempt: "", correction: "", explanation: "", pendingId: undefined };
       writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null, draftSurface);
       return next;
