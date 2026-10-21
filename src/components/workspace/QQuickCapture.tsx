@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Feather, X } from "lucide-react";
 import { HandNotePad } from "./HandNotePad";
 import { encodeHandNote } from "../../lib/handNote";
@@ -41,6 +41,70 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [lastRequest, setLastRequest] = useState<typeof request>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ pointerId: number; fromX: number; fromY: number; left: number; top: number } | null>(null);
+  const positionKey = `heuresis.q.capturePosition.v1:${workspace.userId}`;
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
+    if (floating) return null;
+    try {
+      const saved = JSON.parse(localStorage.getItem(positionKey) || "null") as { x?: number; y?: number } | null;
+      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)
+        ? { x: Number(saved.x), y: Number(saved.y) } : null;
+    } catch { return null; }
+  });
+
+  // Drag the panel by its title bar, never by the editor, buttons, or handwriting canvas.
+  // Keep the full editor above the bottom navigation and inside the available viewport.
+  function boundPosition(left: number, top: number) {
+    const panel = panelRef.current;
+    const rect = panel?.getBoundingClientRect();
+    const width = rect?.width ?? 470;
+    const height = rect?.height ?? 440;
+    const edge = 8;
+    const bottomReserved = window.matchMedia("(pointer: coarse) and (max-width: 900px)").matches ? 74 : 8;
+    const upperReserved = window.matchMedia("(pointer: coarse) and (max-width: 900px)").matches ? 90 : 8;
+    return {
+      x: Math.max(edge, Math.min(left, window.innerWidth - width - edge)),
+      y: Math.max(upperReserved, Math.min(top, window.innerHeight - height - bottomReserved)),
+    };
+  }
+  function beginDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (floating || (event.pointerType === "mouse" && event.button !== 0) ||
+        (event.target as HTMLElement).closest("button")) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    drag.current = { pointerId: event.pointerId, fromX: event.clientX, fromY: event.clientY, left: rect.left, top: rect.top };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function moveDrag(event: ReactPointerEvent<HTMLElement>) {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setPosition(boundPosition(current.left + event.clientX - current.fromX, current.top + event.clientY - current.fromY));
+  }
+  function endDrag(event: ReactPointerEvent<HTMLElement>) {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const next = boundPosition(current.left + event.clientX - current.fromX, current.top + event.clientY - current.fromY);
+    drag.current = null;
+    setPosition(next);
+    try { localStorage.setItem(positionKey, JSON.stringify(next)); } catch { /* optional position memory */ }
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+  useEffect(() => {
+    if (floating) return;
+    const fit = () => setPosition((current) => current ? boundPosition(current.x, current.y) : null);
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [floating]);
+  useEffect(() => {
+    if (!floating && request && position) {
+      const safe = boundPosition(position.x, position.y);
+      if (safe.x !== position.x || safe.y !== position.y) setPosition(safe);
+    }
+  }, [request, floating]);
+
   if (request && request !== lastRequest) {
     setLastRequest(request);
     // A shortcut names a provisional Q label; it never creates a final record.
@@ -88,14 +152,17 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
     finally { setSaving(false); }
   }
   const simple = draft.type === "raw" || draft.type === "note";
-  return <div className={`qc-panel q-capture-panel ${floating ? "is-floating" : ""}`}
+  return <div ref={panelRef} className={`qc-panel q-capture-panel ${floating ? "is-floating" : ""}`}
+    style={!floating && position ? { left: position.x, top: position.y, right: "auto", bottom: "auto" } : undefined}
     role="dialog" aria-label="Quick Capture"
     onKeyDown={(event) => {
       event.stopPropagation();
       if (event.key === "Escape") { event.preventDefault(); close(); }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void save(); }
     }}>
-    {!floating ? <header className="q-capture-head"><span><Feather size={18}/> Quick Capture</span>
+    {!floating ? <header className="q-capture-head" onPointerDown={beginDrag}
+      onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
+      aria-label="Drag Quick Capture window"><span><Feather size={18}/> Quick Capture</span>
       <button type="button" aria-label="Close Quick Capture" onClick={close}><X size={18}/></button></header> : null}
     <div className="q-capture-types" role="group" aria-label="Capture type">
       {kinds.map((kind) => <button type="button" key={kind.value} aria-pressed={draft.type === kind.value}
