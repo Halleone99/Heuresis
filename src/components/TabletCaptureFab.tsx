@@ -1,4 +1,4 @@
-import { NotebookPen } from "lucide-react";
+import { Feather } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 
 type Position = { x: number; y: number };
@@ -94,6 +94,6 @@ export default function TabletCaptureFab({ onCapture }: { onCapture: () => void 
       persist(next);
     }}
     onClick={() => { if (dragged.current) { dragged.current = false; return; } onCapture(); }}>
-    <NotebookPen size={21} aria-hidden="true" />
+    <Feather size={23} strokeWidth={1.8} aria-hidden="true" />
   </button>;
 }
