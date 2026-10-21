@@ -72,7 +72,7 @@ export function HandNotePad({ strokes, onChange, disabled = false }: {
       <button type="button" title="Undo last stroke" aria-label="Undo last stroke" disabled={disabled || !strokes.length}
         className="ws-icon-button" onClick={() => onChange(strokes.slice(0, -1))}><RotateCcw size={15}/></button>
       <button type="button" title="Clear handwriting" aria-label="Clear handwriting" disabled={disabled || !strokes.length}
-        className="ws-icon-button" onClick={() => onChange([])}><Trash2 size={15}/></button>
+        className="ws-icon-button" onClick={() => { if (window.confirm("Clear all handwriting from this draft?")) onChange([]); }}><Trash2 size={15}/></button>
     </div>
     <svg viewBox={`0 0 ${HAND_NOTE_SIZE.width} ${HAND_NOTE_SIZE.height}`}
       aria-label="Handwriting canvas" role="img" onPointerDown={start} onPointerMove={move}
