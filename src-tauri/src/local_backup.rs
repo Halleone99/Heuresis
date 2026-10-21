@@ -46,7 +46,7 @@ fn staging(day: &str) -> String { format!(".Heuresis-{day}.incomplete") }
 
 fn safe_media_path(user_id: &str, path: &str) -> Result<PathBuf, String> {
     let segments: Vec<&str> = path.split('/').collect();
-    if segments.len() < 2 || segments[0] != user_id || segments.len() > 8
+    if segments.len() < 3 || !matches!(segments[0], "heuresis-card-media" | "page-background-media") || segments[1] != user_id || segments.len() > 9
         || segments.iter().any(|segment| {
             segment.is_empty() || *segment == "." || *segment == ".." || segment.len() > 160
                 || !segment.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
