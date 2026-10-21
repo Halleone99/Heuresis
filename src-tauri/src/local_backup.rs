@@ -156,7 +156,8 @@ pub fn local_backup_begin(app: tauri::AppHandle, user_id: String, day: String, s
             return Err(format!("Backup missing required table: {name}"));
         }
     }
-    if let Some(latest) = complete_days(&dir).first() {
+    let older_days = complete_days(&dir);
+    if let Some(latest) = older_days.first() {
         let old_path = dir.join(target(latest)).join("snapshot.json");
         if let Ok(bytes) = fs::read(old_path) {
             if let Ok(previous) = serde_json::from_slice::<Value>(&bytes) {
@@ -248,4 +249,28 @@ pub fn local_backup_finish(app: tauri::AppHandle, user_id: String, day: String) 
     fs::rename(&stage, &final_path).map_err(|e| format!("Could not publish completed backup: {e}"))?;
     prune_old(&dir);
     Ok(final_path.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_unsafe_account_dates_and_media_paths() {
+        let uid = "11111111-2222-3333-4444-555555555555";
+        assert!(ensure_account(uid).is_ok());
+        assert!(ensure_account("../outside").is_err());
+        assert!(ensure_day("2026-10-21").is_ok());
+        assert!(ensure_day("2026/10/21").is_err());
+        assert!(safe_media_path(uid, &format!("heuresis-card-media/{uid}/abc/img.png")).is_ok());
+        assert!(safe_media_path(uid, &format!("heuresis-card-media/{uid}/../secret")).is_err());
+        assert!(safe_media_path(uid, "page-background-media/other/abc.png").is_err());
+    }
+
+    #[test]
+    fn chronological_day_buckets_are_stable() {
+        assert_eq!(civil_day("1970-01-01"), 0);
+        assert_eq!(civil_day("2026-10-22") - civil_day("2026-10-21"), 1);
+        assert_eq!(civil_day("2026-11-01") - civil_day("2026-10-31"), 1);
+    }
 }
