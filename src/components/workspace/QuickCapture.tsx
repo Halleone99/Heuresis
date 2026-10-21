@@ -10,6 +10,8 @@ import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePers
 import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
 import { AICheck } from "./AICheck";
 import { QuickFlashcard } from "./QuickFlashcard";
+import { HandNotePad } from "./HandNotePad";
+import { encodeHandNote } from "../../lib/handNote";
 
 const EMPTY_DRAFT = (mode: CaptureMode): CaptureDraft => ({
   mode, text: "", category: "note", categoryTouched: false, attempt: "", correction: "", explanation: "", lessonTitle: "", updatedAt: "",
@@ -29,7 +31,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     return saved ? { ...saved, mode: saved.mode === "lesson" ? "note" : saved.mode } : EMPTY_DRAFT("note");
   });
   const [topicId, setTopicId] = useState<string | null>(null);
-  const [captureStyle, setCaptureStyle] = useState<"raw" | "notepad" | "mistake" | "flashcard">("raw");
+  const [captureStyle, setCaptureStyle] = useState<"raw" | "notepad" | "mistake" | "flashcard" | "handnote">("raw");
   const [forceNoCategory, setForceNoCategory] = useState(false);
   const [picking, setPicking] = useState(false);
   const [openLesson, setOpenLesson] = useState(true);
@@ -88,7 +90,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
   const [handledRequest, setHandledRequest] = useState<typeof request>(null);
   if (request && request !== handledRequest) {
     setHandledRequest(request);
-    setCaptureStyle(request.mode === "mistake" ? "mistake" : "raw");
+    setCaptureStyle(request.mode === "mistake" ? "mistake" : readCaptureDraft(userId, draftSurface)?.handStrokes?.length ? "handnote" : "raw");
     setError(""); setFlash(""); setPicking(false);
     setDraft((current) => {
       const stored = captureDraftHasContent(current) ? current : readCaptureDraft(userId, draftSurface) ?? current;
@@ -155,7 +157,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     patch({ text: draft.text.slice(0, start) + replacement + draft.text.slice(end) });
     window.requestAnimationFrame(() => { field.focus(); field.setSelectionRange(start + prefix.length, end + prefix.length); });
   }
-  function switchCaptureStyle(style: "raw" | "notepad" | "mistake" | "flashcard") {
+  function switchCaptureStyle(style: "raw" | "notepad" | "mistake" | "flashcard" | "handnote") {
     setCaptureStyle(style);
     if (style !== "flashcard") setMode(style === "mistake" ? "mistake" : "note");
     setError("");
@@ -222,9 +224,11 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     updateMemory((current) => ({ ...current, capture: { ...current.capture, subjectId: destinationSubjectId, topicId: destination } }));
     try {
       if (mode === "note") {
-        if (!draft.text.trim()) { setError("Write something first."); return; }
-        if (draft.text.length > LIMITS.body) { setError("That note is too long for a quick capture."); return; }
-        const parsed = stream && captureStyle !== "notepad" ? parseCaptureLine(draft.text) : null;
+        if (captureStyle === "handnote" && !draft.handStrokes?.length) { setError("Draw something first."); return; }
+        if (captureStyle !== "handnote" && !draft.text.trim()) { setError("Write something first."); return; }
+        const handBody = captureStyle === "handnote" ? `${draft.text.trim() || "Handwritten note"}\n\n${encodeHandNote(draft.handStrokes ?? [])}` : null;
+        if ((handBody ?? draft.text).length > LIMITS.body) { setError("This note is too large. Undo a few strokes before saving."); return; }
+        const parsed = stream && captureStyle === "raw" ? parseCaptureLine(draft.text) : null;
         const sent = { ...draft };
         const id = sent.pendingId ?? crypto.randomUUID();
         writeCaptureDraft(userId, { ...sent, pendingId: id, updatedAt: new Date().toISOString() }, draftSurface);
@@ -232,7 +236,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         const input = parsed?.kind === "mistake"
           ? { id, kind: "mistake" as const, topicId: destination, attempt: parsed.attempt, correction: parsed.correction,
               explanation: parsed.explanation, category: parsed.category, lessonId }
-          : { id, kind: "note" as const, topicId: destination, body: parsed?.kind === "note" ? parsed.body : sent.text,
+          : { id, kind: "note" as const, topicId: destination, body: handBody ?? (parsed?.kind === "note" ? parsed.body : sent.text),
               category: parsed?.kind === "note" ? parsed.category : category, lessonId };
         const label = (input.kind === "mistake" ? input.attempt || input.correction : input.body).trim().slice(0, 40);
         const created = await workspace.submitCapture(input, label, draftSurface);
@@ -275,7 +279,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     // Clear only what was just saved; text typed in another mode stays as a draft.
     setDraft((current) => {
       const next = current.mode === "note"
-        ? { ...current, text: "", category: "note" as const, categoryTouched: false, pendingId: undefined }
+        ? { ...current, text: "", handStrokes: [], category: "note" as const, categoryTouched: false, pendingId: undefined }
         : { ...current, attempt: "", correction: "", explanation: "", pendingId: undefined };
       writeCaptureDraft(userId, captureDraftHasContent(next) ? next : null, draftSurface);
       return next;
@@ -341,6 +345,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
         <option value="flashcard">Flashcard</option>
         <option value="mistake">Mistake Log</option>
         <option value="notepad">Notepad</option>
+        <option value="handnote">Handwritten note</option>
       </select>
     </div> : null}
     {floating ? <div className="qc-floating-destination">
@@ -372,7 +377,13 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     <div className="qc-body">
       {captureStyle === "flashcard" && mode !== "lesson" ? <QuickFlashcard
         userId={userId} subjectName={languageName ?? "No category"}
-        onSaved={() => workspace.toast("Flashcard saved to Study.")} /> : mode === "note" ? <>
+        onSaved={() => workspace.toast("Flashcard saved to Study.")} /> : mode === "note" && captureStyle === "handnote" ? <>
+        <HandNotePad strokes={draft.handStrokes ?? []} onChange={(handStrokes) => patch({ handStrokes })} disabled={saving} />
+        <input className="qc-main-input" style={{ minHeight: 0, height: 42 }} aria-label="Handwriting caption (optional)"
+          placeholder="Title or short description (optional)" value={draft.text} disabled={saving}
+          onChange={(event) => patch({ text: event.target.value })} />
+        <p className="qc-help">Your handwriting is saved as a vector drawing in a normal Notebook note.</p>
+      </> : mode === "note" ? <>
         <textarea ref={(node) => { if (node) firstFieldRef.current = node; }} className="qc-main-input" rows={captureStyle === "notepad" ? 6 : stream ? 2 : 3} value={draft.text}
           aria-label={floating ? "Capture an idea" : stream ? "Stream capture" : "Quick note"}
           placeholder={captureStyle === "notepad" ? "Write freely. Enter adds a new line; Ctrl+Enter saves." : floating ? "A thought, a question, an observation…\nWrite freely, then save this idea." : stream ? "One thought per line. Enter to save; Shift+Enter for a line break." : "A phrase, a question, an explanation… capture it now, organise it later."}
@@ -459,9 +470,9 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
     {flash ? <p className="qc-flash" role="status">{flash}</p> : null}
 
     {captureStyle !== "flashcard" || mode === "lesson" ? <div className="qc-foot">
-      <span className="qc-hint">{floating ? <>Enter for a new line · <Kbd>{MOD_KEY} ↵</Kbd> to save</> : stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}{!floating ? <><Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</> : null}</span>
+      <span className="qc-hint">{floating ? <>{captureStyle === "handnote" ? "Draw your note" : "Enter for a new line"} · <Kbd>{MOD_KEY} ↵</Kbd> to save</> : stream ? <><Kbd>Enter</Kbd> save · </> : <><Kbd>{MOD_KEY} ↵</Kbd> save · </>}{!floating ? <><Kbd>Esc</Kbd> close{hasContent ? " (draft kept)" : ""}</> : null}</span>
       {hasContent && !floating ? <button type="button" className="ws-button is-quiet is-small" onClick={() => close({ discard: true })}>Discard</button> : null}
-      <button type="button" className="ws-button is-primary" disabled={saving || (floating && !(mode === "mistake" ? draft.attempt.trim() && draft.correction.trim() : draft.text.trim()))} onClick={() => void submit()}>
+      <button type="button" className="ws-button is-primary" disabled={saving || (floating && !(mode === "mistake" ? draft.attempt.trim() && draft.correction.trim() : captureStyle === "handnote" ? Boolean(draft.handStrokes?.length) : draft.text.trim()))} onClick={() => void submit()}>
         {saving ? <><span className="ws-spinner is-small" aria-hidden="true" /> Saving…</>
           : mode === "lesson" ? <><GraduationCap size={15} /> Start lesson</> : <><CornerDownLeft size={15} /> {floating ? "Save idea" : "Save"}</>}
       </button>
