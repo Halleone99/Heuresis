@@ -12,6 +12,17 @@ use tauri::Manager;
 
 const FORMAT: &str = "heuresis-complete-local-v1";
 const MEDIA_CHUNK_LIMIT: usize = 512 * 1024;
+const REQUIRED_TABLES: &[&str] = &[
+    "knowledge_subjects", "knowledge_topics", "knowledge_records",
+    "knowledge_practice_events", "knowledge_mistake_modes", "knowledge_entries",
+    "heuresis_collections", "heuresis_packs", "heuresis_cards",
+    "heuresis_card_types", "heuresis_tags", "heuresis_card_tags",
+    "heuresis_study_templates", "heuresis_catalogues", "heuresis_card_relations",
+    "heuresis_card_stats", "heuresis_pack_stats", "heuresis_sessions",
+    "heuresis_card_events", "heuresis_card_state_changes",
+    "capital_reading_items", "capital_reading_quotes", "capital_reading_history",
+    "page_backgrounds",
+];
 
 fn ensure_account(user_id: &str) -> Result<(), String> {
     if user_id.len() != 36 || !user_id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
@@ -136,6 +147,34 @@ pub fn local_backup_begin(app: tauri::AppHandle, user_id: String, day: String, s
     {
         return Err("Incomplete or mismatched backup snapshot.".into());
     }
+    // If the database unexpectedly returns nothing, do not create an
+    // apparently healthy backup that might later displace the last good one.
+    let table_map = snapshot.get("tables").and_then(Value::as_object)
+        .ok_or("Snapshot has no tables.")?;
+    for name in REQUIRED_TABLES {
+        if table_map.get(*name).and_then(Value::as_array).is_none() {
+            return Err(format!("Backup missing required table: {name}"));
+        }
+    }
+    if let Some(latest) = complete_days(&dir).first() {
+        let old_path = dir.join(target(latest)).join("snapshot.json");
+        if let Ok(bytes) = fs::read(old_path) {
+            if let Ok(previous) = serde_json::from_slice::<Value>(&bytes) {
+                for name in ["knowledge_records", "knowledge_subjects", "heuresis_cards", "capital_reading_items", "capital_reading_quotes"] {
+                    let earlier = previous.pointer(&format!("/tables/{name}"))
+                        .and_then(Value::as_array).map_or(0, Vec::len);
+                    let current = table_map.get(name).and_then(Value::as_array)
+                        .map_or(0, Vec::len);
+                    if earlier > 0 && current == 0 {
+                        return Err(format!("Refusing to back up a suddenly empty {name} table; previous backup preserved."));
+                    }
+                    if earlier >= 20 && current * 2 < earlier {
+                        return Err(format!("Suspiciously large loss of {name} rows; previous backups preserved."));
+                    }
+                }
+            }
+        }
+    }
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     if dir.join(target(&day)).exists() {
         return Err("Today's completed backup already exists (or needs manual inspection).".into());
@@ -177,6 +216,11 @@ pub fn local_backup_finish(app: tauri::AppHandle, user_id: String, day: String) 
         return Err("Backup contents do not match this account/date.".into());
     }
     let tables = snapshot.get("tables").and_then(Value::as_object).ok_or("Missing backup tables.")?;
+    for name in REQUIRED_TABLES {
+        if tables.get(*name).and_then(Value::as_array).is_none() {
+            return Err(format!("Missing required backup table: {name}"));
+        }
+    }
     let mut counts = BTreeMap::new();
     for (name, rows) in tables {
         counts.insert(name.clone(), rows.as_array().ok_or(format!("Invalid table: {name}"))?.len());
