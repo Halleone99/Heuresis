@@ -1,0 +1,35 @@
+name: Verify native Heuresis backups
+
+on:
+  push:
+    paths:
+      - "src-tauri/src/local_backup.rs"
+      - "src-tauri/src/lib.rs"
+      - "src/lib/localBackup.ts"
+      - "src/App.tsx"
+      - ".github/workflows/check-local-backup.yml"
+  pull_request:
+    paths:
+      - "src-tauri/src/local_backup.rs"
+      - "src-tauri/src/lib.rs"
+      - "src/lib/localBackup.ts"
+      - "src/App.tsx"
+      - ".github/workflows/check-local-backup.yml"
+  workflow_dispatch:
+
+jobs:
+  desktop-backup:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install frontend dependencies
+        run: npm install --ignore-scripts
+      - name: Check frontend build
+        run: npm run build
+      - name: Compile Tauri and execute local-backup Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib local_backup
