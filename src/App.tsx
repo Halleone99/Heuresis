@@ -403,7 +403,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     { id: "focus", label: "Toggle focus mode", detail: "Hide or restore navigation", keywords: "fullscreen distraction", run: toggleFocus },
     { id: "sync", label: "Sync now", detail: "Synchronise your Study and Notebook data", keywords: "refresh offline", run: () => void runSync(false) },
     { id: "trash", label: "Open Trash", detail: "Restore deleted notes, lessons and mistakes", keywords: "deleted recovery", run: () => setTrashOpen(true) },
-    { id: "local-backup", label: "Create local Heuresis backup", detail: "Save the complete library and images to Documents on this PC", keywords: "backup local windows files offline", run: () => void runLocalBackup(true) },
+    ...(supportsLocalBackup() ? [{ id: "local-backup", label: "Create local Heuresis backup", detail: "Save the complete library and images to Documents on this PC", keywords: "backup local windows files offline", run: () => void runLocalBackup(true) }] : []),
     { id: "export", label: "Export Notebook as JSON", detail: "Download your Notebook and recall history", keywords: "backup archive download", run: () => void downloadKnowledge() },
   ];
 
