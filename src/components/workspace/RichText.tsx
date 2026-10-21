@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Copy } from "lucide-react";
 import { CALLOUTS, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
+import { decodeHandNote } from "../../lib/handNote";
+import { HandNoteDrawing } from "./HandNotePad";
 
 export type LinkResolver = (target: string) => { exists: boolean; open: () => void };
 
@@ -93,6 +95,9 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
     case "h2": return <h2><InlineText text={block.text} resolve={resolve} /></h2>;
     case "h3": return <h3><InlineText text={block.text} resolve={resolve} /></h3>;
     case "hr": return <hr />;
+    case "handnote": return <div className="nb-handnote-block" style={{ margin: "12px 0", maxWidth: "100%" }}>
+      <HandNoteDrawing strokes={decodeHandNote(block.encoded)} />
+    </div>;
     case "table": return <div className="nb-table-scroll"><table className="nb-table" data-table-style={block.style}>
       <thead><tr>{block.headers.map((cell, i) => <th scope="col" key={i}><InlineText text={cell} resolve={resolve}/></th>)}</tr></thead>
       <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, colIndex) =>
