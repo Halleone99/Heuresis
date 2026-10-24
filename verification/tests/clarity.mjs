@@ -114,7 +114,8 @@ const scenarios = {
     check(Boolean(left && centre && right && left.x < centre.x && centre.x < right.x),
       "Enrichment left, complete flashcard centre, Sort decisions right");
     const cardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    await page.locator('.sort-enrich-heading:has-text("Examples")').click();
+    const examplesHeading = page.locator('.sort-enrich-heading:has-text("Examples")');
+    if (await examplesHeading.getAttribute("aria-expanded") !== "true") await examplesHeading.click();
     await page.getByRole("button", { name: "Add example" }).click();
     await page.getByRole("textbox", { name: "Write examples" }).fill("An example recorded while sorting.");
     check(await page.locator(".sort-levels button").first().isDisabled(),
@@ -129,7 +130,8 @@ const scenarios = {
       "New knowledge is saved to the original flashcard data");
     await page.keyboard.press("Escape");
     await page.locator(".sort-command").click();
-    await page.locator('.sort-enrich-heading:has-text("Examples")').click();
+    if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
+      await page.locator('.sort-enrich-heading:has-text("Examples")').click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
       "Saved enrichment is present when Sort reopens");
   },
