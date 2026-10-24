@@ -1,7 +1,8 @@
 import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, MoreHorizontal, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteCard,
+  DISCARDED_AT_KEY,
+  patchCardData,
   fieldByRole,
   fieldText,
   listTags,
@@ -119,7 +120,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
     if (saving) return;
     setSaving(true); setMessage("");
     try {
-      await updateCard(pack, card.id, values, { note, favourite, interest_rank: interest, tagIds });
+      await updateCard(pack, card.id, values, { note, favourite, interest_rank: interest, tagIds, expectedUpdatedAt: card.updated_at });
       onSaved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save card.");
@@ -127,10 +128,10 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   }
 
   async function remove() {
-    if (!window.confirm("Delete this card permanently?")) return;
+    if (!window.confirm("Move this card to Trash? You can restore it later.")) return;
     setSaving(true); setMessage("");
-    try { await deleteCard(card.id); onDeleted(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Could not delete card."); setSaving(false); }
+    try { await patchCardData(card.id, { [DISCARDED_AT_KEY]: new Date().toISOString() }); onDeleted(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not move card to Trash."); setSaving(false); }
   }
 
   return (
@@ -156,7 +157,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
           <RelatedEditor pack={pack} card={card} onChanged={onChanged} />
         </div>
         {message ? <div className="editor-message">{message}</div> : null}
-        <div className="editor-actions"><button className="danger-button" disabled={saving} onClick={() => void remove()}>Delete</button><span className="editor-shortcut-hint">{MOD_KEY}+Enter save · Esc close</span><button className="primary-button" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save changes"}</button></div>
+        <div className="editor-actions"><button className="danger-button" disabled={saving} onClick={() => void remove()}>Move to Trash</button><span className="editor-shortcut-hint">{MOD_KEY}+Enter save · Esc close</span><button className="primary-button" disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save changes"}</button></div>
       </section>
     </div>
   );
