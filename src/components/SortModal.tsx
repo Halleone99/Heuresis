@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fieldByRole, fieldText, saveCardNote, setCardRetention, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortTags } from "../lib/sort";
+import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
 import "./sort.css";
 import "./sort-enrichment.css";
@@ -132,7 +133,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     if (!card || busy || enrichmentBlocked) return;
     setBusy(true); setMessage("");
     try {
-      // Store the exact 1–5 value. Older Sort screens collapsed 1/2 and 4/5.
+      // The three visible priorities retain the existing numeric database representation.
       await saveQuickNote();
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
@@ -305,13 +306,16 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
       </div>
       <div className="sort-panel">
-        <div className="sort-interest-panel" role="group" aria-label="Importance from 1 to 5">
-          <h3>Importance <small>Choose 1–5</small></h3>
-          <div className="sort-rating">{[1, 2, 3, 4, 5].map((rank) => <button key={rank} type="button"
-            className={importance === rank ? "selected" : ""} aria-label={"Importance " + rank}
-            aria-pressed={importance === rank} disabled={busy || enrichmentBlocked}
-            onClick={() => setImportance(rank)}>{rank}</button>)}</div>
-          <span className="sort-rating-caption">{importance === null ? "How important is this card to learn?" : ["", "Lowest", "Low", "Medium", "High", "Essential"][importance]}</span>
+        <div className="sort-interest-panel" role="group" aria-label="Learning importance">
+          <h3>Importance</h3>
+          <div className="sort-rating">{IMPORTANCE_ORDER.map((level) => {
+            const rank = IMPORTANCE_RANK[level];
+            return <button key={level} type="button"
+              className={importance === rank ? "selected" : ""} aria-label={"Importance " + IMPORTANCE_LABEL[level]}
+              aria-pressed={importance === rank} disabled={busy || enrichmentBlocked}
+              onClick={() => setImportance(rank)}>{IMPORTANCE_LABEL[level]}</button>;
+          })}</div>
+          <span className="sort-rating-caption">{importance === null ? "How useful is this card to learn?" : importance >= 4 ? "Core" : importance >= 2 ? "Useful" : "Peripheral"}</span>
         </div>
         <div className="sort-tags-control">
           <div className="sort-side-heading"><h3><Tag size={15}/> Tags</h3>
