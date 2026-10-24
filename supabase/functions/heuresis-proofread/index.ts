@@ -16,7 +16,7 @@ Deno.serve(async (request: Request) => {
     // Verify identity here as well as at the Edge Function gateway. Never
     // spend the server-side AI API key for an unauthenticated request.
     const authorization = request.headers.get("authorization");
-    const token = authorization?.match(/^Bearer\\s+(.+)$/i)?.[1];
+    const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
     if (!token) return json({ error: "Sign in to use AI checking." }, 401);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const publishableKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
