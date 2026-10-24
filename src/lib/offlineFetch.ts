@@ -593,6 +593,13 @@ function syntheticResponse(method: string, url: URL, table: string | null, rpc: 
     const list = (Array.isArray(body) ? body : [body]).map((item) => item && typeof item === "object" && !Array.isArray(item) ? { created_at: now, updated_at: now, ...(item as Record<string, unknown>) } : item);
     return jsonResponse(Array.isArray(body) ? list : list[0], 201);
   }
+  if (table && method === "PATCH" && url.searchParams.get("select")) {
+    // A queued offline PATCH is provisional; report its client-side ID to the
+    // editor. Server-side revision checks still run when the queue replays.
+    const idFilter = url.searchParams.get("id");
+    const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
+    return jsonResponse(id ? [{ id }] : []);
+  }
   if (table && method === "DELETE" && url.searchParams.get("select")) {
     const idFilter = url.searchParams.get("id");
     const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
