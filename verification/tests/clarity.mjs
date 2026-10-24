@@ -117,7 +117,9 @@ const scenarios = {
     const examplesHeading = page.locator('.sort-enrich-heading:has-text("Examples")');
     if (await examplesHeading.getAttribute("aria-expanded") !== "true") await examplesHeading.click();
     await page.getByRole("button", { name: "Add example" }).click();
-    await page.getByRole("textbox", { name: "Write examples" }).fill("An example recorded while sorting.");
+    // Keyboard typing produces normal paragraph markup in this WYSIWYG editor;
+    // Playwright fill() inserts a bare text node, bypassing the real user path.
+    await page.getByRole("textbox", { name: "Write examples" }).pressSequentially("An example recorded while sorting.");
     check(await page.locator(".sort-rating button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");
     await page.keyboard.press("Escape");
