@@ -118,7 +118,7 @@ const scenarios = {
     if (await examplesHeading.getAttribute("aria-expanded") !== "true") await examplesHeading.click();
     await page.getByRole("button", { name: "Add example" }).click();
     await page.getByRole("textbox", { name: "Write examples" }).fill("An example recorded while sorting.");
-    check(await page.locator(".sort-levels button").first().isDisabled(),
+    check(await page.locator(".sort-rating button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");
     await page.keyboard.press("Escape");
     check(await page.locator(".sort-modal").count() === 1,
@@ -142,12 +142,15 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-card").waitFor();
     check(true, "Sort opens straight into the queue (no setup step)");
-    const decision = page.locator(".sort-decision");
-    check(await decision.locator(".sort-levels button").count() === 3, "Learn is offered as Core / Useful / Peripheral in the decision group");
-    check(await decision.locator('button:has-text("Reference")').count() === 1, "Reference is in the same group");
-    check(await decision.locator('button:has-text("Discard")').count() === 1, "Discard is in the same group");
-    check(await decision.locator('button:has-text("Later")').count() === 1, "Later is in the same group");
-    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-toggle").count() === 1, "tags are behind one secondary control");
+    const decision = page.locator(".sort-panel");
+    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
+    check(await decision.getByRole("button", { name: "Importance Core" }).count() === 1, "Core importance is available");
+    await decision.getByRole("button", { name: "Other actions" }).click();
+    check(await decision.getByRole("button", { name: "Keep as reference" }).count() === 1, "Reference is available without adding a second panel");
+    check(await decision.getByRole("button", { name: "Discard to Trash" }).count() === 1, "Discard is recoverable");
+    check(await decision.getByRole("button", { name: "Decide later" }).count() === 1, "Later is available");
+    await decision.getByRole("button", { name: "Other actions" }).click();
+    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-control .sort-side-heading button").count() === 1, "tags are behind one secondary control");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("r");
     await page.waitForTimeout(900);
