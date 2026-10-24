@@ -744,7 +744,12 @@ let activeFlush: Promise<{ sent: number; pending: number }> | null = null;
 /** Replays queued writes in order. Concurrent callers share one run so nothing is sent twice. */
 export function flushOfflineRequests(accessToken: string | null | undefined) {
   if (activeFlush) return activeFlush;
-  activeFlush = flushQueue(accessToken).finally(() => { activeFlush = null; });
+  // The module-level guard covers one window only. Web Locks serialise replay
+  // across the main and detached capture windows sharing this origin.
+  const replay = typeof navigator !== "undefined" && navigator.locks
+    ? navigator.locks.request("heuresis-offline-request-flush", () => flushQueue(accessToken))
+    : flushQueue(accessToken);
+  activeFlush = replay.finally(() => { activeFlush = null; });
   return activeFlush;
 }
 
