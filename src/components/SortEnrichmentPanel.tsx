@@ -118,7 +118,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
     onChanged();
   }
   async function saveText() {
-    const text = detailEditor.current?.getMarkdown() ?? draft;
+    const text = detailEditor.current?.getMarkdown() || draft;
     if (!adding || !text.trim() || busy) return;
     setBusy(true); setError("");
     try {
@@ -207,8 +207,8 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
               value={draft} compactToolbar ariaLabel={"Write " + labels[dim].toLowerCase()}
               placeholder={dim === "examples" ? "Sentence, pinyin, translation…" : "Add a useful detail…"}
               onChange={setDraft} onSave={() => void saveText()} onDone={() => void saveText()}
-              onEscape={() => { if (!(detailEditor.current?.getMarkdown() ?? draft).trim()) stopAdding(); }} autoFocus />}
-            <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !(detailEditor.current?.getMarkdown() ?? draft).trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
+              onEscape={() => { if (!(detailEditor.current?.getMarkdown() || draft).trim()) stopAdding(); }} autoFocus />}
+            <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !(detailEditor.current?.getMarkdown() || draft).trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
           </div> : <div className="sort-enrich-add-actions">
             <button type="button" onClick={() => openAdd(dim, "text")} disabled={blocked}><Plus size={13} /> {dim === "examples" ? "Add example" : dim === "components" ? "Add part" : "Add detail"}</button>
             {dim === "neighbours" && structuredWords ? <button type="button" onClick={() => openAdd(dim, "word")} disabled={blocked}><Plus size={13} /> Link word</button> : null}
