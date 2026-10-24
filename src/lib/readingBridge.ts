@@ -174,7 +174,7 @@ export function useReadingLibrary(userId: string) {
     const marker = `<!--reading-progress:${page}/${pages}-->`;
     return patchJournal(book.id, (notes) => PROGRESS.test(notes)
       ? notes.replace(PROGRESS, marker)
-      : [marker, notes].filter(Boolean).join("\\n"));
+      : [marker, notes].filter(Boolean).join("\n"));
   };
   const addQuote = async (draft: QuoteDraft) => {
     const { data, error: writeError } = await client().from("capital_reading_quotes").insert({
