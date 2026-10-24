@@ -29,7 +29,6 @@ export type StudyQueueState = { pending: number; parked: number };
 
 const QUEUE_KEY = "heuresis.desktop.eventqueue.v1";
 const PARK_AFTER = 5;
-const MAX_QUEUE = 3000;
 const BATCH_SIZE = 200;
 let flushTimer: number | undefined;
 let flushing = false;
@@ -67,18 +66,19 @@ function readQueue(): QueuedStudyEvent[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isQueuedStudyEvent).slice(-MAX_QUEUE);
-  } catch {
-    return [];
+    return parsed.filter(isQueuedStudyEvent);
+  } catch (error) {
+    throw new Error("Review history cannot be read from local storage. Preserve this device's data; do not clear it.", { cause: error });
   }
 }
 
 function writeQueue(events: QueuedStudyEvent[]) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(QUEUE_KEY, JSON.stringify(events.slice(-MAX_QUEUE)));
-  } catch {
-    // Storage may be unavailable in restrictive browser modes; review remains usable.
+    window.localStorage.setItem(QUEUE_KEY, JSON.stringify(events));
+  } catch (error) {
+    // Never claim a grade was saved when storage refused the write.
+    throw new Error("Cannot save review history on this device. Free storage or export your data before continuing.", { cause: error });
   }
 }
 
@@ -123,33 +123,59 @@ function queueStudyEvent(input: Omit<QueuedStudyEvent, "client_event_id" | "crea
   return event.client_event_id;
 }
 
+function isInvalidStudyEvent(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code: unknown }).code) : "";
+  // Referential-integrity, invalid-input and check-constraint failures are
+  // deterministic. An authentication, network or server failure must NOT park
+  // otherwise valid events.
+  return /^(22|23)/.test(code);
+}
+
+async function sendStudyBatch(batch: QueuedStudyEvent[]): Promise<void> {
+  const payload = batch.map(({ attempts: _attempts, ...event }) => event);
+  const { error } = await db().rpc("heuresis_record_events", { events: payload });
+  if (!error) {
+    const sentIds = new Set(batch.map((event) => event.client_event_id));
+    writeQueue(readQueue().filter((event) => !sentIds.has(event.client_event_id)));
+    return;
+  }
+  if (networkUnavailable(error) || !isInvalidStudyEvent(error)) throw error;
+  if (batch.length === 1) {
+    const badId = batch[0].client_event_id;
+    // Preserve rejected evidence for explicit manual recovery rather than
+    // letting one malformed result hold up hundreds of valid review grades.
+    writeQueue(readQueue().map((event) => event.client_event_id === badId
+      ? { ...event, attempts: PARK_AFTER } : event));
+    return;
+  }
+  const middle = Math.floor(batch.length / 2);
+  await sendStudyBatch(batch.slice(0, middle));
+  await sendStudyBatch(batch.slice(middle));
+}
+
+async function flushStudyEventsUnlocked(): Promise<StudyQueueState> {
+  while (true) {
+    const batch = readQueue().filter((event) => event.attempts < PARK_AFTER).slice(0, BATCH_SIZE);
+    if (!batch.length) break;
+    await sendStudyBatch(batch);
+  }
+  return getStudyQueueState();
+}
+
 export async function flushStudyEvents(): Promise<StudyQueueState> {
   if (flushing) return getStudyQueueState();
   if (typeof navigator !== "undefined" && !navigator.onLine) return getStudyQueueState();
   flushing = true;
   try {
-    while (true) {
-      const batch = readQueue().filter((event) => event.attempts < PARK_AFTER).slice(0, BATCH_SIZE);
-      if (!batch.length) break;
-      try {
-        const payload = batch.map(({ attempts: _attempts, ...event }) => event);
-        const { error } = await db().rpc("heuresis_record_events", { events: payload });
-        if (error) throw error;
-        const sentIds = new Set(batch.map((event) => event.client_event_id));
-        writeQueue(readQueue().filter((event) => !sentIds.has(event.client_event_id)));
-      } catch (error) {
-        if (networkUnavailable(error)) throw error;
-        const failedIds = new Set(batch.map((event) => event.client_event_id));
-        writeQueue(readQueue().map((event) => failedIds.has(event.client_event_id)
-          ? { ...event, attempts: Math.min(PARK_AFTER, event.attempts + 1) }
-          : event));
-        throw error;
-      }
+    // Web Locks coordinate separate Tauri windows, unlike the local flag alone.
+    if (typeof navigator !== "undefined" && navigator.locks) {
+      return await navigator.locks.request("heuresis-study-event-flush", flushStudyEventsUnlocked);
     }
+    return await flushStudyEventsUnlocked();
   } finally {
     flushing = false;
   }
-  return getStudyQueueState();
 }
 
 export async function retryParkedStudyEvents() {
