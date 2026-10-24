@@ -129,7 +129,12 @@ function isInvalidStudyEvent(error: unknown): boolean {
   // Referential-integrity, invalid-input and check-constraint failures are
   // deterministic. An authentication, network or server failure must NOT park
   // otherwise valid events.
-  return /^(22|23)/.test(code);
+  if (/^(22|23)/.test(code)) return true;
+  const message = typeof error === "object" && error !== null && "message" in error
+    ? String((error as { message: unknown }).message) : "";
+  // A single event can violate ownership RLS even when the user's session is
+  // valid. Split those batches too; network/expired-token failures still stop.
+  return code === "42501" && /row.level security policy/i.test(message);
 }
 
 async function sendStudyBatch(batch: QueuedStudyEvent[]): Promise<void> {
