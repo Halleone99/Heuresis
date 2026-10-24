@@ -161,19 +161,20 @@ export function useReadingLibrary(userId: string) {
   };
   const logMinutes = async (book: ReadingBook, minutes: number) => {
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 720) throw new Error("Enter 1–720 whole minutes.");
-    const previous = decodeMarker(book.notes, TIME);
-    const rows = Array.isArray(previous) ? previous : [];
-    return updateBook(book.id, {
-      notes: replaceMarker(book.notes, TIME, "reading-time", [...rows, { date: localToday(), minutes }].slice(-500)),
+    // Read the latest book before writing: stale UI state must never erase notes.
+    return patchJournal(book.id, (notes) => {
+      const previous = decodeMarker(notes, TIME);
+      const rows = Array.isArray(previous) ? previous : [];
+      return replaceMarker(notes, TIME, "reading-time", [...rows, { date: localToday(), minutes }].slice(-500));
     });
   };
   const setProgress = async (book: ReadingBook, page: number, pages: number) => {
     if (!Number.isInteger(page) || !Number.isInteger(pages) || pages < 1 || page < 0 || page > pages)
       throw new Error("Enter a valid page and total, such as 45/240.");
     const marker = `<!--reading-progress:${page}/${pages}-->`;
-    const notes = PROGRESS.test(book.notes) ? book.notes.replace(PROGRESS, marker)
-      : [marker, book.notes].filter(Boolean).join("\n");
-    return updateBook(book.id, { notes });
+    return patchJournal(book.id, (notes) => PROGRESS.test(notes)
+      ? notes.replace(PROGRESS, marker)
+      : [marker, notes].filter(Boolean).join("\\n"));
   };
   const addQuote = async (draft: QuoteDraft) => {
     const { data, error: writeError } = await client().from("capital_reading_quotes").insert({
