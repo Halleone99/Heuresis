@@ -115,8 +115,8 @@ const scenarios = {
       "Enrichment left, complete flashcard centre, Sort decisions right");
     const cardId = await page.locator(".sort-card").getAttribute("data-card-id");
     await page.locator('.sort-enrich-heading:has-text("Examples")').click();
-    await page.getByRole("button", { name: "Add detail" }).click();
-    await page.getByRole("textbox", { name: "Add to Examples" }).fill("An example recorded while sorting.");
+    await page.getByRole("button", { name: "Add example" }).click();
+    await page.getByRole("textbox", { name: "Write examples" }).fill("An example recorded while sorting.");
     check(await page.locator(".sort-levels button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");
     await page.keyboard.press("Escape");
