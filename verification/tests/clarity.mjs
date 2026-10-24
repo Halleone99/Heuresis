@@ -121,9 +121,9 @@ const scenarios = {
     check(await page.locator(".sort-rating button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");
     await page.keyboard.press("Escape");
-    check(await page.locator(".sort-modal").count() === 1,
+    check(await page.locator(".sort-modal").count() === 1 && await page.locator(".sort-enrich-editor").count() === 1,
       "Escape cannot silently discard typed card knowledge");
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.locator(".sort-enrich-editor").getByRole("button", { name: "Save", exact: true }).click();
     await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').waitFor();
     const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
     check(persisted.includes("An example recorded while sorting."),
