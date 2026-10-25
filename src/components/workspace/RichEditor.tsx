@@ -682,7 +682,18 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     const text = event.clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
     if (!text) return;
     run(() => {
-      if (!text.includes("\n")) { exec("insertText", text); return; }
+      if (!text.includes("\n")) {
+        // Single-line Markdown deserves the same treatment as multi-line
+        // paste. Insert inline content inside the current paragraph, without
+        // nesting a <p> in another paragraph.
+        const holder = document.createElement("div");
+        holder.innerHTML = markdownToEditorHtml(text);
+        const only = holder.firstElementChild;
+        const html = holder.children.length === 1 && only?.tagName === "P"
+          ? only.innerHTML : holder.innerHTML;
+        exec("insertHTML", html);
+        return;
+      }
       // An empty line can still carry inline formatting (e.g. italics from the line
       // above); pasting blocks into it would flatten lists, so clear it first.
       const block = currentBlock();
@@ -717,8 +728,8 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
       {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
-        {tool("Heading", `${MOD}+Alt+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
-        {tool("Subheading", `${MOD}+Alt+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
+        {tool("Heading", `${MOD}+Shift+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
+        {tool("Subheading", `${MOD}+Shift+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
       </div> : null}
       <div className="nb-toolbar-group">
         {tool("Bold", `${MOD}+B`, <Bold size={15} />, () => run(() => exec("bold")), active.bold)}
