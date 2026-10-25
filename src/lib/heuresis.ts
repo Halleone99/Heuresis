@@ -429,22 +429,30 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
   favourite?: boolean;
   interest_rank?: number | null;
   tagIds?: string[];
+  expectedUpdatedAt?: string;
 }) {
   const visibleData = cleanCardValues(pack, values);
   const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
   if (readError) throw readError;
   const previous = cardData(existing?.data);
-  const internalData = Object.fromEntries(Object.entries(previous).filter(([key]) => key.startsWith("_")));
-  const data = { ...visibleData, ...internalData };
+  // Editing only the current topic's fields must not erase values from earlier structures.
+  // A field that is still visible can deliberately be cleared; an unseen field cannot.
+  const visibleKeys = new Set((pack.cardType?.field_schema ?? []).map((field) => field.key));
+  const preserved = Object.fromEntries(Object.entries(previous).filter(([key]) => !visibleKeys.has(key)));
+  const data = { ...preserved, ...visibleData };
   const rank = extras.interest_rank == null ? null : Math.min(5, Math.max(1, Math.round(extras.interest_rank)));
-  const { error } = await db().from("heuresis_cards").update({
+  let mutation = db().from("heuresis_cards").update({
     data,
     note: extras.note?.trim() || null,
     favourite: Boolean(extras.favourite),
     interesting: Boolean(rank && rank >= 4),
     interest_rank: rank,
   }).eq("id", cardId);
+  // The editor must not overwrite an edit made since its card was opened.
+  if (extras.expectedUpdatedAt) mutation = mutation.eq("updated_at", extras.expectedUpdatedAt);
+  const { data: saved, error } = await mutation.select("id").maybeSingle();
   if (error) throw error;
+  if (!saved) throw new Error("This card changed on another device. Reopen it before saving.");
   if (extras.tagIds) {
     const { error: tagError } = await db().rpc("heuresis_set_card_tags", { p_card_id: cardId, p_tag_ids: extras.tagIds });
     if (tagError) throw tagError;

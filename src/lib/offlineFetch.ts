@@ -593,6 +593,12 @@ function syntheticResponse(method: string, url: URL, table: string | null, rpc: 
     const list = (Array.isArray(body) ? body : [body]).map((item) => item && typeof item === "object" && !Array.isArray(item) ? { created_at: now, updated_at: now, ...(item as Record<string, unknown>) } : item);
     return jsonResponse(Array.isArray(body) ? list : list[0], 201);
   }
+  if (table && method === "PATCH" && url.searchParams.get("select")) {
+    // The offline PATCH is provisional; the revision predicate still runs on replay.
+    const idFilter = url.searchParams.get("id");
+    const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
+    return jsonResponse(id ? [{ id }] : []);
+  }
   if (table && method === "DELETE" && url.searchParams.get("select")) {
     const idFilter = url.searchParams.get("id");
     const id = idFilter?.startsWith("eq.") ? idFilter.slice(3) : null;
@@ -737,7 +743,10 @@ let activeFlush: Promise<{ sent: number; pending: number }> | null = null;
 /** Replays queued writes in order. Concurrent callers share one run so nothing is sent twice. */
 export function flushOfflineRequests(accessToken: string | null | undefined) {
   if (activeFlush) return activeFlush;
-  activeFlush = flushQueue(accessToken).finally(() => { activeFlush = null; });
+  const replay = typeof navigator !== "undefined" && navigator.locks
+    ? navigator.locks.request("heuresis-offline-request-flush", () => flushQueue(accessToken))
+    : flushQueue(accessToken);
+  activeFlush = replay.finally(() => { activeFlush = null; });
   return activeFlush;
 }
 
