@@ -79,7 +79,7 @@ try {
   // the Markdown output.
   const roundTrips = await page.evaluate(async () => {
     const fmt = await import("/src/lib/noteFormat.ts");
-    const typed = ["a*b*c", "x == y and y == z", "5 * 3", "**literal**", "[[literal]]", "{color:red}text{/color}"];
+    const typed = ["a*b*c", "x == y and y == z", "5 * 3", "**literal**", "[[literal]]", "[[Note A]]", "{color:red}text{/color}"];
     const typedResults = typed.map((value) => {
       const root = document.createElement("div");
       const p = document.createElement("p"); p.textContent = value; root.append(p);
@@ -88,11 +88,14 @@ try {
       const second = fmt.editorToMarkdown(reopened);
       return { value, first, second, rendered: reopened.textContent };
     });
-    const formatted = ["***bold italic***", "[[Existing note]]", "### Third level"].map((value) => {
+    const formatted = ["***bold italic***", "[[Existing note]]", "### Third level", "我**很**好", "**Hinweis:**Text"].map((value) => {
       const root = document.createElement("div"); root.innerHTML = fmt.markdownToEditorHtml(value);
       return { value, result: fmt.editorToMarkdown(root), html: root.innerHTML };
     });
-    return { typedResults, formatted };
+    const chinese = document.createElement("div"); chinese.innerHTML = "<p>我<strong>很</strong>好</p>";
+    const chineseSaved = fmt.editorToMarkdown(chinese);
+    return {typedResults,formatted,chineseSaved,chineseReopen:fmt.markdownToEditorHtml(chineseSaved),
+      typedLinkIsWiki:fmt.wikiLinks(typedResults.find(({value})=>value==="[[Note A]]").first).has("note a")};
   });
   for (const item of roundTrips.typedResults) {
     assert.equal(item.rendered, item.value, "Literal content changed after reopen: " + item.value);
@@ -102,6 +105,10 @@ try {
     assert.equal(item.result, item.value, "Existing note syntax must survive reopen: " + item.value);
   }
   assert.match(roundTrips.formatted[0].html, /<strong><em>bold italic<\/em><\/strong>/);
+  assert.equal(roundTrips.chineseSaved,"我**很**好","Chinese bold saves as formatting");
+  assert.match(roundTrips.chineseReopen,/我<strong>很<\/strong>好/,"Chinese bold survives reopen");
+  assert.equal(roundTrips.typedLinkIsWiki,true,"Newly typed [[link]] remains a link");
+  assert.equal(roundTrips.typedResults.find(({value})=>value==="[[Note A]]").first,"[[Note A]]");
   // A deliberate empty line must have the same physical height in reading
   // and editing modes; otherwise notes unexpectedly reflow after Done.
   const spacing = await page.evaluate(() => {
