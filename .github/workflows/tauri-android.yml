@@ -72,6 +72,9 @@ jobs:
           $PACKAGE_LINE
 
           import android.os.Bundle
+          import android.view.View
+          import android.view.WindowManager
+          import androidx.core.view.ViewCompat
           import androidx.core.view.WindowCompat
           import androidx.core.view.WindowInsetsCompat
           import androidx.core.view.WindowInsetsControllerCompat
@@ -80,6 +83,22 @@ jobs:
             override fun onCreate(savedInstanceState: Bundle?) {
               super.onCreate(savedInstanceState)
               hideSystemBars()
+              keepContentAboveKeyboard()
+            }
+
+            // A full-screen (edge-to-edge) window is not resized for the on-screen keyboard,
+            // so the keyboard covered Sort's quick note, typed Review answers and Capture.
+            // Shrink the WebView by the keyboard's height instead. If a parent view already
+            // applies the keyboard inset, it consumes it and this reads 0 (no double gap).
+            private fun keepContentAboveKeyboard() {
+              @Suppress("DEPRECATION")
+              window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+              val content = findViewById<View>(android.R.id.content)
+              ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
+                val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                view.setPadding(0, 0, 0, keyboard)
+                insets
+              }
             }
 
             override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -96,7 +115,7 @@ jobs:
             }
           }
           EOF
-          echo "Patched $MAIN_ACTIVITY for immersive fullscreen"
+          echo "Patched $MAIN_ACTIVITY for immersive fullscreen and the on-screen keyboard"
 
       - name: Type-check and build web app
         run: npm run build
