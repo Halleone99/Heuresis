@@ -1,6 +1,7 @@
 import { Eye, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { isAndroidRuntime } from "../lib/platform";
 import "./review-scratchpad.css";
 
 type TargetRect = {
@@ -130,6 +131,9 @@ export default function ReviewScratchpad() {
       attributeFilter: ["class", "style", "aria-expanded"],
     });
     window.addEventListener("resize", scheduleMeasure);
+    // Android: the on-screen keyboard can make the card scroll; keep the writing layer on it.
+    const followScroll = isAndroidRuntime();
+    if (followScroll) window.addEventListener("scroll", scheduleMeasure, { capture: true, passive: true });
     scheduleMeasure();
 
     return () => {
@@ -137,6 +141,7 @@ export default function ReviewScratchpad() {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
       window.removeEventListener("resize", scheduleMeasure);
+      if (followScroll) window.removeEventListener("scroll", scheduleMeasure, { capture: true });
     };
   }, [clearScratchpad, reviewWindow]);
 

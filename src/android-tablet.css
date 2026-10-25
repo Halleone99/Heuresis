@@ -1,0 +1,189 @@
+/* Android APK (MagicPad): Study's Sort, Review and card dialogs on a touch tablet.
+ *
+ * Every rule is scoped to :root[data-platform="android"], which only the Android app sets
+ * (src/lib/platform.ts, markAndroidRuntime). The Windows app and desktop browsers never
+ * match these selectors, so their layout is unchanged.
+ *
+ * What it fixes on the tablet:
+ *   - Review between 1180 and 1240 CSS px wide (a MagicPad in landscape): both side
+ *     panels became fixed, full-width sheets on top of the card, hiding Show answer;
+ *   - Review now fits the screen exactly; the card scrolls inside itself if it must;
+ *   - Sort, Adjust, Browse, targeted sessions and Edit card are drawn above the app
+ *     header and the bottom navigation, so their close buttons can be reached;
+ *   - finger-sized targets where the desktop sizes were made for a mouse.
+ */
+
+/* ---------------------------------------------------------------------------
+   Study dialogs sit above the app header and the touch navigation
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .heuresis-workspace-layout:has(:is(.sort-backdrop, .study-backdrop, .browse-setup-layer, .immersive-layer, .modal-backdrop, .connections-backdrop)) {
+  z-index: 90;
+}
+:root[data-platform="android"] .connections-close { min-width: 46px; min-height: 46px; }
+/* Review's pen button floats above everything; hide it while the connections tree is open. */
+:root[data-platform="android"] body:has(.connections-backdrop) .review-scratchpad-tools { display: none; }
+
+/* ---------------------------------------------------------------------------
+   Sort: the whole screen, like the Review page
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .sort-backdrop {
+  padding: 0 !important;
+}
+:root[data-platform="android"] .sort-backdrop .sort-modal {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none;
+  max-height: none;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+:root[data-platform="android"] .sort-modal .sort-topbar {
+  height: 64px !important;
+  padding: 0 max(10px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)) !important;
+}
+:root[data-platform="android"] .sort-modal .sort-topbar > span { font-size: 13px; }
+:root[data-platform="android"] .sort-modal .sort-topbar-actions button {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+:root[data-platform="android"] .sort-modal .sort-rating button { min-height: 52px; font-size: 19px; }
+:root[data-platform="android"] .sort-modal .sort-save-next { min-height: 54px; font-size: 15px; }
+/* Until an importance is chosen the button is unavailable: say so legibly, rather than
+   showing a full-colour bar whose grey label cannot be read. */
+:root[data-platform="android"] .sort-modal .sort-save-next:disabled {
+  border-color: var(--ws-line-strong) !important;
+  background: transparent !important;
+  color: var(--ws-muted) !important;
+  opacity: 1 !important;
+}
+:root[data-platform="android"] .sort-modal .sort-more-toggle { min-height: 44px; font-size: 13px; }
+:root[data-platform="android"] .sort-modal .sort-more-actions button { min-height: 46px; font-size: 13px; }
+:root[data-platform="android"] .sort-modal .sort-side-heading > button { min-height: 40px; padding: 0 12px; font-size: 12px; }
+:root[data-platform="android"] .sort-modal :is(.sort-selected-tags button, .sort-tags button) { min-height: 38px; padding-inline: 12px; font-size: 12px; }
+:root[data-platform="android"] .sort-modal .sort-undo button { min-height: 40px; padding-inline: 12px; }
+:root[data-platform="android"] .sort-modal .sort-note-panel textarea { font-size: 16px; }
+/* No hover on a tablet: the edit and remove tools of a detail are always visible. */
+:root[data-platform="android"] .sort-modal .sort-enrich-item-tools { opacity: 1; }
+:root[data-platform="android"] .sort-modal .sort-enrich-item-tools button { width: 38px; height: 38px; }
+:root[data-platform="android"] .sort-modal .sort-enrich-item.editable > button { min-width: 38px; min-height: 38px; }
+:root[data-platform="android"] .sort-modal .sort-enrich-heading { min-height: 50px; }
+:root[data-platform="android"] .sort-modal .sort-enrich-heading > span { font-size: 14px; }
+:root[data-platform="android"] .sort-modal .sort-enrich-add-actions button { min-height: 40px; font-size: 13px; }
+:root[data-platform="android"] .sort-modal :is(.sort-enrich-editor-actions button, .sort-enrich-relations button) { min-height: 40px; padding: 0 14px; font-size: 13px; }
+:root[data-platform="android"] .sort-modal .sort-enrich-editor :is(input, textarea) { font-size: 16px; }
+:root[data-platform="android"] .sort-finished button,
+:root[data-platform="android"] .sort-setup button { min-height: 48px; }
+
+/* ---------------------------------------------------------------------------
+   Adjust, Browse, targeted sessions, Edit card: reachable controls
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .modern-study-launcher .study-close { width: 46px; height: 46px; }
+:root[data-platform="android"] .study-start { min-height: 50px; }
+:root[data-platform="android"] .browse-icon-button { min-width: 46px; min-height: 46px; }
+:root[data-platform="android"] .immersive-bar button { min-height: 44px; padding: 0 12px; font-size: 13px; }
+:root[data-platform="android"] .immersive-controls button { min-height: 48px; }
+:root[data-platform="android"] .card-editor-modal .editor-shortcut-hint { visibility: hidden; }
+:root[data-platform="android"] .card-editor-modal :is(.editor-head-actions button, .editor-actions button) { min-height: 46px; padding-inline: 16px; }
+
+/* ---------------------------------------------------------------------------
+   Review (flashcards): one screen, no page scroll
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .cosmos-shell {
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+:root[data-platform="android"] .cosmos-topbar {
+  flex: none;
+  gap: 10px;
+  padding: 0 max(10px, env(safe-area-inset-right)) 0 max(18px, env(safe-area-inset-left));
+}
+:root[data-platform="android"] .cosmos-progress { flex: none; }
+:root[data-platform="android"] .cosmos-stage {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 14px max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow: hidden;
+}
+:root[data-platform="android"] .cosmos-work {
+  flex: 1 1 0;
+  min-height: 0;
+  align-self: center;
+}
+:root[data-platform="android"] .cosmos-work.cosmos-review-columns { grid-template-rows: minmax(0, 1fr); }
+/* The card takes the height that is there and scrolls inside itself if an answer is long
+   or the keyboard is open, so the results stay where the finger expects them. */
+:root[data-platform="android"] .cosmos-card,
+:root[data-platform="android"] .cosmos-work.cosmos-review-columns .cosmos-card {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+:root[data-platform="android"] .cosmos-work.cosmos-review-columns .cosmos-nucleus { padding: clamp(24px, 5vh, 58px) 28px 24px; }
+
+/* Wide enough for three columns: the side panels are columns, never sheets over the card.
+   (Between 1180 and 1240 px an older drawer rule made them fixed and full width.) */
+@media (min-width: 1180px) {
+  :root[data-platform="android"] .cosmos-work.cosmos-review-columns .cosmos-details {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    border-radius: 7px;
+  }
+}
+/* Narrower (portrait): the panels stay drawers over the card, below the top bar. */
+@media (max-width: 1179px) {
+  :root[data-platform="android"] .cosmos-work.cosmos-review-columns .cosmos-details {
+    top: 66px;
+    width: min(360px, calc(100vw - 48px));
+  }
+}
+
+:root[data-platform="android"] .cosmos-close { width: 48px; height: 48px; }
+:root[data-platform="android"] .cosmos-panel-toggles button,
+:root[data-platform="android"] .cosmos-why { min-height: 42px; padding-inline: 12px; }
+:root[data-platform="android"] .cosmos-method select { min-height: 42px; }
+:root[data-platform="android"] .cosmos-inline-reveal {
+  min-height: 50px;
+  margin-top: clamp(20px, 4vh, 42px);
+  padding: 0 32px;
+  font-size: 15px;
+}
+:root[data-platform="android"] .cosmos-review-foot { padding: 12px 18px; }
+:root[data-platform="android"] .cosmos-results { gap: 10px; }
+:root[data-platform="android"] .cosmos-review-foot button {
+  min-width: 124px;
+  min-height: 50px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+/* Keyboard digits mean nothing without a keyboard. */
+:root[data-platform="android"] .cosmos-review-foot button small { display: none; }
+:root[data-platform="android"] .cosmos-review-foot > span { font-size: 13px; }
+:root[data-platform="android"] .retention-practice { padding-inline: 24px; }
+:root[data-platform="android"] :is(.retention-actions, .retention-panel) button { min-height: 40px; padding: 0 14px; font-size: 13px; }
+:root[data-platform="android"] .retention-type-panel textarea { font-size: 16px; }
+:root[data-platform="android"] .cosmos-details-head button { width: 42px; height: 42px; }
+:root[data-platform="android"] :is(.cosmos-add, .cosmos-details-empty button) { min-height: 40px; font-size: 13px; }
+:root[data-platform="android"] :is(.cosmos-add-editor button, .cosmos-editor-actions button, .cosmos-relation-types button) { min-height: 40px; padding: 0 14px; font-size: 13px; }
+:root[data-platform="android"] :is(.cosmos-add-editor textarea, .cosmos-word-editor textarea, .cosmos-word-editor input) { font-size: 16px; }
+:root[data-platform="android"] :is(.cosmos-text-block, .cosmos-related) > button { min-width: 36px; min-height: 36px; top: 4px; }
+:root[data-platform="android"] .cosmos-state button,
+:root[data-platform="android"] .cosmos-summary-actions button { min-height: 50px; padding: 0 22px; }
+
