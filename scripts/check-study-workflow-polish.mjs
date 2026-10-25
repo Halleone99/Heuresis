@@ -50,7 +50,7 @@ assert.match(fab, /event\.currentTarget\.setPointerCapture\(event\.pointerId\)/,
 assert.match(fab, /current\.y \/ window\.innerHeight/, "Snapped location persists across sessions");
 assert.match(fab, /onClick=\{\(\) => \{ if \(dragged\.current\)/, "Dragging must not accidentally open Capture");
 assert.doesNotMatch(mistakes, /setOptimisticStatus|setChangingStatus/, "No status controls compete with the correction list");
-assert.match(mistakes, /<span className="ml-simple-label">Mistake<\/span>/, "The original mistake remains visible");
-assert.match(mistakes, /<span className="ml-simple-label">Correction<\/span>/, "The corrected version sits underneath");
+assert.match(mistakes, /<span className="ml-simple-symbol" title="Mistake"/, "The original mistake remains visible");
+assert.match(mistakes, /<span className="ml-simple-symbol is-right" title="Correction"/, "The corrected version sits underneath");
 
 console.log("Study workflow: compact Review, single actions, tablet navigation and minimal correction visibility checks passed.");

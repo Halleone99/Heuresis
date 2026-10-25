@@ -9,8 +9,8 @@ const css = readFileSync("src/components/workspace/workspace.css", "utf8");
 
 assert.match(page, /export function MistakeLog\(\)/);
 assert.match(page, /snapshot\.entries[\s\S]*entry\.kind === "mistake"/);
-assert.match(page, /<span className="ml-simple-label">Mistake<\/span>/);
-assert.match(page, /<span className="ml-simple-label">Correction<\/span>/);
+assert.match(page, /<span className="ml-simple-symbol" title="Mistake"/);
+assert.match(page, /<span className="ml-simple-symbol is-right" title="Correction"/);
 assert.match(page, /workspace\.addSubject\("Unsorted"\)/);
 assert.match(page, /workspace\.patchEntry\(entry\.id, \{[\s\S]*attempt:/);
 assert.match(page, /workspace\.addSubject\(name\)/);
@@ -52,6 +52,14 @@ assert.match(css, /\.ml-organised-layout\.is-organiser-hidden/, "Hidden panel re
 assert.match(css, /\.ml-nav-menu/, "Actions dropdown has styling");
 
 assert.match(css, /\.ml-accent-choice/);
+assert.match(page, /import \{ mistakeDifference, type DifferencePart \} from/);
+assert.match(page, /function DiffLine\(/);
+assert.match(page, /<DiffLine parts=\{diff\.before\}/);
+assert.match(page, /<DiffLine parts=\{diff\.after\}/);
+assert.match(page, /placeholder="Search mistakes and corrections…"/);
+assert.match(page, /onClick=\{practiseShown\}/);
+assert.match(page, /<RichText text=\{current\.explanation\}/);
+assert.match(page, /You can add the correction later/);
 assert.match(page, /function RecallSession\(/);
 assert.doesNotMatch(page, /ml-mode-grid|ml-languages-tabs|ml-filter-row|ml-stage|Complete history|New mode|Practise due/);
 assert.match(quick, /mode === "mistake" \? <>[\s\S]*<span>Mistake<\/span>[\s\S]*<span>Correction<\/span>/);
