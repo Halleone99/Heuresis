@@ -64,6 +64,8 @@ try {
   const fallbackOpacity = await canvas.evaluate(el=>getComputedStyle(el).opacity);
   assert.equal(fallbackOpacity,"1","Shared fallback remains visible instead of being faded as disabled");
   await page.getByRole("button",{name:"Mist",exact:true}).click();
+  // The shared fallback is already an image; await the NEW page image upload.
+  await page.getByRole("button",{name:"Replace image"}).waitFor();
   await page.locator(".background-preview-canvas img").waitFor();
   assert.equal(await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).isEnabled(),true);
   await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).click();
