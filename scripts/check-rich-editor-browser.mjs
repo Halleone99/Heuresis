@@ -74,6 +74,34 @@ try {
   const page = await context.newPage();
   await page.goto(url);
   await page.locator('.nb-editor[contenteditable="true"]').waitFor();
+  // Exercise the real parser/serializer with typed literal notation and
+  // existing formatted notes. Compare visible text after reopen, not only
+  // the Markdown output.
+  const roundTrips = await page.evaluate(async () => {
+    const fmt = await import("/src/lib/noteFormat.ts");
+    const typed = ["a*b*c", "x == y and y == z", "5 * 3", "**literal**", "[[literal]]", "{color:red}text{/color}"];
+    const typedResults = typed.map((value) => {
+      const root = document.createElement("div");
+      const p = document.createElement("p"); p.textContent = value; root.append(p);
+      const first = fmt.editorToMarkdown(root);
+      const reopened = document.createElement("div"); reopened.innerHTML = fmt.markdownToEditorHtml(first);
+      const second = fmt.editorToMarkdown(reopened);
+      return { value, first, second, rendered: reopened.textContent };
+    });
+    const formatted = ["***bold italic***", "[[Existing note]]", "### Third level"].map((value) => {
+      const root = document.createElement("div"); root.innerHTML = fmt.markdownToEditorHtml(value);
+      return { value, result: fmt.editorToMarkdown(root), html: root.innerHTML };
+    });
+    return { typedResults, formatted };
+  });
+  for (const item of roundTrips.typedResults) {
+    assert.equal(item.rendered, item.value, "Literal content changed after reopen: " + item.value);
+    assert.equal(item.second, item.first, "Literal note must remain stable after two saves: " + item.value);
+  }
+  for (const item of roundTrips.formatted) {
+    assert.equal(item.result, item.value, "Existing note syntax must survive reopen: " + item.value);
+  }
+  assert.match(roundTrips.formatted[0].html, /<strong><em>bold italic<\/em><\/strong>/);
   // A deliberate empty line must have the same physical height in reading
   // and editing modes; otherwise notes unexpectedly reflow after Done.
   const spacing = await page.evaluate(() => {
