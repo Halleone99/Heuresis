@@ -405,14 +405,14 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
 }
 
 type MenuItem = { label: string; icon?: React.ReactNode; run: () => void; danger?: boolean };
-export function RowMenu({ label, items, icon, buttonLabel }: { label: string; items: MenuItem[]; icon?: React.ReactNode; buttonLabel?: string }) {
+export function RowMenu({ label, items, icon, buttonLabel, align = "left" }: { label: string; items: MenuItem[]; icon?: React.ReactNode; buttonLabel?: string; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = usePopover(open, close);
   return <div className="ws-menu" ref={ref}>
     <button type="button" className={`ws-icon-button ws-menu-trigger ${buttonLabel ? "nb-new-button" : ""}`} aria-label={buttonLabel ?? `Actions for ${label}`} aria-haspopup="menu" aria-expanded={open}
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}>{buttonLabel ? <><Plus size={15} /> {buttonLabel}</> : icon ?? <MoreHorizontal size={15} />}</button>
-    {open ? <div className="ws-menu-list" role="menu">
+    {open ? <div className={`ws-menu-list ${align === "right" ? "is-right" : ""}`} role="menu">
       {items.map((item) => <button type="button" role="menuitem" key={item.label} className={item.danger ? "is-danger" : ""}
         onClick={(event) => { event.stopPropagation(); setOpen(false); item.run(); }}>{item.icon}{item.label}</button>)}
     </div> : null}
@@ -662,11 +662,13 @@ function ScopePage({ scope, navigate, newAction }: {
                 <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
                   <small>{metadata || "Note"}</small></span>
               </button>
-              {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} items={[
+              {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} align="right" items={[
                 { label: entry.pinned ? "Unpin note" : "Pin to top", icon: entry.pinned ? <PinOff size={14} /> : <Pin size={14} />,
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
                 { label: "Edit description", icon: <Pencil size={14} />, run: () => setDescriptionEditor({ id: entry.id, value: entry.description }) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
+                { label: "Delete", icon: <Trash2 size={14} />, danger: true,
+                  run: () => void workspace.removeEntry(entry.id).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
               ]} /> : null}
             </div>
             {descriptionEditor?.id === entry.id ? <form className="nb-description-editor" aria-label={`Description for ${entryTitle(entry)}`}
