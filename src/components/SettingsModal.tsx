@@ -1,7 +1,8 @@
-import { ImagePlus, RotateCcw, Trash2, X } from "lucide-react";
-import { useRef, useState, type MouseEvent } from "react";
+import { ImagePlus, RotateCcw, Trash2, X, Sparkles, Check } from "lucide-react";
+import { useRef, useState, type MouseEvent, type DragEvent } from "react";
 import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPageKey, type BackgroundSettings } from "../hooks/useHeuresisBackground";
 import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
+import { BACKGROUND_PRESETS, createBackgroundPresetImage, presetSwatch, type BackgroundPreset } from "../lib/backgroundPresets";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
 import SortingSettings from "./SortingSettings";
@@ -32,6 +33,7 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
   const background = backgrounds[selectedPage];
   const fileRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState("");
+  const [applyingPreset, setApplyingPreset] = useState<string | null>(null);
   const { mode, palette, chooseMode, choosePalette } = useAppearance();
   const palettes: Array<{ id: PalettePreference; label: string }> = [
     { id: "slate", label: "Slate" }, { id: "forest", label: "Forest" },
@@ -52,7 +54,30 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
     finally { if (fileRef.current) fileRef.current.value = ""; }
   }
 
+  const selectedLabel = PAGE_BACKGROUND_CHOICES.find((choice) => choice.key === selectedPage)?.label ?? "This page";
+  const shownBackground = background.hasImage ? background : backgrounds.heuresis;
+  const shownImage = shownBackground.imageUrl;
   const dim = dimPercent(background.settings.opacity, background.settings.veil);
+  const looks = [
+    { label: "Natural", dim: 20, blur: 0 },
+    { label: "Balanced", dim: 40, blur: 0 },
+    { label: "Soft", dim: 55, blur: 3 },
+    { label: "Dreamy", dim: 70, blur: 7 },
+  ] as const;
+  async function usePreset(preset: BackgroundPreset) {
+    setApplyingPreset(preset.id); setNotice("");
+    try {
+      await background.chooseImage(await createBackgroundPresetImage(preset));
+      setNotice(preset.label + " saved for " + selectedLabel + ".");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not save this atmosphere.");
+    } finally { setApplyingPreset(null); }
+  }
+  function dropImage(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!background.syncing && !applyingPreset) void choose(event.dataTransfer.files?.[0]);
+  }
+
   function setFocal(event: MouseEvent<HTMLButtonElement>) {
     if (!background.imageUrl) return;
     const choices = ["top", "center", "bottom"] as const;
@@ -82,61 +107,128 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
       </div>
     </div>
     <div className="settings-rule" />
-    <div className="settings-copy"><strong>Page backgrounds</strong>
-      <span>Choose a page to give it its own image. “All pages” is the fallback wherever no individual image is set.</span></div>
-    <div className="page-background-pages" role="group" aria-label="Select page background">
-      {PAGE_BACKGROUND_CHOICES.map((choice) => <button key={choice.key} type="button"
-        aria-pressed={selectedPage === choice.key}
-        onClick={() => { setSelectedPage(choice.key); setNotice(""); }}>
-        {choice.label}{backgrounds[choice.key].hasImage ? <span className="page-background-dot" aria-label="Has image">●</span> : null}
-      </button>)}
-    </div>
-    <input ref={fileRef} className="hidden-file" type="file" accept="image/*"
-      onChange={(event) => void choose(event.target.files?.[0])}/>
-    <div className="background-preview background-preview-live">
-      <button type="button" className="background-preview-canvas"
-        disabled={!background.imageUrl}
-        title="Click top, middle or bottom to set the image focal area. Enter cycles these positions."
-        aria-label={`Preview background; focal area ${background.settings.position}. Click to move focus or press Enter to cycle.`}
-        onClick={setFocal}>
-        {background.imageUrl ? <img src={background.imageUrl} alt=""
-          style={{ opacity: background.settings.opacity, filter: `blur(${background.settings.blur}px)`,
-            objectFit: "cover", objectPosition: `center ${background.settings.position}` }}/> : <span className="background-empty" aria-hidden="true"/>}
-        <span className="background-preview-veil" style={{ opacity: background.settings.veil }} aria-hidden="true"/>
-        <span className="background-preview-example" aria-hidden="true">
-          <small>{selectedPage === "heuresis" ? "ALL PAGES · DEFAULT" : selectedPage.replace("heuresis-", "").toUpperCase()}</small>
-          <strong>Ich stelle fest, dass …</strong>
-          <span>To notice or establish something</span>
-          <em>Review · Remember</em>
-        </span>
-      </button>
-      <span className="background-preview-caption">{background.hasImage
-        ? `Live preview · focal area: ${background.settings.position}`
-        : selectedPage === "heuresis" ? "No default image. Pages without an individual image use the standard appearance." : "No individual image. This page uses the all-pages background, if set."}</span>
-    </div>
-    <div className="settings-actions">
-      <button type="button" className="secondary-button" disabled={background.syncing}
-        onClick={() => fileRef.current?.click()}><ImagePlus size={14}/>
-        {background.hasImage ? "Replace image" : "Choose image"}</button>
-      {background.hasImage ? <button type="button" className="secondary-button"
-        disabled={background.syncing} onClick={() => void remove()}>
-        <Trash2 size={14}/> Remove image</button> : null}
-      <button type="button" className="secondary-button" title="Restore default appearance settings but keep your image"
-        onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}>
-        <RotateCcw size={14}/> Use default</button>
-    </div>
-    <div className="settings-controls">
-      <label><span>Dim</span><input type="range" min="0" max="95" step="5" value={dim}
-        onChange={(event) => background.updateSettings(dimToLegacySettings(Number(event.target.value)))}
-        aria-label="Background dimming"/><em>{dim}%</em></label>
-      <label><span>Blur</span><input type="range" min="0" max="12" step="1"
-        value={background.settings.blur}
-        onChange={(event) => background.updateSettings({ blur: Number(event.target.value) })}/>
-        <em>{background.settings.blur}px</em></label>
-      <p className="background-focal-hint">Click the preview to focus the top, centre or bottom of the image.</p>
-    </div>
-    {background.syncError ? <div className="settings-note error" role="alert">{background.syncError}</div> : null}
-    {notice ? <div className="settings-note" role="status">{notice}</div> : null}</section>;
+    <div className="pb-studio">
+      <div className="settings-copy pb-heading"><strong>Page backgrounds</strong>
+        <span>Give each page its own atmosphere. “All pages” is the fallback when no individual image is set.</span></div>
+      <div className="page-background-pages" role="group" aria-label="Select page background">
+        {PAGE_BACKGROUND_CHOICES.map((choice) => <button key={choice.key} type="button"
+          aria-pressed={selectedPage === choice.key}
+          onClick={() => { setSelectedPage(choice.key); setNotice(""); }}>
+          {choice.label}{backgrounds[choice.key].hasImage ? <span className="page-background-dot" aria-label="Has image">●</span> : null}
+        </button>)}
+      </div>
+      <div className="pb-toolbar">
+        <div className="pb-current">
+          <small>CUSTOMISING</small>
+          <strong>{selectedLabel}</strong>
+          <span>{background.hasImage ? "Individual background · saved for this page"
+            : selectedPage === "heuresis" ? "Shared appearance for pages without their own image"
+              : shownImage ? "Using All pages · choose an image to override it" : "No image yet · choose one below"}</span>
+        </div>
+        <div className="pb-toolbar-actions">
+          <button type="button" className="pb-upload-primary" disabled={background.syncing || Boolean(applyingPreset)}
+            onClick={() => fileRef.current?.click()}><ImagePlus size={17} />
+            {background.syncing ? "Saving…" : background.hasImage ? "Replace image" : "Choose image"}</button>
+          {background.hasImage ? <button type="button" className="pb-quiet-action"
+            disabled={background.syncing} onClick={() => void remove()}><Trash2 size={14} /> Remove</button> : null}
+        </div>
+      </div>
+      <input ref={fileRef} className="hidden-file" type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        aria-label={"Upload background image for " + selectedLabel}
+        onChange={(event) => void choose(event.target.files?.[0])}/>
+      <div className="pb-studio-grid">
+        <div className="pb-visual">
+          <div className="background-preview background-preview-live"
+            onDragOver={(event) => event.preventDefault()} onDrop={dropImage}>
+            <button type="button" className="background-preview-canvas"
+              disabled={!background.imageUrl}
+              title="Click top, middle or bottom to adjust the picture's focus."
+              aria-label={"Preview " + selectedLabel + " background, focal area " + shownBackground.settings.position}
+              onClick={setFocal}>
+              {shownImage ? <img src={shownImage} alt="" style={{
+                opacity: shownBackground.settings.opacity, filter: "blur(" + shownBackground.settings.blur + "px)",
+                objectFit: shownBackground.settings.fit, objectPosition: "center " + shownBackground.settings.position
+              }}/> : <span className="background-empty" aria-hidden="true"/>}
+              <span className="background-preview-veil" style={{ opacity: shownBackground.settings.veil }} aria-hidden="true"/>
+              <span className="background-preview-example" aria-hidden="true">
+                <small>{selectedLabel.toUpperCase()}</small>
+                <strong>Ich stelle fest, dass …</strong>
+                <span>To notice or establish something</span>
+                <em>Review · Remember</em>
+              </span>
+            </button>
+            <span className="background-preview-caption">
+              {background.hasImage ? "Live preview · click to move image focus, or drop a new image"
+                : shownImage ? "Previewing All pages · choose an image to customise only this page"
+                  : "Choose an image or one of the atmospheres below to begin"}
+            </span>
+          </div>
+          <div className="pb-presets-panel">
+            <div className="pb-panel-heading"><strong><Sparkles size={15} /> Atmospheres</strong>
+              <span>Ready-made backgrounds · one click</span></div>
+            <div className="pb-preset-grid">
+              {BACKGROUND_PRESETS.map((preset) => <button type="button" key={preset.id}
+                className="pb-preset" disabled={background.syncing || Boolean(applyingPreset)}
+                onClick={() => void usePreset(preset)} title={preset.description}>
+                <span className="pb-preset-art" style={{ background: presetSwatch(preset) }}>
+                  {applyingPreset === preset.id ? <span className="pb-preset-saving">Saving…</span> : null}
+                </span>
+                <span>{preset.label}</span>
+              </button>)}
+            </div>
+          </div>
+        </div>
+        <div className="pb-tuning">
+          <div className="pb-panel-heading"><strong>Fine-tune</strong>
+            <span>{background.hasImage ? "Only for " + selectedLabel : "Choose an image first"}</span></div>
+          <div className="pb-tune-content">
+            <div className="pb-section-label">LOOK</div>
+            <div className="pb-look-options" role="group" aria-label="Background appearance presets">
+              {looks.map((look) => <button key={look.label} type="button"
+                disabled={!background.hasImage || background.syncing}
+                aria-pressed={dim === look.dim && background.settings.blur === look.blur}
+                onClick={() => background.updateSettings({ ...dimToLegacySettings(look.dim), blur: look.blur })}>
+                {dim === look.dim && background.settings.blur === look.blur ? <Check size={12}/> : null}{look.label}
+              </button>)}
+            </div>
+            <div className="settings-controls pb-sliders">
+              <label><span>Dim</span><input type="range" min="0" max="95" step="5" value={dim}
+                disabled={!background.hasImage}
+                onChange={(event) => background.updateSettings(dimToLegacySettings(Number(event.target.value)))}
+                aria-label="Background dimming"/><em>{dim}%</em></label>
+              <label><span>Blur</span><input type="range" min="0" max="20" step="1"
+                disabled={!background.hasImage} value={background.settings.blur}
+                onChange={(event) => background.updateSettings({ blur: Number(event.target.value) })}/>
+                <em>{background.settings.blur}px</em></label>
+            </div>
+            <div className="pb-setting-line"><span>Position</span>
+              <div className="pb-segments" role="group" aria-label="Background position">
+                {(["top", "center", "bottom"] as const).map((position) => <button key={position}
+                  type="button" disabled={!background.hasImage} aria-pressed={background.settings.position === position}
+                  onClick={() => background.updateSettings({ position })}>{position === "center" ? "Centre" : position === "top" ? "Top" : "Bottom"}</button>)}
+              </div>
+            </div>
+            <div className="pb-setting-line"><span>Fit</span>
+              <div className="pb-segments" role="group" aria-label="Background fit">
+                {(["cover", "contain"] as const).map((fit) => <button key={fit} type="button"
+                  disabled={!background.hasImage} aria-pressed={background.settings.fit === fit}
+                  onClick={() => background.updateSettings({ fit })}>{fit === "cover" ? "Fill" : "Fit"}</button>)}
+              </div>
+            </div>
+            <div className="pb-tune-footer">
+              <button type="button" className="pb-quiet-action" title="Reset adjustments without removing the image"
+                disabled={!background.hasImage || background.syncing}
+                onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}>
+                <RotateCcw size={14}/> Reset adjustments</button>
+              <small>Changes save automatically to your account.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      {background.syncError ? <div className="settings-note error" role="alert">{background.syncError}</div> : null}
+      {notice ? <div className="settings-note" role="status">{notice}</div> : null}
+    </div></section>;
 }
 
 export default function SettingsModal({ backgrounds, packs, collections, onDataChanged, onClose }: Props) {
