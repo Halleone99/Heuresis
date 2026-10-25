@@ -149,12 +149,31 @@ export function parseBlocks(markdown: string): Block[] {
 
 const INLINE_RE = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
 
+/** Backslash escapes prevent literal formatting markers from changing notes. */
+const unescapeInline = (value: string) => value.replace(/\\([\\*=[\\]{}~])/g, "$1");
+const escapedMarker = (text: string, index: number) => {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) backslashes++;
+  return backslashes % 2 === 1;
+};
+const inlineText = (value: string): Inline => ({ type: "text", text: unescapeInline(value) });
+
 export function parseInline(text: string): Inline[] {
   const result: Inline[] = [];
   let last = 0;
   for (const match of text.matchAll(INLINE_RE)) {
     const start = match.index ?? 0;
-    if (start > last) result.push({ type: "text", text: text.slice(last, start) });
+    const end = start + match[0].length;
+    if (start < last || escapedMarker(text, start)) continue;
+    const inner = match[1] ?? match[2] ?? match[3] ?? match[6] ?? match[7];
+    const emphasis = match[1] !== undefined || match[2] !== undefined || match[6] !== undefined;
+    // Preserve maths and grammar examples such as "x == y == z" and "a*b*c".
+    if (inner !== undefined && (!inner.trim() || /^\\s|\\s$/.test(inner))) continue;
+    if (emphasis && (
+      /[\\p{L}\\p{N}]/u.test(text[start - 1] ?? "") ||
+      /[\\p{L}\\p{N}]/u.test(text[end] ?? "")
+    )) continue;
+    if (start > last) result.push(inlineText(text.slice(last, start)));
     // Triple markers must be recognised before double markers; preserve
     // both styles using nested syntax already understood by the renderer.
     if (match[1] !== undefined) result.push({ type: "strong", text: `*${match[1]}*` });
@@ -167,7 +186,7 @@ export function parseInline(text: string): Inline[] {
     else if (match[10] !== undefined) result.push({ type: "tint", colour: match[10] as NoteColour, text: match[11] });
     last = start + match[0].length;
   }
-  if (last < text.length) result.push({ type: "text", text: text.slice(last) });
+  if (last < text.length) result.push(inlineText(text.slice(last)));
   return result;
 }
 
@@ -228,7 +247,7 @@ function inlineHtml(text: string): string {
     if (part.type === "strike") return `<s>${inlineHtml(part.text)}</s>`;
     if (part.type === "colour") return `<span data-ink="${part.colour}">${inlineHtml(part.text)}</span>`;
     if (part.type === "tint") return `<mark data-tone="${part.colour}">${inlineHtml(part.text)}</mark>`;
-    if (part.type === "link") return escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`);
+    if (part.type === "link") return `<span data-wikilink="true">${escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`)}</span>`;
     return pinyinHtml(part.text);
   }).join("");
 }
@@ -303,10 +322,15 @@ function wrap(marker: string, inner: string) {
 }
 
 /** Serialise inline content. Returns text where "\n" marks a hard line break. */
+function escapeInlineText(value: string): string {
+  return value.replace(/\\/g, "\\\\")
+    .replace(/(\\*{1,3}|==|~~|\\[\\[|\\{(?:color|bg):)(?=\\S)/g, "\\$1");
+}
 function inlineMarkdown(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").replace(/ /g, " ").replace(/​/g, "");
+  if (node.nodeType === Node.TEXT_NODE) return escapeInlineText((node.textContent ?? "").replace(/ /g, " ").replace(/​/g, ""));
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const element = node as HTMLElement;
+  if (element.hasAttribute("data-wikilink")) return element.textContent ?? "";
   if (element.tagName === "BR") return "\n";
   if (["UL", "OL", "SCRIPT", "STYLE"].includes(element.tagName)) return "";
   let inner = Array.from(element.childNodes).map(inlineMarkdown).join("");
