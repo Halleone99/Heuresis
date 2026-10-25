@@ -7,10 +7,10 @@ const text = (source) => notes.parseInline(source);
 // The editor must not interpret arithmetic or German/Chinese grammar as styling.
 assert.deepEqual(text("a*b*c"), [{ type: "text", text: "a*b*c" }]);
 assert.deepEqual(text("x == y and y == z"), [{ type: "text", text: "x == y and y == z" }]);
-assert.equal(notes.inlinePlain(String.raw`a\\*b\\*c`), "a*b*c");
-assert.equal(notes.inlinePlain(String.raw`\\[[Note]]`), "[[Note]]");
-assert.equal(notes.inlinePlain(String.raw`\\{color:red}word{/color}`), "{color:red}word{/color}");
-assert.equal(notes.wikiLinks(String.raw`\\[[not a link]]`).size, 0);
+assert.equal(notes.inlinePlain(String.raw`a\*b\*c`), "a*b*c");
+assert.equal(notes.inlinePlain(String.raw`\[[Note]]`), "[[Note]]");
+assert.equal(notes.inlinePlain(String.raw`\{color:red}word{/color}`), "{color:red}word{/color}");
+assert.equal(notes.wikiLinks(String.raw`\[[not a link]]`).size, 0);
 assert(notes.wikiLinks("[[Real note]]").has("real note"));
 
 // Triple emphasis should be nested bold + italic, not leftover asterisks.
