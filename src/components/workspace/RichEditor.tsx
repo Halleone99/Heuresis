@@ -140,6 +140,30 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const [source, setSource] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
+  // Palettes are temporary controls: dismiss on Escape or a click elsewhere,
+  // rather than leaving attention-demanding overlays on screen.
+  useEffect(() => {
+    if (!paletteOpen && !tableOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPaletteOpen(false);
+      setTableOpen(false);
+    };
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".nb-colour-anchor, .nb-table-anchor")) return;
+      setPaletteOpen(false);
+      setTableOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    document.addEventListener("pointerdown", closeOnOutside, true);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape, true);
+      document.removeEventListener("pointerdown", closeOnOutside, true);
+    };
+  }, [paletteOpen, tableOpen]);
   const [colourHint, setColourHint] = useState("");
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
@@ -533,12 +557,20 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (composing.current || event.nativeEvent.isComposing) return;
     const mod = event.ctrlKey || event.metaKey;
-    if (event.key === "Escape") { event.preventDefault(); onEscape?.(); return; }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (paletteOpen || tableOpen) { setPaletteOpen(false); setTableOpen(false); return; }
+      onEscape?.();
+      return;
+    }
+    // Windows AltGr is reported as Ctrl+Alt by WebView2. Never intercept
+    // characters such as } and ² as formatting shortcuts.
+    if (event.nativeEvent.getModifierState("AltGraph")) return;
     if (mod && event.key === "Enter") { event.preventDefault(); onDone?.(); return; }
     if (mod && !event.shiftKey && event.code === "KeyS") { event.preventDefault(); onSave?.(); return; }
-    if (mod && event.altKey && event.code === "Digit1") { event.preventDefault(); setBlock("h2"); return; }
-    if (mod && event.altKey && event.code === "Digit2") { event.preventDefault(); setBlock("h3"); return; }
-    if (mod && event.altKey && event.code === "Digit0") { event.preventDefault(); setBlock("p"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit1") { event.preventDefault(); setBlock("h2"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit2") { event.preventDefault(); setBlock("h3"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit0") { event.preventDefault(); setBlock("p"); return; }
     if (mod && event.shiftKey && event.code === "Digit8") { event.preventDefault(); setBlock("ul"); return; }
     if (mod && event.shiftKey && event.code === "Digit7") { event.preventDefault(); setBlock("ol"); return; }
     if (mod && event.shiftKey && event.code === "KeyH") { event.preventDefault(); toggleMark(); return; }
@@ -696,7 +728,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         <div className="nb-colour-anchor">
           <button type="button" aria-label="Text and highlight colours" aria-expanded={paletteOpen} title="Text and highlight colours" disabled={source}
             className={paletteOpen ? "is-active" : ""}
-            onMouseDown={(event) => event.preventDefault()} onClick={() => { setColourHint(""); setPaletteOpen((open) => !open); }}><Palette size={15}/></button>
+            onMouseDown={(event) => event.preventDefault()} onClick={() => { setColourHint(""); setTableOpen(false); setPaletteOpen((open) => !open); }}><Palette size={15}/></button>
           {paletteOpen && !source ? <div className="nb-colour-popover" aria-label="Colours">
             <div className="nb-colour-row"><span>Text</span>{NOTE_COLOURS.map((colour) =>
               <button key={colour} type="button" className="nb-colour-swatch" data-swatch={colour}
@@ -784,7 +816,11 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         onChange={(event) => { setSourceText(event.target.value); latest.current = event.target.value; setEmpty(!event.target.value.trim()); onChange(event.target.value); }}
         onKeyDown={(event) => {
           const mod = event.ctrlKey || event.metaKey;
-          if (event.key === "Escape") { event.preventDefault(); onEscape?.(); }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            if (paletteOpen || tableOpen) { setPaletteOpen(false); setTableOpen(false); }
+            else onEscape?.();
+          }
           else if (mod && event.key === "Enter") { event.preventDefault(); onDone?.(); }
           else if (mod && event.code === "KeyS") { event.preventDefault(); onSave?.(); }
         }} /> : null}
