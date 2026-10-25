@@ -27,11 +27,9 @@ assert.match(notebook, /!topic \? \(/, "Subject pages only display topic cards")
 assert.match(notebook, /entry.topic_id === topic.id && isDocument\(entry\)/, "Topic notes are not flattened from other topics");
 assert.match(notebook, /className="nb-topic-grid"/, "Subjects show topic cards");
 assert.match(notebook, /<div className="nb-scope-actions">[\s\S]*?nb-capture-open[\s\S]*?\{newAction\}/, "Home actions include Captures and New");
-assert.match(notebook, /<CaptureReviewPage/);
+assert.match(notebook, /onShowCaptures=\{\(\) => workspace\.goTo\("queue"\)\}/, "Notebook Captures opens the same main queue");
+assert.doesNotMatch(notebook, /<CaptureReviewPage/, "No duplicate Captures review page");
 assert.doesNotMatch(notebook, /nb-capture-summary/, "Pending captures remain accessible without a prominent reminder banner");
-const review = readFileSync("src/components/workspace/CaptureReviewPage.tsx", "utf8");
-assert.match(review, /workspace\.openCleanup\(\{ kind: "inbox", id: inbox.id \}\)/);
-assert.match(review, /onOpenNote\(entry\)/);
 assert.doesNotMatch(notebook, /mistakes.length \? <p className="nb-scope-meta"/, "No distracting mistake shortcut under subject headings");
 assert.match(notebook, /<small>\{metadata \|\| "Note"\}<\/small>/, "Note list keeps a readable type label");
 assert.match(context, /if \(next === "notebook"\)/, "Explicit Notebook section navigation targets its home");
@@ -50,10 +48,10 @@ assert.ok(documentPage.includes('workspace.writable && !detached ? <button type=
 assert.ok(windowCss.includes(".nb-detached-root .nb-doc:not(.is-editing) .nb-doc-body"), "Reader uses a document sheet");
 const knowledge = readFileSync("src/lib/knowledgeWorkspace.ts", "utf8");
 const descriptionMigration = readFileSync("supabase/migrations/20261020215600_notebook_note_descriptions.sql", "utf8");
-assert.match(notebook, /label: "Edit description"/, "Card menu provides description editing");
+assert.match(notebook, /"Organise capture" : "Edit description"/, "Pending captures cannot overwrite their filing marker through description editing");
 assert.match(notebook, /workspace\.patchEntry\(descriptionEditor\.id, \{ description: descriptionEditor\.value \}\)/, "Description is persisted separately");
-assert.match(notebook, /entry\.description\.trim\(\) \? <span className="nb-doc-preview">\{entry\.description\}<\/span>/,
-  "Card previews must display only the authored description");
+assert.match(notebook, /!quickQueueKind\(entry\) && entry\.description\.trim\(\)/,
+  "Card previews hide internal capture markers");
 assert.doesNotMatch(notebook, /entryPreview\(entry/, "Cards must not use automatically extracted body excerpts");
 assert.match(knowledge, /description: contentStr\(row\.description\)/, "Descriptions survive reload");
 assert.match(knowledge, /description: repairPinyinToneMarks\(input\.description \?\? ""\)/, "Descriptions are initialised on new records");

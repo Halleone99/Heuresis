@@ -33,7 +33,7 @@ import { LessonCleanupDialog } from "./components/workspace/LessonCleanupDialog"
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch, type PaletteCommand } from "./components/workspace/WorkspaceSearch";
-import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
+import { useHeuresisBackground, type BackgroundPageKey } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
@@ -77,7 +77,7 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "reading", label: "Reading", icon: BookOpen, key: "5" },
   { id: "quotations", label: "Quotations", icon: Quote, key: "6" },
   { id: "reference", label: "Catalogue", icon: LibraryBig, key: "7" },
-  { id: "queue", label: "Q", icon: Feather, key: "8" },
+  { id: "queue", label: "Captures", icon: Feather, key: "8" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -150,7 +150,8 @@ function HeuresisApp({ session }: { session: Session }) {
 function HeuresisShell({ session, section, setSection }: { session: Session; section: WorkspaceSection; setSection: (section: WorkspaceSection) => void }) {
   const workspace = useWorkspace();
   const qReviewIds = useCaptureReviewIds(session.user.id);
-  const qCount = workspace.snapshot.entries.filter((entry) => quickQueueKind(entry) || qReviewIds.has(entry.id)).length;
+  const inboxIds = new Set(workspace.snapshot.topics.filter(isInboxTopic).map((topic) => topic.id));
+  const qCount = workspace.snapshot.entries.filter((entry) => inboxIds.has(entry.topic_id) && (quickQueueKind(entry) || qReviewIds.has(entry.id))).length;
   // A newly launched app should not reopen yesterday's last viewed document
   // merely because Notebook was the previously selected section.
   const startupNotebook = useRef(section === "notebook");
@@ -224,7 +225,21 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [trashOpen, setTrashOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
-  const background = useHeuresisBackground();
+  // One stable background per section; the original Heuresis image is the shared fallback.
+  const backgrounds = {
+    heuresis: useHeuresisBackground("heuresis"),
+    "heuresis-overview": useHeuresisBackground("heuresis-overview"),
+    "heuresis-study": useHeuresisBackground("heuresis-study"),
+    "heuresis-notebook": useHeuresisBackground("heuresis-notebook"),
+    "heuresis-mistakes": useHeuresisBackground("heuresis-mistakes"),
+    "heuresis-reading": useHeuresisBackground("heuresis-reading"),
+    "heuresis-quotations": useHeuresisBackground("heuresis-quotations"),
+    "heuresis-reference": useHeuresisBackground("heuresis-reference"),
+    "heuresis-queue": useHeuresisBackground("heuresis-queue"),
+  } satisfies Record<BackgroundPageKey, ReturnType<typeof useHeuresisBackground>>;
+  const specificBackground = backgrounds[`heuresis-${section}` as BackgroundPageKey];
+  const background = specificBackground?.hasImage && specificBackground.settings.enabled
+    ? specificBackground : backgrounds.heuresis;
   const [localBackupNotice, setLocalBackupNotice] = useState("");
 
   async function reload(silent = false) {
@@ -540,7 +555,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}>
+        <button className="desktop-wordmark" onClick={() => navigateSection("overview")} aria-label="Heuresis — go to Overview" title="Go to Overview">
           <span className="desktop-brand-mark" aria-hidden="true"><HeuresisMark /></span>
           <span className="desktop-wordmark-name">Heuresis</span>
         </button>
@@ -610,7 +625,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           <nav className="hw-sections">
             {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>
-              {id === "queue" ? <strong className="q-nav-letter">Q</strong> : <Icon size={16}/>}<span>{label}</span>{id === "queue" && qCount > 0 ? <span className="q-nav-badge">{qCount}</span> : null}
+              {id === "queue" ? <span className="capture-mark" aria-hidden="true">C</span> : <Icon size={16}/>}<span>{label}</span>{id === "queue" && qCount > 0 ? <span className="q-nav-badge">{qCount}</span> : null}
             </button>)}
           </nav>
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookSidebarTree /> : null}
@@ -662,7 +677,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </div>
         <button type="button" className={`q-mobile-pinned ${section === "queue" ? "is-active" : ""}`}
           aria-current={section === "queue" ? "page" : undefined} onClick={() => navigateSection("queue")}>
-          <strong className="q-nav-letter">Q</strong><span>Q</span>
+          <span className="capture-mark" aria-hidden="true">C</span><span>Captures</span>
           {qCount > 0 ? <b className="q-nav-badge">{qCount}</b> : null}
         </button>
       </nav>
@@ -680,7 +695,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack, cardId) => { setSection("study"); openPack(pack, cardId ?? null); }} /> : null}
-      {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <SettingsModal backgrounds={backgrounds} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {topicModalOpen ? <TopicModal collections={collections} pack={topicModalPack} preferredCollectionId={topicPreferredCollectionId} onClose={() => { setTopicModalOpen(false); setTopicModalPack(null); }} onChanged={afterTopicChange} /> : null}

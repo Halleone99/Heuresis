@@ -36,6 +36,6 @@ assert.match(review, /quickQueueKind\(entry\)/, "Only Q-marked entries go to Q")
 assert.match(review, /await createCard\(/, "Flashcard conversion waits until review");
 assert.match(review, /await workspace\.addEntry\(\{ kind: "mistake"/, "Mistake conversion waits until review");
 assert.match(review, /await workspace\.patchEntry\(selected\.id/, "Note is filed after review");
-assert.match(provider, /queueCaptureForReview\(userId, id\)/);
+assert.doesNotMatch(provider, /queueCaptureForReview\(userId, id\)/, "New captures use the synced record, not device-local IDs");
 assert.match(workspaceCss, /\.hw-sidebar-capture-position/, "Desktop feather stays in sidebar");
-console.log("Heuresis native Quick Capture → Q queue checks passed.");
+console.log("Heuresis native Quick Capture → Captures checks passed.");

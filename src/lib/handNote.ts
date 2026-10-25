@@ -10,7 +10,8 @@ export function encodeHandNote(strokes: HandStroke[]): string {
 
 export function decodeHandNote(encoded: string): HandStroke[] {
   try {
-    const data = JSON.parse(atob(encoded)) as { version?: number; strokes?: unknown };
+    const payload = encoded.trim().startsWith(HAND_NOTE_PREFIX) ? encoded.trim().slice(HAND_NOTE_PREFIX.length) : encoded.trim();
+    const data = JSON.parse(atob(payload)) as { version?: number; strokes?: unknown };
     if (data.version !== 1 || !Array.isArray(data.strokes) || data.strokes.length > 1000) return [];
     if (!data.strokes.every((stroke) => {
       const row = stroke as HandStroke;

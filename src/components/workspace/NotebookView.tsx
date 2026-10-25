@@ -10,7 +10,7 @@ import { exportCachedKnowledgeForRecovery } from "../../lib/offlineFetch";
 import { HAND_NOTE_PREFIX } from "../../lib/handNote";
 import { inlinePlain } from "../../lib/noteFormat";
 import { DocumentPage } from "./DocumentPage";
-import { CaptureReviewPage } from "./CaptureReviewPage";
+import { quickQueueKind } from "../../lib/quickQueue";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
@@ -40,7 +40,6 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
-  const [captureReviewOpen, setCaptureReviewOpen] = useState(false);
   const [referencesOpen, setReferencesOpen] = useState(referenceOnly);
   const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
   const [creatingKind, setCreatingKind] = useState<"subject" | "topic" | null>(null);
@@ -57,7 +56,6 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     internalNavigation.current = true;
     if (options.push !== false) setHistory((stack) => [...stack.slice(-30), { topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null }]);
     setNewDoc(null);
-    setCaptureReviewOpen(false);
     setRailOpenMobile(false);
     updateMemory((current) => ({
       ...current,
@@ -201,8 +199,6 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
   else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
     onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
     onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true, stayInSection: referenceOnly }); }} />;
-  else if (captureReviewOpen) main = <CaptureReviewPage onBack={() => setCaptureReviewOpen(false)}
-    onOpenNote={(entry) => navigate({ topicId: entry.topic_id, docId: entry.id })} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.draftKey ?? newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.draftKey ?? newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} />;
@@ -210,7 +206,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     onDetach={() => void openNoteWindow({ noteId: doc.id }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }))} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} />;
-  else main = <NotebookHome navigate={navigate} newAction={newAction} onShowCaptures={() => setCaptureReviewOpen(true)} />;
+  else main = <NotebookHome navigate={navigate} newAction={newAction} onShowCaptures={() => workspace.goTo("queue")} />;
 
   return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${referenceOnly ? "is-reference-standalone" : ""}`}>
     {!referenceOnly ? <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} /> : null}
@@ -485,7 +481,7 @@ function ScopePage({ scope, navigate, newAction }: {
     if (iconFilter === "none" && entry.icon) return false;
     if (iconFilter !== "all" && iconFilter !== "none" && entry.icon !== iconFilter) return false;
     return !query || normaliseSearch(entryTitle(entry)).includes(query)
-      || normaliseSearch(entry.description).includes(query)
+      || (!quickQueueKind(entry) && normaliseSearch(entry.description).includes(query))
       || normaliseSearch(visibleBodyText(entry.body)).includes(query);
   }).sort((a, b) => {
     const pinned = Number(b.pinned) - Number(a.pinned);
@@ -699,7 +695,7 @@ function ScopePage({ scope, navigate, newAction }: {
                   } else navigate({ topicId: entry.topic_id, docId: entry.id });
                 }}>
                 <span className="nb-doc-text"><strong>{entryTitle(entry)}{entry.pinned ? <span className="nb-pin-dot" title="Pinned">•</span> : null}</strong>
-                  {entry.description.trim() ? <span className="nb-doc-preview">{entry.description}</span> : null}
+                  {!quickQueueKind(entry) && entry.description.trim() ? <span className="nb-doc-preview">{entry.description}</span> : null}
                 </span>
                 <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
                   <small>{metadata || "Note"}</small></span>
@@ -707,7 +703,8 @@ function ScopePage({ scope, navigate, newAction }: {
               {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} align="right" items={[
                 { label: entry.pinned ? "Unpin note" : "Pin to top", icon: entry.pinned ? <PinOff size={14} /> : <Pin size={14} />,
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
-                { label: "Edit description", icon: <Pencil size={14} />, run: () => setDescriptionEditor({ id: entry.id, value: entry.description }) },
+                { label: quickQueueKind(entry) ? "Organise capture" : "Edit description", icon: <Pencil size={14} />,
+                  run: () => quickQueueKind(entry) ? workspace.goTo("queue") : setDescriptionEditor({ id: entry.id, value: entry.description }) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
                 { label: "Move to…", icon: <FolderInput size={14} />, run: () => setMovingNote(entry) },
                 { label: "Delete", icon: <Trash2 size={14} />, danger: true,
@@ -746,7 +743,7 @@ function NotebookHome({ navigate, newAction, onShowCaptures }: { navigate: (loca
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
   const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
   const inboxIds = new Set(snapshot.topics.filter(isInboxTopic).map((row) => row.id));
-  const pendingCaptures = snapshot.entries.filter((entry) => entry.kind !== "lesson" && inboxIds.has(entry.topic_id)).length;
+  const pendingCaptures = snapshot.entries.filter((entry) => inboxIds.has(entry.topic_id) && quickQueueKind(entry)).length;
   const [rescueBusy, setRescueBusy] = useState(false);
   async function exportDeviceCache() {
     if (rescueBusy) return;

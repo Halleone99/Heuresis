@@ -1,6 +1,6 @@
 import { ImagePlus, RotateCcw, Trash2, X } from "lucide-react";
 import { useRef, useState, type MouseEvent } from "react";
-import { DEFAULT_BACKGROUND_SETTINGS, type BackgroundSettings } from "../hooks/useHeuresisBackground";
+import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPageKey, type BackgroundSettings } from "../hooks/useHeuresisBackground";
 import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
@@ -20,14 +20,16 @@ type BackgroundApi = {
 
 type Tab = "appearance" | "sorting" | "cards";
 type Props = {
-  background: BackgroundApi;
+  backgrounds: Record<BackgroundPageKey, BackgroundApi>;
   packs: PackWithType[];
   collections: Collection[];
   onDataChanged: () => Promise<void> | void;
   onClose: () => void;
 };
 
-function AppearanceSettings({ background }: { background: BackgroundApi }) {
+function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPageKey, BackgroundApi> }) {
+  const [selectedPage, setSelectedPage] = useState<BackgroundPageKey>("heuresis");
+  const background = backgrounds[selectedPage];
   const fileRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState("");
   const { mode, palette, chooseMode, choosePalette } = useAppearance();
@@ -35,6 +37,12 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
     { id: "slate", label: "Slate" }, { id: "forest", label: "Forest" },
     { id: "sepia", label: "Sepia" }, { id: "neutral", label: "Neutral" },
   ];
+
+  async function remove() {
+    setNotice("");
+    try { await background.removeImage(); setNotice("Image removed for this page."); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "Could not remove the image."); }
+  }
 
   async function choose(file: File | undefined) {
     if (!file) return;
@@ -74,8 +82,15 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
       </div>
     </div>
     <div className="settings-rule" />
-    <div className="settings-copy"><strong>Study background</strong>
-      <span>See how your image looks behind a learning card. Your choice follows your account across devices.</span></div>
+    <div className="settings-copy"><strong>Page backgrounds</strong>
+      <span>Choose a page to give it its own image. “All pages” is the fallback wherever no individual image is set.</span></div>
+    <div className="page-background-pages" role="group" aria-label="Select page background">
+      {PAGE_BACKGROUND_CHOICES.map((choice) => <button key={choice.key} type="button"
+        aria-pressed={selectedPage === choice.key}
+        onClick={() => { setSelectedPage(choice.key); setNotice(""); }}>
+        {choice.label}{backgrounds[choice.key].hasImage ? <span className="page-background-dot" aria-label="Has image">●</span> : null}
+      </button>)}
+    </div>
     <input ref={fileRef} className="hidden-file" type="file" accept="image/*"
       onChange={(event) => void choose(event.target.files?.[0])}/>
     <div className="background-preview background-preview-live">
@@ -89,7 +104,7 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
             objectFit: "cover", objectPosition: `center ${background.settings.position}` }}/> : <span className="background-empty" aria-hidden="true"/>}
         <span className="background-preview-veil" style={{ opacity: background.settings.veil }} aria-hidden="true"/>
         <span className="background-preview-example" aria-hidden="true">
-          <small>GERMAN · GRAMMAR</small>
+          <small>{selectedPage === "heuresis" ? "ALL PAGES · DEFAULT" : selectedPage.replace("heuresis-", "").toUpperCase()}</small>
           <strong>Ich stelle fest, dass …</strong>
           <span>To notice or establish something</span>
           <em>Review · Remember</em>
@@ -97,14 +112,14 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
       </button>
       <span className="background-preview-caption">{background.hasImage
         ? `Live preview · focal area: ${background.settings.position}`
-        : "Choose an image to preview its appearance."}</span>
+        : selectedPage === "heuresis" ? "No default image. Pages without an individual image use the standard appearance." : "No individual image. This page uses the all-pages background, if set."}</span>
     </div>
     <div className="settings-actions">
       <button type="button" className="secondary-button" disabled={background.syncing}
         onClick={() => fileRef.current?.click()}><ImagePlus size={14}/>
         {background.hasImage ? "Replace image" : "Choose image"}</button>
       {background.hasImage ? <button type="button" className="secondary-button"
-        disabled={background.syncing} onClick={() => void background.removeImage()}>
+        disabled={background.syncing} onClick={() => void remove()}>
         <Trash2 size={14}/> Remove image</button> : null}
       <button type="button" className="secondary-button" title="Restore default appearance settings but keep your image"
         onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}>
@@ -124,14 +139,14 @@ function AppearanceSettings({ background }: { background: BackgroundApi }) {
     {notice ? <div className="settings-note" role="status">{notice}</div> : null}</section>;
 }
 
-export default function SettingsModal({ background, packs, collections, onDataChanged, onClose }: Props) {
+export default function SettingsModal({ backgrounds, packs, collections, onDataChanged, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("appearance");
   return (
     <div className="modal-backdrop settings-layer" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className="settings-modal settings-modal-wide" role="dialog" aria-modal="true" aria-label="Heuresis settings">
         <header className="settings-head"><div><p className="eyebrow">PREFERENCES</p><h2>Settings</h2></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={17} /></button></header>
         <nav className="settings-tabs"><button aria-pressed={tab === "appearance"} onClick={() => setTab("appearance")}>Appearance</button><button aria-pressed={tab === "sorting"} onClick={() => setTab("sorting")}>Sorting</button><button aria-pressed={tab === "cards"} onClick={() => setTab("cards")}>Cards & directions</button></nav>
-        <div className="settings-body">{tab === "appearance" ? <AppearanceSettings background={background} /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>
+        <div className="settings-body">{tab === "appearance" ? <AppearanceSettings backgrounds={backgrounds} /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>
       </section>
     </div>
   );
