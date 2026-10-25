@@ -1,16 +1,17 @@
 /**
  * Native Windows backup, separate from Supabase and the WebView offline cache.
  *
- * Online, authenticated, no pending edits; server-only paginated reads. A complete
- * snapshot is atomically published only after EVERY table and media file succeeds.
+ * Online, authenticated, server-only paginated reads. The current-account offline
+ * journal is preserved separately inside the snapshot (never silently treated
+ * as uploaded). Publish only after every table, media file and journal check succeeds.
  * Incomplete attempts never replace an older dated backup.
  */
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { heuresisCardImagePaths } from "./cardMedia";
-import { getOfflineSyncState, NETWORK_ONLY_HEADER, refreshOfflinePendingCount } from "./offlineFetch";
+import { getOfflineSyncState, NETWORK_ONLY_HEADER, snapshotOfflineWritesForBackup } from "./offlineFetch";
 import { supabase } from "./supabase";
 
-const FORMAT = "heuresis-complete-local-v1";
+const FORMAT = "heuresis-complete-local-v2";
 const MEDIA_BUCKETS = ["heuresis-card-media", "page-background-media"] as const;
 const PAGE_SIZE = 800;
 const MAX_PAGES = 500;
@@ -154,13 +155,15 @@ export function ensureDailyLocalBackup(userId: string): Promise<BackupResult> {
       return { path: status.directory + "\\Heuresis-" + day, alreadyExists: true };
     }
     if (!navigator.onLine) throw new Error("Connect to the Internet to create a complete daily backup.");
-    await refreshOfflinePendingCount();
-    const pending = getOfflineSyncState();
-    if (pending.pending > 0 || pending.legacyPending > 0 || pending.held > 0)
-      throw new Error("Synchronise or review pending offline changes before creating a complete backup.");
+    if (getOfflineSyncState().syncing)
+      throw new Error("Synchronisation is running; backup will retry afterwards.");
     if (!supabase) throw new Error("Supabase is not configured.");
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || auth.user?.id !== userId) throw new Error("Sign in to the correct account before backing up.");
+    // Copy unuploaded current-account edits into the recovery section, rather
+    // than indefinitely withholding all PC backups because one edit was held.
+    // If the journal changes while collecting the server snapshot, retry.
+    const offlineAtStart = await snapshotOfflineWritesForBackup(userId);
 
     const tables: Record<string, TableRow[]> = {};
     // Read sequentially to keep memory/traffic predictable. Never silently skip
@@ -170,10 +173,19 @@ export function ensureDailyLocalBackup(userId: string): Promise<BackupResult> {
     const snapshot = {
       format: FORMAT, day, user_id: userId, created_at: new Date().toISOString(),
       tables, media_paths: mediaPaths,
-      note: "Complete local account export. Private data. Read-only until a separately tested restore tool is provided.",
+      offline_recovery: {
+        format: "heuresis-account-offline-journal-v1",
+        ...offlineAtStart,
+        note: "Device-only unsent changes for manual recovery. Not merged into server tables or automatically replayed. Older unassigned edits remain in Offline recovery on the original device.",
+      },
+      note: "Server library plus any current-account unsent edits. Private data. Read-only until a separately tested restore tool is provided.",
     };
     await invoke("local_backup_begin", { userId, day, snapshot });
     for (const path of mediaPaths) await writeMedia(userId, day, path);
+    if (getOfflineSyncState().syncing ||
+      JSON.stringify(offlineAtStart) !== JSON.stringify(await snapshotOfflineWritesForBackup(userId))) {
+      throw new Error("Offline edits changed during backup; the incomplete attempt will be retried.");
+    }
     const path = await invoke<string>("local_backup_finish", { userId, day });
     return { path, alreadyExists: false };
   })().finally(() => { inFlight = null; });

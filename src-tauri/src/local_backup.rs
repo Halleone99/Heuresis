@@ -10,7 +10,7 @@ use std::{
 };
 use tauri::Manager;
 
-const FORMAT: &str = "heuresis-complete-local-v1";
+const FORMAT: &str = "heuresis-complete-local-v2";
 const MEDIA_CHUNK_LIMIT: usize = 512 * 1024;
 const REQUIRED_TABLES: &[&str] = &[
     "knowledge_subjects", "knowledge_topics", "knowledge_records",
@@ -144,6 +144,9 @@ pub fn local_backup_begin(app: tauri::AppHandle, user_id: String, day: String, s
         || snapshot.get("day").and_then(Value::as_str) != Some(day.as_str())
         || snapshot.get("tables").and_then(Value::as_object).is_none()
         || snapshot.get("media_paths").and_then(Value::as_array).is_none()
+        || snapshot.pointer("/offline_recovery/format").and_then(Value::as_str) != Some("heuresis-account-offline-journal-v1")
+        || snapshot.pointer("/offline_recovery/entries").and_then(Value::as_array).is_none()
+        || snapshot.pointer("/offline_recovery/legacy_unassigned_count").and_then(Value::as_u64).is_none()
     {
         return Err("Incomplete or mismatched backup snapshot.".into());
     }
@@ -226,6 +229,21 @@ pub fn local_backup_finish(app: tauri::AppHandle, user_id: String, day: String) 
     for (name, rows) in tables {
         counts.insert(name.clone(), rows.as_array().ok_or(format!("Invalid table: {name}"))?.len());
     }
+    let offline = snapshot.get("offline_recovery").and_then(Value::as_object).ok_or("Missing offline recovery journal.")?;
+    if offline.get("format").and_then(Value::as_str) != Some("heuresis-account-offline-journal-v1") {
+        return Err("Invalid offline recovery format.".into());
+    }
+    let pending = offline.get("entries").and_then(Value::as_array).ok_or("Missing offline recovery records.")?;
+    let legacy_count = offline.get("legacy_unassigned_count").and_then(Value::as_u64)
+        .ok_or("Missing unassigned queue count.")?;
+    for item in pending {
+        if item.get("id").and_then(Value::as_str).is_none()
+            || item.get("url").and_then(Value::as_str).is_none()
+            || item.get("method").and_then(Value::as_str).is_none()
+        {
+            return Err("Invalid offline recovery record.".into());
+        }
+    }
     let paths = snapshot.get("media_paths").and_then(Value::as_array).ok_or("Missing media list.")?;
     let mut unique = HashSet::new();
     for item in paths {
@@ -241,6 +259,7 @@ pub fn local_backup_finish(app: tauri::AppHandle, user_id: String, day: String) 
     let manifest = json!({
         "format": FORMAT, "complete": true, "user_id": user_id, "day": day,
         "created_at": snapshot.get("created_at"), "tables": counts, "media_count": paths.len(),
+        "pending_offline_writes": pending.len(), "legacy_unassigned_count": legacy_count,
     });
     let mut file = fs::File::create(stage.join("manifest.json")).map_err(|e| e.to_string())?;
     file.write_all(serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?.as_bytes()).map_err(|e| e.to_string())?;

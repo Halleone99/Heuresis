@@ -225,7 +225,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
   const background = useHeuresisBackground();
-  const backupRunningRef = useRef(false);
   const [localBackupNotice, setLocalBackupNotice] = useState("");
 
   async function reload(silent = false) {
@@ -246,11 +245,14 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
 
   async function runSync(silent = false) {
     try {
-      const result = await synchroniseHeuresis();
+      await synchroniseHeuresis();
       await reload(true);
-      if (!silent) setNotice(`Synced ${result.cards} cards to this device.`);
     } catch (syncError) {
       if (!silent) setNotice(syncError instanceof Error ? syncError.message : "Could not synchronise Heuresis.");
+    } finally {
+      // A failed replay may contain a held edit. The PC backup can now keep
+      // a separate copy of those edits rather than blocking every snapshot.
+      if (supportsLocalBackup() && navigator.onLine) void runLocalBackup(false);
     }
   }
 
@@ -305,21 +307,15 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }, [workspace]);
 
   async function runLocalBackup(manual = false) {
-    if (!supportsLocalBackup() || backupRunningRef.current) return;
-    backupRunningRef.current = true;
+    if (!supportsLocalBackup()) return;
     try {
+      // Native export is deduplicated across automatic and manual callers.
       const result = await ensureDailyLocalBackup(session.user.id);
-      setLocalBackupNotice("Daily backup ready");
-      if (manual) {
-        setNotice(`Local backup ${result.alreadyExists ? "already exists" : "created"}: ${result.path}`);
-        workspace.toast("Your complete local backup is saved in Documents / Heuresis / Backups.");
-      }
+      if (manual) setLocalBackupNotice(`PC backup ${result.alreadyExists ? "already saved" : "saved"}: ${result.path}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setLocalBackupNotice(`Backup needs attention: ${message}`);
-      if (manual) workspace.toast(`Local backup failed: ${message}`, { tone: "error" });
-    } finally {
-      backupRunningRef.current = false;
+      // A background attempt is a quiet retry, not an interruption or warning
+      // banner. The error remains available if the user requests a manual copy.
+      if (manual) setLocalBackupNotice(`Backup not completed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -576,11 +572,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <div className="desktop-account-popover">
               <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
               <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Sync now</button>
-              {supportsLocalBackup() ? <button title={localBackupNotice || "Automatic daily backup of the complete Heuresis library"}
-                onClick={() => { void runLocalBackup(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
-                <HardDriveDownload size={14} /> Back up Heuresis to PC
+              {supportsLocalBackup() ? <button title="Automatic daily PC backups while Heuresis is open and online"
+                onClick={() => { setLocalBackupNotice("Checking PC backup…"); void runLocalBackup(true); }}>
+                <HardDriveDownload size={14} /> Check PC backup
               </button> : null}
-              {supportsLocalBackup() && localBackupNotice ? <small role="status">{localBackupNotice}</small> : null}
+              {supportsLocalBackup() && localBackupNotice ? <small className="desktop-backup-detail">{localBackupNotice}</small> : null}
               <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending + syncState.held ? ` (${syncState.legacyPending + syncState.held})` : ""}
               </button>

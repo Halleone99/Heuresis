@@ -6,6 +6,9 @@ on:
       - "src-tauri/src/local_backup.rs"
       - "src-tauri/src/lib.rs"
       - "src/lib/localBackup.ts"
+      - "src/lib/offlineFetch.ts"
+      - "src/components/workspace/NotebookView.tsx"
+      - "scripts/check-backup-integrity.mjs"
       - "src/App.tsx"
       - ".github/workflows/check-local-backup.yml"
   pull_request:
@@ -13,6 +16,9 @@ on:
       - "src-tauri/src/local_backup.rs"
       - "src-tauri/src/lib.rs"
       - "src/lib/localBackup.ts"
+      - "src/lib/offlineFetch.ts"
+      - "src/components/workspace/NotebookView.tsx"
+      - "scripts/check-backup-integrity.mjs"
       - "src/App.tsx"
       - ".github/workflows/check-local-backup.yml"
   workflow_dispatch:
@@ -29,6 +35,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install frontend dependencies
         run: npm install --ignore-scripts
+      - name: Check backup journal and quiet interface
+        run: node scripts/check-backup-integrity.mjs
       - name: Check frontend build
         run: npm run build
       - name: Compile Tauri and execute local-backup Rust tests
