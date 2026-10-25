@@ -140,6 +140,30 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const [source, setSource] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
+  // Palettes are temporary controls: dismiss on Escape or a click elsewhere,
+  // rather than leaving attention-demanding overlays on screen.
+  useEffect(() => {
+    if (!paletteOpen && !tableOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPaletteOpen(false);
+      setTableOpen(false);
+    };
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".nb-colour-anchor, .nb-table-anchor")) return;
+      setPaletteOpen(false);
+      setTableOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    document.addEventListener("pointerdown", closeOnOutside, true);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape, true);
+      document.removeEventListener("pointerdown", closeOnOutside, true);
+    };
+  }, [paletteOpen, tableOpen]);
   const [colourHint, setColourHint] = useState("");
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
