@@ -29,7 +29,7 @@ assert.match(settings, /opacity: shownBackground\.settings\.opacity/);
 assert.match(settings, /opacity: shownBackground\.settings\.veil/);
 assert.match(settings, /function setFocal\(event: MouseEvent<HTMLButtonElement>\)/);
 assert.match(settings, /fraction < 1 \/ 3 \? "top" : fraction > 2 \/ 3 \? "bottom" : "center"/);
-assert.doesNotMatch(settings, /\[["']cover["'],\s*["']contain["']\]/);
+assert.match(settings, /\["cover", "contain"\]/, "Wallpaper offers both Fill and Fit");
 assert.match(settings, /Use default<\/button>/);
 assert.match(background, /opacity: Math\.sqrt\(0\.6\)/);
 assert.match(background, /veil: 1 - Math\.sqrt\(0\.6\)/);
