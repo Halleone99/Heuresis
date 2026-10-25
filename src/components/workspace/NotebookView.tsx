@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
+import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderInput, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
 import {
   entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey, normaliseSearch,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -16,7 +16,7 @@ import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { ReferenceLibrary } from "./ReferenceLibrary";
 import { SubjectCard } from "./SubjectCard";
-import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
+import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 import "./notebook-views.css";
@@ -464,6 +464,8 @@ function ScopePage({ scope, navigate, newAction }: {
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [confirmElement, confirm] = useConfirm();
   const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; value: string } | null>(null);
+  const [movingNote, setMovingNote] = useState<KnowledgeEntry | null>(null);
+  const [movingBusy, setMovingBusy] = useState(false);
   const [descriptionSaving, setDescriptionSaving] = useState(false);
   // Never flatten a subject's notes onto an ancestor page.
   const docs = topic ? snapshot.entries.filter((entry) =>
@@ -546,6 +548,25 @@ function ScopePage({ scope, navigate, newAction }: {
     } finally { setSelectionBusy(false); }
   }
 
+  async function moveNoteTo(destination: string) {
+    if (!movingNote || movingBusy) return;
+    const origin = movingNote.topic_id;
+    if (destination === origin) { setMovingNote(null); return; }
+    setMovingBusy(true);
+    try {
+      await workspace.patchEntry(movingNote.id, { topic_id: destination });
+      const noteId = movingNote.id;
+      setMovingNote(null);
+      workspace.toast(`Moved to ${workspace.pathLabel(destination)}.`, {
+        action: { label: "Undo", run: () => {
+          void workspace.patchEntry(noteId, { topic_id: origin })
+            .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+        } },
+      });
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+    finally { setMovingBusy(false); }
+  }
+
   async function saveDescription() {
     if (!descriptionEditor || descriptionSaving) return;
     setDescriptionSaving(true);
@@ -561,6 +582,12 @@ function ScopePage({ scope, navigate, newAction }: {
   }
 
   return <div className="nb-scope">
+    {movingNote ? <Portal><div className="ws-dialog-backdrop" role="presentation"
+      onMouseDown={(event) => { if (event.target === event.currentTarget && !movingBusy) setMovingNote(null); }}>
+      <TopicPicker value={movingNote.topic_id} allowCreate={false}
+        onChange={(destination) => void moveNoteTo(destination)}
+        onClose={() => { if (!movingBusy) setMovingNote(null); }} />
+    </div></Portal> : null}
     <nav className="nb-crumbs" aria-label="Location">
       <button type="button" onClick={() => navigate({ topicId: null, docId: null })}>Notebook</button>
       {path.subject ? <><ChevronRight size={12} /><button type="button"
@@ -682,6 +709,7 @@ function ScopePage({ scope, navigate, newAction }: {
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
                 { label: "Edit description", icon: <Pencil size={14} />, run: () => setDescriptionEditor({ id: entry.id, value: entry.description }) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
+                { label: "Move to…", icon: <FolderInput size={14} />, run: () => setMovingNote(entry) },
                 { label: "Delete", icon: <Trash2 size={14} />, danger: true,
                   run: () => void workspace.removeEntry(entry.id).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
               ]} /> : null}
