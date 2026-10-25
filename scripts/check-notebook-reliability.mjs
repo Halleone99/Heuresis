@@ -18,6 +18,9 @@ const triple = text("***bold italic***");
 assert.deepEqual(triple, [{ type: "strong", text: "*bold italic*" }]);
 assert.equal(notes.inlinePlain("***bold italic***"), "bold italic");
 assert.equal(notes.parseBlocks("### Third level")[0].text, "### Third level");
+const numbered = notes.parseBlocks("5. First\\n6. Second")[0];
+assert.equal(numbered.type, "ol");
+assert.equal(numbered.items[0].start, 5, "Lists must not silently restart at 1");
 
 // Protect save-conflict decisions against automatic retry on a later revision.
 console.log("Notebook literal text, emphasis, links and heading safety checks passed.");
