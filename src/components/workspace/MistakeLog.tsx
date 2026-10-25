@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, FolderPlus, GraduationCap, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pin, Pencil, Plus, Trash2, X } from "lucide-react";
-import { friendlyError, type KnowledgeEntry, type KnowledgeSubject, type KnowledgeTopic, type MistakeAccent } from "../../lib/knowledgeWorkspace";
+import { comparableCorrection, friendlyError, type KnowledgeEntry, type KnowledgeSubject, type KnowledgeTopic, type MistakeAccent } from "../../lib/knowledgeWorkspace";
 import { EmptyState, InlineNameForm, Kbd, MOD_KEY, Portal, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
@@ -560,11 +560,6 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
 // ---------------------------------------------------------------------------
 // Compare written answers without stripping the distinctions learners must master:
 // German capitals/umlauts, Cyrillic й/и and Mandarin pinyin tones.
-function answerKey(text: string) {
-  return text.normalize("NFC")
-    .replace(/[.,!?。！？；;:：、，"“”]/g, "")
-    .replace(/\s+/g, " ").trim();
-}
 
 function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void }) {
   const workspace = useWorkspace();
@@ -599,7 +594,7 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
     finally { setBusy(false); }
   }, [answer, busy, current, next, workspace]);
 
-  const exact = Boolean(current && answer.trim() && answerKey(answer) === answerKey(current.correction));
+  const exact = Boolean(current && answer.trim() && comparableCorrection(answer) === comparableCorrection(current.correction));
 
   return <Portal><div className="ws-dialog-backdrop" role="presentation">
     <div className="ws-dialog is-recall" role="dialog" aria-modal="true" aria-labelledby="recall-title"
