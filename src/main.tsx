@@ -9,6 +9,7 @@ import "@fontsource/libre-caslon-display/400.css";
 import "@fontsource/noto-serif/400.css";
 import App from "./App";
 import { applyAppearance, watchAppearance } from "./lib/theme";
+import { markAndroidRuntime } from "./lib/platform";
 import FloatingQuickCapture from "./components/workspace/FloatingQuickCapture";
 import "./styles.css";
 import "./standalone-v2.css";
@@ -54,6 +55,8 @@ import "./components/workspace/note-reading-views.css";
 import "./components/workspace/note-identity.css";
 import "./notebook-shell-refresh.css";
 import "./quick-capture-refresh.css";
+// Android APK only: every rule is scoped to html[data-platform="android"] (see markAndroidRuntime).
+import "./android-tablet.css";
 import "./theme/chrome.css";
 
 // Secondary windows load their own code only when opened, so the main window
@@ -63,6 +66,7 @@ const CosmosWindow = React.lazy(() => import("./components/CosmosWindow"));
 const ReviewScratchpad = React.lazy(() => import("./components/ReviewScratchpad"));
 
 const params = new URLSearchParams(window.location.search);
+markAndroidRuntime();
 // Every window uses the same appearance; updates propagate across windows.
 applyAppearance();
 watchAppearance();
