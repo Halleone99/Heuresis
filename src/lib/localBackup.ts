@@ -59,7 +59,8 @@ async function entireTable(table: string, userId: string): Promise<TableRow[]> {
   for (let page = 0; page < MAX_PAGES; page += 1) {
     // This header forbids falling back to an incomplete local cache.
     let query = supabase.from(table).select("*").eq("user_id", userId);
-    if (table === "page_backgrounds") query = query.eq("page_key", "heuresis");
+    // Include the shared wallpaper and every Heuresis page override, never other apps.
+    if (table === "page_backgrounds") query = query.or("page_key.eq.heuresis,page_key.like.heuresis-%");
     // Four join/stat tables have no "id" column. Composite keys must also
     // have deterministic ordering so pagination never misses/repeats rows.
     const sortKeys: Record<string, string[]> = {
