@@ -106,6 +106,12 @@
   box-shadow: var(--ws-shadow-1); transition: border-color .14s, background-color .14s, transform .14s;
 }
 .nb-display-cards > li:hover { background: var(--ws-raised); border-color: var(--ws-accent-line); transform: translateY(-1px); }
+/* Open menus must rise above the neighbouring card, rather than being
+   trapped by the hovered card's transform-created stacking context. */
+.nb-display-cards > li:has(.nb-identity-popover, .ws-menu-list) {
+  z-index: 80;
+  transform: none;
+}
 .nb-display-cards > li.is-selected { background: var(--ws-accent-soft); border-color: var(--ws-accent); }
 .nb-display-cards .nb-doc-row { min-height: 168px; padding: 16px 13px 14px; }
 .nb-display-cards .nb-doc-open { gap: 20px; }
