@@ -77,7 +77,10 @@
 .hw-sections button:hover { background: var(--ws-accent-soft); color: var(--ws-ink); }
 .hw-sections button.active { background: var(--ws-raised); color: var(--ws-ink); box-shadow: var(--ws-shadow-1), inset 0 0 0 1px var(--ws-line); font-weight: 600; }
 .hw-sections button.active svg { color: var(--ws-accent); }
-.hw-sections button span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hw-sections button > span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The Captures monogram is an icon, not a label: keep it visible on the icon rail. */
+.hw-sections button > .capture-mark { display: inline-grid; flex: 0 0 18px; overflow: visible; text-overflow: clip; }
+.hw-sections button > .q-nav-badge { flex: 0 0 auto; }
 .hw-badge {
   min-width: 19px; height: 19px; padding: 0 6px; display: inline-grid; place-items: center;
   border-radius: 99px; background: var(--ws-accent); color: var(--ws-on-primary);
@@ -991,7 +994,7 @@
   :root { --ws-sidebar: 62px; }
   .heuresis-section-sidebar { padding: 14px 9px; align-items: stretch; }
   .hw-sections button { justify-content: center; padding: 0; }
-  .hw-sections button span { display: none; }
+  .hw-sections button > span:not(.capture-mark):not(.q-nav-badge) { display: none; }
   .hw-badge { position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 9px; }
   .hw-lesson { grid-template-columns: 1fr; padding: 8px 4px; justify-items: center; }
   .hw-lesson-label { justify-content: center; font-size: 0; gap: 0; }
@@ -1342,7 +1345,7 @@
 .heuresis-desktop[data-sidebar="rail"] .hw-sidebar-header { justify-content: center; }
 .heuresis-desktop[data-sidebar="rail"] .hw-sidebar-heading { display: none; }
 .heuresis-desktop[data-sidebar="rail"] .hw-sections button { justify-content: center; padding: 0; }
-.heuresis-desktop[data-sidebar="rail"] .hw-sections button span { display: none; }
+.heuresis-desktop[data-sidebar="rail"] .hw-sections button > span:not(.capture-mark):not(.q-nav-badge) { display: none; }
 .heuresis-desktop[data-sidebar="rail"] .hw-sections .hw-badge { position: absolute; top: 1px; right: 0; }
 .heuresis-desktop[data-sidebar="rail"] .hw-lesson { grid-template-columns: 1fr; padding: 8px 4px; justify-items: center; }
 .heuresis-desktop[data-sidebar="rail"] .hw-lesson-label { font-size: 0; gap: 0; }
@@ -1359,7 +1362,7 @@
   .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sidebar-header { justify-content: space-between; }
   .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sidebar-heading { display: block; }
   .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sections button { justify-content: flex-start; padding: 0 11px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sections button span { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sections button > span:not(.capture-mark):not(.q-nav-badge) { display: block; }
   .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; padding: 10px 8px 10px 12px; }
   .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-lesson-label { font-size: 10px; gap: 6px; }
   .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-lesson-title { display: block; }
@@ -1385,7 +1388,7 @@
     width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
   }
   .heuresis-desktop[data-sidebar="full"] .hw-sections button { justify-content: flex-start; padding: 0 11px; }
-  .heuresis-desktop[data-sidebar="full"] .hw-sections button span { display: block; }
+  .heuresis-desktop[data-sidebar="full"] .hw-sections button > span:not(.capture-mark):not(.q-nav-badge) { display: block; }
   .heuresis-desktop[data-sidebar="full"] .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; }
   .heuresis-desktop[data-sidebar="full"] .hw-lesson-label { font-size: 10px; gap: 6px; }
   .heuresis-desktop[data-sidebar="full"] .hw-lesson-title { display: block; }
