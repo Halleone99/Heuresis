@@ -36,4 +36,18 @@ assert.match(background, /veil: 1 - Math\.sqrt\(0\.6\)/);
 assert.match(background, /fit: "cover"/);
 assert.match(css, /\.settings-modal \.background-preview-canvas \{/);
 assert.match(css, /\.settings-modal \.background-preview-example \{/);
-console.log("Single Dim slider, legacy compatibility, live preview and focal-point tests passed.");
+// Each workspace page can override the retained all-pages wallpaper.
+const app=readFileSync("src/App.tsx","utf8");
+for(const page of ["overview","study","notebook","mistakes","reading","quotations","reference","queue"]){
+  assert.match(background,new RegExp(`key: "heuresis-${page}"`));
+  assert.match(app,new RegExp(`useHeuresisBackground\\("heuresis-${page}"\\)`));
+}
+assert.match(background,/page === "heuresis" \? "pos\.pageBackground\.heuresis\.v1"/);
+assert.match(background,/get\(page\)/, "Page backgrounds have separate offline cache keys");
+assert.match(background,/\.eq\("page_key", page\)/, "Cloud images are stored separately per page");
+assert.match(app,/specificBackground\?\.hasImage && specificBackground\.settings\.enabled/, "Individual wallpaper overrides shared default");
+assert.match(app,/navigateSection\("overview"\)\} aria-label="Heuresis — go to Overview"/, "The header wordmark returns to Overview");
+assert.match(settings,/PAGE_BACKGROUND_CHOICES\.map/, "Settings shows all page choices");
+assert.match(settings,/selectedPage === "heuresis"/, "Default background is identified");
+assert.doesNotMatch(css, /not\(\[data-section="study"\]\) :is\(\.heuresis-wallpaper/, "Custom backgrounds must not disappear on Notebook pages");
+console.log("Single Dim slider, per-page backgrounds, default fallback and Heuresis home navigation passed.");
