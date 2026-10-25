@@ -127,7 +127,7 @@ export function QQueuePage({ onCapture }: { onCapture: () => void }) {
     setBusy(true); setError("");
     try {
       await workspace.removeEntry(selected.id);
-      markCaptureCleaned(workspace.userId, selected.id);
+      // Keep old device-local IDs for legacy captures so Undo restores them to this list.
       setActiveId(null);
     } catch (reason) { setError(friendlyError(reason)); }
     finally { setBusy(false); }
