@@ -171,12 +171,13 @@ export function parseInline(text: string): Inline[] {
     const end = start + match[0].length;
     if (start < last || escapedMarker(text, start)) continue;
     const inner = match[1] ?? match[2] ?? match[3] ?? match[6] ?? match[7];
-    const emphasis = match[1] !== undefined || match[2] !== undefined || match[6] !== undefined;
+    // Only single-star maths inside Latin text is literal; bold and Hanzi are not.
+    const emphasis = match[6] !== undefined;
     // Preserve maths and grammar examples such as "x == y == z" and "a*b*c".
     if (inner !== undefined && (!inner.trim() || /^\s|\s$/.test(inner))) continue;
     if (emphasis && (
-      /[\p{L}\p{N}]/u.test(text[start - 1] ?? "") ||
-      /[\p{L}\p{N}]/u.test(text[end] ?? "")
+      /[\p{Script=Latin}\p{N}]/u.test(text[start - 1] ?? "") &&
+      /[\p{Script=Latin}\p{N}]/u.test(text[end] ?? "")
     )) continue;
     if (start > last) result.push(inlineText(text.slice(last, start)));
     // Triple markers must be recognised before double markers; preserve
@@ -337,7 +338,7 @@ function wrap(marker: string, inner: string) {
 /** Serialise inline content. Returns text where "\n" marks a hard line break. */
 function escapeInlineText(value: string): string {
   return value.replace(/\\/g, "\\\\")
-    .replace(/(\*{1,3}|==|~~|\[\[|\{(?:color|bg):)(?=\S)/g, "\\$1");
+    .replace(/(\*{1,3}|==|~~|\[\[(?![^\]]*\]\])|\{(?:color|bg):)(?=\S)/g, "\\$1");
 }
 function inlineMarkdown(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return escapeInlineText((node.textContent ?? "").replace(/ /g, " ").replace(/​/g, ""));

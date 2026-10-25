@@ -8,6 +8,7 @@ import {
   type KnowledgeEntry, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
 import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
+import { adoptOwnSaveRevision } from "../../lib/noteRevision";
 import { readDocumentDraft, writeDocumentDraft, type NotebookLocation } from "../../lib/workspaceMemory";
 import { getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
 import { FlashcardDialog } from "./FlashcardDialog";
@@ -94,6 +95,9 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const editorKey = useRef(`${entry?.id ?? "new"}-${Date.now()}`);
 
   const liveEntry = entryIdRef.current ? workspace.entryById.get(entryIdRef.current) ?? entry : entry;
+  // Delayed autosaves must compare against the newest snapshot, not the timer closure.
+  const entryByIdRef = useRef(workspace.entryById);
+  entryByIdRef.current = workspace.entryById;
   const lesson = liveEntry ? isLesson(liveEntry) : false;
   const kindLabel = liveEntry ? entryKindLabel(liveEntry) : CATEGORY_LABELS[draft.category];
 
@@ -145,7 +149,9 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     }
     const current = draftRef.current;
     if (!isDirty(current)) { setSave((state) => state.kind === "error" || state.kind === "invalid" ? state : { kind: state.at ? "saved" : "idle", at: state.at }); return "saved"; }
-    const currentEntry = entryIdRef.current ? workspace.entryById.get(entryIdRef.current) : null;
+    const currentEntry = entryIdRef.current ? entryByIdRef.current.get(entryIdRef.current) : null;
+    // A late acknowledgement of our last save (including offline replay) is not an external edit.
+    baseRevisionRef.current = adoptOwnSaveRevision(currentEntry, baseRevisionRef.current, savedRef.current);
     if (entryIdRef.current && (!currentEntry || (baseRevisionRef.current && currentEntry.updated_at !== baseRevisionRef.current))) {
       conflictRef.current = true;
       setConflict(true);
