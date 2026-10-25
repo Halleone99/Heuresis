@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
 import {
-  entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
+  entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey, normaliseSearch,
   type KnowledgeEntry, type KnowledgeTopic,
 } from "../../lib/knowledgeWorkspace";
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { exportCachedKnowledgeForRecovery } from "../../lib/offlineFetch";
+import { HAND_NOTE_PREFIX } from "../../lib/handNote";
+import { inlinePlain } from "../../lib/noteFormat";
 import { DocumentPage } from "./DocumentPage";
 import { CaptureReviewPage } from "./CaptureReviewPage";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
@@ -436,7 +438,15 @@ function ScopePage({ scope, navigate, newAction }: {
   const children = workspace.childrenOf(topic?.id ?? null, subjectId);
   const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<NoteSort>("updated");
+  const [sort, setSort] = useState<NoteSort>(() => {
+    try {
+      const stored = localStorage.getItem("heuresis:notebook:sort");
+      return stored === "created" || stored === "title" || stored === "icon" || stored === "colour" ? stored : "updated";
+    } catch { return "updated"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("heuresis:notebook:sort", sort); } catch { /* Optional device preference. */ }
+  }, [sort]);
   const [iconFilter, setIconFilter] = useState("all");
   // A reading preference belongs to the device, not to individual notes or the database.
   const [view, setView] = useState<NoteView>(() => {
@@ -464,12 +474,17 @@ function ScopePage({ scope, navigate, newAction }: {
     questions: docs.filter(isOpenQuestion).length,
   };
   const icons = [...new Set(docs.map((entry) => entry.icon).filter((icon): icon is string => Boolean(icon)))].sort((a, b) => a.localeCompare(b));
-  const query = search.trim().toLocaleLowerCase();
+  const query = normaliseSearch(search.trim());
+  const visibleBodyText = (body: string) => body.split("\n")
+    .filter((line) => !line.startsWith(HAND_NOTE_PREFIX))
+    .map(inlinePlain).join("\n");
   const shown = docs.filter((entry) => {
     if (filter !== "all" && (filter === "questions") !== isOpenQuestion(entry)) return false;
     if (iconFilter === "none" && entry.icon) return false;
     if (iconFilter !== "all" && iconFilter !== "none" && entry.icon !== iconFilter) return false;
-    return !query || entryTitle(entry).toLocaleLowerCase().includes(query) || entry.description.toLocaleLowerCase().includes(query) || entry.body.toLocaleLowerCase().includes(query);
+    return !query || normaliseSearch(entryTitle(entry)).includes(query)
+      || normaliseSearch(entry.description).includes(query)
+      || normaliseSearch(visibleBodyText(entry.body)).includes(query);
   }).sort((a, b) => {
     const pinned = Number(b.pinned) - Number(a.pinned);
     if (pinned) return pinned;
