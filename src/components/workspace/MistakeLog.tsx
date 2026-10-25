@@ -374,13 +374,7 @@ function MistakeItem({ entry, highlighted, showPath, onEdit }: {
   entry: KnowledgeEntry; highlighted: boolean; showPath: boolean; onEdit: () => void;
 }) {
   const workspace = useWorkspace();
-  const [confirmElement, confirm] = useConfirm();
   async function remove() {
-    if (!await confirm({
-      title: "Delete this mistake?",
-      body: "You can undo the deletion for a few seconds.",
-      confirmLabel: "Delete", danger: true,
-    })) return;
     try { await workspace.removeEntry(entry.id); }
     catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
@@ -391,7 +385,6 @@ function MistakeItem({ entry, highlighted, showPath, onEdit }: {
   }
   return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")}
     data-accent={entry.accent_color ?? "none"} data-mistake={entry.id}>
-    {confirmElement}
     <div className="ml-simple-body">
       {entry.title ? <h2 className="ml-entry-title">{entry.title}</h2> : null}
       <div className="ml-simple-pair">
