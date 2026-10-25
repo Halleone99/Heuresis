@@ -271,10 +271,16 @@ export function usePopover(open: boolean, onClose: () => void) {
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) onClose(); };
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // Capture before the note's own Escape handler can close the whole page.
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
     window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+    window.addEventListener("keydown", onKey, true);
+    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey, true); };
   }, [onClose, open]);
   return ref;
 }
