@@ -1066,3 +1066,28 @@ export async function discardHeldOfflineWrites(ids: string[]): Promise<number> {
   await refreshOfflinePendingCount();
   return rows.length;
 }
+
+
+/**
+ * Read the full current-account offline mutation journal for the native daily
+ * backup. Unlike the UI counter this deliberately propagates IndexedDB errors:
+ * a failed queue read must never produce a falsely complete backup.
+ *
+ * These are recovery records, not commands to replay on restore. The unowned
+ * legacy queue is counted but deliberately not exported into an account backup.
+ */
+export async function snapshotOfflineWritesForBackup(userId: string) {
+  if (!userId || cacheOwner() !== userId) throw new Error("The signed-in backup account has changed.");
+  const rows = await getAllRecords<QueueRecord>(QUEUE_STORE);
+  if (cacheOwner() !== userId) throw new Error("The signed-in backup account changed while reading offline edits.");
+  return {
+    entries: rows.filter((row) => row.ownerId === userId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      .map((row) => ({
+        id: row.id, method: row.method, url: row.url, body: row.body,
+        created_at: row.createdAt, attempts: row.attempts,
+        rejected: row.rejected ?? null,
+      })),
+    legacy_unassigned_count: rows.filter((row) => !row.ownerId).length,
+  };
+}
