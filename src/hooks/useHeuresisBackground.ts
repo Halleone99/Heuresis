@@ -44,7 +44,7 @@ const DB_VERSION = 1;
 
 function clamp(settings: BackgroundSettings): BackgroundSettings {
   const number = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
-  return { ...settings, opacity: number(settings.opacity, 0, 1), veil: number(settings.veil, 0, 1), blur: number(settings.blur, 0, 20), fit: "cover" };
+  return { ...settings, opacity: number(settings.opacity, 0, 1), veil: number(settings.veil, 0, 1), blur: number(settings.blur, 0, 20), fit: settings.fit === "contain" ? "contain" : "cover" };
 }
 
 function readSettings(page: BackgroundPageKey) {
@@ -112,7 +112,7 @@ function cloudSettings(value: unknown): BackgroundSettings {
     veil: typeof row.veil === "number" ? row.veil : DEFAULT_BACKGROUND_SETTINGS.veil,
     blur: typeof row.blur === "number" ? row.blur : DEFAULT_BACKGROUND_SETTINGS.blur,
     position: row.position === "top" || row.position === "bottom" ? row.position : "center",
-    fit: "cover",
+    fit: row.fit === "contain" ? "contain" : "cover",
   });
 }
 
