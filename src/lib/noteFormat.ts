@@ -192,7 +192,13 @@ export function parseInline(text: string): Inline[] {
 
 export function wikiLinks(markdown: string) {
   const targets = new Set<string>();
-  for (const match of markdown.matchAll(/\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g)) targets.add(match[1].trim().toLocaleLowerCase());
+  // Use the same escape-aware parser as the editor: a literal \\[[example]]
+  // must not become a backlink just because it contains two brackets.
+  for (const line of markdown.split("\n")) {
+    for (const part of parseInline(line)) {
+      if (part.type === "link") targets.add(part.target.trim().toLocaleLowerCase());
+    }
+  }
   return targets;
 }
 
