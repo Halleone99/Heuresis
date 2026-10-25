@@ -33,7 +33,7 @@ import { LessonCleanupDialog } from "./components/workspace/LessonCleanupDialog"
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch, type PaletteCommand } from "./components/workspace/WorkspaceSearch";
-import { useHeuresisBackground } from "./hooks/useHeuresisBackground";
+import { useHeuresisBackground, type BackgroundPageKey } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
@@ -224,7 +224,21 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [trashOpen, setTrashOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const restoredStudy = useRef(false);
-  const background = useHeuresisBackground();
+  // One stable background per section; the original Heuresis image is the shared fallback.
+  const backgrounds = {
+    heuresis: useHeuresisBackground("heuresis"),
+    "heuresis-overview": useHeuresisBackground("heuresis-overview"),
+    "heuresis-study": useHeuresisBackground("heuresis-study"),
+    "heuresis-notebook": useHeuresisBackground("heuresis-notebook"),
+    "heuresis-mistakes": useHeuresisBackground("heuresis-mistakes"),
+    "heuresis-reading": useHeuresisBackground("heuresis-reading"),
+    "heuresis-quotations": useHeuresisBackground("heuresis-quotations"),
+    "heuresis-reference": useHeuresisBackground("heuresis-reference"),
+    "heuresis-queue": useHeuresisBackground("heuresis-queue"),
+  } satisfies Record<BackgroundPageKey, ReturnType<typeof useHeuresisBackground>>;
+  const specificBackground = backgrounds[`heuresis-${section}` as BackgroundPageKey];
+  const background = specificBackground?.hasImage && specificBackground.settings.enabled
+    ? specificBackground : backgrounds.heuresis;
   const [localBackupNotice, setLocalBackupNotice] = useState("");
 
   async function reload(silent = false) {
@@ -540,7 +554,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
       <header className="desktop-chrome">
-        <button className="desktop-wordmark" onClick={() => { if (section === "study") openLibrary(); else setSection("overview"); }} aria-label={section === "study" ? "Open Study library" : "Heuresis — Overview"}>
+        <button className="desktop-wordmark" onClick={() => navigateSection("overview")} aria-label="Heuresis — go to Overview" title="Go to Overview">
           <span className="desktop-brand-mark" aria-hidden="true"><HeuresisMark /></span>
           <span className="desktop-wordmark-name">Heuresis</span>
         </button>
@@ -680,7 +694,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         onSearchCards={(query) => { setCardQuery(query); setSection("study"); setSearchOpen(true); }} /> : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack, cardId) => { setSection("study"); openPack(pack, cardId ?? null); }} /> : null}
-      {settingsOpen ? <SettingsModal background={background} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsOpen ? <SettingsModal backgrounds={backgrounds} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
       {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {topicModalOpen ? <TopicModal collections={collections} pack={topicModalPack} preferredCollectionId={topicPreferredCollectionId} onClose={() => { setTopicModalOpen(false); setTopicModalPack(null); }} onChanged={afterTopicChange} /> : null}
