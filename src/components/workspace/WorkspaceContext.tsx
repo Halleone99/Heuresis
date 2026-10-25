@@ -8,7 +8,8 @@ import {
 } from "../../lib/knowledgeWorkspace";
 import { flushOfflineRequests, getOfflineSyncState, subscribeOfflineSync, subscribeReplayedRows } from "../../lib/offlineFetch";
 import type { CleanupTarget } from "../../lib/lessonCleanup";
-import { queueCaptureForReview } from "../../lib/captureReviewQueue";
+import { quickQueueKind } from "../../lib/quickQueue";
+import { isInboxTopic } from "../../lib/lessonCleanup";
 import { signalWorkspaceChange, subscribeWorkspaceChanges } from "../../lib/workspaceSignal";
 import { supabase } from "../../lib/supabase";
 import {
@@ -361,7 +362,6 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     const slow = window.setTimeout(() => toast("Still saving — your capture is kept on this device until it is stored."), 1800);
     try {
       const created = await addEntry(full);
-      queueCaptureForReview(userId, id);
       dropPending(id);
       return created;
     } catch (saveError) {
@@ -396,13 +396,11 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       let restored = 0;
       for (const item of pending) {
         if (snapshotRef.current.entries.some((row) => row.id === item.input.id)) {
-          queueCaptureForReview(userId, item.input.id!);
           dropPending(item.input.id);
           continue;
         }
         try {
           await addEntry(item.input);
-          queueCaptureForReview(userId, item.input.id!);
           dropPending(item.input.id);
           restored += 1;
         }
@@ -414,8 +412,12 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const patchEntry = useCallback(async (id: string, patch: EntryPatch) => {
     const current = snapshotRef.current.entries.find((row) => row.id === id);
     if (!current) throw new Error("This entry no longer exists. It may have been deleted on another device.");
-    const next = await updateEntry(userId, current, patch);
-    const changed = Object.fromEntries(Object.keys(patch).map((key) => [key, next[key as keyof KnowledgeEntry]]));
+    // Moving a pending capture into a normal topic also files it when done in Notebook.
+    const targetTopic = patch.topic_id ? snapshotRef.current.topics.find((topic) => topic.id === patch.topic_id) : null;
+    const appliedPatch = targetTopic && !isInboxTopic(targetTopic) && quickQueueKind(current)
+      ? { ...patch, description: "" } : patch;
+    const next = await updateEntry(userId, current, appliedPatch);
+    const changed = Object.fromEntries(Object.keys(appliedPatch).map((key) => [key, next[key as keyof KnowledgeEntry]]));
     setSnapshotLocal((value) => ({ ...value, entries: value.entries.map((row) => row.id === id ? { ...row, ...changed, updated_at: next.updated_at } : row) }));
     return snapshotRef.current.entries.find((row) => row.id === id) ?? next;
   }, [setSnapshotLocal, userId]);

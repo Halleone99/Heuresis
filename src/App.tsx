@@ -77,7 +77,7 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "reading", label: "Reading", icon: BookOpen, key: "5" },
   { id: "quotations", label: "Quotations", icon: Quote, key: "6" },
   { id: "reference", label: "Catalogue", icon: LibraryBig, key: "7" },
-  { id: "queue", label: "Q", icon: Feather, key: "8" },
+  { id: "queue", label: "Captures", icon: Feather, key: "8" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -150,7 +150,8 @@ function HeuresisApp({ session }: { session: Session }) {
 function HeuresisShell({ session, section, setSection }: { session: Session; section: WorkspaceSection; setSection: (section: WorkspaceSection) => void }) {
   const workspace = useWorkspace();
   const qReviewIds = useCaptureReviewIds(session.user.id);
-  const qCount = workspace.snapshot.entries.filter((entry) => quickQueueKind(entry) || qReviewIds.has(entry.id)).length;
+  const inboxIds = new Set(workspace.snapshot.topics.filter(isInboxTopic).map((topic) => topic.id));
+  const qCount = workspace.snapshot.entries.filter((entry) => inboxIds.has(entry.topic_id) && (quickQueueKind(entry) || qReviewIds.has(entry.id))).length;
   // A newly launched app should not reopen yesterday's last viewed document
   // merely because Notebook was the previously selected section.
   const startupNotebook = useRef(section === "notebook");
@@ -624,7 +625,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           <nav className="hw-sections">
             {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
               onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>
-              {id === "queue" ? <strong className="q-nav-letter">Q</strong> : <Icon size={16}/>}<span>{label}</span>{id === "queue" && qCount > 0 ? <span className="q-nav-badge">{qCount}</span> : null}
+              {id === "queue" ? <span className="capture-mark" aria-hidden="true">C</span> : <Icon size={16}/>}<span>{label}</span>{id === "queue" && qCount > 0 ? <span className="q-nav-badge">{qCount}</span> : null}
             </button>)}
           </nav>
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookSidebarTree /> : null}
@@ -676,7 +677,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </div>
         <button type="button" className={`q-mobile-pinned ${section === "queue" ? "is-active" : ""}`}
           aria-current={section === "queue" ? "page" : undefined} onClick={() => navigateSection("queue")}>
-          <strong className="q-nav-letter">Q</strong><span>Q</span>
+          <span className="capture-mark" aria-hidden="true">C</span><span>Captures</span>
           {qCount > 0 ? <b className="q-nav-badge">{qCount}</b> : null}
         </button>
       </nav>

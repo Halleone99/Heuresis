@@ -494,7 +494,7 @@ export function plainLine(text: string) {
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/^\s*(#{1,6}\s+|[-*•]\s+|\d+[.)]\s+|>\s?(\[![a-z]+\]\s*)?)/i, "")
       .replace(/\*\*|==|~~|\[\[|\]\]/g, "").replace(/(^|\s)\*(\S)/g, "$1$2").trim();
-    if (line && line !== "---") return repairPinyinToneMarks(line);
+    if (line && line !== "---" && !line.startsWith("::handnote:")) return repairPinyinToneMarks(line);
   }
   return "";
 }
