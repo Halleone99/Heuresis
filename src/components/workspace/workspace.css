@@ -25,9 +25,9 @@
 @supports (overflow: clip) {
   .heuresis-desktop { overflow-x: clip !important; }
 }
-.heuresis-desktop:not([data-section="study"]) { background: var(--ws-page) !important; }
-/* The wallpaper belongs to Study; reading and writing happen on plain paper. */
-.heuresis-desktop:not([data-section="study"]) :is(.heuresis-wallpaper, .heuresis-wallpaper-lower, .heuresis-veil) { display: none !important; }
+/* Uncustomised writing pages stay plain. An explicitly chosen wallpaper is
+   visible behind every section, not only Study. */
+.heuresis-desktop:not([data-section="study"]):not([data-custom-background="heuresis"]) { background: var(--ws-page) !important; }
 /* Shared chrome stays charcoal in every workspace section (theme/chrome.css). */
 .heuresis-workspace-layout {
   position: relative;
