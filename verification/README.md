@@ -91,6 +91,31 @@ model v3, see `docs/SORT_REVIEW_V3.md`):
 Run one scenario with `node tests/review-v3.mjs <part of its name>`; screenshots go to
 `screenshots/review-v3/`.
 
+`tests/android-tablet.mjs` (also in CI) runs the app the way the Android APK (MagicPad)
+runs it: Android WebView user agent, touch input only, a 1200×768 / 768×1200 / 1500×960
+tablet screen, and a stand-in for Tauri's Android runtime that records every IPC call and
+blanks the page if the app ever closes its only window (`tests/android-lib.mjs`). Every
+tap first checks that the control is on screen and not covered.
+
+| Scenario | Proves |
+|---|---|
+| Sort by touch (landscape, portrait) | Sort fills the screen above the app header and touch navigation; close and progress visible; importance, Save & next, Keep as reference, Undo by tapping; with the keyboard open the quick note and Save & next stay reachable; decisions and the note are saved |
+| Sort → Review now → Done | the whole loop by touch, in one WebView |
+| Review by touch (landscape, portrait, wide) | side panels never cover the card; the session fits the screen; every card revealed and answered by tapping without scrolling; results reach the server; finger-sized result buttons; Done returns to the topic without closing the app's window; the session is closed |
+| closing Review mid-session | the close button returns to the topic; the answer given is saved; the session is closed |
+| side panels / Notes drawer | Context and Notes open and close by tapping and never block the results |
+| Adjust → Start review | the chosen session opens in the app; closing keeps the app alive |
+| typed answers | the answer field and Show answer stay reachable with the keyboard open |
+| Browse by touch | Browse's controls are above the app header |
+
+`tests/desktop-unchanged.mjs` is the matching proof for Windows: it captures the same
+Study screens (topic, Sort, Adjust, Browse, Review before and after reveal) in this build
+and in a reference build, for a 1440 px and a 1200 px Windows window and a Windows
+touchscreen, and compares them pixel by pixel. Serve both as production builds
+(`vite build`, then any static server), because the dev server's font paths can differ
+between checkouts:
+`HEURESIS_URL=http://localhost:1431/ HEURESIS_REFERENCE_URL=http://localhost:1432/ node tests/desktop-unchanged.mjs`.
+
 The older suites below were written for the first workspace version. Most of
 them now stop at selectors that no longer exist (e.g. the in-page topic tree);
 they are kept as a record and should be ported scenario by scenario.
