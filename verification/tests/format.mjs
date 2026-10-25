@@ -5,6 +5,7 @@ page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 await page.goto("http://localhost:1421/");
 const samples = [
   "Plain line",
+  "***bold italic***",
   "# What we covered\n\n## New words and expressions\n- 的时候 **when**\n- *while*\n\n## To practise\n",
   "Intro line\nsecond line\n\nAfter blank",
   "- one\n  - nested a\n  - nested b\n- two\n1. first\n2. second",
@@ -37,6 +38,10 @@ for (const r of result) {
   console.log(`--- exact=${r.exact} stable=${r.stable}`);
   if (!r.exact) { console.log("IN :", JSON.stringify(r.md)); console.log("OUT:", JSON.stringify(r.back)); console.log("HTML:", r.html); }
 }
+// Combined emphasis must stay styled and preserve its exact Markdown on reopen.
+const emphasis = result.find((entry) => entry.md === "***bold italic***");
+if (!emphasis || !emphasis.exact || !emphasis.stable || !emphasis.html.includes("<strong><em>bold italic</em></strong>"))
+  throw new Error("Combined bold and italic must round-trip without stray asterisks.");
 const pinyinSamples = result.slice(-2);
 if (!pinyinSamples.every((entry) => entry.stable && entry.pinyinSpans > 0))
   throw new Error("Pinyin tone marks must survive editor HTML/Markdown round trips.");

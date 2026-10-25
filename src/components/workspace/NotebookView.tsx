@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
+import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderInput, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
 import {
-  entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey,
+  entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey, normaliseSearch,
   type KnowledgeEntry, type KnowledgeTopic,
 } from "../../lib/knowledgeWorkspace";
 import type { NotebookLocation } from "../../lib/workspaceMemory";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { exportCachedKnowledgeForRecovery } from "../../lib/offlineFetch";
+import { HAND_NOTE_PREFIX } from "../../lib/handNote";
+import { inlinePlain } from "../../lib/noteFormat";
 import { DocumentPage } from "./DocumentPage";
 import { quickQueueKind } from "../../lib/quickQueue";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
@@ -14,7 +16,7 @@ import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { ReferenceLibrary } from "./ReferenceLibrary";
 import { SubjectCard } from "./SubjectCard";
-import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, ShowMore, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
+import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
 import "./notebook-views.css";
@@ -401,14 +403,14 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
 }
 
 type MenuItem = { label: string; icon?: React.ReactNode; run: () => void; danger?: boolean };
-export function RowMenu({ label, items, icon, buttonLabel }: { label: string; items: MenuItem[]; icon?: React.ReactNode; buttonLabel?: string }) {
+export function RowMenu({ label, items, icon, buttonLabel, align = "left" }: { label: string; items: MenuItem[]; icon?: React.ReactNode; buttonLabel?: string; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = usePopover(open, close);
   return <div className="ws-menu" ref={ref}>
     <button type="button" className={`ws-icon-button ws-menu-trigger ${buttonLabel ? "nb-new-button" : ""}`} aria-label={buttonLabel ?? `Actions for ${label}`} aria-haspopup="menu" aria-expanded={open}
       onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}>{buttonLabel ? <><Plus size={15} /> {buttonLabel}</> : icon ?? <MoreHorizontal size={15} />}</button>
-    {open ? <div className="ws-menu-list" role="menu">
+    {open ? <div className={`ws-menu-list ${align === "right" ? "is-right" : ""}`} role="menu">
       {items.map((item) => <button type="button" role="menuitem" key={item.label} className={item.danger ? "is-danger" : ""}
         onClick={(event) => { event.stopPropagation(); setOpen(false); item.run(); }}>{item.icon}{item.label}</button>)}
     </div> : null}
@@ -432,7 +434,15 @@ function ScopePage({ scope, navigate, newAction }: {
   const children = workspace.childrenOf(topic?.id ?? null, subjectId);
   const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<NoteSort>("updated");
+  const [sort, setSort] = useState<NoteSort>(() => {
+    try {
+      const stored = localStorage.getItem("heuresis:notebook:sort");
+      return stored === "created" || stored === "title" || stored === "icon" || stored === "colour" ? stored : "updated";
+    } catch { return "updated"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("heuresis:notebook:sort", sort); } catch { /* Optional device preference. */ }
+  }, [sort]);
   const [iconFilter, setIconFilter] = useState("all");
   // A reading preference belongs to the device, not to individual notes or the database.
   const [view, setView] = useState<NoteView>(() => {
@@ -450,6 +460,8 @@ function ScopePage({ scope, navigate, newAction }: {
   const [selectionBusy, setSelectionBusy] = useState(false);
   const [confirmElement, confirm] = useConfirm();
   const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; value: string } | null>(null);
+  const [movingNote, setMovingNote] = useState<KnowledgeEntry | null>(null);
+  const [movingBusy, setMovingBusy] = useState(false);
   const [descriptionSaving, setDescriptionSaving] = useState(false);
   // Never flatten a subject's notes onto an ancestor page.
   const docs = topic ? snapshot.entries.filter((entry) =>
@@ -460,12 +472,17 @@ function ScopePage({ scope, navigate, newAction }: {
     questions: docs.filter(isOpenQuestion).length,
   };
   const icons = [...new Set(docs.map((entry) => entry.icon).filter((icon): icon is string => Boolean(icon)))].sort((a, b) => a.localeCompare(b));
-  const query = search.trim().toLocaleLowerCase();
+  const query = normaliseSearch(search.trim());
+  const visibleBodyText = (body: string) => body.split("\n")
+    .filter((line) => !line.startsWith(HAND_NOTE_PREFIX))
+    .map(inlinePlain).join("\n");
   const shown = docs.filter((entry) => {
     if (filter !== "all" && (filter === "questions") !== isOpenQuestion(entry)) return false;
     if (iconFilter === "none" && entry.icon) return false;
     if (iconFilter !== "all" && iconFilter !== "none" && entry.icon !== iconFilter) return false;
-    return !query || entryTitle(entry).toLocaleLowerCase().includes(query) || (!quickQueueKind(entry) && entry.description.toLocaleLowerCase().includes(query)) || entry.body.toLocaleLowerCase().includes(query);
+    return !query || normaliseSearch(entryTitle(entry)).includes(query)
+      || (!quickQueueKind(entry) && normaliseSearch(entry.description).includes(query))
+      || normaliseSearch(visibleBodyText(entry.body)).includes(query);
   }).sort((a, b) => {
     const pinned = Number(b.pinned) - Number(a.pinned);
     if (pinned) return pinned;
@@ -527,6 +544,25 @@ function ScopePage({ scope, navigate, newAction }: {
     } finally { setSelectionBusy(false); }
   }
 
+  async function moveNoteTo(destination: string) {
+    if (!movingNote || movingBusy) return;
+    const origin = movingNote.topic_id;
+    if (destination === origin) { setMovingNote(null); return; }
+    setMovingBusy(true);
+    try {
+      await workspace.patchEntry(movingNote.id, { topic_id: destination });
+      const noteId = movingNote.id;
+      setMovingNote(null);
+      workspace.toast(`Moved to ${workspace.pathLabel(destination)}.`, {
+        action: { label: "Undo", run: () => {
+          void workspace.patchEntry(noteId, { topic_id: origin })
+            .catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
+        } },
+      });
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+    finally { setMovingBusy(false); }
+  }
+
   async function saveDescription() {
     if (!descriptionEditor || descriptionSaving) return;
     setDescriptionSaving(true);
@@ -542,6 +578,12 @@ function ScopePage({ scope, navigate, newAction }: {
   }
 
   return <div className="nb-scope">
+    {movingNote ? <Portal><div className="ws-dialog-backdrop" role="presentation"
+      onMouseDown={(event) => { if (event.target === event.currentTarget && !movingBusy) setMovingNote(null); }}>
+      <TopicPicker value={movingNote.topic_id} allowCreate={false}
+        onChange={(destination) => void moveNoteTo(destination)}
+        onClose={() => { if (!movingBusy) setMovingNote(null); }} />
+    </div></Portal> : null}
     <nav className="nb-crumbs" aria-label="Location">
       <button type="button" onClick={() => navigate({ topicId: null, docId: null })}>Notebook</button>
       {path.subject ? <><ChevronRight size={12} /><button type="button"
@@ -658,11 +700,15 @@ function ScopePage({ scope, navigate, newAction }: {
                 <span className="nb-doc-meta"><span>{isLesson(entry) && entry.lesson_date ? formatDay(entry.lesson_date) : relativeTime(entry.updated_at)}</span>
                   <small>{metadata || "Note"}</small></span>
               </button>
-              {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} items={[
+              {!selecting && workspace.writable ? <RowMenu label={entryTitle(entry)} align="right" items={[
                 { label: entry.pinned ? "Unpin note" : "Pin to top", icon: entry.pinned ? <PinOff size={14} /> : <Pin size={14} />,
                   run: () => void workspace.patchEntry(entry.id, { pinned: !entry.pinned }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
-                { label: quickQueueKind(entry) ? "Organise capture" : "Edit description", icon: <Pencil size={14} />, run: () => quickQueueKind(entry) ? workspace.goTo("queue") : setDescriptionEditor({ id: entry.id, value: entry.description }) },
+                { label: quickQueueKind(entry) ? "Organise capture" : "Edit description", icon: <Pencil size={14} />,
+                  run: () => quickQueueKind(entry) ? workspace.goTo("queue") : setDescriptionEditor({ id: entry.id, value: entry.description }) },
                 { label: "Edit note", icon: <Pencil size={14} />, run: () => workspace.openDocument(entry.id, { edit: true }) },
+                { label: "Move to…", icon: <FolderInput size={14} />, run: () => setMovingNote(entry) },
+                { label: "Delete", icon: <Trash2 size={14} />, danger: true,
+                  run: () => void workspace.removeEntry(entry.id).catch((error) => workspace.toast(friendlyError(error), { tone: "error" })) },
               ]} /> : null}
             </div>
             {descriptionEditor?.id === entry.id ? <form className="nb-description-editor" aria-label={`Description for ${entryTitle(entry)}`}

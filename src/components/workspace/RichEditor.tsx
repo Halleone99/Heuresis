@@ -140,6 +140,30 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const [source, setSource] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
+  // Palettes are temporary controls: dismiss on Escape or a click elsewhere,
+  // rather than leaving attention-demanding overlays on screen.
+  useEffect(() => {
+    if (!paletteOpen && !tableOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPaletteOpen(false);
+      setTableOpen(false);
+    };
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".nb-colour-anchor, .nb-table-anchor")) return;
+      setPaletteOpen(false);
+      setTableOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    document.addEventListener("pointerdown", closeOnOutside, true);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape, true);
+      document.removeEventListener("pointerdown", closeOnOutside, true);
+    };
+  }, [paletteOpen, tableOpen]);
   const [colourHint, setColourHint] = useState("");
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
@@ -533,12 +557,20 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (composing.current || event.nativeEvent.isComposing) return;
     const mod = event.ctrlKey || event.metaKey;
-    if (event.key === "Escape") { event.preventDefault(); onEscape?.(); return; }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (paletteOpen || tableOpen) { setPaletteOpen(false); setTableOpen(false); return; }
+      onEscape?.();
+      return;
+    }
+    // Windows AltGr is reported as Ctrl+Alt by WebView2. Never intercept
+    // characters such as } and ² as formatting shortcuts.
+    if (event.nativeEvent.getModifierState("AltGraph")) return;
     if (mod && event.key === "Enter") { event.preventDefault(); onDone?.(); return; }
     if (mod && !event.shiftKey && event.code === "KeyS") { event.preventDefault(); onSave?.(); return; }
-    if (mod && event.altKey && event.code === "Digit1") { event.preventDefault(); setBlock("h2"); return; }
-    if (mod && event.altKey && event.code === "Digit2") { event.preventDefault(); setBlock("h3"); return; }
-    if (mod && event.altKey && event.code === "Digit0") { event.preventDefault(); setBlock("p"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit1") { event.preventDefault(); setBlock("h2"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit2") { event.preventDefault(); setBlock("h3"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit0") { event.preventDefault(); setBlock("p"); return; }
     if (mod && event.shiftKey && event.code === "Digit8") { event.preventDefault(); setBlock("ul"); return; }
     if (mod && event.shiftKey && event.code === "Digit7") { event.preventDefault(); setBlock("ol"); return; }
     if (mod && event.shiftKey && event.code === "KeyH") { event.preventDefault(); toggleMark(); return; }
@@ -650,7 +682,18 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     const text = event.clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
     if (!text) return;
     run(() => {
-      if (!text.includes("\n")) { exec("insertText", text); return; }
+      if (!text.includes("\n")) {
+        // Single-line Markdown deserves the same treatment as multi-line
+        // paste. Insert inline content inside the current paragraph, without
+        // nesting a <p> in another paragraph.
+        const holder = document.createElement("div");
+        holder.innerHTML = markdownToEditorHtml(text);
+        const only = holder.firstElementChild;
+        const html = holder.children.length === 1 && only?.tagName === "P"
+          ? only.innerHTML : holder.innerHTML;
+        exec("insertHTML", html);
+        return;
+      }
       // An empty line can still carry inline formatting (e.g. italics from the line
       // above); pasting blocks into it would flatten lists, so clear it first.
       const block = currentBlock();
@@ -685,8 +728,8 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
       {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
-        {tool("Heading", `${MOD}+Alt+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
-        {tool("Subheading", `${MOD}+Alt+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
+        {tool("Heading", `${MOD}+Shift+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
+        {tool("Subheading", `${MOD}+Shift+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
       </div> : null}
       <div className="nb-toolbar-group">
         {tool("Bold", `${MOD}+B`, <Bold size={15} />, () => run(() => exec("bold")), active.bold)}
@@ -696,7 +739,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         <div className="nb-colour-anchor">
           <button type="button" aria-label="Text and highlight colours" aria-expanded={paletteOpen} title="Text and highlight colours" disabled={source}
             className={paletteOpen ? "is-active" : ""}
-            onMouseDown={(event) => event.preventDefault()} onClick={() => { setColourHint(""); setPaletteOpen((open) => !open); }}><Palette size={15}/></button>
+            onMouseDown={(event) => event.preventDefault()} onClick={() => { setColourHint(""); setTableOpen(false); setPaletteOpen((open) => !open); }}><Palette size={15}/></button>
           {paletteOpen && !source ? <div className="nb-colour-popover" aria-label="Colours">
             <div className="nb-colour-row"><span>Text</span>{NOTE_COLOURS.map((colour) =>
               <button key={colour} type="button" className="nb-colour-swatch" data-swatch={colour}
@@ -784,7 +827,11 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         onChange={(event) => { setSourceText(event.target.value); latest.current = event.target.value; setEmpty(!event.target.value.trim()); onChange(event.target.value); }}
         onKeyDown={(event) => {
           const mod = event.ctrlKey || event.metaKey;
-          if (event.key === "Escape") { event.preventDefault(); onEscape?.(); }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            if (paletteOpen || tableOpen) { setPaletteOpen(false); setTableOpen(false); }
+            else onEscape?.();
+          }
           else if (mod && event.key === "Enter") { event.preventDefault(); onDone?.(); }
           else if (mod && event.code === "KeyS") { event.preventDefault(); onSave?.(); }
         }} /> : null}

@@ -4,7 +4,7 @@ import {
   MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Trash2, X,
 } from "lucide-react";
 import {
-  CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
+  CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, loadKnowledge, localDateKey, mistakeStage,
   type KnowledgeEntry, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
 import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
@@ -44,7 +44,9 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const [editing, setEditing] = useState(() => Boolean(newDoc) || startInEditMode || Boolean(entry && workspace.pendingEditId === entry.id));
   const [draft, setDraft] = useState<Draft>(() => draftFromEntry(entry, newDoc));
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
-  const [restore, setRestore] = useState<{ title: string; body: string; savedAt: string } | null>(null);
+  const [restore, setRestore] = useState<{ title: string; body: string; savedAt: string; baseUpdatedAt: string } | null>(null);
+  // Conflicts are exceptional: do not interrupt normal typing with a modal.
+  const [conflict, setConflict] = useState(false);
   const [moving, setMoving] = useState(false);
   const [flashcardTarget, setFlashcardTarget] = useState<KnowledgeEntry | null>(null);
   const [addingChapter, setAddingChapter] = useState(false);
@@ -82,6 +84,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const draftIdRef = useRef(entry?.id ?? `unsaved:${newDoc?.draftKey ?? newDoc?.topicId ?? "inbox"}`);
   const draftRef = useRef(draft);
   const savedRef = useRef<Draft>(draftFromEntry(entry, newDoc));
+  const baseRevisionRef = useRef(entry?.updated_at ?? "");
+  const conflictRef = useRef(false);
   const savingRef = useRef(false);
   const againRef = useRef(false);
   const timerRef = useRef<number | null>(null);
@@ -102,7 +106,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     if (!stored) return;
     const initial = draftFromEntry(entry, newDoc);
     const differs = stored.title !== initial.title || canonicalMarkdown(stored.body) !== canonicalMarkdown(initial.body);
-    if (differs) setRestore({ title: stored.title, body: stored.body, savedAt: stored.savedAt });
+    if (differs) setRestore({ title: stored.title, body: stored.body, savedAt: stored.savedAt, baseUpdatedAt: stored.baseUpdatedAt });
     else writeDocumentDraft(userId, key, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -113,6 +117,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     const next = draftFromEntry(liveEntry, null);
     draftRef.current = next;
     savedRef.current = next;
+    baseRevisionRef.current = liveEntry.updated_at;
     setDraft(next);
   }, [editing, liveEntry]);
 
@@ -125,6 +130,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const persist = useCallback(async (): Promise<"saved" | "invalid" | "error" | "busy"> => {
     if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
     if (savingRef.current) { againRef.current = true; return "busy"; }
+    if (conflictRef.current) return "error";
     // The editor sends debounced updates for ordinary typing. A deliberate
     // Save (Ctrl+S, Done, or navigation) must read the live DOM immediately;
     // otherwise a last keystroke can miss the save window.
@@ -134,11 +140,18 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       setDraft(draftRef.current);
       writeDocumentDraft(userId, draftIdRef.current, {
         title: draftRef.current.title, body: liveBody, savedAt: new Date().toISOString(),
-        baseUpdatedAt: liveEntry?.updated_at ?? "",
+        baseUpdatedAt: baseRevisionRef.current,
       });
     }
     const current = draftRef.current;
     if (!isDirty(current)) { setSave((state) => state.kind === "error" || state.kind === "invalid" ? state : { kind: state.at ? "saved" : "idle", at: state.at }); return "saved"; }
+    const currentEntry = entryIdRef.current ? workspace.entryById.get(entryIdRef.current) : null;
+    if (entryIdRef.current && (!currentEntry || (baseRevisionRef.current && currentEntry.updated_at !== baseRevisionRef.current))) {
+      conflictRef.current = true;
+      setConflict(true);
+      setSave({ kind: "error", message: "Another version exists; your changes are preserved on this device." });
+      return "error";
+    }
     const kind = liveEntry?.kind ?? "note";
     if (kind === "note" && !current.body.trim()) {
       setSave({ kind: "invalid", message: entryIdRef.current ? "A note needs some text. Write something, or delete the note." : "Start writing — the note is saved as soon as it has text." });
@@ -154,6 +167,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         const created = await workspace.addEntry({ kind: "note", topicId: current.topicId, title: current.title, body: current.body, category: current.category });
         const priorDraftKey = draftIdRef.current;
         entryIdRef.current = created.id;
+        baseRevisionRef.current = created.updated_at;
         draftIdRef.current = created.id;
         writeDocumentDraft(userId, created.id, {
           title: draftRef.current.title, body: draftRef.current.body,
@@ -165,7 +179,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         const patch: Record<string, unknown> = { title: current.title.trim(), body: current.body, topic_id: current.topicId };
         if (kind === "note") patch.category = current.category;
         if (kind === "lesson") patch.lesson_date = current.lessonDate || null;
-        await workspace.patchEntry(entryIdRef.current, patch);
+        const updated = await workspace.patchEntry(entryIdRef.current, patch);
+        baseRevisionRef.current = updated.updated_at;
       }
       savedRef.current = current;
       const stillDirty = isDirty(draftRef.current);
@@ -179,7 +194,12 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         message: needsSync ? "On device · waiting to sync" : undefined });
       return "saved";
     } catch (error) {
-      setSave({ kind: "error", message: friendlyError(error) });
+      const message = friendlyError(error);
+      if (/changed on another device|was deleted|changed elsewhere/i.test(message)) {
+        conflictRef.current = true;
+        setConflict(true);
+        setSave({ kind: "error", message: "Another version exists; your changes are preserved on this device." });
+      } else setSave({ kind: "error", message });
       return "error";
     } finally {
       savingRef.current = false;
@@ -215,7 +235,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     setSave((state) => state.kind === "saving" ? state : { kind: "dirty", at: state.at });
     writeDocumentDraft(userId, draftIdRef.current, {
       title: next.title, body: next.body, savedAt: new Date().toISOString(),
-      baseUpdatedAt: liveEntry?.updated_at ?? "",
+      baseUpdatedAt: baseRevisionRef.current,
     });
     scheduleSave();
   }, [isDirty, liveEntry?.updated_at, scheduleSave, userId]);
@@ -252,6 +272,47 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     const result = await persist();
     if (result === "saved") { setEditing(false); return "done"; }
     return "stay";
+  }
+
+  // A genuine edit conflict never retries against a newly fetched version.
+  // The only paths are an explicit copy or discarding the local draft.
+  async function saveConflictedCopy() {
+    try {
+      const body = editorRef.current?.getMarkdown() ?? draftRef.current.body;
+      const current = { ...draftRef.current, body };
+      const created = await workspace.addEntry({
+        kind: "note", topicId: current.topicId,
+        title: (current.title.trim() || "Untitled") + " (copy)",
+        body: current.body, category: current.category,
+      });
+      savedRef.current = current; draftRef.current = current;
+      writeDocumentDraft(userId, draftIdRef.current, null);
+      conflictRef.current = false;
+      setConflict(false);
+      navigate({ topicId: created.topic_id, docId: created.id });
+    } catch (error) { setSave({ kind: "error", message: friendlyError(error) }); }
+  }
+  async function useLatestVersion() {
+    try {
+      // Read the authoritative snapshot. The context map from this render is
+      // stale until React has committed the refresh, so it must not decide
+      // which version gets discarded.
+      const latestSnapshot = await loadKnowledge(userId);
+      const latest = latestSnapshot.snapshot.entries.find((row) => row.id === entryIdRef.current);
+      if (!latest) throw new Error("The latest note is unavailable. Keep your local copy.");
+      await workspace.reload();
+      const next = draftFromEntry(latest, null);
+      draftRef.current = next;
+      savedRef.current = next;
+      baseRevisionRef.current = latest.updated_at;
+      editorRef.current?.setMarkdown(next.body);
+      writeDocumentDraft(userId, draftIdRef.current, null);
+      conflictRef.current = false;
+      setConflict(false);
+      setEditing(false);
+      setDraft(next);
+      setSave({ kind: "saved", at: latest.updated_at });
+    } catch (error) { setSave({ kind: "error", message: friendlyError(error) }); }
   }
 
   function startEditing(where: "start" | "end" = "end") {
@@ -367,7 +428,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     onClose();
   }
 
-  // Escape in reading mode closes the note; editing Escape saves before closing.
+  // Escape in reading mode closes the note; editing Escape finishes editing without navigating away.
   useEffect(() => {
     if (editing) return;
     const onEscape = (event: KeyboardEvent) => {
@@ -405,7 +466,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           <span className={`nb-save-state is-${save.kind}`} role="status" aria-live="polite">
             {save.kind === "saving" ? <span className="ws-spinner is-small" /> : save.kind === "local" || save.kind === "saved" || save.kind === "idle" ? <Check size={13} /> : null}
             {statusText}
-            {save.kind === "error" ? <button type="button" onClick={() => void persist()}><RotateCcw size={12} /> Retry</button> : null}
+            {save.kind === "error" && !conflict ? <button type="button" onClick={() => void persist()}><RotateCcw size={12} /> Retry</button> : null}
           </span>
           <button type="button" className="ws-button is-primary" onClick={() => void finishEditing()} title={`Done (${MOD_KEY}+Enter)`}><Check size={15} /> Done</button>
         </> : <>
@@ -425,11 +486,20 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
 
     {moving ? <div className="ws-popover-host"><TopicPicker value={draft.topicId} onChange={(id) => void moveTo(id)} onClose={() => setMoving(false)} /></div> : null}
 
+    {conflict ? <div className="nb-restore" role="alert">
+      <span>This note changed elsewhere. Your unsaved version is preserved on this device. Choose which to keep.</span>
+      <button type="button" className="ws-button is-small is-primary" onClick={() => void saveConflictedCopy()}>Save mine as copy</button>
+      <button type="button" className="ws-button is-small" onClick={() => void useLatestVersion()}>Use latest version</button>
+    </div> : null}
     {restore ? <div className="nb-restore" role="alert">
       <span>Unsaved changes from {relativeTime(restore.savedAt)} were found on this device.</span>
       <button type="button" className="ws-button is-small is-primary" onClick={() => {
         const next = { ...draftRef.current, title: restore.title, body: restore.body };
-        draftRef.current = next; setDraft(next); setRestore(null); startEditing(); scheduleSave();
+        draftRef.current = next; setDraft(next); setRestore(null); startEditing();
+        if (entryIdRef.current && restore.baseUpdatedAt !== baseRevisionRef.current) {
+          conflictRef.current = true; setConflict(true);
+          setSave({ kind: "error", message: "The note changed since this draft was saved." });
+        } else scheduleSave();
       }}>Restore</button>
       <button type="button" className="ws-button is-small is-quiet" onClick={() => { writeDocumentDraft(userId, draftIdRef.current, null); setRestore(null); }}>Discard</button>
     </div> : null}
@@ -452,7 +522,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (event.key === "Enter" || event.key === "ArrowDown") { event.preventDefault(); editorRef.current?.focus("start"); }
-          if (event.key === "Escape") { event.preventDefault(); void closeNote(); }
+          if (event.key === "Escape") { event.preventDefault(); void finishEditing(); }
           if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") { event.preventDefault(); void persist(); }
         }} />
         : <h1 className="nb-doc-title">{title || <span className="ws-muted">Untitled</span>}</h1>}
@@ -491,7 +561,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       <RichEditor ref={editorRef} resetKey={editorKey.current} value={draft.body} autoFocus
         placeholder={lesson ? "Write during or after the lesson — or add the outline above. Quick captures appear below." : draft.category === "reference" ? "Start with ## Chapter title, then write your chapter. Add more ## headings to build the contents." : "Start writing. Use # for a heading, - for a list, > for a quotation, or the Example and Rule blocks."}
         onChange={(body) => updateDraft({ body })}
-        onEscape={() => void closeNote()} onDone={() => void finishEditing()} onSave={() => void persist()} />
+        onEscape={() => void finishEditing()} onDone={() => void finishEditing()} onSave={() => void persist()} />
       <p className="nb-editor-hints"><Kbd>{MOD_KEY} B</Kbd> bold · <Kbd>{MOD_KEY} I</Kbd> italic · <Kbd>{MOD_KEY} ⇧ H</Kbd> highlight · <span>Colours</span> for text or highlighting · click heading arrows to fold · <code>[[Title]]</code> links another note · <Kbd>{MOD_KEY} ↵</Kbd> done</p>
     </div> : <div className="nb-doc-body">
       {!editing && /\p{Script=Han}/u.test(draft.body) && draft.body.toLowerCase().includes("[!example]") ? <div className="nb-reading-controls">

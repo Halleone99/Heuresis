@@ -62,11 +62,13 @@ function renderList(items: ListItem[], resolve?: LinkResolver) {
   }
   const render = (nodes: Node[], key: string): ReactNode => {
     const ordered = nodes[0]?.item.ordered;
-    const Tag = ordered ? "ol" : "ul";
-    return <Tag key={key}>{nodes.map((node, index) => <li key={index}>
+    const children = nodes.map((node, index) => <li key={index}>
       <InlineText text={node.item.text} resolve={resolve} />
       {node.children.length ? render(node.children, `${key}-${index}`) : null}
-    </li>)}</Tag>;
+    </li>);
+    return ordered
+      ? <ol key={key} start={nodes[0]?.item.start}>{children}</ol>
+      : <ul key={key}>{children}</ul>;
   };
   return render(root, "list");
 }

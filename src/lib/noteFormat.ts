@@ -16,7 +16,7 @@
 import { decodeHandNote, HAND_NOTE_PREFIX, HAND_NOTE_SIZE } from "./handNote";
 
 export type CalloutVariant = "example" | "rule" | "correction" | "tip";
-export type ListItem = { text: string; depth: number; ordered: boolean };
+export type ListItem = { text: string; depth: number; ordered: boolean; start?: number };
 export type TableStyle = "plain" | "striped" | "study";
 export type Block =
   | { type: "p"; text: string }
@@ -113,7 +113,10 @@ export function parseBlocks(markdown: string): Block[] {
     }
     const heading = line.match(HEADING_RE);
     if (heading) {
-      blocks.push({ type: heading[1].length === 1 ? "h2" : "h3", text: heading[2] });
+      // Only two heading levels have editable block representations. Preserve
+      // unsupported levels literally instead of silently rewriting ### as ##.
+      if (heading[1].length > 2) blocks.push({ type: "p", text: line });
+      else blocks.push({ type: heading[1].length === 1 ? "h2" : "h3", text: heading[2] });
       continue;
     }
     if (HR_RE.test(line)) { blocks.push({ type: "hr" }); continue; }
@@ -121,7 +124,8 @@ export function parseBlocks(markdown: string): Block[] {
     if (list) {
       const ordered = /\d/.test(list[2]);
       const type = ordered ? "ol" : "ul";
-      const items: ListItem[] = [{ text: list[3], depth: 0, ordered }];
+      const items: ListItem[] = [{ text: list[3], depth: 0, ordered,
+        start: ordered ? Number.parseInt(list[2], 10) : undefined }];
       while (index + 1 < lines.length) {
         const next = lines[index + 1].match(LIST_RE);
         if (!next) break;
@@ -130,7 +134,8 @@ export function parseBlocks(markdown: string): Block[] {
         if (indentDepth(next[1]) === 0 && nextOrdered !== ordered) break;
         index += 1;
         const previous = items[items.length - 1].depth;
-        items.push({ text: next[3], depth: Math.min(indentDepth(next[1]), previous + 1), ordered: nextOrdered });
+        items.push({ text: next[3], depth: Math.min(indentDepth(next[1]), previous + 1),
+          ordered: nextOrdered, start: nextOrdered ? Number.parseInt(next[2], 10) : undefined });
       }
       blocks.push({ type, items });
       continue;
@@ -147,30 +152,58 @@ export function parseBlocks(markdown: string): Block[] {
   return blocks;
 }
 
-const INLINE_RE = /\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
+const INLINE_RE = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
+
+/** Backslash escapes prevent literal formatting markers from changing notes. */
+const unescapeInline = (value: string) => value.replace(/\\(\\|\*|=|~|\[|\]|\{|\})/g, "$1");
+const escapedMarker = (text: string, index: number) => {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) backslashes++;
+  return backslashes % 2 === 1;
+};
+const inlineText = (value: string): Inline => ({ type: "text", text: unescapeInline(value) });
 
 export function parseInline(text: string): Inline[] {
   const result: Inline[] = [];
   let last = 0;
   for (const match of text.matchAll(INLINE_RE)) {
     const start = match.index ?? 0;
-    if (start > last) result.push({ type: "text", text: text.slice(last, start) });
-    if (match[1] !== undefined) result.push({ type: "strong", text: match[1] });
-    else if (match[2] !== undefined) result.push({ type: "mark", text: match[2] });
-    else if (match[3] !== undefined) result.push({ type: "link", target: match[3].trim(), label: (match[4] ?? match[3]).trim() });
-    else if (match[5] !== undefined) result.push({ type: "em", text: match[5] });
-    else if (match[6] !== undefined) result.push({ type: "strike", text: match[6] });
-    else if (match[7] !== undefined) result.push({ type: "colour", colour: match[7] as NoteColour, text: match[8] });
-    else if (match[9] !== undefined) result.push({ type: "tint", colour: match[9] as NoteColour, text: match[10] });
+    const end = start + match[0].length;
+    if (start < last || escapedMarker(text, start)) continue;
+    const inner = match[1] ?? match[2] ?? match[3] ?? match[6] ?? match[7];
+    const emphasis = match[1] !== undefined || match[2] !== undefined || match[6] !== undefined;
+    // Preserve maths and grammar examples such as "x == y == z" and "a*b*c".
+    if (inner !== undefined && (!inner.trim() || /^\s|\s$/.test(inner))) continue;
+    if (emphasis && (
+      /[\p{L}\p{N}]/u.test(text[start - 1] ?? "") ||
+      /[\p{L}\p{N}]/u.test(text[end] ?? "")
+    )) continue;
+    if (start > last) result.push(inlineText(text.slice(last, start)));
+    // Triple markers must be recognised before double markers; preserve
+    // both styles using nested syntax already understood by the renderer.
+    if (match[1] !== undefined) result.push({ type: "strong", text: `*${match[1]}*` });
+    else if (match[2] !== undefined) result.push({ type: "strong", text: match[2] });
+    else if (match[3] !== undefined) result.push({ type: "mark", text: match[3] });
+    else if (match[4] !== undefined) result.push({ type: "link", target: match[4].trim(), label: (match[5] ?? match[4]).trim() });
+    else if (match[6] !== undefined) result.push({ type: "em", text: match[6] });
+    else if (match[7] !== undefined) result.push({ type: "strike", text: match[7] });
+    else if (match[8] !== undefined) result.push({ type: "colour", colour: match[8] as NoteColour, text: match[9] });
+    else if (match[10] !== undefined) result.push({ type: "tint", colour: match[10] as NoteColour, text: match[11] });
     last = start + match[0].length;
   }
-  if (last < text.length) result.push({ type: "text", text: text.slice(last) });
+  if (last < text.length) result.push(inlineText(text.slice(last)));
   return result;
 }
 
 export function wikiLinks(markdown: string) {
   const targets = new Set<string>();
-  for (const match of markdown.matchAll(/\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g)) targets.add(match[1].trim().toLocaleLowerCase());
+  // Use the same escape-aware parser as the editor: a literal \\[[example]]
+  // must not become a backlink just because it contains two brackets.
+  for (const line of markdown.split("\n")) {
+    for (const part of parseInline(line)) {
+      if (part.type === "link") targets.add(part.target.trim().toLocaleLowerCase());
+    }
+  }
   return targets;
 }
 
@@ -225,7 +258,7 @@ function inlineHtml(text: string): string {
     if (part.type === "strike") return `<s>${inlineHtml(part.text)}</s>`;
     if (part.type === "colour") return `<span data-ink="${part.colour}">${inlineHtml(part.text)}</span>`;
     if (part.type === "tint") return `<mark data-tone="${part.colour}">${inlineHtml(part.text)}</mark>`;
-    if (part.type === "link") return escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`);
+    if (part.type === "link") return `<span data-wikilink="true">${escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`)}</span>`;
     return pinyinHtml(part.text);
   }).join("");
 }
@@ -243,12 +276,14 @@ function tableHtml(block: Extract<Block, { type: "table" }>) {
 function listHtml(items: ListItem[]) {
   let html = "";
   const stack: Array<"ul" | "ol"> = [];
+  const openList = (tag: "ul" | "ol", start?: number) =>
+    tag === "ol" && start && start !== 1 ? `<ol start="${start}">` : `<${tag}>`;
   for (const item of items) {
     const tag = item.ordered ? "ol" : "ul";
     const content = `<li>${inlineHtml(item.text) || "<br>"}`;
-    if (!stack.length) { html += `<${tag}>${content}`; stack.push(tag); continue; }
+    if (!stack.length) { html += `${openList(tag, item.start)}${content}`; stack.push(tag); continue; }
     const current = stack.length - 1;
-    if (item.depth > current) { html += `<${tag}>${content}`; stack.push(tag); continue; }
+    if (item.depth > current) { html += `${openList(tag, item.start)}${content}`; stack.push(tag); continue; }
     while (stack.length - 1 > item.depth) html += `</li></${stack.pop()}>`;
     html += `</li>${content}`;
   }
@@ -300,10 +335,15 @@ function wrap(marker: string, inner: string) {
 }
 
 /** Serialise inline content. Returns text where "\n" marks a hard line break. */
+function escapeInlineText(value: string): string {
+  return value.replace(/\\/g, "\\\\")
+    .replace(/(\*{1,3}|==|~~|\[\[|\{(?:color|bg):)(?=\S)/g, "\\$1");
+}
 function inlineMarkdown(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").replace(/ /g, " ").replace(/​/g, "");
+  if (node.nodeType === Node.TEXT_NODE) return escapeInlineText((node.textContent ?? "").replace(/ /g, " ").replace(/​/g, ""));
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const element = node as HTMLElement;
+  if (element.hasAttribute("data-wikilink")) return element.textContent ?? "";
   if (element.tagName === "BR") return "\n";
   if (["UL", "OL", "SCRIPT", "STYLE"].includes(element.tagName)) return "";
   let inner = Array.from(element.childNodes).map(inlineMarkdown).join("");
@@ -331,8 +371,8 @@ function blockLines(element: HTMLElement): string[] {
 const BLOCK_TAGS = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "BLOCKQUOTE", "HR", "PRE", "TABLE"]);
 
 function listLines(list: HTMLElement, depth: number, out: string[]) {
-  let counter = 0;
   const ordered = list.tagName === "OL";
+  let counter = ordered ? (Number(list.getAttribute("start")) || 1) - 1 : 0;
   for (const child of Array.from(list.children)) {
     if (child.tagName === "UL" || child.tagName === "OL") { listLines(child as HTMLElement, depth + 1, out); continue; }
     if (child.tagName !== "LI") continue;
