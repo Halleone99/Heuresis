@@ -16,7 +16,7 @@
 import { decodeHandNote, HAND_NOTE_PREFIX, HAND_NOTE_SIZE } from "./handNote";
 
 export type CalloutVariant = "example" | "rule" | "correction" | "tip";
-export type ListItem = { text: string; depth: number; ordered: boolean };
+export type ListItem = { text: string; depth: number; ordered: boolean; start?: number };
 export type TableStyle = "plain" | "striped" | "study";
 export type Block =
   | { type: "p"; text: string }
@@ -124,7 +124,8 @@ export function parseBlocks(markdown: string): Block[] {
     if (list) {
       const ordered = /\d/.test(list[2]);
       const type = ordered ? "ol" : "ul";
-      const items: ListItem[] = [{ text: list[3], depth: 0, ordered }];
+      const items: ListItem[] = [{ text: list[3], depth: 0, ordered,
+        start: ordered ? Number.parseInt(list[2], 10) : undefined }];
       while (index + 1 < lines.length) {
         const next = lines[index + 1].match(LIST_RE);
         if (!next) break;
@@ -133,7 +134,8 @@ export function parseBlocks(markdown: string): Block[] {
         if (indentDepth(next[1]) === 0 && nextOrdered !== ordered) break;
         index += 1;
         const previous = items[items.length - 1].depth;
-        items.push({ text: next[3], depth: Math.min(indentDepth(next[1]), previous + 1), ordered: nextOrdered });
+        items.push({ text: next[3], depth: Math.min(indentDepth(next[1]), previous + 1),
+          ordered: nextOrdered, start: nextOrdered ? Number.parseInt(next[2], 10) : undefined });
       }
       blocks.push({ type, items });
       continue;
@@ -274,12 +276,14 @@ function tableHtml(block: Extract<Block, { type: "table" }>) {
 function listHtml(items: ListItem[]) {
   let html = "";
   const stack: Array<"ul" | "ol"> = [];
+  const openList = (tag: "ul" | "ol", start?: number) =>
+    tag === "ol" && start && start !== 1 ? `<ol start="${start}">` : `<${tag}>`;
   for (const item of items) {
     const tag = item.ordered ? "ol" : "ul";
     const content = `<li>${inlineHtml(item.text) || "<br>"}`;
-    if (!stack.length) { html += `<${tag}>${content}`; stack.push(tag); continue; }
+    if (!stack.length) { html += `${openList(tag, item.start)}${content}`; stack.push(tag); continue; }
     const current = stack.length - 1;
-    if (item.depth > current) { html += `<${tag}>${content}`; stack.push(tag); continue; }
+    if (item.depth > current) { html += `${openList(tag, item.start)}${content}`; stack.push(tag); continue; }
     while (stack.length - 1 > item.depth) html += `</li></${stack.pop()}>`;
     html += `</li>${content}`;
   }
@@ -367,8 +371,8 @@ function blockLines(element: HTMLElement): string[] {
 const BLOCK_TAGS = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "BLOCKQUOTE", "HR", "PRE", "TABLE"]);
 
 function listLines(list: HTMLElement, depth: number, out: string[]) {
-  let counter = 0;
   const ordered = list.tagName === "OL";
+  let counter = ordered ? (Number(list.getAttribute("start")) || 1) - 1 : 0;
   for (const child of Array.from(list.children)) {
     if (child.tagName === "UL" || child.tagName === "OL") { listLines(child as HTMLElement, depth + 1, out); continue; }
     if (child.tagName !== "LI") continue;
