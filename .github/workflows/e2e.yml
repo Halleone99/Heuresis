@@ -49,6 +49,7 @@ jobs:
           node tests/study-polish.mjs
           node tests/clarity.mjs
           node tests/review-v3.mjs
+          node tests/android-tablet.mjs
       - name: Logs
         if: failure()
         run: tail -n 60 verification/gateway.log verification/postgrest.log vite.log || true
