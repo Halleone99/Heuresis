@@ -735,11 +735,6 @@ function NotebookHome({ navigate, newAction, onShowCaptures }: { navigate: (loca
         {newAction}
       </div>
     </header>
-    {pendingCaptures ? <button type="button" className="nb-capture-summary" onClick={onShowCaptures}>
-      <span><strong>{pendingCaptures} {pendingCaptures === 1 ? "idea" : "ideas"} to organise</strong>
-        <small>Review what you captured, then file or convert it when ready.</small></span>
-      <ChevronRight size={17}/>
-    </button> : null}
     {subjects.length > 0 && snapshot.topics.length === 0 && snapshot.entries.length === 0 ? <div className="nb-home-recovery" role="status">
       <strong>Subjects are present, but their topics and notes are missing.</strong>
       <p>Do not clear this device's app data. You can export any older notes held in its offline cache. The recovery file does not restore or overwrite anything automatically.</p>
