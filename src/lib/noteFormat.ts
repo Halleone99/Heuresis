@@ -333,7 +333,7 @@ function wrap(marker: string, inner: string) {
 /** Serialise inline content. Returns text where "\n" marks a hard line break. */
 function escapeInlineText(value: string): string {
   return value.replace(/\\/g, "\\\\")
-    .replace(/(\\*{1,3}|==|~~|\\[\\[|\\{(?:color|bg):)(?=\\S)/g, "\\$1");
+    .replace(/(\*{1,3}|==|~~|\[\[|\{(?:color|bg):)(?=\S)/g, "\\$1");
 }
 function inlineMarkdown(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return escapeInlineText((node.textContent ?? "").replace(/ /g, " ").replace(/​/g, ""));
