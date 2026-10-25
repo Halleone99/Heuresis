@@ -298,6 +298,13 @@ function limit(value: string, max: number, label: string) {
   return value;
 }
 
+/** Match answers without ignoring case, accents, umlauts, Cyrillic letters or tone marks. */
+export function comparableCorrection(value: string) {
+  return value.normalize("NFC")
+    .replace(/[.,!?。！？；;:：、，"“”]/g, "")
+    .replace(/\s+/g, " ").trim();
+}
+
 export function validateEntry(entry: Pick<KnowledgeEntry, "kind" | "title" | "body" | "description" | "attempt" | "correction" | "explanation">) {
   limit(entry.title, LIMITS.title, "The title");
   limit(entry.body, LIMITS.body, "A note");
@@ -360,7 +367,7 @@ export async function updateEntry(userId: string, current: KnowledgeEntry, patch
   if (!Object.keys(changed).length) return current;
   // Previous recall successes were for the old answer, not the new one.
   if (current.kind === "mistake" && typeof changed.correction === "string"
-      && changed.correction.trim() !== current.correction.trim()) {
+      && comparableCorrection(changed.correction) !== comparableCorrection(current.correction)) {
     changed.recall_streak = 0;
     changed.last_recalled_at = null;
     changed.recall_due_at = null;
