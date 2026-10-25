@@ -15,10 +15,10 @@ type Draft = {
   strokes: HandStroke[]; id?: string;
 };
 const blank = (): Draft => ({
-  type: "raw", handwriting: false, text: "", front: "", back: "", wrong: "", correct: "", strokes: [],
+  type: "note", handwriting: false, text: "", front: "", back: "", wrong: "", correct: "", strokes: [],
 });
 const kinds: { value: QuickQueueKind; label: string }[] = [
-  { value: "raw", label: "Raw" }, { value: "note", label: "Note" },
+  { value: "note", label: "Note" },
   { value: "flashcard", label: "Flashcard" }, { value: "mistake", label: "Mistake" },
 ];
 function draftKey(userId: string, floating: boolean) {
@@ -27,7 +27,7 @@ function draftKey(userId: string, floating: boolean) {
 function readDraft(key: string): Draft {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "null") as Partial<Draft> | null;
-    if (saved && kinds.some(({ value }) => value === saved.type)) return { ...blank(), ...saved };
+    if (saved && (saved.type === "raw" || kinds.some(({ value }) => value === saved.type))) return { ...blank(), ...saved, type: saved.type === "raw" ? "note" : saved.type };
   } catch { /* ignore damaged local draft */ }
   return blank();
 }
@@ -109,14 +109,15 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
     setLastRequest(request);
     // A shortcut names a provisional Q label; it never creates a final record.
     if (request.mode === "mistake") setDraft((current) => ({ ...current, type: "mistake" }));
-    else if (request.mode === "note") setDraft((current) => ({ ...current, type: current.type || "raw" }));
+    else if (request.mode === "note") setDraft((current) => ({ ...current, type: "note" }));
   }
   useEffect(() => {
     try { localStorage.setItem(key, JSON.stringify(draft)); } catch { /* optional draft cache */ }
   }, [draft, key]);
   if (!request) return null;
 
-  const patch = (values: Partial<Draft>) => { setDraft((current) => ({ ...current, ...values, id: undefined })); setError(""); };
+  // Keep the same record ID while editing an unsent draft: retry must not create a second capture.
+  const patch = (values: Partial<Draft>) => { setDraft((current) => ({ ...current, ...values })); setError(""); };
   const close = () => { if (floating && onRequestClose) onRequestClose(); else workspace.closeCapture(); };
   const body = draft.handwriting
     ? [draft.text.trim(), encodeHandNote(draft.strokes)].filter(Boolean).join("\n\n")
@@ -146,7 +147,7 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
       const next = blank();
       setDraft(next);
       try { localStorage.removeItem(key); } catch { /* optional */ }
-      workspace.toast(getOfflineSyncState().pending ? "Saved on this device for Q; awaiting sync." : "Saved to Q.");
+      if (getOfflineSyncState().pending) workspace.toast("Saved on this device; waiting to sync.");
       if (!floating) workspace.closeCapture();
     } catch (reason) { setError(friendlyError(reason)); }
     finally { setSaving(false); }
@@ -170,10 +171,10 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
         onClick={() => patch({ type: kind.value })}>{kind.label}</button>)}
     </div>
     <div className="q-capture-mode" role="group" aria-label="Input mode">
-      <span>Capture to Q</span>
+      <span>Quick capture</span>
       <div>
         <button className={!draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: false })}>Text</button>
-        <button className={draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: true })}>Pen</button>
+        <button className={draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: true, type: "note" })}>Pen</button>
       </div>
     </div>
     <div className="q-capture-editor">
@@ -182,7 +183,7 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
         <input value={draft.text} onChange={(event) => patch({ text: event.target.value })}
           aria-label="Optional caption" placeholder="Caption (optional)"/>
       </> : simple ? <textarea autoFocus aria-label="Quick note" value={draft.text}
-        placeholder={draft.type === "raw" ? "Capture a thought…" : "Write your note…"}
+        placeholder="Capture a thought…"
         onChange={(event) => patch({ text: event.target.value })}/> :
         draft.type === "flashcard" ? <>
           <label>Front<textarea value={draft.front} placeholder="Question or phrase…" onChange={(event) => patch({ front: event.target.value })}/></label>
@@ -194,9 +195,9 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
     </div>
     {error ? <p className="q-capture-error" role="alert">{error}</p> : null}
     <footer className="q-capture-footer">
-      <span>Sort and convert later in Q.</span>
+      <span>File it later from Captures.</span>
       <button type="button" className="q-primary" disabled={saving || !valid} onClick={() => void save()}>
-        {saving ? "Saving…" : "Save to Q"}
+        {saving ? "Saving…" : "Save"}
       </button>
     </footer>
   </div>;
