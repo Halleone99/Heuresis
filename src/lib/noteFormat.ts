@@ -113,7 +113,10 @@ export function parseBlocks(markdown: string): Block[] {
     }
     const heading = line.match(HEADING_RE);
     if (heading) {
-      blocks.push({ type: heading[1].length === 1 ? "h2" : "h3", text: heading[2] });
+      // Only two heading levels have editable block representations. Preserve
+      // unsupported levels literally instead of silently rewriting ### as ##.
+      if (heading[1].length > 2) blocks.push({ type: "p", text: line });
+      else blocks.push({ type: heading[1].length === 1 ? "h2" : "h3", text: heading[2] });
       continue;
     }
     if (HR_RE.test(line)) { blocks.push({ type: "hr" }); continue; }
