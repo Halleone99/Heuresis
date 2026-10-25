@@ -28,7 +28,7 @@ assert.match(notebook, /entry.topic_id === topic.id && isDocument\(entry\)/, "To
 assert.match(notebook, /className="nb-topic-grid"/, "Subjects show topic cards");
 assert.match(notebook, /<div className="nb-scope-actions">[\s\S]*?nb-capture-open[\s\S]*?\{newAction\}/, "Home actions include Captures and New");
 assert.match(notebook, /<CaptureReviewPage/);
-assert.match(notebook, /nb-capture-summary/);
+assert.doesNotMatch(notebook, /nb-capture-summary/, "Pending captures remain accessible without a prominent reminder banner");
 const review = readFileSync("src/components/workspace/CaptureReviewPage.tsx", "utf8");
 assert.match(review, /workspace\.openCleanup\(\{ kind: "inbox", id: inbox.id \}\)/);
 assert.match(review, /onOpenNote\(entry\)/);
