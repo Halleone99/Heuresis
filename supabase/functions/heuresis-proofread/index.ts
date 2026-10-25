@@ -13,6 +13,20 @@ Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
+    // Verify identity here as well as at the Edge Function gateway. Never
+    // spend the server-side AI API key for an unauthenticated request.
+    const authorization = request.headers.get("authorization");
+    const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) return json({ error: "Sign in to use AI checking." }, 401);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const publishableKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    if (!supabaseUrl || !publishableKey) return json({ error: "Authentication is not configured." }, 503);
+    const identity = await fetch(new URL("/auth/v1/user", supabaseUrl), {
+      headers: { authorization: `Bearer ${token}`, apikey: publishableKey },
+    });
+    if (!identity.ok) return json({ error: "Sign in again to use AI checking." }, 401);
+    const user = await identity.json().catch(() => null);
+    if (typeof user?.id !== "string" || !user.id) return json({ error: "Sign in again to use AI checking." }, 401);
     const payload = await request.json();
     const text = typeof payload?.text === "string" ? payload.text.trim() : "";
     const language = typeof payload?.language === "string" ? payload.language.slice(0, 60) : "Unknown";

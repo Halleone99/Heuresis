@@ -114,22 +114,26 @@ const scenarios = {
     check(Boolean(left && centre && right && left.x < centre.x && centre.x < right.x),
       "Enrichment left, complete flashcard centre, Sort decisions right");
     const cardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    await page.locator('.sort-enrich-heading:has-text("Examples")').click();
-    await page.getByRole("button", { name: "Add detail" }).click();
-    await page.getByRole("textbox", { name: "Add to Examples" }).fill("An example recorded while sorting.");
-    check(await page.locator(".sort-levels button").first().isDisabled(),
+    const examplesHeading = page.locator('.sort-enrich-heading:has-text("Examples")');
+    if (await examplesHeading.getAttribute("aria-expanded") !== "true") await examplesHeading.click();
+    await page.getByRole("button", { name: "Add example" }).click();
+    // Keyboard typing produces normal paragraph markup in this WYSIWYG editor;
+    // Playwright fill() inserts a bare text node, bypassing the real user path.
+    await page.getByRole("textbox", { name: "Write examples" }).pressSequentially("An example recorded while sorting.");
+    check(await page.locator(".sort-rating button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");
     await page.keyboard.press("Escape");
-    check(await page.locator(".sort-modal").count() === 1,
+    check(await page.locator(".sort-modal").count() === 1 && await page.locator(".sort-enrich-editor").count() === 1,
       "Escape cannot silently discard typed card knowledge");
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.locator(".sort-enrich-editor").getByRole("button", { name: "Save", exact: true }).click();
     await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').waitFor();
     const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
     check(persisted.includes("An example recorded while sorting."),
       "New knowledge is saved to the original flashcard data");
     await page.keyboard.press("Escape");
     await page.locator(".sort-command").click();
-    await page.locator('.sort-enrich-heading:has-text("Examples")').click();
+    if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
+      await page.locator('.sort-enrich-heading:has-text("Examples")').click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
       "Saved enrichment is present when Sort reopens");
   },
@@ -140,12 +144,15 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-card").waitFor();
     check(true, "Sort opens straight into the queue (no setup step)");
-    const decision = page.locator(".sort-decision");
-    check(await decision.locator(".sort-levels button").count() === 3, "Learn is offered as Core / Useful / Peripheral in the decision group");
-    check(await decision.locator('button:has-text("Reference")').count() === 1, "Reference is in the same group");
-    check(await decision.locator('button:has-text("Discard")').count() === 1, "Discard is in the same group");
-    check(await decision.locator('button:has-text("Later")').count() === 1, "Later is in the same group");
-    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-toggle").count() === 1, "tags are behind one secondary control");
+    const decision = page.locator(".sort-panel");
+    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
+    check(await decision.getByRole("button", { name: "Importance Core" }).count() === 1, "Core importance is available");
+    await decision.getByRole("button", { name: "Other actions" }).click();
+    check(await decision.getByRole("button", { name: "Keep as reference" }).count() === 1, "Reference is available without adding a second panel");
+    check(await decision.getByRole("button", { name: "Discard to Trash" }).count() === 1, "Discard is recoverable");
+    check(await decision.getByRole("button", { name: "Decide later" }).count() === 1, "Later is available");
+    await decision.getByRole("button", { name: "Other actions" }).click();
+    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-control .sort-side-heading button").count() === 1, "tags are behind one secondary control");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("r");
     await page.waitForTimeout(900);
