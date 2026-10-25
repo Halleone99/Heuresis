@@ -5,6 +5,7 @@ import { EmptyState, InlineNameForm, Kbd, MOD_KEY, Portal, useConfirm } from "./
 import { useWorkspace } from "./WorkspaceContext";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText } from "./RichText";
+import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
 
 const ACCENTS: Array<{ value: MistakeAccent | ""; label: string }> = [
   { value: "", label: "None" },
@@ -14,6 +15,11 @@ const ACCENTS: Array<{ value: MistakeAccent | ""; label: string }> = [
   { value: "blue", label: "Blue" },
   { value: "violet", label: "Violet" },
 ];
+
+function DiffLine({ parts }: { parts: DifferencePart[] }) {
+  return <>{parts.map((part, index) => <span key={index}
+    className={part.kind === "wrong" ? "ml-diff-wrong" : part.kind === "corrected" ? "ml-diff-right" : undefined}>{part.text}</span>)}</>;
+}
 
 /** A correction is always just two lines; classification and styling remain optional. */
 export function MistakeLog() {
@@ -39,6 +45,7 @@ export function MistakeLog() {
     catch { /* Sidebar preference is optional. */ }
   }, [organiserOpen, workspace.userId]);
   const [visibleCount, setVisibleCount] = useState(60);
+  const [search, setSearch] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
 
   const mistakes = useMemo(() => snapshot.entries
@@ -52,8 +59,10 @@ export function MistakeLog() {
   const visibleMistakes = useMemo(() => mistakes.filter((entry) => {
     if (selectedSubjectId && workspace.topicById.get(entry.topic_id)?.subject_id !== selectedSubjectId) return false;
     if (topicTreeIds && !topicTreeIds.has(entry.topic_id)) return false;
+    if (search.trim() && ![entry.attempt, entry.correction, entry.explanation, entry.title]
+      .some((value) => value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))) return false;
     return true;
-  }), [mistakes, selectedSubjectId, topicTreeIds, workspace.topicById]);
+  }), [mistakes, selectedSubjectId, topicTreeIds, workspace.topicById, search]);
 
   const select = (subjectId: string | null, topicId: string | null) => {
     setSelectedSubjectId(subjectId);
@@ -94,6 +103,23 @@ export function MistakeLog() {
     [snapshot.subjects]);
   const selectedTitle = selectedTopicId ? workspace.topicById.get(selectedTopicId)?.name
     : selectedSubjectId ? workspace.subjectById.get(selectedSubjectId)?.name : null;
+
+  function practiseShown() {
+    const eligible = visibleMistakes.filter((entry) => entry.correction.trim());
+    if (!eligible.length) return;
+    const latest = new Map<string, { outcome: string; created_at: string }>();
+    for (const event of snapshot.practice) {
+      const previous = latest.get(event.record_id);
+      if (!previous || previous.created_at < event.created_at) latest.set(event.record_id, event);
+    }
+    const priority = (entry: KnowledgeEntry) => {
+      const last = latest.get(entry.id);
+      return last?.outcome === "incorrect" ? 0 : !last ? 1 : 2;
+    };
+    eligible.sort((a, b) => priority(a) - priority(b)
+      || (a.last_recalled_at ?? "").localeCompare(b.last_recalled_at ?? ""));
+    setSession(eligible.map((entry) => entry.id));
+  }
 
 
   // The hierarchy belongs to Notebook AND Mistake Log. Never delete knowledge
@@ -146,11 +172,13 @@ export function MistakeLog() {
       <div><h1>Mistake Log</h1>
         <p className="ws-muted ml-page-subtitle">Keep the mistake. Keep the correction.</p>
       </div>
-      {workspace.writable ? <div className="ws-page-actions">
-        <button className="ws-button is-primary" type="button" onClick={() => {
+      <div className="ws-page-actions">
+        <button className="ws-button" type="button" disabled={!visibleMistakes.some((entry) => entry.correction.trim())}
+          onClick={practiseShown}><GraduationCap size={16} /> Practise</button>
+        {workspace.writable ? <button className="ws-button is-primary" type="button" onClick={() => {
           setAdding(true); setEditingId(null);
-        }}><Plus size={16} /> Add mistake</button>
-      </div> : null}
+        }}><Plus size={16} /> Add mistake</button> : null}
+      </div>
     </header>
     <div className={"ml-organised-layout" + (!organiserOpen ? " is-organiser-hidden" : "")}>
       {organiserOpen ? <aside className="ml-organiser" aria-label="Mistake subjects and topics">
@@ -217,6 +245,12 @@ export function MistakeLog() {
         {!subjects.length ? <p className="ml-nav-hint">Add a subject to organise mistakes. You can also save without one.</p> : null}
       </aside> : null}
       <main className="ml-simple-list" ref={listRef}>
+        <label className="ml-search-label">
+          <span className="sr-only">Search mistakes</span>
+          <input className="ml-search-field" type="search" value={search}
+            onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
+            placeholder="Search mistakes and corrections…" />
+        </label>
         {!organiserOpen ? <button type="button" className="ml-organiser-restore" onClick={() => setOrganiserOpen(true)}>
           <PanelLeftOpen size={16} /> Subjects <span>{selectedTitle ? "· " + selectedTitle : ""}</span>
         </button> : null}
@@ -233,7 +267,7 @@ export function MistakeLog() {
         {visibleMistakes.slice(0, visibleCount).map((entry) => editingId === entry.id
           ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
           : <MistakeItem key={entry.id} entry={entry} highlighted={entry.id === highlightId}
-            onEdit={() => { setAdding(false); setEditingId(entry.id); }} />)}
+            showPath={!selectedTitle} onEdit={() => { setAdding(false); setEditingId(entry.id); }} />)}
         {visibleMistakes.length > visibleCount ? <button className="ml-simple-more" type="button"
           onClick={() => setVisibleCount((count) => count + 60)}>Show more</button> : null}
       </main>
@@ -336,8 +370,8 @@ function TopicBranch({ subjectId, parentId, depth, selectedSubjectId, selectedTo
   })}</>;
 }
 
-function MistakeItem({ entry, highlighted, onEdit }: {
-  entry: KnowledgeEntry; highlighted: boolean; onEdit: () => void;
+function MistakeItem({ entry, highlighted, showPath, onEdit }: {
+  entry: KnowledgeEntry; highlighted: boolean; showPath: boolean; onEdit: () => void;
 }) {
   const workspace = useWorkspace();
   const [confirmElement, confirm] = useConfirm();
@@ -350,6 +384,7 @@ function MistakeItem({ entry, highlighted, onEdit }: {
     try { await workspace.removeEntry(entry.id); }
     catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
   }
+  const diff = mistakeDifference(entry.attempt, entry.correction);
   async function togglePin() {
     try { await workspace.patchEntry(entry.id, { pinned: !entry.pinned }); }
     catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
@@ -360,17 +395,17 @@ function MistakeItem({ entry, highlighted, onEdit }: {
     <div className="ml-simple-body">
       {entry.title ? <h2 className="ml-entry-title">{entry.title}</h2> : null}
       <div className="ml-simple-pair">
-        <span className="ml-simple-label">Mistake</span>
-        <p className="ml-simple-wrong">{entry.attempt || "Not recorded"}</p>
+        <span className="ml-simple-symbol" title="Mistake" aria-label="Mistake">×</span>
+        <p className="ml-simple-wrong">{entry.attempt ? <DiffLine parts={diff.before} /> : "Not recorded"}</p>
       </div>
       <div className="ml-simple-pair">
-        <span className="ml-simple-label">Correction</span>
+        <span className="ml-simple-symbol is-right" title="Correction" aria-label="Correction">✓</span>
         <p className={"ml-simple-right" + (!entry.correction ? " is-missing" : "")}>
-          {entry.correction || "Add the correct version"}
+          {entry.correction ? <DiffLine parts={diff.after} /> : "Add the correct version"}
         </p>
       </div>
       {entry.explanation ? <div className="ml-entry-context-wrap"><RichText text={entry.explanation} className="ml-entry-context is-compact" /></div> : null}
-      <small className="ml-entry-path">{workspace.pathLabel(entry.topic_id)}</small>
+      {showPath ? <small className="ml-entry-path">{workspace.pathLabel(entry.topic_id)}</small> : null}
     </div>
     {workspace.writable ? <div className="ml-simple-actions">
       <button type="button" className={"ws-icon-button" + (entry.pinned ? " is-active" : "")}
@@ -416,8 +451,8 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
 
   async function save() {
     if (busy) return;
-    if (!attempt.trim() || !correction.trim()) {
-      setError("Write the mistake and the correct version.");
+    if (!attempt.trim()) {
+      setError("Write the mistake first. You can add the correction later.");
       return;
     }
     setBusy(true); setError("");
@@ -451,7 +486,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
   return <form className="ml-simple-edit" onSubmit={(event) => { event.preventDefault(); void save(); }}
     onKeyDown={(event) => {
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-      if (event.key === "Escape" && event.target instanceof HTMLTextAreaElement) {
+      if (event.key === "Escape") {
         event.preventDefault(); onDone();
       }
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -507,7 +542,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
       <div className="ml-explanation-editor">
         <RichEditor ref={explanationRef} resetKey={entry?.id ?? "new-mistake"} value={explanation}
           ariaLabel="Formatted explanation" placeholder="Why was this wrong? Add a rule, memorable example or short explanation."
-          onChange={setExplanation} onSave={() => void save()} onDone={() => void save()} />
+          onChange={setExplanation} onSave={() => void save()} onDone={() => void save()} compactToolbar />
       </div>
     </details>
     {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
