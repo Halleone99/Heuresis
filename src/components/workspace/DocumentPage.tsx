@@ -4,7 +4,7 @@ import {
   MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Trash2, X,
 } from "lucide-react";
 import {
-  CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, localDateKey, mistakeStage,
+  CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, loadKnowledge, localDateKey, mistakeStage,
   type KnowledgeEntry, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
 import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
@@ -294,9 +294,13 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   }
   async function useLatestVersion() {
     try {
-      await workspace.reload();
-      const latest = entryIdRef.current ? workspace.entryById.get(entryIdRef.current) : null;
+      // Read the authoritative snapshot. The context map from this render is
+      // stale until React has committed the refresh, so it must not decide
+      // which version gets discarded.
+      const latestSnapshot = await loadKnowledge(userId);
+      const latest = latestSnapshot.snapshot.entries.find((row) => row.id === entryIdRef.current);
       if (!latest) throw new Error("The latest note is unavailable. Keep your local copy.");
+      await workspace.reload();
       const next = draftFromEntry(latest, null);
       draftRef.current = next;
       savedRef.current = next;
@@ -492,7 +496,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       <button type="button" className="ws-button is-small is-primary" onClick={() => {
         const next = { ...draftRef.current, title: restore.title, body: restore.body };
         draftRef.current = next; setDraft(next); setRestore(null); startEditing();
-        if (entryIdRef.current && restore.baseUpdatedAt && restore.baseUpdatedAt !== baseRevisionRef.current) {
+        if (entryIdRef.current && restore.baseUpdatedAt !== baseRevisionRef.current) {
           conflictRef.current = true; setConflict(true);
           setSave({ kind: "error", message: "The note changed since this draft was saved." });
         } else scheduleSave();
