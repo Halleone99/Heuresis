@@ -27,7 +27,7 @@ function draftKey(userId: string, floating: boolean) {
 function readDraft(key: string): Draft {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "null") as Partial<Draft> | null;
-    if (saved && (saved.type === "raw" || kinds.some(({ value }) => value === saved.type))) return { ...blank(), ...saved, type: saved.type === "raw" ? "note" : saved.type };
+    if (saved && (saved.type === "raw" || kinds.some(({ value }) => value === saved.type))) return { ...blank(), ...saved, type: saved.type === "raw" ? "note" : saved.type! };
   } catch { /* ignore damaged local draft */ }
   return blank();
 }
