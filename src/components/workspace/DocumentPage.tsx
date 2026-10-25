@@ -367,7 +367,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     onClose();
   }
 
-  // Escape in reading mode closes the note; editing Escape saves before closing.
+  // Escape in reading mode closes the note; editing Escape finishes editing without navigating away.
   useEffect(() => {
     if (editing) return;
     const onEscape = (event: KeyboardEvent) => {
@@ -452,7 +452,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (event.key === "Enter" || event.key === "ArrowDown") { event.preventDefault(); editorRef.current?.focus("start"); }
-          if (event.key === "Escape") { event.preventDefault(); void closeNote(); }
+          if (event.key === "Escape") { event.preventDefault(); void finishEditing(); }
           if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") { event.preventDefault(); void persist(); }
         }} />
         : <h1 className="nb-doc-title">{title || <span className="ws-muted">Untitled</span>}</h1>}
@@ -491,7 +491,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       <RichEditor ref={editorRef} resetKey={editorKey.current} value={draft.body} autoFocus
         placeholder={lesson ? "Write during or after the lesson — or add the outline above. Quick captures appear below." : draft.category === "reference" ? "Start with ## Chapter title, then write your chapter. Add more ## headings to build the contents." : "Start writing. Use # for a heading, - for a list, > for a quotation, or the Example and Rule blocks."}
         onChange={(body) => updateDraft({ body })}
-        onEscape={() => void closeNote()} onDone={() => void finishEditing()} onSave={() => void persist()} />
+        onEscape={() => void finishEditing()} onDone={() => void finishEditing()} onSave={() => void persist()} />
       <p className="nb-editor-hints"><Kbd>{MOD_KEY} B</Kbd> bold · <Kbd>{MOD_KEY} I</Kbd> italic · <Kbd>{MOD_KEY} ⇧ H</Kbd> highlight · <span>Colours</span> for text or highlighting · click heading arrows to fold · <code>[[Title]]</code> links another note · <Kbd>{MOD_KEY} ↵</Kbd> done</p>
     </div> : <div className="nb-doc-body">
       {!editing && /\p{Script=Han}/u.test(draft.body) && draft.body.toLowerCase().includes("[!example]") ? <div className="nb-reading-controls">
