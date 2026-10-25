@@ -150,7 +150,7 @@ export function parseBlocks(markdown: string): Block[] {
 const INLINE_RE = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
 
 /** Backslash escapes prevent literal formatting markers from changing notes. */
-const unescapeInline = (value: string) => value.replace(/\\([\\*=[\\]{}~])/g, "$1");
+const unescapeInline = (value: string) => value.replace(/\\(\\|\*|=|~|\[|\]|\{|\})/g, "$1");
 const escapedMarker = (text: string, index: number) => {
   let backslashes = 0;
   for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) backslashes++;
@@ -168,10 +168,10 @@ export function parseInline(text: string): Inline[] {
     const inner = match[1] ?? match[2] ?? match[3] ?? match[6] ?? match[7];
     const emphasis = match[1] !== undefined || match[2] !== undefined || match[6] !== undefined;
     // Preserve maths and grammar examples such as "x == y == z" and "a*b*c".
-    if (inner !== undefined && (!inner.trim() || /^\\s|\\s$/.test(inner))) continue;
+    if (inner !== undefined && (!inner.trim() || /^\s|\s$/.test(inner))) continue;
     if (emphasis && (
-      /[\\p{L}\\p{N}]/u.test(text[start - 1] ?? "") ||
-      /[\\p{L}\\p{N}]/u.test(text[end] ?? "")
+      /[\p{L}\p{N}]/u.test(text[start - 1] ?? "") ||
+      /[\p{L}\p{N}]/u.test(text[end] ?? "")
     )) continue;
     if (start > last) result.push(inlineText(text.slice(last, start)));
     // Triple markers must be recognised before double markers; preserve
