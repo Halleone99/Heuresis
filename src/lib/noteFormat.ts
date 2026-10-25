@@ -147,7 +147,7 @@ export function parseBlocks(markdown: string): Block[] {
   return blocks;
 }
 
-const INLINE_RE = /\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
+const INLINE_RE = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
 
 export function parseInline(text: string): Inline[] {
   const result: Inline[] = [];
@@ -155,13 +155,16 @@ export function parseInline(text: string): Inline[] {
   for (const match of text.matchAll(INLINE_RE)) {
     const start = match.index ?? 0;
     if (start > last) result.push({ type: "text", text: text.slice(last, start) });
-    if (match[1] !== undefined) result.push({ type: "strong", text: match[1] });
-    else if (match[2] !== undefined) result.push({ type: "mark", text: match[2] });
-    else if (match[3] !== undefined) result.push({ type: "link", target: match[3].trim(), label: (match[4] ?? match[3]).trim() });
-    else if (match[5] !== undefined) result.push({ type: "em", text: match[5] });
-    else if (match[6] !== undefined) result.push({ type: "strike", text: match[6] });
-    else if (match[7] !== undefined) result.push({ type: "colour", colour: match[7] as NoteColour, text: match[8] });
-    else if (match[9] !== undefined) result.push({ type: "tint", colour: match[9] as NoteColour, text: match[10] });
+    // Triple markers must be recognised before double markers; preserve
+    // both styles using nested syntax already understood by the renderer.
+    if (match[1] !== undefined) result.push({ type: "strong", text: `*${match[1]}*` });
+    else if (match[2] !== undefined) result.push({ type: "strong", text: match[2] });
+    else if (match[3] !== undefined) result.push({ type: "mark", text: match[3] });
+    else if (match[4] !== undefined) result.push({ type: "link", target: match[4].trim(), label: (match[5] ?? match[4]).trim() });
+    else if (match[6] !== undefined) result.push({ type: "em", text: match[6] });
+    else if (match[7] !== undefined) result.push({ type: "strike", text: match[7] });
+    else if (match[8] !== undefined) result.push({ type: "colour", colour: match[8] as NoteColour, text: match[9] });
+    else if (match[10] !== undefined) result.push({ type: "tint", colour: match[10] as NoteColour, text: match[11] });
     last = start + match[0].length;
   }
   if (last < text.length) result.push({ type: "text", text: text.slice(last) });
