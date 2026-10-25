@@ -12,7 +12,7 @@ assert.match(doc,/!state\.pending && !state\.syncing && !state\.error/);
 assert.match(doc,/current\.kind !== "local"/);
 assert.match(doc,/kind: "saved", at: new Date\(\)\.toISOString\(\), message: "Synced"/);
 assert.match(doc,/save\.kind === "local" \? save\.message/);
-assert.match(doc,/save\\.kind === "error" && !conflict \\? <button type="button" onClick=\\{\\(\\) => void persist\\(\\)\\}/,
+assert.match(doc,/save\.kind === "error" && !conflict \? <button type="button" onClick=\{\(\) => void persist\(\)\}/,
   "Retry remains available for ordinary errors, but not revision conflicts");
 assert.match(doc,/Save mine as copy/, "Conflicts offer a non-destructive recovery path");
 assert.match(doc,/Use latest version/, "Discarding a draft requires an explicit choice");
