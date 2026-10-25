@@ -43,7 +43,8 @@ import { isInboxTopic } from "./lib/lessonCleanup";
 import { quickQueueKind } from "./lib/quickQueue";
 import { useCaptureReviewIds } from "./lib/captureReviewQueue";
 import { exportKnowledgeJson } from "./lib/knowledgeBackup";
-import { ensureDailyLocalBackup, supportsLocalBackup } from "./lib/localBackup";
+import { ensureDailyLocalBackup, localBackupStatus, supportsLocalBackup } from "./lib/localBackup";
+import { backupAgeNotice } from "./lib/backupFreshness";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "./lib/sectionScroll";
 import { supabase } from "./lib/supabase";
@@ -241,6 +242,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const background = specificBackground?.hasImage && specificBackground.settings.enabled
     ? specificBackground : backgrounds.heuresis;
   const [localBackupNotice, setLocalBackupNotice] = useState("");
+  const [localBackupAgeNotice, setLocalBackupAgeNotice] = useState<string | null>(null);
 
   async function reload(silent = false) {
     if (!silent) setLoading(true);
@@ -331,6 +333,14 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       // A background attempt is a quiet retry, not an interruption or warning
       // banner. The error remains available if the user requests a manual copy.
       if (manual) setLocalBackupNotice(`Backup not completed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      // Only account-menu text; no toast/banner for an ordinary retry.
+      try {
+        const status = await localBackupStatus(session.user.id);
+        setLocalBackupAgeNotice(status ? backupAgeNotice(status.latest_day) : "PC backup status unavailable.");
+      } catch {
+        setLocalBackupAgeNotice("PC backup status unavailable.");
+      }
     }
   }
 
@@ -592,6 +602,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
                 <HardDriveDownload size={14} /> Check PC backup
               </button> : null}
               {supportsLocalBackup() && localBackupNotice ? <small className="desktop-backup-detail">{localBackupNotice}</small> : null}
+              {supportsLocalBackup() && !localBackupNotice && localBackupAgeNotice ? <small className="desktop-backup-detail">{localBackupAgeNotice}</small> : null}
               <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
                 <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending + syncState.held ? ` (${syncState.legacyPending + syncState.held})` : ""}
               </button>

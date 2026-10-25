@@ -51,10 +51,19 @@ failRead = true;
 await assert.rejects(() => offline.snapshotOfflineWritesForBackup("user-a"), /disk unavailable/, "a failed queue read must prevent completion");
 
 const backup = readFileSync("src/lib/localBackup.ts", "utf8");
+const { backupAgeNotice } = loadTs("src/lib/backupFreshness.ts");
+const onDate = new Date(2026, 9, 25, 10, 0);
+assert.equal(backupAgeNotice("2026-10-25", onDate), null);
+assert.equal(backupAgeNotice("2026-10-23", onDate), null);
+assert.match(backupAgeNotice("2026-10-22", onDate), /Last completed PC backup/);
+assert.match(backupAgeNotice(null, onDate), /No completed PC backup/);
 const native = readFileSync("src-tauri/src/local_backup.rs", "utf8");
 const app = readFileSync("src/App.tsx", "utf8");
 const notebook = readFileSync("src/components/workspace/NotebookView.tsx", "utf8");
 assert.match(backup, /snapshotOfflineWritesForBackup\(userId\)/);
+assert.match(backup, /page_key\.like\.heuresis-%/, "Each Heuresis page wallpaper belongs in the backup");
+assert.doesNotMatch(backup, /query\.eq\("page_key", "heuresis"\)/, "Backup must not omit per-page background rows");
+assert.match(app, /localBackupAgeNotice/, "Quiet stale status appears in the account menu");
 assert.match(backup, /JSON\.stringify\(offlineAtStart\) !== JSON\.stringify\(await snapshotOfflineWritesForBackup\(userId\)\)/,
   "offline edits changing mid-export must abort publishing");
 assert.match(backup, /offline_recovery:/, "the full snapshot must include recovery data");
