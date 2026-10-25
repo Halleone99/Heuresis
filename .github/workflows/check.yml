@@ -71,6 +71,8 @@ jobs:
         run: node scripts/check-rendered-appearance.mjs
       - name: Check Notebook formatting in Chromium and touch mode
         run: node scripts/check-rich-editor-browser.mjs
+      - name: Check background studio layout and image selection in Chromium
+        run: node scripts/check-background-studio-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
