@@ -44,6 +44,7 @@ import { loadGradeEvents } from "../lib/reviewEvidence";
 import { METHOD_LABEL, MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
+import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import RetentionPractice from "./RetentionPractice";
 import "./cosmos.css";
@@ -199,7 +200,16 @@ function isConceptualPack(pack: PackWithType) {
 /** An empty selection is not a failure: the window explains it calmly. */
 class EmptySelection extends Error {}
 
+/** Android (MagicPad APK): Review is a page inside the app's only WebView, opened from Study. */
+const ANDROID = isAndroidRuntime();
+
 async function closeDesktopWindow() {
+  // Closing the window on Android would close the whole app (it has one window and one
+  // WebView). Go back to the Study page Review was opened from instead.
+  if (ANDROID) {
+    returnToHeuresisApp();
+    return;
+  }
   if ("__TAURI_INTERNALS__" in window) {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().close();
@@ -943,7 +953,9 @@ export default function CosmosWindow() {
           <div className="cosmos-results" role="group" aria-label="What happened">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
             className={`${(suggestion ? suggestion.grade === grade : grade === "good") ? "primary" : ""} ${suggestion?.grade === grade ? "is-suggested" : ""}`.trim()}
             title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>{RESULT_LABEL[grade]} <small>{position + 1}</small></button>)}</div>
-        </> : <span>{method === "type" ? "Type your answer, then Enter to show it." : method === "say" ? "Say the answer aloud, then show it (Space)." : method === "handwrite" ? "Write the answer by hand, then show it (Space)." : "Recall the answer, then show it (Space)."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+        </> : <span>{ANDROID
+          ? (method === "type" ? "Type your answer, then tap Show answer." : method === "say" ? "Say the answer aloud, then tap Show answer." : method === "handwrite" ? "Write the answer by hand or on the card, then tap Show answer." : "Recall the answer, then tap Show answer.")
+          : method === "type" ? "Type your answer, then Enter to show it." : method === "say" ? "Say the answer aloud, then show it (Space)." : method === "handwrite" ? "Write the answer by hand, then show it (Space)." : "Recall the answer, then show it (Space)."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
