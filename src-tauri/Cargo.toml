@@ -1,6 +1,6 @@
 [package]
 name = "heuresis"
-version = "0.1.1"
+version = "0.1.2"
 description = "Heuresis desktop learning environment"
 authors = ["Thomas"]
 edition = "2021"
