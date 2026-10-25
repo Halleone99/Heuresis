@@ -614,30 +614,31 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
       </div>
       {finished ? <div className="recall-summary">
         <strong>{results.filter((result) => result.correct).length} of {results.length} recalled</strong>
-        <p className="ws-muted">Correct answers bring a mistake back after a longer pause (1 → 3 → 7 → 21 → 60 days); a miss brings it back tomorrow. Answering correctly several times on the same day counts once — retention is shown only by recall on separate days.</p>
+        <p className="ws-muted">Practice history is saved. You can return to these mistakes whenever you choose.</p>
         <div className="ws-dialog-actions"><button type="button" className="ws-button is-primary" autoFocus onClick={onClose}>Done</button></div>
       </div> : current ? <>
         <div className="recall-prompt">
           <span className="ml-label">{workspace.pathLabel(current.topic_id)}</span>
           {current.attempt ? <p className="recall-attempt"><span className="ml-label">You said</span>{current.attempt}</p> : <p className="ws-muted">Recall the correct form{current.title ? ` for “${current.title}”` : ""}.</p>}
-          {current.explanation ? (hint || revealed ? <p className="recall-hint"><span className="ml-label">Why</span>{current.explanation}</p>
+          {current.explanation ? (hint || revealed ? <div className="recall-hint"><span className="ml-label">Why</span><RichText text={current.explanation} className="is-compact" /></div>
             : <button type="button" className="nb-link-button" onClick={() => setHint(true)}>Show the explanation as a hint</button>) : null}
         </div>
         <label className="ws-field"><span>Write the corrected version from memory</span>
           <textarea ref={inputRef} rows={2} value={answer} readOnly={revealed} onChange={(event) => setAnswer(event.target.value)} placeholder="Type it before revealing…" /></label>
         {revealed ? <div className={`recall-result ${answer.trim() ? (exact ? "is-exact" : "is-different") : ""}`}>
           <span className="ml-label">Correct form</span>
-          <p className="recall-answer">{current.correction}</p>
+          {answer.trim() && !exact ? <p className="recall-user-answer"><DiffLine parts={mistakeDifference(answer, current.correction).before} /></p> : null}
+           <p className="recall-answer"><DiffLine parts={mistakeDifference(answer, current.correction).after} /></p>
           <small>{!answer.trim() ? "Read the answer before continuing."
-            : exact ? "Exact match." : "Different from your answer. Check spelling, capitals and tone marks."}</small>
+            : exact ? "Exact match." : "Differences are underlined above."}</small>
         </div> : null}
         <div className="ws-dialog-actions">
           {!revealed ? <>
-            <button type="button" className="ws-button" onClick={() => void grade(false, true)} disabled={busy}>I don't know</button>
+            <button type="button" className="ws-button" onClick={() => void grade(false, true)} disabled={busy}>Missed</button>
             <button type="button" className="ws-button is-primary" onClick={() => setRevealed(true)}>Reveal <Kbd>{MOD_KEY} ↵</Kbd></button>
           </> : missed ? <button type="button" className="ws-button is-primary" onClick={next}>Next</button> : <>
-            <button type="button" className="ws-button" onClick={() => void grade(false)} disabled={busy}>Not yet</button>
-            <button type="button" className="ws-button is-primary" onClick={() => void grade(true)} disabled={busy}><Check size={15} /> I had it</button>
+            <button type="button" className="ws-button" onClick={() => void grade(false)} disabled={busy}>Missed</button>
+            <button type="button" className="ws-button is-primary" onClick={() => void grade(true)} disabled={busy}><Check size={15} /> Recalled</button>
           </>}
         </div>
       </> : <p className="ws-muted">These mistakes have no correction to recall yet.</p>}
