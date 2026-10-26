@@ -1,16 +1,20 @@
+/** The header uses the same custom epsilon artwork as the installed app icon. */
 export default function HeuresisMark({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 32 32" role="img" aria-label="Heuresis epsilon mark">
-      <text
-        x="16"
-        y="23.5"
-        textAnchor="middle"
-        fill="currentColor"
-        fontFamily="Georgia, 'Times New Roman', serif"
-        fontSize="25"
-        fontWeight="400"
-        letterSpacing="-0.8"
-      >ε</text>
+    <svg className={className} viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="heuresis-brand-bordeaux" x1="0" y1="0" x2="0.8" y2="1">
+          <stop offset="0" stopColor="#792029" />
+          <stop offset=".45" stopColor="#630d19" />
+          <stop offset="1" stopColor="#3e0710" />
+        </linearGradient>
+        <linearGradient id="heuresis-brand-ivory" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fff8e8" />
+          <stop offset=".95" stopColor="#f5e7d5" />
+        </linearGradient>
+      </defs>
+      <rect x="12" y="12" width="1000" height="1000" rx="205" fill="url(#heuresis-brand-bordeaux)" />
+      <path d="M677,203 L641,195 L635,195 L634,194 L628,194 L627,193 L619,193 L609,191 L596,191 L595,190 L561,190 L560,189 L559,190 L530,190 L529,191 L501,193 L500,194 L494,194 L488,196 L473,198 L449,204 L415,216 L390,228 L370,240 L350,255 L333,271 L319,288 L313,297 L305,313 L300,328 L298,338 L298,365 L301,378 L308,394 L315,405 L331,422 L354,438 L370,446 L388,453 L417,461 L451,466 L452,467 L460,467 L461,468 L455,470 L435,471 L434,472 L408,476 L389,481 L357,493 L338,503 L318,516 L297,533 L285,545 L274,558 L261,578 L250,602 L244,626 L244,633 L243,634 L243,657 L247,678 L252,692 L262,711 L274,727 L290,743 L310,758 L320,764 L352,779 L376,787 L423,798 L449,807 L465,815 L482,826 L502,846 L504,845 L514,831 L524,821 L547,803 L562,794 L588,781 L615,770 L636,763 L673,753 L710,746 L733,744 L734,743 L763,742 L764,741 L786,741 L787,742 L813,743 L822,745 L822,696 L779,699 L778,700 L765,701 L728,708 L700,715 L657,729 L621,744 L589,760 L572,770 L539,793 L521,808 L514,816 L513,815 L519,805 L536,785 L563,760 L577,749 L605,730 L649,706 L689,689 L733,675 L780,665 L801,663 L802,662 L822,661 L822,610 L775,621 L722,640 L659,671 L614,699 L592,715 L569,734 L532,771 L516,791 L505,808 L505,818 L504,819 L504,829 L503,830 L501,826 L499,816 L495,808 L437,747 L408,711 L398,695 L390,679 L384,662 L379,636 L379,614 L380,613 L380,605 L383,590 L389,572 L399,552 L409,537 L419,525 L441,505 L460,493 L478,485 L506,477 L512,477 L520,475 L543,474 L544,473 L568,474 L568,465 L554,465 L553,464 L539,464 L538,463 L523,462 L503,458 L483,451 L468,443 L456,434 L446,424 L435,409 L427,393 L421,374 L420,364 L419,363 L419,353 L418,352 L418,335 L419,334 L420,319 L425,299 L430,286 L438,271 L448,257 L466,239 L483,227 L499,219 L516,213 L530,210 L537,210 L538,209 L578,210 L592,213 L609,219 L628,229 L642,240 L652,250 L664,266 L675,286 L683,308 L743,245 L747,239 L736,230 L714,217 L712,217 L698,210 Z" fill="url(#heuresis-brand-ivory)" />
     </svg>
   );
 }
