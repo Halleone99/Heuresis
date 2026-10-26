@@ -85,8 +85,8 @@ function FloatingBody({ session }: { session: Session }) {
     {view === "bubble" ? <button type="button" className="quick-floating-bubble" onClick={open}>
       <Feather size={16}/> New capture
     </button> : <div className="quick-floating-stage">
-      <QQuickCapture floating expanded={view === "expanded"} onExpandedChange={(next) => setView(next ? "expanded" : "compact")}
-        onRequestClose={() => void hide()}/>
+      <QQuickCapture floating onRequestClose={() => void hide()} expanded={view === "expanded"}
+        onExpandedChange={(next) => setView(next ? "expanded" : "compact")}/>
     </div>}
     {error ? <p className="quick-floating-notice" role="alert">{error}</p> : null}
     <Toaster/>
