@@ -231,7 +231,14 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
   function readPage() {
     const current = draftRef.current.page;
     const body = pageBody();
-    if (body !== current.text) patchPage({ text: body });
+    if (body !== current.text) {
+      // Persist immediately: closing a window must not lose the editor's last
+      // debounced keystrokes before React's next effect gets to run.
+      const next = { ...draftRef.current, page: { ...current, text: body } };
+      draftRef.current = next;
+      try { localStorage.setItem(draftKey(userId, floating), JSON.stringify(next)); } catch { /* draft stays in memory */ }
+      setDraft(next);
+    }
     const dirty = body !== (current.savedBody ?? "") || current.title.trim() !== (current.savedTitle ?? "");
     return { body, dirty, saved: !!current.savedId };
   }
@@ -297,6 +304,16 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
     if (body.length > LIMITS.body) { setError("This page is full: a note holds about 50,000 characters. Save it as it is and start a new page."); return false; }
     if (title.length > LIMITS.title) { setError("The title is too long."); return false; }
     const existing = current.savedId ? workspace.snapshot.entries.find((entry) => entry.id === current.savedId) : undefined;
+    if (current.savedId && !existing) {
+      const pending = readPendingCaptures(userId).some((item) => item.input.id === current.savedId);
+      // A stale snapshot or pending upload is NOT permission to create a new
+      // note. The existing identity must be resolved before any update.
+      setPageState(pending ? "offline" : "error");
+      if (explicit || !pending) setError(pending
+        ? "The first copy is still waiting to synchronise. This draft is preserved; try again after sync."
+        : "The saved page is not available in this device's current data. Your changes are safe. Retry after refreshing, or explicitly Save copy.");
+      return false;
+    }
     if (current.savedId && existing && !getOfflineSyncState().online) {
       // Updates are only sent online, so they cannot pile up out of order; the draft keeps everything.
       setPageState("offline");
@@ -311,10 +328,8 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
         setPageState("idle");
         return true;
       }
-      // First save, or the saved copy is not on this device yet (still waiting to sync).
-      const queued = !!current.savedId && readPendingCaptures(userId).some((item) => item.input.id === current.savedId);
-      const id = queued ? current.savedId! : current.savedId ? crypto.randomUUID() : current.id ?? crypto.randomUUID();
-      if (current.savedId && !queued) workspace.toast("The earlier copy of this page is no longer in Captures, so it was saved again as a new capture.");
+      // First save only. Existing identities must never be silently replaced.
+      const id = current.id ?? crypto.randomUUID();
       patchPage({ id });
       const inbox = await captureInbox();
       const result = await workspace.submitCapture({
@@ -328,9 +343,9 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
       if (explicit && result && !current.savedId) setFlash("Saved to Captures. This page now saves itself as you write.");
       return true;
     } catch (reason) {
-      // Changed or removed elsewhere: never overwrite it. Keep the text; the next Save makes a new capture.
-      patchPage({ savedId: undefined, savedBody: undefined, savedTitle: undefined, savedAt: undefined });
-      setError(`${friendlyError(reason)} Your page is still here: Save keeps it as a new capture.`);
+      // Preserve the original record identity on any error. Retrying Save
+      // will update that record, never silently create a duplicate.
+      setError(`${friendlyError(reason)} Your draft is kept here. Retry Save, or deliberately Save copy.`);
       setPageState("error");
       return false;
     } finally { setSaving(false); }
@@ -344,6 +359,22 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageMode, page.savedId, page.text, page.title, online, pageState, saving, drawing]);
   useEffect(() => { if (online && pageState === "offline") setPageState("idle"); }, [online, pageState]);
+
+  async function savePageCopy() {
+    if (!draftRef.current.page.savedId) return;
+    if (pageSave.current) await pageSave.current;
+    const original = draftRef.current.page;
+    const copy: PageDraft = {
+      text: pageMode ? pageBody() : original.text, title: original.title,
+      id: crypto.randomUUID(),
+    };
+    const next = { ...draftRef.current, page: copy };
+    draftRef.current = next;
+    try { localStorage.setItem(draftKey(userId, floating), JSON.stringify(next)); } catch { /* optional */ }
+    setDraft(next);
+    setPageState("idle"); setError("");
+    await savePage(true);
+  }
 
   async function newPage() {
     const { body, dirty, saved } = readPage();
@@ -359,20 +390,8 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
   // Switching between Quick and Page
   // ---------------------------------------------------------------------------
   function openPage() {
-    setDraft((current) => {
-      const next = { ...current, mode: "page" as const };
-      // An empty page takes over what was just written quickly, so "Format" formats it.
-      if (!current.page.text.trim() && current.quick.type === "note") {
-        const carried = current.quick.input === "pen"
-          ? [current.quick.text.trim(), current.quick.ink.strokes.length ? encodeHandNote(current.quick.ink) : ""].filter(Boolean).join("\n\n")
-          : current.quick.text;
-        if (carried.trim()) {
-          next.page = { ...current.page, text: carried };
-          next.quick = { ...current.quick, text: "", ink: emptyHandNote(current.quick.ink.paper), id: undefined };
-        }
-      }
-      return next;
-    });
+    // Quick and Page are independent drafts. Switching is never a move.
+    setDraft((current) => ({ ...current, mode: "page" }));
     setPageKey((key) => key + 1);
     setError("");
     native?.ensureSize(920, 760);
@@ -380,7 +399,7 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
   function openQuick() {
     flushPage();
     setDrawing(null);
-    setDraft((current) => ({ ...current, mode: "quick", quick: { ...current.quick, type: "note" } }));
+    setDraft((current) => ({ ...current, mode: "quick" }));
     setError("");
   }
 
@@ -531,8 +550,8 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
               onClick={() => patchQuick({ input: "pen" })} title="Write by hand"><PenLine size={16} aria-hidden="true" /><span>Pen</span></button>
           </div>
           <button type="button" className="cap-chip is-format" onClick={openPage}
-            title="Format: a full page with headings, lists, tables, colours and drawings, for writing a lesson">
-            <ALargeSmall size={17} aria-hidden="true" /> Format</button>
+            title="Open the separate Page draft for writing a lesson. Quick remains unchanged.">
+            <ALargeSmall size={17} aria-hidden="true" /> Page</button>
         </> : null}
       </>}
     </div>
@@ -573,7 +592,13 @@ export function QQuickCapture({ floating = false, onRequestClose, native }: {
         onRemove={() => { drawing.apply?.(null); setDrawing(null); }} /> : null}
     </div>
 
-    {error ? <p className="q-capture-error cap-error" role="alert">{error}</p> : null}
+    {error ? <div className="cap-error-actions">
+      <p className="q-capture-error cap-error" role="alert">{error}</p>
+      {pageMode && page.savedId && pageState === "error" ? <button type="button"
+        className="cap-chip" disabled={saving} onClick={() => void savePageCopy()}>
+        Save copy (new note)
+      </button> : null}
+    </div> : null}
     <footer className="cap-foot">
       <span className={`cap-foot-note ${flash ? "is-flash" : ""} ${fullness > .8 ? "is-warn" : ""}`} role="status">{footNote}</span>
       <span className="cap-keys" aria-hidden="true">{MOD} ↵ save</span>
