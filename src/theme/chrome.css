@@ -215,7 +215,7 @@
 :root[data-theme] .hw-sync-indicator:focus-visible { outline: 2px solid var(--ws-chrome-text); outline-offset: 2px; }
 
 
-/* Single visible epsilon brand and sidebar toggle, approved 18 October. */
+/* Header artwork matches the application icon; hover replaces the desktop toggle. */
 :root[data-theme] .desktop-chrome {
   padding-left: 17px;
   border-bottom-color: rgba(255,255,255,.095);
@@ -234,13 +234,12 @@
   place-items: center;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(255,255,255,.13);
+  border: 0;
   border-radius: 8px;
-  background: linear-gradient(145deg, #a22940, #751626 80%);
-  color: #fff2f1;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.17), 0 3px 8px rgba(0,0,0,.18);
+  background: transparent;
+  box-shadow: 0 3px 8px rgba(0,0,0,.18);
 }
-:root[data-theme] .desktop-brand-mark svg { display: block; width: 24px; height: 24px; }
+:root[data-theme] .desktop-brand-mark svg { display: block; width: 34px; height: 34px; }
 :root[data-theme] .desktop-wordmark-name {
   color: var(--ws-chrome-text);
   font: 650 16px/1.2 var(--ws-sans);
@@ -272,3 +271,9 @@
   outline-offset: 2px;
 }
 
+
+/* Desktop navigation is hover driven. Keep the button for touch devices,
+   where there is no pointer hover, and keyboard shortcuts remain available. */
+@media (hover: hover) and (pointer: fine) {
+  :root[data-theme] .desktop-action.hw-sidebar-header-toggle { display: none; }
+}
