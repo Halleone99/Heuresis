@@ -26,4 +26,14 @@ assert.match(css, /animation: ws-page-enter \.17s ease-out backwards/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /\.heuresis-desktop :is\(button, a, input, textarea, select, summary, \[role="tab"\]\):focus-visible/);
 assert.match(css, /@media \(forced-colors: active\)/);
+// The canonical desktop icon is not a font-substituted epsilon, and the sidebar
+// reveals on hover as well as keyboard focus without a visible desktop toggle.
+const mark = readFileSync("src/components/HeuresisMark.tsx", "utf8");
+assert.match(mark, /viewBox="0 0 1024 1024"/);
+assert.match(mark, /heuresis-brand-ivory/);
+assert.doesNotMatch(mark, /<text/);
+assert.match(app, /return value === "hidden" \? "hidden" : "rail"/);
+assert.match(css, /\.heuresis-section-sidebar:is\(:hover, :has\(:focus-visible\)\)/);
+assert.match(css, /\.hw-notebook-tree \{ display: flex; \}/);
+assert.match(chrome, /@media \(hover: hover\) and \(pointer: fine\) \{[\s\S]*\.desktop-action\.hw-sidebar-header-toggle \{ display: none; \}/);
 console.log("Single branded header, sidebar controls, language cards, motion and accessible focus checks passed.");
