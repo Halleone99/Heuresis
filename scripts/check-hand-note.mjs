@@ -65,6 +65,14 @@ const legacySize = ink.HAND_NOTE_PREFIX.length + Buffer.from(JSON.stringify({ ve
 assert.ok(page.length < 45000, `450 strokes encode to ${page.length} characters`);
 assert.ok(page.length < legacySize * .7, `version 2 is at least 30% smaller than version 1 (${page.length} vs ${legacySize})`);
 
+// A full handwriting-heavy lesson can exceed the single-note limit, even
+// though its vector data itself remains fully readable. Capture must warn and
+// keep the draft rather than truncating or treating it as safely saved.
+const longStrokes = [...strokes, ...strokes, ...strokes];
+const longDrawing = ink.encodeHandNote({ height: 4200, paper: "lines", strokes: longStrokes });
+assert.ok(longDrawing.length > 50000, `extended 1,350-stroke lesson needs multiple notes (${longDrawing.length} characters)`);
+assert.equal(ink.decodeHandNote(longDrawing).strokes.length, longStrokes.length, "extended lesson round-trips without dropping strokes");
+
 // 5. Geometry used by the pad.
 assert.deepEqual(ink.simplifyPoints([0, 0, 1, 0.1, 2, 0, 3, 0.05, 4, 0]), [0, 0, 4, 0], "near-straight runs collapse");
 assert.deepEqual(ink.simplifyPoints([0, 0, 10, 10, 20, 0]), [0, 0, 10, 10, 20, 0], "corners stay");
