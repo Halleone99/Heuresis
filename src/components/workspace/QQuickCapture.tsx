@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Feather, X } from "lucide-react";
+import { Feather, Maximize2, Minimize2, X } from "lucide-react";
 import { HandNotePad } from "./HandNotePad";
+import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { encodeHandNote } from "../../lib/handNote";
 import type { HandStroke } from "../../lib/handNote";
 import { friendlyError, LIMITS } from "../../lib/knowledgeWorkspace";
@@ -31,8 +32,8 @@ function readDraft(key: string): Draft {
   } catch { /* ignore damaged local draft */ }
   return blank();
 }
-export function QQuickCapture({ floating = false, onRequestClose }: {
-  floating?: boolean; onRequestClose?: () => void;
+export function QQuickCapture({ floating = false, onRequestClose, expanded = false, onExpandedChange }: {
+  floating?: boolean; onRequestClose?: () => void; expanded?: boolean; onExpandedChange?: (expanded: boolean) => void;
 } = {}) {
   const workspace = useWorkspace();
   const request = workspace.capture;
@@ -40,6 +41,12 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
   const [draft, setDraft] = useState<Draft>(() => readDraft(key));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [formatted, setFormatted] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [editorVersion, setEditorVersion] = useState(0);
+  const richEditor = useRef<RichEditorHandle>(null);
+  const isExpanded = floating ? expanded : panelExpanded;
+  const setExpanded = (value: boolean) => floating ? onExpandedChange?.(value) : setPanelExpanded(value);
   const [lastRequest, setLastRequest] = useState<typeof request>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ pointerId: number; fromX: number; fromY: number; left: number; top: number } | null>(null);
@@ -119,15 +126,17 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
   // Keep the same record ID while editing an unsent draft: retry must not create a second capture.
   const patch = (values: Partial<Draft>) => { setDraft((current) => ({ ...current, ...values })); setError(""); };
   const close = () => { if (floating && onRequestClose) onRequestClose(); else workspace.closeCapture(); };
-  const body = draft.handwriting
-    ? [draft.text.trim(), encodeHandNote(draft.strokes)].filter(Boolean).join("\n\n")
-    : quickQueueBody(draft.type, draft);
   const valid = draft.handwriting ? draft.strokes.length > 0 :
     draft.type === "flashcard" ? !!draft.front.trim() && !!draft.back.trim() :
     draft.type === "mistake" ? !!draft.wrong.trim() && !!draft.correct.trim() : !!draft.text.trim();
 
   async function save() {
-    if (saving || !valid) return;
+    const currentText = !draft.handwriting && draft.type === "note" && formatted
+      ? richEditor.current?.getMarkdown() ?? draft.text : draft.text;
+    const body = draft.handwriting
+      ? [draft.text.trim(), encodeHandNote(draft.strokes)].filter(Boolean).join("\n\n")
+      : quickQueueBody(draft.type, { ...draft, text: currentText });
+    if (saving || (draft.type === "note" && !draft.handwriting ? !currentText.trim() : !valid)) return;
     setSaving(true); setError("");
     try {
       if (!workspace.writable) throw new Error("Notebook storage is not ready. Your draft is preserved.");
@@ -146,6 +155,7 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
       if (!result) { setError("The capture is kept for retry. It has not been discarded."); return; }
       const next = blank();
       setDraft(next);
+      setEditorVersion((value) => value + 1);
       try { localStorage.removeItem(key); } catch { /* optional */ }
       if (getOfflineSyncState().pending) workspace.toast("Saved on this device; waiting to sync.");
       if (!floating) workspace.closeCapture();
@@ -153,26 +163,34 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
     finally { setSaving(false); }
   }
   const simple = draft.type === "raw" || draft.type === "note";
-  return <div ref={panelRef} className={`qc-panel q-capture-panel ${floating ? "is-floating" : ""}`}
-    style={!floating && position ? { left: position.x, top: position.y, right: "auto", bottom: "auto" } : undefined}
+  return <div ref={panelRef} className={`qc-panel q-capture-panel ${floating ? "is-floating" : ""} ${isExpanded ? "is-expanded" : ""}`}
+    style={!floating && !isExpanded && position ? { left: position.x, top: position.y, right: "auto", bottom: "auto" } : undefined}
     role="dialog" aria-label="Quick Capture"
     onKeyDown={(event) => {
       event.stopPropagation();
-      if (event.key === "Escape") { event.preventDefault(); close(); }
+      if (event.key === "Escape") { event.preventDefault(); if (isExpanded) setExpanded(false); else close(); }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void save(); }
     }}>
     {!floating ? <header className="q-capture-head" onPointerDown={beginDrag}
       onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
       aria-label="Drag Quick Capture window"><span><Feather size={18}/> Quick Capture</span>
-      <button type="button" aria-label="Close Quick Capture" onClick={close}><X size={18}/></button></header> : null}
+      <div className="q-capture-head-actions">
+        <button type="button" aria-label={isExpanded ? "Restore floating capture" : "Expand capture to full screen"}
+          title={isExpanded ? "Restore window" : "Full screen"} onClick={() => setExpanded(!isExpanded)}>
+          {isExpanded ? <Minimize2 size={18}/> : <Maximize2 size={18}/>}</button>
+        <button type="button" aria-label="Close Quick Capture" onClick={close}><X size={18}/></button>
+      </div></header> : null}
     <div className="q-capture-types" role="group" aria-label="Capture type">
       {kinds.map((kind) => <button type="button" key={kind.value} aria-pressed={draft.type === kind.value}
         className={draft.type === kind.value ? "active" : ""}
-        onClick={() => patch({ type: kind.value })}>{kind.label}</button>)}
+        onClick={() => patch({ type: kind.value, handwriting: kind.value === "note" ? draft.handwriting : false })}>{kind.label}</button>)}
     </div>
     <div className="q-capture-mode" role="group" aria-label="Input mode">
-      <span>Quick capture</span>
+      <span>{draft.handwriting ? "Handwriting" : formatted && draft.type === "note" ? "Note editor" : "Quick capture"}</span>
       <div>
+        {draft.type === "note" && !draft.handwriting ? <button className={formatted ? "active" : ""} type="button"
+          aria-pressed={formatted} title={formatted ? "Return to fast plain-text capture" : "Open formatting tools"}
+          onClick={() => setFormatted((value) => !value)}>{formatted ? "Quick" : "Format"}</button> : null}
         <button className={!draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: false })}>Text</button>
         <button className={draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: true, type: "note" })}>Pen</button>
       </div>
@@ -182,7 +200,11 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
         <HandNotePad strokes={draft.strokes} onChange={(strokes) => patch({ strokes })} disabled={saving}/>
         <input value={draft.text} onChange={(event) => patch({ text: event.target.value })}
           aria-label="Optional caption" placeholder="Caption (optional)"/>
-      </> : simple ? <textarea autoFocus aria-label="Quick note" value={draft.text}
+      </> : simple && formatted ? <RichEditor ref={richEditor} value={draft.text}
+        resetKey={`${key}:${editorVersion}`} ariaLabel="Formatted capture note"
+        placeholder="Write your lesson or notes…" autoFocus
+        onChange={(text) => patch({ text })} onDone={() => void save()} onSave={() => void save()}/> :
+        simple ? <textarea autoFocus aria-label="Quick note" value={draft.text}
         placeholder="Capture a thought…"
         onChange={(event) => patch({ text: event.target.value })}/> :
         draft.type === "flashcard" ? <>
