@@ -1580,29 +1580,6 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   width: 100%; height: 100dvh; min-height: 0; display: flex; flex-direction: column;
   overflow: hidden; background: var(--ws-page); color: var(--ws-text); font-family: var(--ws-sans);
 }
-.quick-floating-bar {
-  display: flex; align-items: center; gap: 5px; height: 41px; min-height: 41px;
-  padding: 0 10px; background: var(--ws-chrome); color: var(--ws-chrome-text);
-  border-bottom: 1px solid rgba(255,255,255,.12);
-}
-.quick-floating-grip {
-  flex: 1; display: inline-flex; align-items: center; gap: 7px; min-width: 0;
-  height: 36px; padding: 0 7px; color: inherit; border: 0;
-  background: transparent; font: 600 12px/1.2 var(--ws-sans); cursor: grab;
-  -webkit-user-select: none; user-select: none; touch-action: none;
-}
-.quick-floating-grip > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.quick-floating-icon {
-  flex: none; display: grid; place-items: center; width: 30px; height: 30px;
-  color: var(--ws-chrome-muted); border-radius: 7px; border: 0;
-  background: transparent; cursor: pointer;
-}
-.quick-floating-icon:hover { color: var(--ws-chrome-text); background: rgba(255,255,255,.13); }
-.quick-floating-icon:focus-visible, .quick-floating-grip:focus-visible {
-  outline: 2px solid var(--ws-chrome-text); outline-offset: 1px;
-}
-.quick-floating-root .quick-floating-stage { flex: none; min-height: 0; overflow: visible; }
-.quick-floating-root[data-view="bubble"] .quick-floating-stage { display: none; }
 .quick-floating-root .qc-panel {
   position: relative; inset: auto; margin: 0; width: 100%; max-width: none; max-height: none;
   border: 0; border-radius: 0; box-shadow: none; background: var(--ws-surface); animation: none;
@@ -1629,11 +1606,6 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .quick-floating-root .qc-hint { font-size: 11px; }
 .quick-floating-root .qc-flash, .quick-floating-root .qc-error { margin: 0 18px 6px; }
 .quick-floating-root .qc-picker { max-width: calc(100vw - 12px); z-index: 8; }
-.quick-floating-bubble {
-  flex: 1; width: 100%; display: inline-flex; gap: 8px; align-items: center; justify-content: center;
-  border: 0; background: var(--ws-surface); color: var(--ws-ink);
-  font: 600 12px/1.3 var(--ws-sans); cursor: pointer;
-}
 .quick-floating-reopen {
   min-height: 130px; width: 100%; display: flex; align-items: center; justify-content: center;
   gap: 9px; border: 0; background: var(--ws-surface); color: var(--ws-accent); cursor: pointer;
