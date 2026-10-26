@@ -70,7 +70,20 @@ export function HandNotePad({ strokes, onChange, disabled = false }: {
     setHistoryTick((value) => value + 1);
   }
   function position(event: PointerEvent<SVGSVGElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
+    // Account for SVG letterboxing when the tablet or full-screen window changes shape.
+    const canvas = event.currentTarget;
+    const matrix = canvas.getScreenCTM();
+    if (matrix) {
+      const point = canvas.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const mapped = point.matrixTransform(matrix.inverse());
+      return {
+        x: Math.round(Math.max(0, Math.min(HAND_NOTE_SIZE.width, mapped.x))),
+        y: Math.round(Math.max(0, Math.min(HAND_NOTE_SIZE.height, mapped.y))),
+      };
+    }
+    const bounds = canvas.getBoundingClientRect();
     return {
       x: Math.round(Math.max(0, Math.min(HAND_NOTE_SIZE.width, (event.clientX - bounds.left) / bounds.width * HAND_NOTE_SIZE.width))),
       y: Math.round(Math.max(0, Math.min(HAND_NOTE_SIZE.height, (event.clientY - bounds.top) / bounds.height * HAND_NOTE_SIZE.height))),
