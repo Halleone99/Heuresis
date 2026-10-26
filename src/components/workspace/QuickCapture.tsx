@@ -11,7 +11,7 @@ import { useWorkspace, type CaptureMode } from "./WorkspaceContext";
 import { AICheck } from "./AICheck";
 import { QuickFlashcard } from "./QuickFlashcard";
 import { HandNotePad } from "./HandNotePad";
-import { encodeHandNote } from "../../lib/handNote";
+import { encodeHandNote, handNoteFromLegacy, legacyStrokes } from "../../lib/handNote";
 
 const EMPTY_DRAFT = (mode: CaptureMode): CaptureDraft => ({
   mode, text: "", category: "note", categoryTouched: false, attempt: "", correction: "", explanation: "", lessonTitle: "", updatedAt: "",
@@ -378,7 +378,7 @@ export function QuickCapture({ floating = false, onRequestClose }: { floating?: 
       {captureStyle === "flashcard" && mode !== "lesson" ? <QuickFlashcard
         userId={userId} subjectName={languageName ?? "No category"}
         onSaved={() => workspace.toast("Flashcard saved to Study.")} /> : mode === "note" && captureStyle === "handnote" ? <>
-        <HandNotePad strokes={draft.handStrokes ?? []} onChange={(handStrokes) => patch({ handStrokes })} disabled={saving} />
+        <HandNotePad value={handNoteFromLegacy(draft.handStrokes ?? [])} onChange={(note) => patch({ handStrokes: legacyStrokes(note) })} disabled={saving} />
         <input className="qc-main-input" style={{ minHeight: 0, height: 42 }} aria-label="Handwriting caption (optional)"
           placeholder="Title or short description (optional)" value={draft.text} disabled={saving}
           onChange={(event) => patch({ text: event.target.value })} />
