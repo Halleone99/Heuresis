@@ -6,7 +6,7 @@ import { QQuickCapture } from "./QQuickCapture";
 import { Toaster } from "./ui";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
 
-type FloatingSize = "bubble" | "compact";
+type FloatingSize = "bubble" | "compact" | "expanded";
 const SIZES: Record<FloatingSize, [number, number]> = { bubble: [230, 76], compact: [600, 630] };
 const keyFor = (userId: string) => `heuresis.quick.view.v1:${userId}`;
 
@@ -31,8 +31,12 @@ function FloatingBody({ session }: { session: Session }) {
       const [{ getCurrentWindow }, { LogicalSize }] = await Promise.all([
         import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi"),
       ]);
-      const [width, height] = SIZES[view];
-      await getCurrentWindow().setSize(new LogicalSize(width, height));
+      const window = getCurrentWindow();
+      await window.setFullscreen(view === "expanded");
+      if (view !== "expanded") {
+        const [width, height] = SIZES[view];
+        await window.setSize(new LogicalSize(width, height));
+      }
     })().catch((reason) => setError(String(reason)));
   }, [view, session.user.id]);
   useEffect(() => {
@@ -68,16 +72,21 @@ function FloatingBody({ session }: { session: Session }) {
         aria-label="Drag Quick Capture"><Feather size={14}/><span>Quick Capture</span></button>
       <button type="button" className="quick-floating-icon" aria-label={pinned ? "Unpin" : "Pin"}
         onClick={() => setPinned((value) => !value)}><Pin size={14} fill={pinned ? "currentColor" : "none"}/></button>
-      <button type="button" className="quick-floating-icon" aria-label={view === "bubble" ? "Expand" : "Minimise"}
-        onClick={() => view === "bubble" ? open() : setView("bubble")}>
-        {view === "bubble" ? <Maximize2 size={15}/> : <Minimize2 size={15}/>}</button>
+      <button type="button" className="quick-floating-icon" aria-label={view === "expanded" ? "Restore floating window" : "Full-screen capture"}
+        title={view === "expanded" ? "Restore floating window" : "Full screen"}
+        onClick={() => view === "expanded" ? setView("compact") : (view === "bubble" ? open() : setView("expanded"))}>
+        {view === "expanded" ? <Minimize2 size={15}/> : <Maximize2 size={15}/>}</button>
+      <button type="button" className="quick-floating-icon" aria-label={view === "bubble" ? "Open capture" : "Collapse capture to bubble"}
+        title={view === "bubble" ? "Open capture" : "Collapse to bubble"}
+        onClick={() => view === "bubble" ? open() : setView("bubble")}><Feather size={15}/></button>
       <button type="button" className="quick-floating-icon" aria-label="Close Quick Capture"
         onClick={() => void hide().catch((reason) => setError(String(reason)))}><X size={15}/></button>
     </header>
     {view === "bubble" ? <button type="button" className="quick-floating-bubble" onClick={open}>
       <Feather size={16}/> New capture
     </button> : <div className="quick-floating-stage">
-      <QQuickCapture floating onRequestClose={() => void hide()}/>
+      <QQuickCapture floating expanded={view === "expanded"} onExpandedChange={(next) => setView(next ? "expanded" : "compact")}
+        onRequestClose={() => void hide()}/>
     </div>}
     {error ? <p className="quick-floating-notice" role="alert">{error}</p> : null}
     <Toaster/>
