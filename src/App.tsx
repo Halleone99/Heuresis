@@ -57,8 +57,10 @@ function sidebarKey(userId: string) { return `heuresis.sidebar.mode.v1:${userId}
 function readSidebarMode(userId: string): SidebarMode {
   try {
     const value = localStorage.getItem(sidebarKey(userId));
-    return value === "full" || value === "rail" || value === "hidden" ? value : "full";
-  } catch { return "full"; }
+    // A saved pinned-full sidebar should not defeat hover navigation on restart.
+    // Touch users can still expand it temporarily with the accessible button.
+    return value === "hidden" ? "hidden" : "rail";
+  } catch { return "rail"; }
 }
 
 type BackgroundStyle = CSSProperties & {
