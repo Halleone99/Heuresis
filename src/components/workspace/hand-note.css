@@ -47,6 +47,7 @@
 .hn-pad .hn-sheet { max-width: none; }
 .hn-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .hn-group { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 10px; background: var(--ws-sunken, rgba(127,127,127,.08)); }
+.hn-tools .hn-group[hidden] { display: none; }
 .hn-group > button {
   display: inline-grid; place-items: center; width: 34px; height: 32px; padding: 0;
   border: 0; border-radius: 8px; background: transparent; color: var(--ws-muted); cursor: pointer;
