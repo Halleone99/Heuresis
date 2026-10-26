@@ -31,10 +31,12 @@ assert.match(notebook, /<NotebookRail location=\{location\}/,
 assert.match(css, /@media \(min-width: 901px\) \{[\s\S]*?\.heuresis-desktop\[data-section="notebook"\] \.nb-rail,[\s\S]*?display: none !important;/);
 assert.match(css, /@media \(max-width: 900px\) \{\s*\.hw-notebook-tree \{ display: none !important; \}/);
 assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.hw-notebook-tree \{ display: none; \}/);
-// A compact sidebar must never expand just because the pointer passes over it.
-assert.ok(!css.includes(".heuresis-section-sidebar:is(:hover"), "Hover does not open the sidebar");
-assert.ok(css.includes(".heuresis-section-sidebar:has(:focus-visible) .hw-notebook-tree"),
-  "Keyboard-visible focus can still reveal the topic tree");
+// On desktop, hover reveals both navigation labels and the Notebook topic tree;
+// keyboard-visible focus must provide the same access without a mouse.
+assert.ok(css.includes(".heuresis-section-sidebar:is(:hover, :has(:focus-visible))"),
+  "Hover or keyboard focus opens the compact navigation rail");
+assert.ok(css.includes(".heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-notebook-tree"),
+  "Hover or keyboard focus reveals the Notebook topic tree");
 assert.ok(notebook.includes("lastRevealedTopicId.current === visibleTopicId"),
   "Only a changed navigation destination reveals the selected topic");
 assert.ok(notebook.includes("if (!missing.length) return current;"),
