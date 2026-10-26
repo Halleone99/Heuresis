@@ -8,11 +8,11 @@ switching between them never loses anything.
 | **Quick** | a line, a handwritten note, a card, a mistake | files it in Captures and clears the panel for the next one; the panel stays open |
 | **Page** (the **Format** button) | writing a whole lesson: title, headings, lists, tables, colours, Example/Rule blocks, drawings | the first Save puts the page in Captures; after that it stays open and saves itself about 2.5 s after you stop writing, until **New page** |
 
-**Format** carries what was just written quickly into an empty page. **Quick** returns to quick capture and leaves the page as it is.
+**Quick** and **Page** are separate drafts. Switching views never moves, overwrites or clears the other draft. To make a formatted lesson, select **Page** and write there.
 
 ## The pen (`HandNotePad`)
 
-- **Tools:** pen, highlighter (it sits under the ink), stroke eraser; three sizes; five ink colours that follow light/dark mode; four highlighter colours.
+- **Tools:** pen, highlighter (it sits under the ink), stroke eraser; three sizes (under More); five ink colours that follow light/dark mode; four highlighter colours.
 - **History:** undo and redo for strokes, erasures, Clear, paper and space. Clear needs no confirmation because Undo brings it back.
 - **Paper:**
   - plain, lined or squared;
@@ -72,3 +72,16 @@ Page saves update the same record with the normal compare-and-swap update. If th
 |---|---|
 | `scripts/check-hand-note.mjs` | format compatibility, hostile input, size, geometry |
 | `scripts/check-capture-panel-browser.mjs` | about 100 checks in Chromium on the desktop, in the desktop window, and on the Android tablet in portrait and landscape, with touch and stylus input |
+
+## Safe updates and long lessons
+
+Once a Page has been saved, edits update that same record. Connection or
+revision errors preserve its record ID and the local draft; **Save** retries
+the original. **Save copy (new note)** appears only after an update error and
+must be chosen deliberately. An unavailable saved record never silently
+becomes another capture.
+
+The 50,000-character note-body limit also includes vector drawings. Capture
+warns at 80% and keeps the draft when the limit is exceeded; it does not
+silently truncate handwriting. Split an exceptionally long handwritten lesson
+across successive Pages before reaching the limit.
