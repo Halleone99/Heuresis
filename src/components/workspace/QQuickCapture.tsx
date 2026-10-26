@@ -125,14 +125,23 @@ export function QQuickCapture({ floating = false, onRequestClose, expanded = fal
 
   // Keep the same record ID while editing an unsent draft: retry must not create a second capture.
   const patch = (values: Partial<Draft>) => { setDraft((current) => ({ ...current, ...values })); setError(""); };
-  const close = () => { if (floating && onRequestClose) onRequestClose(); else workspace.closeCapture(); };
+  const latestFormattedText = () => draft.type === "note" && formatted && !draft.handwriting
+    ? richEditor.current?.getMarkdown() ?? draft.text : draft.text;
+  const preserveFormattedText = () => {
+    const text = latestFormattedText();
+    if (text !== draft.text) setDraft((current) => ({ ...current, text }));
+    return text;
+  };
+  const close = () => {
+    preserveFormattedText();
+    if (floating && onRequestClose) onRequestClose(); else workspace.closeCapture();
+  };
   const valid = draft.handwriting ? draft.strokes.length > 0 :
     draft.type === "flashcard" ? !!draft.front.trim() && !!draft.back.trim() :
     draft.type === "mistake" ? !!draft.wrong.trim() && !!draft.correct.trim() : !!draft.text.trim();
 
   async function save() {
-    const currentText = !draft.handwriting && draft.type === "note" && formatted
-      ? richEditor.current?.getMarkdown() ?? draft.text : draft.text;
+    const currentText = latestFormattedText();
     const body = draft.handwriting
       ? [draft.text.trim(), encodeHandNote(draft.strokes)].filter(Boolean).join("\n\n")
       : quickQueueBody(draft.type, { ...draft, text: currentText });
@@ -183,16 +192,16 @@ export function QQuickCapture({ floating = false, onRequestClose, expanded = fal
     <div className="q-capture-types" role="group" aria-label="Capture type">
       {kinds.map((kind) => <button type="button" key={kind.value} aria-pressed={draft.type === kind.value}
         className={draft.type === kind.value ? "active" : ""}
-        onClick={() => patch({ type: kind.value, handwriting: kind.value === "note" ? draft.handwriting : false })}>{kind.label}</button>)}
+        onClick={() => { preserveFormattedText(); patch({ type: kind.value, handwriting: kind.value === "note" ? draft.handwriting : false }); }}>{kind.label}</button>)}
     </div>
     <div className="q-capture-mode" role="group" aria-label="Input mode">
       <span>{draft.handwriting ? "Handwriting" : formatted && draft.type === "note" ? "Note editor" : "Quick capture"}</span>
       <div>
         {draft.type === "note" && !draft.handwriting ? <button className={formatted ? "active" : ""} type="button"
           aria-pressed={formatted} title={formatted ? "Return to fast plain-text capture" : "Open formatting tools"}
-          onClick={() => setFormatted((value) => !value)}>{formatted ? "Quick" : "Format"}</button> : null}
+          onClick={() => { preserveFormattedText(); setFormatted((value) => !value); }}>{formatted ? "Quick" : "Format"}</button> : null}
         <button className={!draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: false })}>Text</button>
-        <button className={draft.handwriting ? "active" : ""} type="button" onClick={() => patch({ handwriting: true, type: "note" })}>Pen</button>
+        <button className={draft.handwriting ? "active" : ""} type="button" onClick={() => { preserveFormattedText(); patch({ handwriting: true, type: "note" }); }}>Pen</button>
       </div>
     </div>
     <div className="q-capture-editor">
