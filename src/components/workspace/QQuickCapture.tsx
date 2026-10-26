@@ -212,7 +212,7 @@ export function QQuickCapture({ floating = false, onRequestClose, expanded = fal
       </> : simple && formatted ? <RichEditor ref={richEditor} value={draft.text}
         resetKey={`${key}:${editorVersion}`} ariaLabel="Formatted capture note"
         placeholder="Write your lesson or notes…" autoFocus
-        onChange={(text) => patch({ text })} onDone={() => void save()} onSave={() => void save()}/> :
+        onChange={(text) => patch({ text })} onSave={() => void save()}/> :
         simple ? <textarea autoFocus aria-label="Quick note" value={draft.text}
         placeholder="Capture a thought…"
         onChange={(event) => patch({ text: event.target.value })}/> :
