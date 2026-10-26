@@ -7,7 +7,7 @@ import { Toaster } from "./ui";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
 
 type FloatingSize = "bubble" | "compact" | "expanded";
-const SIZES: Record<FloatingSize, [number, number]> = { bubble: [230, 76], compact: [600, 630] };
+const SIZES: Record<Exclude<FloatingSize, "expanded">, [number, number]> = { bubble: [230, 76], compact: [600, 630] };
 const keyFor = (userId: string) => `heuresis.quick.view.v1:${userId}`;
 
 function FloatingBody({ session }: { session: Session }) {
