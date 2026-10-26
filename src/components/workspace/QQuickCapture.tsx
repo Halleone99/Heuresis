@@ -142,6 +142,10 @@ export function QQuickCapture({ floating = false, onRequestClose, expanded = fal
 
   async function save() {
     const currentText = latestFormattedText();
+    // Flush the rich editor's debounced change before an offline or failed save.
+    if (currentText !== draft.text && draft.type === "note" && formatted && !draft.handwriting) {
+      setDraft((current) => ({ ...current, text: currentText }));
+    }
     const body = draft.handwriting
       ? [draft.text.trim(), encodeHandNote(draft.strokes)].filter(Boolean).join("\n\n")
       : quickQueueBody(draft.type, { ...draft, text: currentText });
