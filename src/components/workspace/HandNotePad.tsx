@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { ArrowDownToLine, Eraser, Grid3x3, Hand, Highlighter, PenLine, Redo2, Rows3, Square, Trash2, Undo2 } from "lucide-react";
+import { ArrowDownToLine, Eraser, Grid3x3, Hand, Highlighter, PenLine, Redo2, Rows3, SlidersHorizontal, Square, Trash2, Undo2 } from "lucide-react";
 import {
   HAND_NOTE_GROW, HAND_NOTE_MAX_HEIGHT, HAND_NOTE_MIN_HEIGHT, HAND_NOTE_WIDTH, INK_COLOURS, MARKER_COLOURS, MARKER_OPACITY,
   paperPath, simplifyPoints, smoothPath, strokeColour, strokeHit, strokeWidth,
@@ -99,6 +99,7 @@ export function HandNotePad({ value, onChange, disabled = false, variant = "comp
   const [penSeen, setPenSeen] = useState(() => readStored(PEN_SEEN_KEY) === "1");
   const [erasing, setErasing] = useState<Set<InkStroke>>(() => new Set());
   const [status, setStatus] = useState("");
+  const [moreTools, setMoreTools] = useState(false);
   const [, setHistoryVersion] = useState(0);
   const padRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -384,7 +385,7 @@ export function HandNotePad({ value, onChange, disabled = false, variant = "comp
             disabled={disabled} style={{ ["--swatch" as string]: `var(${colour.css}, ${colour.hex})` }}
             onClick={() => setPrefs((current) => marker ? { ...current, marker: index } : { ...current, pen: index })} />)}
         </div>
-        <div className="hn-group hn-sizes" role="group" aria-label="Size">
+        <div className="hn-group hn-sizes" role="group" aria-label="Size" hidden={!moreTools}>
           {[0, 1, 2].map((size) => <button key={size} type="button" className="hn-size" aria-pressed={sizeIndex === size}
             aria-label={SIZE_LABEL[size]} title={SIZE_LABEL[size]} disabled={disabled}
             onClick={() => setPrefs((current) => marker ? { ...current, markerSize: size } : { ...current, penSize: size })}>
@@ -403,10 +404,15 @@ export function HandNotePad({ value, onChange, disabled = false, variant = "comp
           aria-label={fingerDraws ? "Fingers draw. Switch to scrolling with fingers" : "Fingers scroll. Switch to drawing with fingers"}
           title={fingerDraws ? "Fingers draw (tap to let fingers scroll)" : "Fingers scroll, the stylus draws (tap to draw with fingers)"}
           disabled={disabled} onClick={toggleFinger}><Hand size={17} /></button> : null}
-        <button type="button" aria-label={`${PAPER_LABEL[value.paper]}. Change paper`} title={`${PAPER_LABEL[value.paper]} (tap to change)`}
-          disabled={disabled} onClick={() => commit({ ...value, paper: PAPER_NEXT[value.paper] })}><PaperIcon size={16} /></button>
-        <button type="button" aria-label="More space" title="More space at the bottom" disabled={disabled} onClick={addSpace}><ArrowDownToLine size={17} /></button>
-        <button type="button" aria-label="Clear page" title="Clear the page (Undo brings it back)" disabled={disabled || !value.strokes.length} onClick={clear}><Trash2 size={16} /></button>
+        <button type="button" aria-label={moreTools ? "Hide secondary pen controls" : "More handwriting tools"}
+          aria-expanded={moreTools} title={moreTools ? "Fewer tools" : "Pen sizes, paper and page tools"}
+          onClick={() => setMoreTools((current) => !current)}><SlidersHorizontal size={17} /></button>
+        {moreTools ? <>
+          <button type="button" aria-label={`${PAPER_LABEL[value.paper]}. Change paper`} title={`${PAPER_LABEL[value.paper]} (tap to change)`}
+            disabled={disabled} onClick={() => commit({ ...value, paper: PAPER_NEXT[value.paper] })}><PaperIcon size={16} /></button>
+          <button type="button" aria-label="More space" title="More space at the bottom" disabled={disabled} onClick={addSpace}><ArrowDownToLine size={17} /></button>
+          <button type="button" aria-label="Clear page" title="Clear the page (Undo brings it back)" disabled={disabled || !value.strokes.length} onClick={clear}><Trash2 size={16} /></button>
+        </> : null}
       </div>
     </div>
     <div ref={scrollRef} className="hn-scroll">
