@@ -142,6 +142,8 @@ try {
   await pointer(page, ".cap-body .hn-canvas", [[.15, .1], [.15, .3]], { pointerId: 42, pointerType: "pen", buttons: 2, button: 2 });
   check(await strokeCount(page) === 1, "so does the stylus's side button");
   await page.click(".hn-tools button[aria-label^='Highlighter']");
+  check(await page.locator(".hn-sizes:visible").count() === 0, "secondary pen sizes start hidden");
+  await page.click(".hn-tools button[aria-label='More handwriting tools']");
   await page.click(".hn-sizes button[aria-label='Bold']");
   await draw(page, [[.05, .45], [.5, .46]]);
   const marker = page.locator(".cap-body .hn-stroke.hn-marker");
@@ -173,10 +175,10 @@ try {
   // ---------------------------------------------------------------------------
   console.log("3. Format: a page with headings, lists and drawings that keeps saving itself");
   await page.click(".cap-seg button:has-text('Text')");
-  await page.locator(".cap-text").fill("carry me to the page");
+  await page.locator(".cap-text").fill("independent quick draft");
   await page.click(".cap-chip.is-format");
   await page.waitForSelector(".cap-page .nb-editor");
-  check((await page.locator(".cap-page .nb-editor").innerText()).includes("carry me to the page"), "Format takes what was written quickly");
+  check(!(await page.locator(".cap-page .nb-editor").innerText()).includes("independent quick draft"), "opening Page does not silently move the Quick draft");
   await page.locator(".cap-page .nb-editor p").last().click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
@@ -208,6 +210,23 @@ try {
   const [patch] = await calls(page, "patch");
   check(patch.id === submit.input.id && patch.patch.body.includes("Later addition"), "later writing updates the same capture");
   check((await calls(page, "submit")).length === 3, "without creating a second one");
+
+  // A failed update must retain the original saved identity; retry updates
+  // the same note and never silently creates a second capture.
+  await page.evaluate(() => { window.__failPatch = true; });
+  await page.locator(".cap-page .nb-editor p").last().click();
+  await page.keyboard.type(" save retry");
+  await page.keyboard.press("Control+s");
+  await page.waitForSelector(".cap-error-actions button:has-text('Save copy')");
+  check((await calls(page, "submit")).length === 3, "failed update did not create a duplicate capture");
+  const idAfterFailure = await page.evaluate(() => JSON.parse(localStorage.getItem("heuresis.capture.panel.v2:u1:main")).page.savedId);
+  check(idAfterFailure === submit.input.id, "failed update keeps the original saved ID in the local draft");
+  await page.evaluate(() => { window.__failPatch = false; });
+  await page.click(".cap-save");
+  await page.waitForFunction(() => document.querySelector(".cap-save")?.textContent?.trim() === "Saved");
+  const lastRetry = (await calls(page, "patch")).at(-1);
+  check(lastRetry.id === submit.input.id && lastRetry.patch.body.includes("save retry"), "retry updates the same saved record");
+  check((await calls(page, "submit")).length === 3, "retry still did not create another record");
   await page.screenshot({ path: `${shots}/desktop-page.png` });
   await page.locator(".cap-page .nb-editor [data-handnote]").click();
   await page.waitForSelector(".ink-sheet");
@@ -226,7 +245,8 @@ try {
   const lastPatch = (await calls(page, "patch")).at(-1);
   check(!lastPatch.patch.body.includes("::handnote:"), "after saving the removal of the drawing");
   await page.click(".cap-chip:has-text('Quick')");
-  check(await page.locator(".cap-text").inputValue() === "", "Quick returns to the quick note");
+  check(await page.locator(".cap-text").inputValue() === "independent quick draft", "Quick returns with its independent draft unchanged");
+  await page.locator(".cap-text").fill("");
   // The saved page, as Captures shows it.
   const pageEntry = await page.evaluate((id) => window.__entries.find((entry) => entry.id === id), submit.input.id);
   const captures = await page.context().newPage();
