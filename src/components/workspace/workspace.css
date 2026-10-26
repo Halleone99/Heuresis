@@ -1353,21 +1353,21 @@
 .heuresis-desktop[data-sidebar="rail"] .hw-capture-hint span { display: none; }
 .heuresis-desktop[data-sidebar="rail"] .hw-capture-hint { padding: 9px 4px; justify-content: center; }
 .heuresis-desktop[data-sidebar="rail"] .hw-capture-hint .ws-kbd { font-size: 9px; }
-/* Do not automatically expand the rail on mouse hover. Keyboard-visible
-   focus can reveal labels; the explicit sidebar control expands it permanently. */
+/* The icon rail peeks open on mouse hover, then closes on pointer exit.
+   Keyboard focus reveals the same content; touch retains its tap toggle. */
 @media (hover: hover) and (pointer: fine) {
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) {
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) {
     width: 240px; padding: 14px 12px; box-shadow: var(--ws-shadow-2);
   }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sidebar-header { justify-content: space-between; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sidebar-heading { display: block; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sections button { justify-content: flex-start; padding: 0 11px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sections button > span:not(.capture-mark):not(.q-nav-badge) { display: block; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; padding: 10px 8px 10px 12px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-lesson-label { font-size: 10px; gap: 6px; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-lesson-title { display: block; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-capture-hint { padding: 10px 11px; justify-content: space-between; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-capture-hint span { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-sidebar-header { justify-content: space-between; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-sidebar-heading { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-sections button { justify-content: flex-start; padding: 0 11px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-sections button > span:not(.capture-mark):not(.q-nav-badge) { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-lesson { grid-template-columns: 1fr auto; justify-items: stretch; padding: 10px 8px 10px 12px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-lesson-label { font-size: 10px; gap: 6px; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-lesson-title { display: block; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-capture-hint { padding: 10px 11px; justify-content: space-between; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-capture-hint span { display: block; }
 }
 .heuresis-desktop[data-sidebar="hidden"] .heuresis-section-sidebar { display: none; }
 .heuresis-desktop[data-sidebar="hidden"] .desktop-content { grid-column: 1 / -1; }
@@ -1739,10 +1739,10 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .hw-nb-editor button:disabled { opacity: .5; cursor: not-allowed; }
 .hw-nb-error { color: #ffaaa6; padding: 6px 8px; font: 11px/1.5 var(--ws-sans); overflow-wrap: anywhere; }
 .hw-nb-empty { margin: 8px; color: var(--ws-chrome-muted); font: 11px/1.55 var(--ws-sans); }
-/* The icon rail hides topics until explicit expansion or keyboard-visible focus. */
+/* The icon rail hides topics until hover or keyboard-visible focus. */
 .heuresis-desktop[data-sidebar="rail"] .hw-notebook-tree { display: none; }
 @media (hover: hover) and (pointer: fine) and (min-width: 901px) {
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-notebook-tree { display: flex; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-notebook-tree { display: flex; }
 }
 @media (max-width: 1100px) and (min-width: 901px) {
   .heuresis-desktop[data-sidebar="full"] .hw-notebook-tree { display: flex; }
@@ -1978,8 +1978,8 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .heuresis-desktop[data-sidebar="rail"] .hw-sidebar-brand { flex: none; padding: 0; }
 .heuresis-desktop[data-sidebar="rail"] .hw-sidebar-collapse { display: none; }
 @media (hover: hover) and (pointer: fine) {
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sidebar-collapse { display: grid; }
-  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:has(:focus-visible) .hw-sidebar-brand { flex: 1; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-sidebar-collapse { display: grid; }
+  .heuresis-desktop[data-sidebar="rail"] .heuresis-section-sidebar:is(:hover, :has(:focus-visible)) .hw-sidebar-brand { flex: 1; }
 }
 
 /* #53 – subtle transitions that tell the eye what changed. Never animate a
