@@ -22,7 +22,7 @@ export type CaptureRequest = { mode: CaptureMode; topicId?: string | null; lesso
 export type Toast = { id: number; message: string; tone?: "default" | "error"; action?: { label: string; run: () => void } };
 export type TopicPath = { subject: KnowledgeSubject | null; chain: KnowledgeTopic[] };
 
-type WorkspaceValue = {
+export type WorkspaceValue = {
   userId: string;
   snapshot: KnowledgeSnapshot;
   schema: SchemaLevel;
@@ -98,7 +98,8 @@ export function mergeFirstLoad(remote: KnowledgeSnapshot, local: KnowledgeSnapsh
   };
 }
 
-const WorkspaceContext = createContext<WorkspaceValue | null>(null);
+/** Exported for component fixtures in scripts/; the app uses WorkspaceProvider. */
+export const WorkspaceContext = createContext<WorkspaceValue | null>(null);
 
 export function useWorkspace() {
   const value = useContext(WorkspaceContext);

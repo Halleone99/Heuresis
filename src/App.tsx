@@ -720,6 +720,9 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} ⇧ N`, "Quick note (from anywhere, even while typing)"],
     [`${MOD_KEY} ⇧ M`, "Record a mistake"],
     [`${MOD_KEY} ↵`, "Save the capture · finish editing"],
+    ["F11", "Capture full screen (Esc leaves it)"],
+    ["P · H · E", "Pen · highlighter · eraser while drawing (a stylus's eraser end also erases)"],
+    [`${MOD_KEY} Z · ${MOD_KEY} ⇧ Z`, "Undo · redo strokes while drawing"],
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
@@ -727,7 +730,7 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
     [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],
-    [`${MOD_KEY} Alt 1 · 2`, "Heading · subheading while editing"],
+    [`${MOD_KEY} ⇧ 1 · 2`, "Heading · subheading while editing"],
     ["# · - · 1. · >", "Type at the start of a line for a heading, list, numbered list or quotation"],
     ["Esc", "Close a panel — Quick capture keeps your draft"],
   ];
