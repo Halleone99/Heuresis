@@ -44,3 +44,7 @@
 .qc-recent-reviewed:hover { color:var(--ws-accent); background:var(--ws-accent-soft); }
 .quick-floating-recent .quick-floating-recent-meta { margin-left:19px; font-size:10px; }
 .quick-floating-root .qc-kind-row + .qc-floating-destination { border:0; }
+
+/* Native Quick Capture stage must scroll within the resized/full-screen window. */
+.quick-floating-root .quick-floating-stage { flex:1; display:flex; min-height:0; overflow:hidden; }
+.quick-floating-root .q-capture-panel { flex:1; height:100%; min-height:0; }
