@@ -945,11 +945,16 @@ export default function CosmosWindow() {
   }
 
   const renderReviewCore = () => {
-    const promptKeys = frontKeys.length ? frontKeys : [term?.key, reading?.key].filter(Boolean) as string[];
-    const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : frontKeys;
+    const configuredPromptKeys = frontKeys.length ? frontKeys : [term?.key, reading?.key].filter(Boolean) as string[];
+    const chineseRecognition = template && pack && templateDirection(pack, template) === "recognition"
+      && /\p{Script=Han}/u.test(fieldText(card.data, term?.key));
+    // A Chinese character-recognition prompt must not leak its pronunciation.
+    const promptKeys = chineseRecognition ? configuredPromptKeys.filter((key) => key !== reading?.key) : configuredPromptKeys;
+    const recap = revealed ? [...promptKeys, ...(chineseRecognition && reading?.key ? [reading.key] : [])]
+      .filter((key) => fieldText(card.data, key)) : [];
+    const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : promptKeys;
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
-    const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !promptKeys.includes(key));
-    const recap = revealed ? promptKeys.filter((key) => fieldText(card.data, key)) : [];
+    const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !recap.includes(key));
     const audioText = promptKeys.map((key) => fieldText(card.data, key)).find((value) => /\p{Script=Han}/u.test(value)) ?? "";
     const canListen = Boolean(audioText);
     const chineseTerm = fieldText(card.data, term?.key);
