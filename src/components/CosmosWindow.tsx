@@ -848,7 +848,6 @@ export default function CosmosWindow() {
   const backKeys = mode === "review" ? (template?.back ?? []) : [];
   const detailKeys = mode === "review" ? (template?.details ?? []) : [];
   const activeLearning = new Set(selectedActions[card.id] ?? []);
-  const counts = learningCounts[card.id] ?? EMPTY_LEARNING_COUNTS;
   const badges = tags.filter((tag) => tag.is_badge).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   const context = relatedReview ? relatedContext.find((row) => row.target_card_id === card.id) ?? null : null;
   const currentState = mode === "review" && !relatedReview && template ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null;
@@ -1004,13 +1003,15 @@ export default function CosmosWindow() {
     </div>;
   };
 
+  const sentenceCard = !isWordSized(fieldText(card.data, term?.key));
+  const sentenceRatings: Record<StudyGrade, string> = { again: "Meaning lost or incorrect", hard: "Partly right; major slips", good: "Meaning and grammar correct", easy: "Accurate and natural, immediately" };
   const directionName = template?.name ?? "";
   return <main className="cosmos-shell">
     <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
       {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentState ? ` · ${STATE_LABEL[currentState]}` : ""}</span> : <span className="cosmos-mode-note">{mode === "sort" ? "organisation · priority · badges" : ""}</span>}
       <span className="cosmos-spacer" />
-      {mode === "review" ? <div className="cosmos-panel-toggles" role="group" aria-label="Review side panels">
+      {mode === "review" && revealed ? <div className="cosmos-panel-toggles" role="group" aria-label="Review side panels">
         <button type="button" aria-pressed={leftContextOpen} disabled={!revealed} onClick={() => setLeftContextOpen((value) => !value)} title={revealed ? "Show or hide examples and connections (E)" : "Available after reveal"}>
           {leftContextOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />} Context</button>
         <button type="button" aria-pressed={detailsOpen} disabled={!revealed} onClick={() => setDetailsOpen((value) => !value)} title={revealed ? "Show or hide facts and notes (D)" : "Available after reveal"}>
@@ -1036,11 +1037,11 @@ export default function CosmosWindow() {
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
         {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
-          {!isWordSized(fieldText(card.data, term?.key)) ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
+          {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
           <div className="cosmos-results" role="group" aria-label="How well did you recall it?">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
             className={suggestion?.grade === grade ? "is-suggested" : ""}
             title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>
-            <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{RESULT_HINT[grade]}</span></button>)}</div>
+            <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{sentenceCard ? sentenceRatings[grade] : RESULT_HINT[grade]}</span></button>)}</div>
           <button type="button" className="cosmos-extra-toggle" aria-expanded={practiceOpen} onClick={() => setPracticeOpen((value) => !value)}>＋ Practise more</button>
           {practiceOpen ? <RetentionPractice key={card.id} card={card} pack={pack} busy={busy} selectedActions={activeLearning}
             onMark={markLearning} onSaveSentence={saveSentenceExample} onNotice={setNotice} /> : null}
