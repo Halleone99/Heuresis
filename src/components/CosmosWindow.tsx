@@ -934,12 +934,12 @@ export default function CosmosWindow() {
     const audioText = promptKeys.map((key) => fieldText(card.data, key)).find((value) => /\p{Script=Han}/u.test(value)) ?? "";
     const canListen = Boolean(audioText);
     const chineseTerm = fieldText(card.data, term?.key);
-    const expected = answerValues();
+    const expected = answerValues().map((item) => typeof item === "string" ? item : item.value);
     const enteredHan = /\p{Script=Han}/u.test(typed);
     const comparison = suggestion?.matched ?? (
-      enteredHan ? expected.find((value) => /\p{Script=Han}/u.test(value.value))?.value
-        : expected.find((value) => !/\p{Script=Han}/u.test(value.value))?.value
-    ) ?? expected[0]?.value ?? "";
+      enteredHan ? expected.find((value) => /\p{Script=Han}/u.test(value))
+        : expected.find((value) => !/\p{Script=Han}/u.test(value))
+    ) ?? expected[0] ?? "";
     const difference = typed.trim() && comparison ? mistakeDifference(typed.trim(), comparison) : null;
 
     const renderField = (key: string, position: number, recapField: boolean) => {
