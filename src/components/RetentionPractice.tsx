@@ -20,11 +20,15 @@ export default function RetentionPractice({ card, busy, selectedActions, onMark,
 
   async function complete() {
     if (!exercise || !draft.trim() || busy) return;
-    if (exercise === "sentence") await onSaveSentence(draft.trim());
-    else await onMark(["rephrase"]);
-    setDraft("");
-    setExercise(null);
-    onNotice(exercise === "sentence" ? "Example saved. Compare it with your own notes for correctness." : "Rephrase practice recorded.");
+    try {
+      if (exercise === "sentence") await onSaveSentence(draft.trim());
+      else await onMark(["rephrase"]);
+      setDraft("");
+      setExercise(null);
+      onNotice(exercise === "sentence" ? "Example saved. Check the grammar before treating it as correct." : "Rephrase practice recorded.");
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : "Could not save the practice exercise.");
+    }
   }
 
   return <section className="retention-practice is-revealed" aria-label="Practise more" key={card.id}>
