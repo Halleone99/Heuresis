@@ -497,6 +497,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
               title="Choose directions, cards, session size and order">▾</button>
           </span>
+          {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
+            const selected = shown.filter((card) => workflowStatus(card) === "learning");
+            openTargeted("Review filtered lesson", selected);
+          }}><Brain size={15} /> Review these {shown.filter((card) => workflowStatus(card) === "learning").length}</button> : null}
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
         </div>
