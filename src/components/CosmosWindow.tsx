@@ -38,15 +38,17 @@ import {
   type StudyTemplate,
 } from "../lib/study";
 import { isWordSized, suggestResult, type AnswerKind, type AnswerSuggestion, type ExpectedAnswer } from "../lib/answerCheck";
+import { mistakeDifference } from "../lib/mistakeDiff";
 import { assessState, directionEvidence, STATE_LABEL, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
-import { METHOD_LABEL, MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
+import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
 import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import RetentionPractice from "./RetentionPractice";
+import ReviewAnswerPad from "./ReviewAnswerPad";
 import "./cosmos.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
@@ -236,8 +238,8 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
-  const [detailsOpen, setDetailsOpen] = useState(() => config.mode === "review" && window.innerWidth >= 1180);
-  const [leftContextOpen, setLeftContextOpen] = useState(() => config.mode === "review" && window.innerWidth >= 1180);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [leftContextOpen, setLeftContextOpen] = useState(false);
   const [detailsPinned, setDetailsPinned] = useState(() => { try { return localStorage.getItem(DETAILS_PIN_KEY) === "1"; } catch { return false; } });
   const [whyOpen, setWhyOpen] = useState(false);
   const [addingDim, setAddingDim] = useState<DimensionId | null>(null);
@@ -256,7 +258,11 @@ export default function CosmosWindow() {
   const [legacyId, setLegacyId] = useState<string | null>(null);
   const [results, setResults] = useState<SessionResult[]>([]);
   const [roundStart, setRoundStart] = useState(0);
-  const [method, setMethodState] = useState<ReviewMethod>(readReviewMethod);
+  const [method, setMethodState] = useState<ReviewMethod>(() => { const saved = readReviewMethod(); return saved === "hear" ? "think" : saved; });
+  const [audioPrompt, setAudioPrompt] = useState(false);
+  const [hasWriting, setHasWriting] = useState(false);
+  const [saidAnswer, setSaidAnswer] = useState(false);
+  const [practiceOpen, setPracticeOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [suggestion, setSuggestion] = useState<AnswerSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -561,8 +567,8 @@ export default function CosmosWindow() {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: "revealed" });
       if (method === "type" && typed.trim()) setSuggestion(suggestResult(typed, answerValues()));
       setRevealed(true);
-      // The session's answering method is recorded for every card, independently of the result.
-      if (method === "say" || method === "handwrite" || (method === "type" && typed.trim())) void markLearning([method]);
+      // Record observed practice, not merely the selected input mode.
+      if ((method === "handwrite" && hasWriting) || (method === "say" && saidAnswer) || (method === "type" && typed.trim())) void markLearning([method]);
     } catch (revealError) {
       setNotice(revealError instanceof Error ? revealError.message : "Could not record reveal.");
     } finally { setBusy(false); }
@@ -577,6 +583,7 @@ export default function CosmosWindow() {
     }
     setIndex(nextIndex);
     setRevealed(false);
+    setTyped(""); setSuggestion(null); setHasWriting(false); setSaidAnswer(false); setAudioPrompt(false); setPracticeOpen(false);
   }
 
   async function answer(grade: StudyGrade) {
@@ -595,17 +602,17 @@ export default function CosmosWindow() {
   }
 
   const roundResults = results.slice(roundStart);
-  const missedThisRound = Array.from(new Map(roundResults.filter((entry) => entry.grade === "again").map((entry) => [candidateKey(entry.cardId, entry.templateId ?? ""), entry])).values());
+  const retryableThisRound = Array.from(new Map(roundResults.filter((entry) => entry.grade === "again" || entry.grade === "hard").map((entry) => [candidateKey(entry.cardId, entry.templateId ?? ""), entry])).values());
 
   async function retryMissed() {
-    if (!pack || !missedThisRound.length || busy || mode !== "review") return;
+    if (!pack || !retryableThisRound.length || busy || mode !== "review") return;
     setBusy(true); setNotice("");
     try {
       // Same session: practice marks already made for a card stay (the practice RPC toggles
       // per session and card, so marking again would remove them). Both directions of one
       // card are kept apart, and never right after the card just answered.
       const lastCard = results[results.length - 1]?.cardId;
-      const nextQueue = spaceSameCards(missedThisRound.map((entry) => ({ cardId: entry.cardId, templateId: entry.templateId, reasons: ["Missed earlier in this session."], state: "needs-work" as KnowledgeState })), lastCard ? [lastCard] : []);
+      const nextQueue = spaceSameCards(retryableThisRound.map((entry) => ({ cardId: entry.cardId, templateId: entry.templateId, reasons: ["Missed earlier in this session."], state: "needs-work" as KnowledgeState })), lastCard ? [lastCard] : []);
       setQueue(nextQueue);
       setRoundStart(results.length);
       await advance(nextQueue, 0);
@@ -710,6 +717,7 @@ export default function CosmosWindow() {
         const grades: Record<string, StudyGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" };
         const grade = grades[event.key];
         if (revealed && grade) { event.preventDefault(); void answer(grade); return; }
+        if (revealed && event.key === "Enter" && suggestion) { event.preventDefault(); void answer(suggestion.grade); return; }
         if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
         if (event.key.toLowerCase() === "e") { event.preventDefault(); setLeftContextOpen((value) => !value); }
       } else {
@@ -803,8 +811,8 @@ export default function CosmosWindow() {
         <strong>{relatedReview ? "Related review complete." : "Session complete."}</strong>
         {summary ? <div className="cosmos-summary-lines">{summary.map((line) => <p key={line}>{line}</p>)}</div> : <p>No cards were answered.</p>}
         <div className="cosmos-summary-actions">
-          {missedThisRound.length ? <button className="primary" disabled={busy} onClick={() => void retryMissed()}>{busy ? "Opening…" : `Retry ${plural(missedThisRound.length, "missed card")}`}</button> : null}
-          {moreAvailable ? <button className={missedThisRound.length ? "" : "primary"} disabled={busy} onClick={() => void continueWithMore()}>{MORE_SIZE} more</button> : null}
+          {retryableThisRound.length ? <button className="primary" disabled={busy} onClick={() => void retryMissed()}>{busy ? "Opening…" : `Retry ${plural(retryableThisRound.length, "missed or partial card")}`}</button> : null}
+          {moreAvailable ? <button className={retryableThisRound.length ? "" : "primary"} disabled={busy} onClick={() => void continueWithMore()}>{MORE_SIZE} more</button> : null}
           <button disabled={busy} onClick={() => void closeSession().then(() => closeDesktopWindow())}>Done</button>
         </div>
       </div>;
@@ -868,7 +876,7 @@ export default function CosmosWindow() {
   const renderDetails = (side: "left" | "right" = "right") => {
     const split = mode === "review";
     const open = side === "left" ? leftContextOpen : detailsOpen;
-    if (!open || (!split && !detailsAvailable)) return null;
+    if (!open || (split && !revealed) || (!split && !detailsAvailable)) return null;
     const chosen = split
       ? dimensions.filter((def) => side === "left"
         ? ["examples", "neighbours", "components", "structure"].includes(def.id)
@@ -925,10 +933,7 @@ export default function CosmosWindow() {
         <button type="button" aria-pressed={detailsOpen} onClick={() => setDetailsOpen((value) => !value)} title="Show or hide facts and notes (D)">
           {detailsOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Notes</button>
       </div> : null}
-      {mode === "review" ? <label className="cosmos-method"><span>Answering</span>
-        <select value={method} onChange={(event) => setMethod(event.target.value as ReviewMethod)} aria-label="How you answer">
-          {(Object.keys(METHOD_LABEL) as ReviewMethod[]).map((value) => <option key={value} value={value}>{METHOD_LABEL[value]}</option>)}
-        </select></label> : null}
+
       {item?.reasons.length ? <button type="button" className="cosmos-why" aria-expanded={whyOpen} onClick={() => setWhyOpen((value) => !value)} title="Why this card?"><CircleHelp size={15} /> Why?</button> : null}
       <span className="cosmos-count">{index + 1} / {queue.length}</span>
       <button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button>
@@ -946,16 +951,16 @@ export default function CosmosWindow() {
           title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
           onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
-        {mode === "review" ? <RetentionPractice card={card} pack={pack} template={template} revealed={revealed} busy={busy} counts={counts} selectedActions={activeLearning}
-          method={method} typed={typed} onTyped={setTyped} onSubmitTyped={() => void reveal()} onMark={markLearning} onNotice={setNotice} /> : null}
         {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
-          <div className="cosmos-results" role="group" aria-label="What happened">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
-            className={`${(suggestion ? suggestion.grade === grade : grade === "good") ? "primary" : ""} ${suggestion?.grade === grade ? "is-suggested" : ""}`.trim()}
-            title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>{RESULT_LABEL[grade]} <small>{position + 1}</small></button>)}</div>
-        </> : <span>{ANDROID
-          ? (method === "type" ? "Type your answer, then tap Show answer." : method === "say" ? "Say the answer aloud, then tap Show answer." : method === "handwrite" ? "Write the answer by hand or on the card, then tap Show answer." : "Recall the answer, then tap Show answer.")
-          : method === "type" ? "Type your answer, then Enter to show it." : method === "say" ? "Say the answer aloud, then show it (Space)." : method === "handwrite" ? "Write the answer by hand, then show it (Space)." : "Recall the answer, then show it (Space)."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+          <div className="cosmos-results" role="group" aria-label="How well did you recall it?">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
+            className={suggestion?.grade === grade ? "is-suggested" : ""}
+            title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>
+            <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{RESULT_HINT[grade]}</span></button>)}</div>
+          <button type="button" className="cosmos-extra-toggle" aria-expanded={practiceOpen} onClick={() => setPracticeOpen((value) => !value)}>＋ Practise more</button>
+          {practiceOpen ? <RetentionPractice key={card.id} card={card} pack={pack} busy={busy} selectedActions={activeLearning}
+            onMark={markLearning} onSaveSentence={saveSentenceExample} onNotice={setNotice} /> : null}
+        </> : <span>Attempt the answer before revealing it. {ANDROID ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
