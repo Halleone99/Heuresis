@@ -904,13 +904,44 @@ export default function CosmosWindow() {
     </aside>;
   };
 
+
+  async function saveSentenceExample(text: string) {
+    if (!card) return;
+    try {
+      const next: WorkspaceBlock[] = [...parseBlocks(card), { id: crypto.randomUUID(), type: "text", dim: "examples", text }];
+      const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseBlocks(next) });
+      patchLocalCard(card.id, (current) => ({ ...current, data }));
+      await markLearning(["sentence"]);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this example."); }
+  }
+
+  function playAudio(text: string) {
+    if (!text || !("speechSynthesis" in window)) { setNotice("Audio playback is unavailable here."); return; }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = /\p{Script=Han}/u.test(text) ? "zh-CN" : /\p{Script=Cyrillic}/u.test(text) ? "ru-RU" : "en-GB";
+    utterance.rate = .9;
+    window.speechSynthesis.speak(utterance);
+    void markLearning(["hear"]);
+  }
+
   const renderReviewCore = () => {
     const promptKeys = frontKeys.length ? frontKeys : [term?.key, reading?.key].filter(Boolean) as string[];
     const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : frontKeys;
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
     const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !promptKeys.includes(key));
-    // After reveal the prompt stays visible, quieter, above the answer.
     const recap = revealed ? promptKeys.filter((key) => fieldText(card.data, key)) : [];
+    const audioText = promptKeys.map((key) => fieldText(card.data, key)).find((value) => /\p{Script=Han}/u.test(value)) ?? "";
+    const canListen = Boolean(audioText);
+    const chineseTerm = fieldText(card.data, term?.key);
+    const expected = answerValues();
+    const enteredHan = /\p{Script=Han}/u.test(typed);
+    const comparison = suggestion?.matched ?? (
+      enteredHan ? expected.find((value) => /\p{Script=Han}/u.test(value.value))?.value
+        : expected.find((value) => !/\p{Script=Han}/u.test(value.value))?.value
+    ) ?? expected[0]?.value ?? "";
+    const difference = typed.trim() && comparison ? mistakeDifference(typed.trim(), comparison) : null;
+
     const renderField = (key: string, position: number, recapField: boolean) => {
       const value = fieldText(card.data, key);
       if (!value) return null;
@@ -918,7 +949,39 @@ export default function CosmosWindow() {
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
       return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>{rule ? <i className="cosmos-rule" /> : null}<span>{value}</span></div>;
     };
-    return <div className={revealed ? "cosmos-card-copy revealed" : "cosmos-card-copy"}>{recap.map((key, position) => renderField(key, position, true))}{recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}{used.map((key, position) => renderField(key, position, false))}{revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}{revealed && typed.trim() ? <div className="cosmos-typed-answer"><small>Your answer</small><span>{typed}</span></div> : null}{!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Show answer</button> : null}</div>;
+
+    return <div className={revealed ? "cosmos-card-copy revealed" : "cosmos-card-copy"}>
+      {!revealed && audioPrompt && canListen ? <div className="cosmos-audio-question">
+        <strong>Listening question</strong><p>Listen first; the written prompt appears after reveal.</p>
+        <button type="button" onClick={() => playAudio(audioText)} aria-label="Play Chinese question">▶ Play / replay</button>
+      </div> : <>
+        {recap.map((key, position) => renderField(key, position, true))}
+        {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
+        {used.map((key, position) => renderField(key, position, false))}
+      </>}
+      {revealed && /\p{Script=Han}/u.test(chineseTerm) ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm)}>▶ Hear Chinese</button> : null}
+      {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
+      {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
+        <span>Answer by</span>
+        {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"]] as const).map(([value,label]) =>
+          <button key={value} type="button" aria-pressed={method === value} onClick={() => setMethod(value)}>{label}</button>)}
+        {canListen ? <button type="button" className="cosmos-audio-switch" aria-pressed={audioPrompt} onClick={() => setAudioPrompt((value) => !value)}>♪ Listen</button> : null}
+      </div> : null}
+      {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
+        placeholder="Type your answer here…" aria-label="Your typed answer" rows={2}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void reveal(); } }} /> : null}
+      {!revealed && method === "say" ? <label className="cosmos-say-check"><input type="checkbox" checked={saidAnswer} onChange={(event) => setSaidAnswer(event.target.checked)} /> I said the answer aloud</label> : null}
+      {method === "handwrite" ? <div className={revealed ? "cosmos-handwrite-compare" : "cosmos-handwrite-entry"}>
+        <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} onHasWritingChange={setHasWriting} />
+        {revealed ? <div className="cosmos-handwrite-reference"><strong>Answer</strong><div>{backKeys.map((key) => fieldText(card.data,key)).filter(Boolean).join(" · ") || fieldText(card.data,meaning?.key)}</div></div> : null}
+      </div> : null}
+      {revealed && method === "type" && typed.trim() && difference ? <div className="cosmos-typed-compare">
+        <div><strong>Yours</strong><p>{difference.before.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
+        <div><strong>Reference answer</strong><p>{difference.after.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
+        <small>Differences are visual only; valid alternatives may differ.</small>
+      </div> : null}
+      {!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal answer <kbd>Space</kbd></button> : null}
+    </div>;
   };
 
   const directionName = template?.name ?? "";
