@@ -283,7 +283,20 @@ export default function CosmosWindow() {
   const structuredWords = Boolean(pack && !isConceptualPack(pack));
   const blocks = parseBlocks(card);
 
-  const setMethod = (next: ReviewMethod) => { setMethodState(next); writeReviewMethod(next); };
+  const setMethod = (next: ReviewMethod) => {
+    setMethodState(next); writeReviewMethod(next);
+    if (template?.id) {
+      try { localStorage.setItem("heuresis.review.method.direction:" + template.id, next); } catch { /* preference only */ }
+    }
+  };
+  // Recognition and production have different sensible defaults and remember overrides separately.
+  useEffect(() => {
+    if (mode !== "review" || !pack || !template) return;
+    let saved: string | null = null;
+    try { saved = localStorage.getItem("heuresis.review.method.direction:" + template.id); } catch { /* preference only */ }
+    const valid = saved === "think" || saved === "type" || saved === "handwrite" || saved === "say";
+    setMethodState(valid ? saved as ReviewMethod : templateDirection(pack, template) === "production" ? "type" : "think");
+  }, [mode, pack?.id, template?.id]);
 
   const patchLocalCard = useCallback((cardId: string, updater: (card: CardWithStats) => CardWithStats) => {
     setCards((current) => current.map((entry) => entry.id === cardId ? updater(entry) : entry));
@@ -565,7 +578,14 @@ export default function CosmosWindow() {
     setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: "revealed" });
-      if (method === "type" && typed.trim()) setSuggestion(suggestResult(typed, answerValues()));
+      if (method === "type" && typed.trim()) {
+        const values = answerValues();
+        const suggested = suggestResult(typed, values);
+        const chineseExpected = values.some((entry) => /\p{Script=Han}/u.test(typeof entry === "string" ? entry : entry.value));
+        if (suggested?.grade === "good" && chineseExpected && templateDirection(pack, template) === "production" && !/\p{Script=Han}/u.test(typed)) {
+          setSuggestion({ ...suggested, grade: "hard", reason: "Reading matches, but the Chinese characters were not entered." });
+        } else setSuggestion(suggested);
+      }
       setRevealed(true);
       // Record observed practice, not merely the selected input mode.
       if ((method === "handwrite" && hasWriting) || (method === "say" && saidAnswer) || (method === "type" && typed.trim())) void markLearning([method]);
@@ -612,7 +632,7 @@ export default function CosmosWindow() {
       // per session and card, so marking again would remove them). Both directions of one
       // card are kept apart, and never right after the card just answered.
       const lastCard = results[results.length - 1]?.cardId;
-      const nextQueue = spaceSameCards(retryableThisRound.map((entry) => ({ cardId: entry.cardId, templateId: entry.templateId, reasons: ["Missed earlier in this session."], state: "needs-work" as KnowledgeState })), lastCard ? [lastCard] : []);
+      const nextQueue = spaceSameCards(retryableThisRound.map((entry) => ({ cardId: entry.cardId, templateId: entry.templateId, reasons: ["Missed or partial earlier in this session."], state: "needs-work" as KnowledgeState })), lastCard ? [lastCard] : []);
       setQueue(nextQueue);
       setRoundStart(results.length);
       await advance(nextQueue, 0);
@@ -912,7 +932,7 @@ export default function CosmosWindow() {
       const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseBlocks(next) });
       patchLocalCard(card.id, (current) => ({ ...current, data }));
       await markLearning(["sentence"]);
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this example."); }
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this example."); throw error; }
   }
 
   function playAudio(text: string) {
@@ -991,9 +1011,9 @@ export default function CosmosWindow() {
       {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentState ? ` · ${STATE_LABEL[currentState]}` : ""}</span> : <span className="cosmos-mode-note">{mode === "sort" ? "organisation · priority · badges" : ""}</span>}
       <span className="cosmos-spacer" />
       {mode === "review" ? <div className="cosmos-panel-toggles" role="group" aria-label="Review side panels">
-        <button type="button" aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen((value) => !value)} title="Show or hide examples and connections (E)">
+        <button type="button" aria-pressed={leftContextOpen} disabled={!revealed} onClick={() => setLeftContextOpen((value) => !value)} title={revealed ? "Show or hide examples and connections (E)" : "Available after reveal"}>
           {leftContextOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />} Context</button>
-        <button type="button" aria-pressed={detailsOpen} onClick={() => setDetailsOpen((value) => !value)} title="Show or hide facts and notes (D)">
+        <button type="button" aria-pressed={detailsOpen} disabled={!revealed} onClick={() => setDetailsOpen((value) => !value)} title={revealed ? "Show or hide facts and notes (D)" : "Available after reveal"}>
           {detailsOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Notes</button>
       </div> : null}
 
@@ -1007,7 +1027,7 @@ export default function CosmosWindow() {
       <small>Recommendations weigh results in this direction, whether it has been tried, time since it was last seen, and importance (gently). Nothing is ever due.</small>
     </div> : null}
     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / queue.length) * 100)}%` }} /></div>
-    <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen ? "open" : "closed"} data-right={detailsOpen ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
+    <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
         {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
@@ -1016,6 +1036,7 @@ export default function CosmosWindow() {
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
         {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
+          {!isWordSized(fieldText(card.data, term?.key)) ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
           <div className="cosmos-results" role="group" aria-label="How well did you recall it?">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
             className={suggestion?.grade === grade ? "is-suggested" : ""}
             title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>
