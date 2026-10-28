@@ -278,45 +278,62 @@ function MistakeQuickAdd({ initialTopicId }: { initialTopicId: string }) {
   </form>;
 }
 
-function MistakeItem({ entry, highlighted, showPath, onEdit }: {
-  entry: KnowledgeEntry; highlighted: boolean; showPath: boolean; onEdit: () => void;
+function isIdeaStyle(entry: KnowledgeEntry): boolean {
+  if (!entry.correction.trim()) return false;
+  const original = entry.attempt.trim();
+  const corrected = entry.correction.trim();
+  // Short Hanzi sentences need character-level comparison, not a whitespace heuristic.
+  if (/[\u3400-\u9fff]/u.test(original + corrected) && Math.max(original.length, corrected.length) < 120) return false;
+  const a = original.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const b = corrected.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (a.length > 30 || b.length > 30) return true;
+  const remaining = [...b];
+  let common = 0;
+  for (const token of a) {
+    const index = remaining.indexOf(token);
+    if (index >= 0) { common += 1; remaining.splice(index, 1); }
+  }
+  return Math.max(a.length, b.length) > 4 && common / Math.max(a.length, b.length) < 0.5;
+}
+
+function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit }: {
+  entry: KnowledgeEntry; highlighted: boolean; showPath: boolean; hideRuleTitle: boolean; onEdit: () => void;
 }) {
   const workspace = useWorkspace();
-  async function remove() {
-    try { await workspace.removeEntry(entry.id); }
-    catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
-  }
-  const diff = mistakeDifference(entry.attempt, entry.correction);
-  async function togglePin() {
-    try { await workspace.patchEntry(entry.id, { pinned: !entry.pinned }); }
-    catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
-  }
-  return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")}
-    data-accent={entry.accent_color ?? "none"} data-mistake={entry.id}>
+  const ideaStyle = isIdeaStyle(entry);
+  const diff = ideaStyle ? null : mistakeDifference(entry.attempt, entry.correction);
+  const last = [...workspace.snapshot.practice].filter((event) => event.record_id === entry.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const rule = ruleParts(entry.title);
+  return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")
+    + (ideaStyle ? " is-idea-style" : "")} data-mistake={entry.id}>
     <div className="ml-simple-body">
-      {entry.title ? <h2 className="ml-entry-title">{entry.title}</h2> : null}
+      {entry.title && !hideRuleTitle ? <h2 className="ml-entry-title">{rule.rule}
+        {rule.detail ? <small> · {rule.detail}</small> : null}</h2> : null}
+      {hideRuleTitle && rule.detail ? <small className="ml-entry-detail">{rule.detail}</small> : null}
       <div className="ml-simple-pair">
         <span className="ml-simple-symbol" title="Mistake" aria-label="Mistake">×</span>
-        <p className="ml-simple-wrong">{entry.attempt ? <DiffLine parts={diff.before} /> : "Not recorded"}</p>
+        <p className="ml-simple-wrong">{entry.attempt
+          ? diff ? <DiffLine parts={diff.before}/> : entry.attempt : "Not recorded"}</p>
       </div>
       <div className="ml-simple-pair">
         <span className="ml-simple-symbol is-right" title="Correction" aria-label="Correction">✓</span>
         <p className={"ml-simple-right" + (!entry.correction ? " is-missing" : "")}>
-          {entry.correction ? <DiffLine parts={diff.after} /> : "Add the correct version"}
+          {entry.correction ? diff ? <DiffLine parts={diff.after}/> : entry.correction : "Add the correct version"}
         </p>
       </div>
-      {entry.explanation ? <div className="ml-entry-context-wrap"><RichText text={entry.explanation} className="ml-entry-context is-compact" /></div> : null}
-      {showPath ? <small className="ml-entry-path">{workspace.pathLabel(entry.topic_id)}</small> : null}
+      {entry.explanation ? <div className="ml-entry-context-wrap">
+        <RichText text={entry.explanation} className="ml-entry-context is-compact"/></div> : null}
+      <small className="ml-entry-evidence">
+        {last ? (last.outcome === "incorrect" ? "Missed last time" : "Recalled last time") : "Not practised yet"}
+        {showPath ? " · " + workspace.pathLabel(entry.topic_id) : ""}
+        {entry.pinned ? " · Pinned" : ""}
+      </small>
     </div>
     {workspace.writable ? <div className="ml-simple-actions">
-      <button type="button" className={"ws-icon-button" + (entry.pinned ? " is-active" : "")}
-        aria-label={entry.pinned ? "Unpin mistake" : "Pin mistake"} title={entry.pinned ? "Unpin" : "Pin"}
-        aria-pressed={entry.pinned} onClick={() => void togglePin()}><Pin size={15}/></button>
       <button type="button" className="ws-icon-button" aria-label="Edit mistake" title="Edit" onClick={onEdit}>
         <Pencil size={15}/>
       </button>
-      <button type="button" className="ws-icon-button" aria-label="Delete mistake" title="Delete"
-        onClick={() => void remove()}><Trash2 size={15}/></button>
     </div> : null}
   </article>;
 }
@@ -325,129 +342,111 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
   entry?: KnowledgeEntry; preferredSubjectId?: string | null; preferredTopicId?: string | null; onDone: () => void;
 }) {
   const workspace = useWorkspace();
-  const initialSubjectId = entry ? workspace.topicById.get(entry.topic_id)?.subject_id ?? "" : preferredSubjectId ?? "";
-  const [subjectId, setSubjectId] = useState(initialSubjectId);
+  const originalRule = ruleParts(entry?.title ?? "");
   const [topicId, setTopicId] = useState(entry?.topic_id ?? preferredTopicId ?? "");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [attempt, setAttempt] = useState(entry?.attempt ?? "");
   const [correction, setCorrection] = useState(entry?.correction ?? "");
-  const [title, setTitle] = useState(entry?.title ?? "");
+  const [rule, setRule] = useState(originalRule.rule);
   const [explanation, setExplanation] = useState(entry?.explanation ?? "");
+  const [pinned, setPinned] = useState(Boolean(entry?.pinned));
   const explanationRef = useRef<RichEditorHandle>(null);
-  const [accent, setAccent] = useState<MistakeAccent | "">(entry?.accent_color ?? "");
   const [notesOpen, setNotesOpen] = useState(Boolean(entry?.explanation));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const options = useMemo(() => {
-    const visit = (subject: string, parentId: string | null, depth: number, rows: Array<{ id: string; name: string }>) => {
-      for (const topic of workspace.childrenOf(parentId, subject)) {
-        rows.push({ id: topic.id, name: "\u00a0\u00a0".repeat(depth) + topic.name });
-        visit(subject, topic.id, depth + 1, rows);
-      }
-    };
-    const rows: Array<{ id: string; name: string }> = [];
-    if (subjectId) visit(subjectId, null, 0, rows);
-    return rows;
-  }, [subjectId, workspace.childrenOf]);
-
   async function save() {
     if (busy) return;
-    if (!attempt.trim()) {
-      setError("Write the mistake first. You can add the correction later.");
+    if (!attempt.trim()) { setError("Write the mistake first. The correction can be added later."); return; }
+    if (!topicId || !workspace.topicById.has(topicId)) {
+      setError("Choose a topic. You can create one in the destination picker.");
       return;
     }
     setBusy(true); setError("");
+    const title = rule.trim() + (rule.trim() && originalRule.detail ? " – " + originalRule.detail : "");
     try {
-      const subject = subjectId
-        ? workspace.subjectById.get(subjectId)
-        : workspace.snapshot.subjects.find((item) => item.name.trim().toLowerCase() === "unsorted")
-          ?? await workspace.addSubject("Unsorted");
-      if (!subject) throw new Error("Choose a valid subject.");
-      const resolvedTopic = topicId && workspace.topicById.get(topicId)?.subject_id === subject.id
-        ? topicId : (await workspace.ensureInbox(subject.id)).id;
       if (entry) {
         await workspace.patchEntry(entry.id, {
-          attempt: attempt.trim(), correction: correction.trim(), title: title.trim(),
-          explanation: (explanationRef.current?.getMarkdown() ?? explanation).trim(), accent_color: accent || null, topic_id: resolvedTopic,
+          attempt: attempt.trim(), correction: correction.trim(), title,
+          explanation: (explanationRef.current?.getMarkdown() ?? explanation).trim(),
+          topic_id: topicId, pinned,
         });
       } else {
         await workspace.addEntry({
-          kind: "mistake", topicId: resolvedTopic, title: title.trim(),
-          attempt: attempt.trim(), correction: correction.trim(), explanation: (explanationRef.current?.getMarkdown() ?? explanation).trim(),
-          accentColor: accent || null,
+          kind: "mistake", topicId, title, attempt: attempt.trim(),
+          correction: correction.trim(), explanation: (explanationRef.current?.getMarkdown() ?? explanation).trim(),
         });
       }
       onDone();
-    } catch (reason) {
-      // Keep everything visible on error; the user can retry without retyping.
-      setError(friendlyError(reason));
-    } finally { setBusy(false); }
+    } catch (reason) { setError(friendlyError(reason)); }
+    finally { setBusy(false); }
+  }
+
+  async function remove() {
+    if (!entry || busy) return;
+    setBusy(true);
+    try { await workspace.removeEntry(entry.id); onDone(); }
+    catch (reason) { setError(friendlyError(reason)); setBusy(false); }
   }
 
   return <form className="ml-simple-edit" onSubmit={(event) => { event.preventDefault(); void save(); }}
     onKeyDown={(event) => {
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-      if (event.key === "Escape") {
-        event.preventDefault(); onDone();
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault(); void save();
-      }
+      if (event.key === "Escape" && !pickerOpen) { event.preventDefault(); onDone(); }
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); void save(); }
     }}>
     <div className="ml-edit-head"><strong>{entry ? "Edit mistake" : "New mistake"}</strong>
-      <button type="button" className="ws-icon-button" aria-label="Cancel editing" disabled={busy} onClick={onDone}><X size={16}/></button>
+      <button type="button" className="ws-icon-button" aria-label="Cancel editing" disabled={busy}
+        onClick={onDone}><X size={16}/></button>
     </div>
     <label className="ws-field">
       <span>Mistake</span>
       <textarea autoFocus rows={2} maxLength={5000} value={attempt}
-        placeholder="What did you get wrong?" onChange={(event) => setAttempt(event.target.value)} />
+        placeholder="What did you get wrong?" onChange={(event) => setAttempt(event.target.value)}/>
     </label>
     <label className="ws-field">
       <span>Correction</span>
       <textarea rows={2} maxLength={5000} value={correction}
-        placeholder="What is the correct version?" onChange={(event) => setCorrection(event.target.value)} />
+        placeholder="What is the correct version?" onChange={(event) => setCorrection(event.target.value)}/>
     </label>
+    {attempt.trim().length > 0 && attempt.length < 240 && !correction.trim()
+      ? <button type="button" className="nb-link-button ml-copy-mistake"
+        onClick={() => setCorrection(attempt)}>Copy mistake to correction</button> : null}
     <div className="ml-edit-options">
       <label className="ws-field">
-        <span>Title <small>(optional)</small></span>
-        <input type="text" maxLength={200} value={title} placeholder="Give this a name…" onChange={(event) => setTitle(event.target.value)} />
+        <span>Rule <small>(optional)</small></span>
+        <input type="text" maxLength={200} value={rule} placeholder="Adjektivendung, Compound interest…"
+          onChange={(event) => setRule(event.target.value)}/>
       </label>
-      <label className="ws-field">
-        <span>Subject</span>
-        <select value={subjectId} onChange={(event) => { setSubjectId(event.target.value); setTopicId(""); }}>
-          <option value="">Unsorted</option>
-          {workspace.snapshot.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-        </select>
-      </label>
-      <label className="ws-field">
-        <span>Topic</span>
-        <select value={topicId} onChange={(event) => setTopicId(event.target.value)} disabled={!subjectId}>
-          <option value="">Inbox (default)</option>
-          {options.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}
-        </select>
-      </label>
-    </div>
-    <fieldset className="ml-accent-options"><legend>Colour <small>(optional)</small></legend>
-      <div className="ml-accent-choices">
-        {ACCENTS.map((colour) => <button key={colour.value || "none"} type="button"
-          className={"ml-accent-choice" + (accent === colour.value ? " is-selected" : "")}
-          data-accent={colour.value || "none"} aria-pressed={accent === colour.value}
-          aria-label={"Colour: " + colour.label} title={colour.label}
-          onClick={() => setAccent(colour.value)}>
-          <span className="ml-accent-dot" />{colour.label}
-        </button>)}
+      <div className="ws-field">
+        <span>Location</span>
+        <button type="button" className="ws-button ml-destination" onClick={() => setPickerOpen(true)}>
+          {topicId ? workspace.pathLabel(topicId) : preferredSubjectId
+            ? "Choose topic in " + (workspace.subjectById.get(preferredSubjectId)?.name ?? "subject")
+            : "Choose subject and topic"}
+          <ChevronRight size={15}/>
+        </button>
       </div>
-    </fieldset>
+    </div>
+    {entry ? <label className="ml-pin-option"><input type="checkbox" checked={pinned}
+      onChange={(event) => setPinned(event.target.checked)}/> Pin this mistake</label> : null}
+    {pickerOpen ? <Portal><div className="ws-dialog-backdrop" role="presentation"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) setPickerOpen(false); }}>
+      <TopicPicker value={topicId || null} onClose={() => setPickerOpen(false)}
+        onChange={(id) => { setTopicId(id); setPickerOpen(false); setError(""); }}/>
+    </div></Portal> : null}
     <details className="ml-edit-notes" open={notesOpen} onToggle={(event) => setNotesOpen(event.currentTarget.open)}>
-      <summary>Explanation &amp; examples <small>— optional · bold, colour, highlights &amp; lists</small></summary>
+      <summary>Explanation &amp; examples <small>— optional</small></summary>
       <div className="ml-explanation-editor">
         <RichEditor ref={explanationRef} resetKey={entry?.id ?? "new-mistake"} value={explanation}
-          ariaLabel="Formatted explanation" placeholder="Why was this wrong? Add a rule, memorable example or short explanation."
-          onChange={setExplanation} onSave={() => void save()} onDone={() => void save()} compactToolbar />
+          ariaLabel="Formatted explanation" placeholder="Why was this wrong? Add a rule or short explanation."
+          onChange={setExplanation} onSave={() => void save()} onDone={() => void save()} compactToolbar/>
       </div>
     </details>
     {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
     <div className="ml-simple-edit-actions">
+      {entry ? <button className="ws-button ml-delete-in-editor" type="button" disabled={busy}
+        onClick={() => void remove()}><Trash2 size={14}/> Delete</button> : null}
       <button className="ws-button" type="button" disabled={busy} onClick={onDone}>Cancel</button>
       <button className="ws-button is-primary" type="submit" disabled={busy}>
         {busy ? "Saving…" : "Save"}
