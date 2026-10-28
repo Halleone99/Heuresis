@@ -40,6 +40,7 @@ export type KnowledgeEntry = {
 };
 export type PracticeEvent = {
   id: string; user_id: string; record_id: string; outcome: PracticeOutcome; answer: string; created_at: string;
+  source?: "practice" | "repeated";
 };
 export type KnowledgeSnapshot = {
   subjects: KnowledgeSubject[]; topics: KnowledgeTopic[]; entries: KnowledgeEntry[]; practice: PracticeEvent[];
@@ -189,7 +190,7 @@ function normaliseEvent(row: Record<string, unknown>): PracticeEvent {
   return {
     id: str(row.id), user_id: str(row.user_id), record_id: str(row.record_id),
     outcome: row.outcome === "correct" ? "correct" : "incorrect", answer: contentStr(row.answer),
-    created_at: str(row.created_at, new Date().toISOString()),
+    source: row.source === "repeated" ? "repeated" : "practice", created_at: str(row.created_at, new Date().toISOString()),
   };
 }
 
@@ -457,6 +458,21 @@ export async function recordPractice(userId: string, entry: KnowledgeEntry, outc
   return { event: {
     ...event, created_at: typeof saved?.created_at === "string" ? saved.created_at : event.created_at,
   }, entry: next };
+}
+
+/** An error repeated in actual use is not a failed practice session.
+ * Keep the real-world occurrence on the existing event timeline without changing recall streaks.
+ * Requires migration 20261028193000_mistake_occurrence_source.sql.
+ */
+export async function recordRepeatedMistake(userId: string, entry: KnowledgeEntry): Promise<PracticeEvent> {
+  requireWritable();
+  const event: PracticeEvent = {
+    id: crypto.randomUUID(), user_id: userId, record_id: entry.id,
+    outcome: "incorrect", answer: "", source: "repeated", created_at: new Date().toISOString(),
+  };
+  const { error } = await db().from("knowledge_practice_events").insert(event);
+  if (error) throw error;
+  return event;
 }
 
 // ---------------------------------------------------------------------------
