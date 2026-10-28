@@ -523,9 +523,10 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
           <textarea ref={inputRef} rows={ideaRecall ? 3 : 2} value={answer} readOnly={revealed} onChange={(event) => setAnswer(event.target.value)} placeholder={ideaRecall ? "Explain the correct idea…" : "Type it before revealing…"} /></label>
         {revealed ? <div className={"recall-result " + (ideaRecall ? "" : answer.trim() ? (exact ? "is-exact" : "is-different") : "")}>
           <span className="ml-label">Correct form</span>
-          {answer.trim() && !exact ? <p className="recall-user-answer"><DiffLine parts={mistakeDifference(answer, current.correction).before} /></p> : null}
-           <p className="recall-answer"><DiffLine parts={mistakeDifference(answer, current.correction).after} /></p>
-          <small>{!answer.trim() ? "Read the answer before continuing."
+          {!ideaRecall && answer.trim() && !exact ? <p className="recall-user-answer"><DiffLine parts={mistakeDifference(answer, current.correction).before}/></p> : null}
+          <p className="recall-answer">{ideaRecall ? current.correction : <DiffLine parts={mistakeDifference(answer, current.correction).after}/>}</p>
+          <small>{ideaRecall ? "Compare your reasoning, then grade yourself."
+            : !answer.trim() ? "Read the answer before continuing."
             : exact ? "Exact match." : "Differences are underlined above."}</small>
         </div> : null}
         <div className="ws-dialog-actions">
