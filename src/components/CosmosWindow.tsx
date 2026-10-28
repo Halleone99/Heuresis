@@ -47,6 +47,9 @@ import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/revie
 import { signHeuresisCardImages } from "../lib/cardMedia";
 import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
+import { readReviewSelection } from "../lib/cosmosWindow";
+import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
+import ConnectionsPanel from "./ConnectionsPanel";
 import RetentionPractice from "./RetentionPractice";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import "./cosmos.css";
@@ -77,6 +80,7 @@ type Config = {
   count: number | "all";
   tagIds: string[];
   query: string;
+  selectionToken: string;
 };
 
 
@@ -125,6 +129,7 @@ function parseConfig(): Config {
     count: rawCount === "all" || !Number.isFinite(numeric) || numeric <= 0 ? "all" : Math.floor(numeric),
     tagIds: params.getAll("tag").filter(Boolean),
     query: params.get("q")?.trim() ?? "",
+    selectionToken: params.get("selection") ?? "",
   };
 }
 
@@ -259,7 +264,8 @@ export default function CosmosWindow() {
   const [results, setResults] = useState<SessionResult[]>([]);
   const [roundStart, setRoundStart] = useState(0);
   const [method, setMethodState] = useState<ReviewMethod>(() => { const saved = readReviewMethod(); return saved === "hear" ? "think" : saved; });
-  const [audioPrompt, setAudioPrompt] = useState(false);
+  const [audioPrompt, setAudioPrompt] = useState(() => { try { return localStorage.getItem("heuresis.review.audioPrompt.v1") === "1"; } catch { return false; } });
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [hasWriting, setHasWriting] = useState(false);
   const [saidAnswer, setSaidAnswer] = useState(false);
   const [practiceOpen, setPracticeOpen] = useState(false);
@@ -352,6 +358,9 @@ export default function CosmosWindow() {
         let nextQueue: QueueItem[] = [];
         let rest: QueueItem[] = [];
         const ready = allCards.filter(cardHasCompletedSort);
+        // A filtered or targeted review must never quietly fall back to every card.
+        const selection = config.selectionToken ? readReviewSelection(config.packId, config.selectionToken) : [];
+        if (config.selectionToken && !selection.length) throw new EmptySelection("This review selection has no cards.");
         if (isRecommended) {
           const legacy = legacyTemplateId(nextTemplates, setup.defaultTemplateId);
           const directions = activeTemplates.map((entry) => ({ templateId: entry.id, label: entry.name, front: entry.front, legacy: entry.id === legacy }));
@@ -364,8 +373,13 @@ export default function CosmosWindow() {
             : config.mode === "sort"
               ? (config.source === "unsorted" ? allCards.filter((entry) => !cardHasCompletedSort(entry)) : sourceCards(allCards, config.source))
               : sourceCards(ready, config.source === "unsorted" ? "all" : config.source);
-          if (!relatedReview && config.mode === "sort" && config.tagIds.length) pool = pool.filter((entry) => entry.tags.some((tag) => config.tagIds.includes(tag.id)));
-          if (!relatedReview && config.mode === "sort" && config.query) {
+          if (selection.length && config.mode === "review") {
+            const positions = new Map(selection.map((id, i) => [id, i]));
+            pool = pool.filter((entry) => positions.has(entry.id))
+              .sort((a, b) => (positions.get(a.id) ?? 0) - (positions.get(b.id) ?? 0));
+          }
+          if (!relatedReview && config.tagIds.length) pool = pool.filter((entry) => entry.tags.some((tag) => config.tagIds.includes(tag.id)));
+          if (!relatedReview && config.query) {
             const q = config.query.toLocaleLowerCase();
             pool = pool.filter((entry) => [
               entry.note ?? "",
@@ -603,7 +617,8 @@ export default function CosmosWindow() {
     }
     setIndex(nextIndex);
     setRevealed(false);
-    setTyped(""); setSuggestion(null); setHasWriting(false); setSaidAnswer(false); setAudioPrompt(false); setPracticeOpen(false);
+    setTyped(""); setSuggestion(null); setHasWriting(false); setSaidAnswer(false); setPracticeOpen(false); setConnectionsOpen(false);
+    stopReviewAudio();
   }
 
   async function answer(grade: StudyGrade) {
@@ -934,13 +949,10 @@ export default function CosmosWindow() {
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this example."); throw error; }
   }
 
-  function playAudio(text: string) {
-    if (!text || !("speechSynthesis" in window)) { setNotice("Audio playback is unavailable here."); return; }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = /\p{Script=Han}/u.test(text) ? "zh-CN" : /\p{Script=Cyrillic}/u.test(text) ? "ru-RU" : "en-GB";
-    utterance.rate = .9;
-    window.speechSynthesis.speak(utterance);
+  function playAudio(text: string, fieldKey?: string) {
+    const spokenRole: ReviewSpeechRole = fieldKey === term?.key ? "term" : fieldKey === meaning?.key ? "meaning" : "other";
+    const locale = reviewSpeechLanguage(text, pack.title, pack.cardType?.name ?? "", spokenRole);
+    if (!speakReviewText(text, locale)) { setNotice("Audio playback is not available on this device."); return; }
     void markLearning(["hear"]);
   }
 
@@ -955,8 +967,8 @@ export default function CosmosWindow() {
     const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : promptKeys;
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
     const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !recap.includes(key));
-    const audioText = promptKeys.map((key) => fieldText(card.data, key)).find((value) => /\p{Script=Han}/u.test(value)) ?? "";
-    const canListen = Boolean(audioText);
+    const spokenPrompt = reviewSpokenPrompt(promptKeys, card.data, reading?.key);
+    const canListen = Boolean(spokenPrompt);
     const chineseTerm = fieldText(card.data, term?.key);
     const expected = answerValues().map((item) => typeof item === "string" ? item : item.value);
     const enteredHan = /\p{Script=Han}/u.test(typed);
@@ -977,19 +989,22 @@ export default function CosmosWindow() {
     return <div className={revealed ? "cosmos-card-copy revealed" : "cosmos-card-copy"}>
       {!revealed && audioPrompt && canListen ? <div className="cosmos-audio-question">
         <strong>Listening question</strong><p>Listen first; the written prompt appears after reveal.</p>
-        <button type="button" onClick={() => playAudio(audioText)} aria-label="Play Chinese question">▶ Play / replay</button>
+        <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button>
       </div> : <>
         {recap.map((key, position) => renderField(key, position, true))}
         {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
         {used.map((key, position) => renderField(key, position, false))}
       </>}
-      {revealed && /\p{Script=Han}/u.test(chineseTerm) ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm)}>▶ Hear Chinese</button> : null}
+      {revealed && chineseTerm ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
       {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
         <span>Answer by</span>
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"]] as const).map(([value,label]) =>
           <button key={value} type="button" aria-pressed={method === value} onClick={() => setMethod(value)}>{label}</button>)}
-        {canListen ? <button type="button" className="cosmos-audio-switch" aria-pressed={audioPrompt} onClick={() => setAudioPrompt((value) => !value)}>♪ Listen</button> : null}
+        {canListen ? <button type="button" className="cosmos-audio-switch" aria-pressed={audioPrompt} onClick={() => setAudioPrompt((value) => {
+          try { localStorage.setItem("heuresis.review.audioPrompt.v1", value ? "0" : "1"); } catch { /* preference only */ }
+          return !value;
+        })}>♪ Listen</button> : null}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
         placeholder="Type your answer here…" aria-label="Your typed answer" rows={2}
@@ -1047,7 +1062,8 @@ export default function CosmosWindow() {
             className={suggestion?.grade === grade ? "is-suggested" : ""}
             title={RESULT_HINT[grade]} onClick={() => void answer(grade)}>
             <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{sentenceCard ? sentenceRatings[grade] : RESULT_HINT[grade]}</span></button>)}</div>
-          <button type="button" className="cosmos-extra-toggle" aria-expanded={practiceOpen} onClick={() => setPracticeOpen((value) => !value)}>＋ Practise more</button>
+          <div className="cosmos-secondary-actions"><button type="button" className="cosmos-extra-toggle" aria-expanded={practiceOpen} onClick={() => setPracticeOpen((value) => !value)}>＋ Practise more</button><button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button></div>
+          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
           {practiceOpen ? <RetentionPractice key={card.id} card={card} pack={pack} busy={busy} selectedActions={activeLearning}
             onMark={markLearning} onSaveSentence={saveSentenceExample} onNotice={setNotice} /> : null}
         </> : <span>Attempt the answer before revealing it. {ANDROID ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
