@@ -86,7 +86,8 @@ function workflowStatus(card: CardWithStats): StatusFilter {
 
 function directionLabel(pack: PackWithType, template: StudyTemplate) {
   const kind = templateDirection(pack, template);
-  return kind === "recognition" ? "Recognise" : kind === "production" ? "Produce" : template.name;
+  const chinese = /Chinese|HSK|中文|汉语|漢語/i.test(pack.title);
+  return kind === "recognition" ? (chinese ? "中 → EN" : "Term → meaning") : kind === "production" ? (chinese ? "EN → 中" : "Meaning → term") : template.name;
 }
 
 function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, onConnections, onRetention }: {
@@ -475,9 +476,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           </button>
         </div>
         {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
-          <span>Learning, by evidence{stateTemplates.length > 1 ? " (weakest direction)" : ""}:</span>
+          <span>Of {learningCards.length} learning cards{stateTemplates.length > 1 ? " (weakest direction)" : ""}:</span>
           {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
-            <i className="knowledge-dot" data-state={state} aria-hidden="true" /> {stateCounts[state]} {STATE_LABEL[state].toLowerCase()}</button>)}
+            {state !== "not-tried" ? <i className="knowledge-dot" data-state={state} aria-hidden="true" /> : null} {stateCounts[state]} {state === "not-tried" ? "new" : STATE_LABEL[state].toLowerCase()}</button>)}
         </div> : null}
       </section>
 
@@ -489,13 +490,17 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
-          <button className={unsortedCards.length ? "primary-button sort-command" : "sort-command"} disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
+          <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
           <span className="review-split">
-            <button className={unsortedCards.length ? "secondary-button review-command" : "primary-button review-command"} disabled={!learningCards.length}
+            <button className="primary-button review-command" disabled={!learningCards.length}
               title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review</button>
             <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
-              title="Choose directions, cards, session size and order">Adjust</button>
+              title="Choose directions, cards, session size and order">▾</button>
           </span>
+          {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
+            const selected = shown.filter((card) => workflowStatus(card) === "learning");
+            openTargeted("Review filtered lesson", selected);
+          }}><Brain size={15} /> Review these {shown.filter((card) => workflowStatus(card) === "learning").length}</button> : null}
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
         </div>
@@ -566,7 +571,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATE <ArrowUpDown size={11} /></button>
           <button className={sortField === "interest" ? "active" : ""} onClick={() => changeSort("interest")}>IMPORTANCE <ArrowUpDown size={11} /></button>
           <button className={sortField === "reviews" ? "active" : ""} onClick={() => changeSort("reviews")}>REVIEWS <ArrowUpDown size={11} /></button>
-          <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>RECALL <ArrowUpDown size={11} /></button>
+          <button className={sortField === "lastSeen" ? "active" : ""} onClick={() => changeSort("lastSeen")}>LAST SEEN <ArrowUpDown size={11} /></button>
           <span>TAGS & LINKS</span>
         </div>
         {shown.map((card) => {
@@ -604,16 +609,16 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             </div>
 
             <div className="topic-status-cell">{status === "learning" && states.length
-              ? <div className="knowledge-states">{states.map((entry) => <span key={entry.templateId} data-state={entry.state}
+              ? states.every((entry) => entry.state === "not-tried") ? <strong className="knowledge-new">New</strong> : <div className="knowledge-states">{states.map((entry) => <span key={entry.templateId} data-state={entry.state}
                   title={`${entry.label}: ${STATE_LABEL[entry.state]}${entry.agedFrom ? ` (was ${STATE_LABEL[entry.agedFrom].toLowerCase()}; the evidence is over four months old)` : ""}`}>
-                  <i className="knowledge-dot" data-state={entry.state} aria-hidden="true" />{stateTemplates.length > 1 ? <small>{entry.label}</small> : null}{STATE_LABEL[entry.state]}</span>)}</div>
+                  {entry.state !== "not-tried" ? <i className="knowledge-dot" data-state={entry.state} aria-hidden="true" /> : null}{stateTemplates.length > 1 ? <small>{entry.label}</small> : null}{entry.state === "not-tried" ? "New" : STATE_LABEL[entry.state]}</span>)}</div>
               : <span className={`workflow-status status-${status}`}>{status === "unsorted" ? "Unsorted" : status === "reference" ? "Reference" : "Learning"}</span>}</div>
 
             <div className="topic-interest-cell">{level ? <i className={`importance-badge importance-${level}`}>{IMPORTANCE_LABEL[level]}</i> : <span>—</span>}</div>
 
             <div className="modern-learning-cell">
               <strong>{reviewCount ? reviewCount.toLocaleString() : "No"} <small>{reviewCount === 1 ? "review" : "reviews"}</small></strong>
-              {learning.length ? <div className="learning-mini-chips">{learning.slice(0, 4).map((item) => <span key={item.key}>{item.label} {item.count}</span>)}{learning.length > 4 ? <span>+{learning.length - 4}</span> : null}</div> : <small className="learning-none">—</small>}
+              
             </div>
 
             <div className="modern-recall-cell">

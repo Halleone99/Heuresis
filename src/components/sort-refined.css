@@ -55,8 +55,8 @@
 .sort-modal .sort-panel > :is(.sort-interest-panel,.sort-tags-control,.sort-note-panel) { padding:20px 18px 22px; border-bottom:1px solid var(--ws-line); }
 .sort-modal .sort-panel h3 { margin:0; display:flex; align-items:center; gap:7px; color:var(--ws-ink); font:650 14px/1.3 var(--ws-sans); }
 .sort-modal .sort-panel h3 small { margin:0 0 0 auto; color:var(--ws-muted); font:400 11px var(--ws-sans); }
-.sort-modal .sort-rating { margin-top:12px; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:7px; }
-.sort-modal .sort-rating button { min-height:43px; padding:0; border:1px solid var(--ws-line-strong); border-radius:9px; color:var(--ws-text); background:var(--ws-surface-2); font:600 17px var(--ws-sans); cursor:pointer; }
+.sort-modal .sort-rating { margin-top:12px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+.sort-modal .sort-rating button { min-height:43px; padding:0; border:1px solid var(--ws-line-strong); border-radius:9px; color:var(--ws-text); background:var(--ws-surface-2); font:600 13px var(--ws-sans); padding:8px 6px; cursor:pointer; }
 .sort-modal .sort-rating button:hover:not(:disabled) { background:var(--ws-raised); border-color:var(--ws-accent); }
 .sort-modal .sort-rating button.selected { background:var(--ws-accent); color:var(--ws-on-primary); border-color:var(--ws-accent); }
 .sort-modal .sort-rating button:focus-visible { outline:2px solid var(--ws-accent); outline-offset:2px; }
@@ -68,7 +68,7 @@
 .sort-modal .sort-selected-tags button { display:flex; align-items:center; gap:7px; min-height:28px; padding:4px 9px; border:1px solid var(--ws-accent-line); border-radius:7px; background:var(--ws-accent-soft); color:var(--ws-accent); font:500 11px var(--ws-sans); cursor:pointer; }
 .sort-modal .sort-tags-empty { display:block; color:var(--ws-muted); font-size:11px; margin-top:11px; }
 .sort-modal .sort-tags { margin-top:12px; display:grid; gap:8px; }
-.sort-modal .sort-note-panel textarea { display:block; width:100%; min-height:138px; margin-top:12px; padding:12px; resize:vertical; border:1px solid var(--ws-line-strong); border-radius:9px; background:var(--ws-surface-2); color:var(--ws-text); font:400 13px/1.55 var(--ws-sans); }
+.sort-modal .sort-note-panel textarea { display:block; width:100%; min-height:80px; margin-top:12px; padding:12px; resize:vertical; border:1px solid var(--ws-line-strong); border-radius:9px; background:var(--ws-surface-2); color:var(--ws-text); font:400 13px/1.55 var(--ws-sans); }
 .sort-modal .sort-note-panel textarea:focus { outline:2px solid var(--ws-accent-soft); border-color:var(--ws-accent); }
 .sort-modal .sort-panel-actions { margin-top:auto; padding:20px 18px; display:grid; gap:9px; }
 .sort-modal .sort-save-next { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:47px; border:1px solid var(--ws-accent); border-radius:9px; background:var(--ws-accent); color:var(--ws-on-primary); cursor:pointer; font:600 13px var(--ws-sans); }
@@ -107,3 +107,13 @@
 .sort-modal .sort-enrich-example p:first-child { color:var(--ws-ink); font-size:13.5px; font-weight:600; }
 .sort-modal .sort-enrich-example p:nth-child(2) { color:var(--ws-accent); }
 .sort-modal .sort-enrich-example small { display:block; font-size:10px; color:var(--ws-muted); }
+
+
+/* Three real choices, one-click. Secondary outcomes remain visible but quiet. */
+.sort-modal .sort-rating button { line-height:1.2; overflow-wrap:anywhere; }
+.sort-modal .sort-quiet-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.sort-modal .sort-quiet-actions button { display:flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:6px 5px; color:var(--ws-muted); border:1px solid var(--ws-line); border-radius:7px; background:transparent; cursor:pointer; font:11px var(--ws-sans); }
+.sort-modal .sort-quiet-actions button:hover:not(:disabled) { border-color:var(--ws-text); color:var(--ws-text); }
+.sort-modal .sort-quiet-actions button small { opacity:.6; }
+.sort-modal .sort-filter-open { display:inline-flex; align-items:center; gap:6px; margin-right:8px; font:12px var(--ws-sans); color:var(--ws-text); }
+@media(max-width:440px) { .sort-modal .sort-quiet-actions button { flex-direction:column; } }

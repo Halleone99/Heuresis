@@ -16,10 +16,10 @@ export const RESULT_LABEL: Record<StudyGrade, string> = {
 };
 
 export const RESULT_HINT: Record<StudyGrade, string> = {
-  again: "Could not recall it",
-  hard: "Part of it, or only with effort",
-  good: "Recalled it",
-  easy: "Recalled at once, without doubt",
+  again: "Did not come, or the meaning was lost",
+  hard: "Incomplete, or needed a hint",
+  good: "Correct, with some effort",
+  easy: "Correct immediately, without hesitation",
 };
 
 export function isSuccess(grade: StudyGrade | null | undefined) {

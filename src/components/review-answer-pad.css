@@ -1,0 +1,15 @@
+.review-answer-pad { width:min(600px,100%); margin:20px auto 0; text-align:left; color:var(--ink-2); }
+.review-answer-pad-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font:12px/1.3 var(--sans); }
+.review-answer-pad-heading > span { font-weight:600; }
+.review-answer-pad-tools { display:flex; flex-wrap:wrap; gap:5px; }
+.review-answer-pad-tools button { padding:6px 9px; min-height:32px; color:var(--ink-2); background:transparent; border:1px solid var(--line-2); border-radius:7px; cursor:pointer; font:12px var(--sans); }
+.review-answer-pad-tools button[aria-pressed=true] { background:var(--live-soft); border-color:var(--live); }
+.review-answer-pad-tools button:disabled { opacity:.35; cursor:default; }
+.review-answer-pad-grid { width:100%; aspect-ratio:30 / 11; border:1px solid var(--line-2); border-radius:8px; overflow:hidden;
+  background-color:var(--paper); background-image:linear-gradient(to right,transparent calc(50% - .5px),color-mix(in srgb,var(--ink-2) 12%,transparent) 50%,transparent calc(50% + .5px)),linear-gradient(to bottom,transparent calc(50% - .5px),color-mix(in srgb,var(--ink-2) 12%,transparent) 50%,transparent calc(50% + .5px)),repeating-linear-gradient(to right,transparent 0,transparent calc(20% - 1px),color-mix(in srgb,var(--ink-2) 14%,transparent) calc(20% - 1px),color-mix(in srgb,var(--ink-2) 14%,transparent) 20%); }
+.review-answer-pad-grid canvas { display:block; width:100%; height:100%; touch-action:none; cursor:crosshair; }
+.review-answer-pad-grid canvas.is-erasing { cursor:cell; }
+.review-answer-pad.is-revealed { flex:1 1 240px; min-width:0; max-width:440px; margin:0; }
+.review-answer-pad.is-revealed .review-answer-pad-grid { background-color:var(--paper-2); }
+.review-answer-pad > small { display:block; margin-top:6px; color:var(--muted); }
+@media(max-width:640px) { .review-answer-pad-grid { aspect-ratio:30 / 11; } }
