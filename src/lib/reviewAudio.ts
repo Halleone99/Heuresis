@@ -39,12 +39,22 @@ export function reviewSpokenPrompt(
 
 export function speakReviewText(text: string, language: string): boolean {
   if (!text.trim() || typeof window === "undefined" || !("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return false;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text.trim());
-  utterance.lang = language;
-  utterance.rate = 0.9;
-  window.speechSynthesis.speak(utterance);
-  return true;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text.trim());
+    utterance.lang = language;
+    utterance.rate = 0.9;
+    // Browsers otherwise sometimes pick an English voice for a German prompt.
+    const available = window.speechSynthesis.getVoices();
+    const locale = language.toLowerCase();
+    utterance.voice = available.find((voice) => voice.lang.toLowerCase() === locale)
+      ?? available.find((voice) => voice.lang.toLowerCase().split("-")[0] === locale.split("-")[0])
+      ?? null;
+    window.speechSynthesis.speak(utterance);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function stopReviewAudio() {
