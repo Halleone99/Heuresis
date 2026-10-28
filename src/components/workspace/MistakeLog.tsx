@@ -7,6 +7,7 @@ import { SubjectCard } from "./SubjectCard";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText } from "./RichText";
 import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
+import { parseCaptureLine } from "../../lib/captureParse";
 
 function DiffLine({ parts }: { parts: DifferencePart[] }) {
   return <>{parts.map((part, index) => <span key={index}
@@ -17,6 +18,18 @@ function DiffLine({ parts }: { parts: DifferencePart[] }) {
 function ruleParts(title: string) {
   const match = title.trim().match(/^(.+?)\s+[–—-]\s+(.+)$/u);
   return { rule: (match?.[1] ?? title).trim(), detail: match?.[2]?.trim() ?? "" };
+}
+
+/** Exact pair, within a subject. Matching only the correction merges unrelated errors. */
+function findRepeatedMistake(entries: KnowledgeEntry[], topics: ReturnType<typeof useWorkspace>["topicById"],
+  topicId: string, attempt: string, correction: string) {
+  const subject = topics.get(topicId)?.subject_id;
+  if (!subject) return undefined;
+  const wrong = comparableCorrection(attempt), right = comparableCorrection(correction);
+  return entries.find((entry) => entry.kind === "mistake"
+    && topics.get(entry.topic_id)?.subject_id === subject
+    && comparableCorrection(entry.attempt) === wrong
+    && comparableCorrection(entry.correction) === right);
 }
 
 function isNotFiled(entry: KnowledgeEntry, topicById: ReturnType<typeof useWorkspace>["topicById"],
@@ -211,6 +224,7 @@ export function MistakeLog() {
     <section className="ml-hierarchy-content">
       {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeQuickAdd key={selectedTopicId}
         initialTopicId={selectedTopicId}/> : null}
+      {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeBulkAdd key={"bulk:" + selectedTopicId} topicId={selectedTopicId}/> : null}
       {adding ? <MistakeEditor key={"new:" + (selectedTopicId ?? selectedSubjectId ?? "all")}
         preferredSubjectId={selectedSubjectId} preferredTopicId={selectedTopicId}
         onDone={() => setAdding(false)}/> : null}
@@ -249,33 +263,109 @@ function MistakeQuickAdd({ initialTopicId }: { initialTopicId: string }) {
   const [attempt, setAttempt] = useState("");
   const [correction, setCorrection] = useState("");
   const [rule, setRule] = useState("");
+  const [duplicate, setDuplicate] = useState<KnowledgeEntry | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
 
-  async function save() {
+  const clear = () => { setAttempt(""); setCorrection(""); setDuplicate(null); input.current?.focus(); };
+  async function save(forceSeparate = false) {
     if (!attempt.trim() || busy) return;
-    setBusy(true); setError("");
+    if (!forceSeparate) {
+      const existing = findRepeatedMistake(workspace.snapshot.entries, workspace.topicById,
+        initialTopicId, attempt, correction);
+      if (existing) { setDuplicate(existing); return; }
+    }
+    setBusy(true); setError(""); setDuplicate(null);
     try {
       await workspace.addEntry({ kind: "mistake", topicId: initialTopicId, attempt: attempt.trim(),
         correction: correction.trim(), title: rule.trim() });
-      setAttempt(""); setCorrection("");
-      input.current?.focus();
+      clear();
+    } catch (reason) { setError(friendlyError(reason)); }
+    finally { setBusy(false); }
+  }
+  async function madeAgain() {
+    if (!duplicate || busy) return;
+    setBusy(true); setError("");
+    try {
+      await workspace.recordRepeated(duplicate.id);
+      workspace.toast("Recorded as made again, without creating a duplicate.");
+      clear();
     } catch (reason) { setError(friendlyError(reason)); }
     finally { setBusy(false); }
   }
   return <form className="ml-quick-add" onSubmit={(event) => { event.preventDefault(); void save(); }}>
     <label><span>Mistake</span><input ref={input} value={attempt} maxLength={5000}
-      placeholder="What was wrong?" onChange={(event) => setAttempt(event.target.value)}/></label>
+      placeholder="What was wrong?" onChange={(event) => { setAttempt(event.target.value); setDuplicate(null); }}/></label>
     <label><span>Correction</span><input value={correction} maxLength={5000}
-      placeholder="What's right?" onChange={(event) => setCorrection(event.target.value)}/></label>
+      placeholder="What's right?" onChange={(event) => { setCorrection(event.target.value); setDuplicate(null); }}/></label>
     <label className="ml-quick-rule"><span>Rule (optional)</span><input value={rule} maxLength={200}
       placeholder="e.g. Adjektivendung" onChange={(event) => setRule(event.target.value)}/></label>
     <button className="ws-button is-primary" disabled={busy || !attempt.trim()} type="submit">
       <Plus size={15}/> Add
     </button>
+    {duplicate ? <div className="ml-duplicate-check" role="status">
+      <span>This exact mistake already exists in this subject.</span>
+      <button className="ws-button" type="button" disabled={busy} onClick={() => void madeAgain()}>Made again</button>
+      <button className="ws-button" type="button" disabled={busy} onClick={() => void save(true)}>Keep separately</button>
+    </div> : null}
     {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
   </form>;
+}
+
+function MistakeBulkAdd({ topicId }: { topicId: string }) {
+  const workspace = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const rawLines = text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+  const lines = rawLines.map((raw) => ({ raw, result: parseCaptureLine(raw) }));
+  const valid = lines.filter((item) => item.result.kind === "mistake" && item.result.attempt.trim()
+    && item.result.attempt.length <= 5000 && item.result.correction.length <= 5000);
+  const rejected = lines.length - valid.length;
+
+  async function addAll() {
+    if (busy || !valid.length || rejected || valid.length > 50) return;
+    setBusy(true); setError("");
+    let saved = 0, skipped = 0;
+    const known = new Set(workspace.snapshot.entries.filter((entry) => entry.kind === "mistake"
+      && workspace.topicById.get(entry.topic_id)?.subject_id === workspace.topicById.get(topicId)?.subject_id)
+      .map((entry) => comparableCorrection(entry.attempt) + "\u0000" + comparableCorrection(entry.correction)));
+    try {
+      for (const item of valid) {
+        const parsed = item.result;
+        if (parsed.kind !== "mistake") continue;
+        const key = comparableCorrection(parsed.attempt) + "\u0000" + comparableCorrection(parsed.correction);
+        if (known.has(key)) { skipped++; continue; }
+        await workspace.addEntry({ kind: "mistake", topicId, attempt: parsed.attempt,
+          correction: parsed.correction, explanation: parsed.explanation });
+        known.add(key); saved++;
+      }
+      setText(""); setOpen(false);
+      workspace.toast("Added " + saved + " mistakes" + (skipped ? "; skipped " + skipped + " exact duplicates." : "."));
+    } catch (reason) {
+      // Keep the input on failure so the user can recover it; successful rows
+      // will be skipped on the next attempt by exact-pair matching.
+      setError("Saved " + saved + " before an error. Input retained. " + friendlyError(reason));
+    } finally { setBusy(false); }
+  }
+  return <div className="ml-bulk-add">
+    <button type="button" className="nb-link-button" onClick={() => setOpen((current) => !current)}>
+      {open ? "Close bulk paste" : "Paste a list of mistakes"}
+    </button>
+    {open ? <div className="ml-bulk-panel">
+      <label className="ws-field"><span>One correction per line: wrong → right // why</span>
+        <textarea rows={5} value={text} placeholder={"Wrong sentence → Correct sentence // Explanation\nAnother error → Another correction"}
+          onChange={(event) => { setText(event.target.value); setError(""); }} disabled={busy}/>
+      </label>
+      {rawLines.length ? <small>{valid.length} ready{rejected ? " · " + rejected + " invalid lines" : ""}
+        {valid.length > 50 ? " · maximum 50 per batch" : ""} · German, Chinese and other subjects use the same format</small> : null}
+      {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
+      <button type="button" className="ws-button is-primary" disabled={busy || !valid.length || Boolean(rejected) || valid.length > 50}
+        onClick={() => void addAll()}>{busy ? "Adding…" : "Add " + valid.length + " mistakes"}</button>
+    </div> : null}
+  </div>;
 }
 
 function isIdeaStyle(entry: KnowledgeEntry): boolean {
