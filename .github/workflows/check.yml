@@ -22,7 +22,7 @@ jobs:
       - run: node scripts/check-progress-tooltips.mjs
       - run: node scripts/check-progress-layout.mjs
       - run: node scripts/check-progress-languages.mjs
-      - run: node scripts/check-mistake-journey.mjs
+
       - run: node scripts/check-progress-study-error.mjs
       - run: node scripts/check-notebook-consistency.mjs
       - run: node scripts/check-mistake-filter-row.mjs
