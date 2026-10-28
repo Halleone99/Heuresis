@@ -606,11 +606,12 @@ function ScopePage({ scope, navigate, newAction }: {
       {children.map((child) => {
         const subtree = new Set(workspace.subtreeIds(child.id));
         const noteCount = snapshot.entries.filter((entry) => subtree.has(entry.topic_id) && isDocument(entry) && entry.category !== "reference").length;
+        const mistakeCount = snapshot.entries.filter((entry) => subtree.has(entry.topic_id) && entry.kind === "mistake").length;
         const childCount = workspace.childrenOf(child.id, subjectId).length;
         return <button type="button" key={child.id} className="nb-topic-card"
           onClick={() => navigate({ topicId: child.id, docId: null })}>
           <span className="nb-topic-card-title">{child.name}<ChevronRight size={16} aria-hidden="true"/></span>
-          <span className="nb-topic-card-count">{countLabel(noteCount, "note")}{childCount ? ` · ${countLabel(childCount, "subtopic")}` : ""}</span>
+          <span className="nb-topic-card-count">{countLabel(noteCount, "note")}{mistakeCount ? ` · ${countLabel(mistakeCount, "mistake")}` : ""}{childCount ? ` · ${countLabel(childCount, "subtopic")}` : ""}</span>
         </button>;
       })}
     </div> : null}
