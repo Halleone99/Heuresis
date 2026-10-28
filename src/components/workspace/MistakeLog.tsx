@@ -52,6 +52,12 @@ export function MistakeLog() {
   const [notFiledOnly, setNotFiledOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(60);
   const [search, setSearch] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkPicker, setBulkPicker] = useState(false);
+  const [bulkRule, setBulkRule] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmElement, confirm] = useConfirm();
   const listRef = useRef<HTMLDivElement>(null);
 
   const mistakes = useMemo(() => snapshot.entries
@@ -68,6 +74,8 @@ export function MistakeLog() {
     setSearch("");
     setAdding(false);
     setEditingId(null);
+    setSelectedIds([]);
+    setSelecting(false);
     workspace.updateMemory((current) => ({ ...current, mistakes: { subjectId, topicId } }));
   }, [workspace.updateMemory]);
 
@@ -161,11 +169,65 @@ export function MistakeLog() {
   const listEntries = !selectedSubjectId && !notFiledOnly && !search.trim()
     ? mistakes.slice(0, 5) : visibleMistakes.slice(0, visibleCount);
 
+  async function moveSelected(topicId: string) {
+    setBulkPicker(false);
+    if (!selectedIds.length || bulkBusy) return;
+    setBulkBusy(true);
+    let moved = 0;
+    try {
+      for (const id of selectedIds) {
+        await workspace.patchEntry(id, { topic_id: topicId });
+        moved++;
+      }
+      workspace.toast("Moved " + moved + " mistakes to " + workspace.pathLabel(topicId) + ".");
+      setSelectedIds([]); setSelecting(false);
+    } catch (reason) {
+      workspace.toast("Moved " + moved + " before an error: " + friendlyError(reason), { tone: "error" });
+      setSelectedIds((ids) => ids.slice(moved));
+    } finally { setBulkBusy(false); }
+  }
+  async function applyRule() {
+    if (!selectedIds.length || !bulkRule.trim() || bulkBusy) return;
+    setBulkBusy(true);
+    let updated = 0;
+    try {
+      for (const id of selectedIds) {
+        const entry = workspace.entryById.get(id);
+        if (!entry) continue;
+        const detail = ruleParts(entry.title).detail;
+        await workspace.patchEntry(id, { title: bulkRule.trim() + (detail ? " – " + detail : "") });
+        updated++;
+      }
+      workspace.toast("Updated the rule on " + updated + " mistakes.");
+      setBulkRule(""); setSelectedIds([]); setSelecting(false);
+    } catch (reason) {
+      workspace.toast("Updated " + updated + " before an error: " + friendlyError(reason), { tone: "error" });
+      setSelectedIds((ids) => ids.slice(updated));
+    } finally { setBulkBusy(false); }
+  }
+  async function deleteSelected() {
+    if (!selectedIds.length || bulkBusy) return;
+    if (!await confirm({ title: "Delete " + selectedIds.length + " mistakes?",
+      body: "The records and their recall history can be restored from Trash.", confirmLabel: "Move to Trash", danger: true })) return;
+    setBulkBusy(true);
+    let deleted = 0;
+    try {
+      for (const id of selectedIds) { await workspace.removeEntry(id, { undo: false }); deleted++; }
+      workspace.toast("Moved " + deleted + " mistakes to Trash.");
+      setSelectedIds([]); setSelecting(false);
+    } catch (reason) {
+      workspace.toast("Moved " + deleted + " before an error: " + friendlyError(reason), { tone: "error" });
+      setSelectedIds((ids) => ids.slice(deleted));
+    } finally { setBulkBusy(false); }
+  }
+
   function renderItem(entry: KnowledgeEntry, inRule = false) {
     return editingId === entry.id
       ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
       : <MistakeItem key={entry.id} entry={entry} highlighted={entry.id === highlightId}
           hideRuleTitle={inRule} showPath={!selectedTopicId || !selectedSubjectId}
+          selecting={selecting} selected={selectedIds.includes(entry.id)}
+          onSelect={() => setSelectedIds((ids) => ids.includes(entry.id) ? ids.filter((id) => id !== entry.id) : [...ids, entry.id])}
           onEdit={() => { setAdding(false); setEditingId(entry.id); }} />;
   }
 
@@ -173,6 +235,7 @@ export function MistakeLog() {
   const allPage = !selectedSubjectId && !notFiledOnly;
 
   return <div className="ml-page ml-simple-page ml-hierarchy" ref={listRef}>
+    {confirmElement}
     <nav className="nb-crumbs ml-crumbs" aria-label="Mistake Log location">
       <button type="button" onClick={() => select(null, null)}>Mistake Log</button>
       {selectedSubject ? <><ChevronRight size={12}/><button type="button"
@@ -221,6 +284,31 @@ export function MistakeLog() {
       </button>)}
     </div> : null}
 
+    {workspace.writable && !allPage ? <div className="ml-bulk-toolbar">
+      <button className="ws-button" type="button" aria-pressed={selecting}
+        onClick={() => { setSelecting((open) => !open); setSelectedIds([]); }}>
+        {selecting ? "Done selecting" : "Select mistakes"}
+      </button>
+      {selecting ? <>
+        <button className="ws-button" type="button" disabled={bulkBusy}
+          onClick={() => setSelectedIds(visibleMistakes.map((entry) => entry.id))}>Select all visible</button>
+        <span className="ws-muted">{selectedIds.length} selected</span>
+        <button className="ws-button" type="button" disabled={!selectedIds.length || bulkBusy}
+          onClick={() => setBulkPicker(true)}>Move to…</button>
+        <input type="text" maxLength={200} className="ml-bulk-rule-input" value={bulkRule}
+          placeholder="Set rule…" aria-label="Set rule on selected mistakes"
+          onChange={(event) => setBulkRule(event.target.value)}/>
+        <button className="ws-button" type="button" disabled={!selectedIds.length || !bulkRule.trim() || bulkBusy}
+          onClick={() => void applyRule()}>Apply rule</button>
+        <button className="ws-button ml-bulk-delete" type="button" disabled={!selectedIds.length || bulkBusy}
+          onClick={() => void deleteSelected()}>Move to Trash</button>
+      </> : null}
+    </div> : null}
+    {bulkPicker ? <Portal><div className="ws-dialog-backdrop" role="presentation"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) setBulkPicker(false); }}>
+      <TopicPicker value={selectedTopicId} onClose={() => setBulkPicker(false)}
+        onChange={(topicId) => void moveSelected(topicId)}/>
+    </div></Portal> : null}
     <section className="ml-hierarchy-content">
       {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeQuickAdd key={selectedTopicId}
         initialTopicId={selectedTopicId}/> : null}
@@ -386,8 +474,9 @@ function isIdeaStyle(entry: KnowledgeEntry): boolean {
   return Math.max(a.length, b.length) > 4 && common / Math.max(a.length, b.length) < 0.5;
 }
 
-function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit }: {
+function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit, selecting, selected, onSelect }: {
   entry: KnowledgeEntry; highlighted: boolean; showPath: boolean; hideRuleTitle: boolean; onEdit: () => void;
+  selecting: boolean; selected: boolean; onSelect: () => void;
 }) {
   const workspace = useWorkspace();
   const ideaStyle = isIdeaStyle(entry);
@@ -397,6 +486,8 @@ function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit }: {
   const rule = ruleParts(entry.title);
   return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")
     + (ideaStyle ? " is-idea-style" : "")} data-mistake={entry.id}>
+    {selecting ? <input className="ml-select-checkbox" type="checkbox" checked={selected} onChange={onSelect}
+      aria-label={"Select mistake " + (entry.title || entry.attempt.slice(0, 40))}/> : null}
     <div className="ml-simple-body">
       {entry.title && !hideRuleTitle ? <h2 className="ml-entry-title">{rule.rule}
         {rule.detail ? <small> · {rule.detail}</small> : null}</h2> : null}
