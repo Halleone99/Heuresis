@@ -30,7 +30,13 @@ assert.match(floating, /getCurrentWindow\(\)\.hide\(\)/, "Native close hides, no
 assert.match(quick, /workspace\.submitCapture\(/, "Q saves via the durable Notebook path");
 assert.match(quick, /quickQueueDescription\(draft\.type\)/, "Raw, Note, Flashcard, Mistake are only Q labels");
 assert.match(quick, /kind: "note", topicId: inbox\.id/, "Captured items must remain provisional notes");
-assert.match(quick, /<HandNotePad strokes=/, "Handwriting is still available");
+assert.match(quick, /<HandNotePad value=\{quick\.ink\}/, "Handwriting is still available");
+assert.match(quick, /<RichEditor ref=\{editorRef\}/, "Format opens a full formatted page");
+assert.match(quick, /onEditDrawing=/, "Drawings inside a page can be edited again");
+for (const permission of ["core:window:allow-set-fullscreen", "core:window:allow-start-resize-dragging"])
+  assert.ok(cap.permissions.includes(permission), `Missing ${permission}: the floating window needs full screen and its resize grip`);
+assert.match(floating, /setFullscreen\(next\)/, "The floating window can go full screen");
+assert.match(floating, /startResizeDragging\("SouthEast"\)/, "The floating window resizes from its grip");
 assert.match(queue, /heuresis:q:v1:/, "Q provenance must survive cross-device sync");
 assert.match(review, /quickQueueKind\(entry\)/, "Only Q-marked entries go to Q");
 assert.match(review, /await createCard\(/, "Flashcard conversion waits until review");

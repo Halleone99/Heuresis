@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Feather, Inbox, Trash2 } from "lucide-react";
+import { Feather, Inbox, PenLine, Trash2 } from "lucide-react";
 import { createCard, listCollections, listPacks, type Collection, type PackWithType } from "../../lib/heuresis";
 import { markCaptureCleaned, useCaptureReviewIds } from "../../lib/captureReviewQueue";
-import { decodeHandNote, HAND_NOTE_PREFIX } from "../../lib/handNote";
-import { friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
+import { HAND_NOTE_PREFIX } from "../../lib/handNote";
+import { friendlyError, plainLine, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { isInboxTopic } from "../../lib/lessonCleanup";
 import { quickQueueKind, quickQueuePair, type QuickQueueKind } from "../../lib/quickQueue";
-import { HandNoteDrawing } from "./HandNotePad";
+import { RichText } from "./RichText";
 import { useWorkspace } from "./WorkspaceContext";
 import "./q-queue.css";
 
@@ -28,9 +28,11 @@ function entryContent(entry: KnowledgeEntry) {
     : entry.body;
 }
 function capturePreview(entry: KnowledgeEntry) {
+  if (entry.kind !== "mistake" && entry.title.trim()) return entry.title.trim().slice(0, 140);
   const content = entryContent(entry);
-  const handwriting = content.indexOf(HAND_NOTE_PREFIX);
-  return (handwriting < 0 ? content : content.slice(0, handwriting).trim() || "✎ Handwriting").slice(0, 140);
+  if (!content.includes(HAND_NOTE_PREFIX)) return content.slice(0, 140);
+  // Pages and handwritten notes: the first line of text, never the drawing data.
+  return (plainLine(content) || "✎ Handwriting").slice(0, 140);
 }
 export function QQueuePage({ onCapture }: { onCapture: () => void }) {
   const workspace = useWorkspace();
@@ -58,10 +60,9 @@ export function QQueuePage({ onCapture }: { onCapture: () => void }) {
   const subjects = workspace.snapshot.subjects;
   const topics = workspace.snapshot.topics.filter((topic) => topic.subject_id === subjectId);
   const shownPacks = packs.filter((pack) => pack.collection_id === collectionId);
-  const strokesStart = body.indexOf(HAND_NOTE_PREFIX);
-  const hasStrokes = strokesStart !== -1;
-  const strokes = hasStrokes ? decodeHandNote(body.slice(strokesStart + HAND_NOTE_PREFIX.length).trim()) : [];
-  const readableBody = hasStrokes ? body.slice(0, strokesStart).trim() : body;
+  // Handwriting and formatted pages are shown as they will read in the Notebook;
+  // only plain text is edited here, so drawing data is never exposed as text.
+  const hasStrokes = body.includes(HAND_NOTE_PREFIX);
 
   useEffect(() => {
     if (!selected) return;
@@ -165,9 +166,12 @@ export function QQueuePage({ onCapture }: { onCapture: () => void }) {
             <button type="button" className="q-delete-link" onClick={() => void remove()}>
               <Trash2 size={15}/> Discard
             </button></header>
+          {selected.kind !== "mistake" && selected.title.trim() ? <h2 className="q-review-title">{selected.title}</h2> : null}
           {hasStrokes ? <>
-            {readableBody ? <p className="q-caption">{readableBody}</p> : null}
-            <HandNoteDrawing strokes={strokes}/>
+            <div className="q-review-read"><RichText text={body} /></div>
+            <button type="button" className="q-delete-link q-edit-link" onClick={() => workspace.openDocument(selected.id, { edit: true })}>
+              <PenLine size={15}/> Edit in the Notebook editor
+            </button>
           </> : <textarea aria-label="Edit captured content" value={body}
             onChange={(event) => setBody(event.target.value)} />}
           <div className="q-review-destination">

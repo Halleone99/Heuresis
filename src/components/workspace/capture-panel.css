@@ -1,0 +1,175 @@
+/* Capture: a floating page. In the app (Android, browser) it is a movable,
+   resizable panel above everything; on the desktop it fills its own window.
+   Both can go full screen, which centres a page column for writing a lesson. */
+
+.qc-panel.cap-panel {
+  position: fixed; z-index: 180; right: auto; bottom: auto; max-height: none; max-width: none;
+  display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+  border: 1px solid var(--ws-line-strong); border-radius: 16px;
+  background: var(--ws-surface); color: var(--ws-text); box-shadow: var(--ws-shadow-2);
+  font-family: var(--ws-sans); animation: ws-rise .16s ease-out;
+}
+.qc-panel.cap-panel.is-native {
+  position: relative; inset: auto; flex: 1 1 auto; width: 100%; height: 100%; min-height: 0;
+  border: 0; border-radius: 0; box-shadow: none; animation: none;
+}
+.qc-panel.cap-panel.is-inline.is-full {
+  inset: 0; width: auto; height: auto; z-index: 1300; border: 0; border-radius: 0; box-shadow: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--ws-surface);
+}
+
+/* Title bar: the handle for moving the window; charcoal like the app's chrome. */
+.cap-head {
+  flex: none; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 6px 0 14px;
+  background: var(--ws-chrome); color: var(--ws-chrome-text);
+  cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none;
+}
+.cap-head:active { cursor: grabbing; }
+.cap-panel.is-full .cap-head { cursor: default; }
+.cap-title { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; font: 600 13px/1 var(--ws-sans); white-space: nowrap; }
+.cap-title em {
+  font-style: normal; font-weight: 500; color: var(--ws-chrome-muted);
+  padding-left: 9px; margin-left: 1px; border-left: 1px solid color-mix(in srgb, var(--ws-chrome-text) 22%, transparent);
+}
+.cap-window { flex: none; display: flex; align-items: center; gap: 2px; }
+.cap-window button {
+  display: grid; place-items: center; width: 34px; height: 32px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--ws-chrome-muted); cursor: pointer;
+}
+.cap-window button:hover { background: color-mix(in srgb, var(--ws-chrome-text) 13%, transparent); color: var(--ws-chrome-text); }
+.cap-window button[aria-pressed="true"] { color: var(--ws-chrome-text); }
+.cap-window button:focus-visible { outline: 2px solid var(--ws-chrome-text); outline-offset: 1px; }
+
+/* Mode row */
+.cap-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px 8px; }
+.cap-spacer { flex: 1; }
+.cap-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--ws-sunken); }
+.cap-seg button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--ws-muted);
+  font: 600 12.5px/1 var(--ws-sans); cursor: pointer;
+}
+.cap-seg button:hover { color: var(--ws-ink); }
+.cap-seg button.active { background: var(--ws-raised); color: var(--ws-ink); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+.cap-seg.is-icons button { padding: 6px 10px; }
+.cap-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+  border: 1px solid var(--ws-line-strong); border-radius: 10px; background: transparent; color: var(--ws-text);
+  font: 600 12.5px/1 var(--ws-sans); cursor: pointer; white-space: nowrap;
+}
+.cap-chip:hover:not(:disabled) { border-color: var(--ws-accent-line); color: var(--ws-ink); }
+.cap-chip:disabled { opacity: .45; cursor: default; }
+.cap-chip.is-format { border-color: var(--ws-accent-line); background: var(--ws-accent-soft); color: var(--ws-accent); }
+.cap-seg button:focus-visible, .cap-chip:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+
+/* Body */
+.cap-body {
+  position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px;
+  padding: 4px 16px 12px; overflow-y: auto;
+}
+.cap-panel :is(.cap-text, .cap-caption, .cap-field textarea) {
+  box-sizing: border-box; width: 100%; border: 1px solid var(--ws-line); border-radius: 12px;
+  background: var(--ws-raised); color: var(--ws-ink); outline: 0;
+}
+.cap-panel .cap-text { flex: 1 1 auto; display: block; min-height: 150px; max-height: none; resize: none; field-sizing: fixed; padding: 14px 16px; font: 400 16px/1.65 var(--ws-sans); }
+.cap-panel .cap-caption { flex: none; padding: 10px 14px; resize: none; font: 400 14px/1.45 var(--ws-sans); }
+.cap-panel .cap-field { display: grid; gap: 6px; color: var(--ws-muted); font: 650 12px/1.3 var(--ws-sans); }
+.cap-panel .cap-field textarea { min-height: 96px; resize: vertical; padding: 12px 14px; font: 400 15px/1.55 var(--ws-sans); }
+.cap-panel :is(.cap-text, .cap-caption, .cap-field textarea, .cap-page-title)::placeholder { color: var(--ws-muted); font-style: normal; }
+.cap-panel :is(.cap-text, .cap-caption, .cap-field textarea):focus { border-color: var(--ws-accent-line); box-shadow: 0 0 0 3px var(--ws-accent-soft); }
+.cap-body.is-pen .hn-pad { flex: 1 1 auto; min-height: 240px; }
+.cap-body.is-pen .hn-pad { min-height: 0; }
+.cap-panel:not(.is-full) .cap-body.is-pen .hn-pad { min-height: 240px; }
+
+/* Page: title, sticky formatting bar, then the writing column. */
+.cap-body.is-page { padding: 0; overflow: hidden; }
+.cap-page { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 22px 24px; scroll-padding-top: 60px; }
+.cap-panel.is-full .cap-page { padding-left: max(22px, calc((100% - 940px) / 2)); padding-right: max(22px, calc((100% - 940px) / 2)); }
+.cap-page-title {
+  display: block; box-sizing: border-box; width: 100%; padding: 16px 0 4px; border: 0; background: transparent;
+  color: var(--ws-ink); font: 400 clamp(24px, 3.4vw, 32px)/1.2 var(--ws-display); outline: 0;
+}
+.cap-panel.is-full .cap-page-title { padding-top: 34px; }
+.cap-panel.is-full.is-page .cap-bar { padding-left: max(16px, calc((100% - 1060px) / 2)); padding-right: max(16px, calc((100% - 1060px) / 2)); }
+@media (min-width: 1100px) {
+  /* The formatting bar may be wider than the writing column, so it stays on one line. */
+  .cap-panel.is-full .cap-page .nb-toolbar { margin-left: -60px; margin-right: -60px; }
+}
+.cap-page .nb-editor-shell { padding-top: 4px; }
+.cap-page .nb-toolbar { position: sticky; top: 0; z-index: 6; margin: 0 -10px; }
+.cap-page .nb-editor-shell .nb-editor-surface { padding-top: 16px; }
+.cap-page .nb-editor { min-height: 38vh; padding-bottom: 72px; font-size: 16.5px; }
+.cap-page .nb-placeholder { top: 16px; }
+.cap-draw-tool button span { font-weight: 600; }
+.cap-draw-tool button { color: var(--ws-accent) !important; }
+
+/* Footer */
+.cap-error { margin: 0; padding: 6px 16px 0; flex: none; }
+.cap-foot {
+  flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 26px 10px 16px;
+  border-top: 1px solid var(--ws-line); color: var(--ws-muted); font: 500 12px/1.35 var(--ws-sans);
+}
+.cap-foot-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap-foot-note.is-flash { color: var(--ws-good); }
+.cap-foot-note.is-warn { color: var(--ws-warn); }
+.cap-keys { flex: none; font: 500 11px/1 var(--ws-mono); }
+.cap-panel .cap-save { min-width: 84px; }
+.cap-panel.is-full .cap-foot { padding-right: 16px; }
+
+/* Corner grip: resizes the panel (in the app) or the window (desktop). */
+.cap-resize {
+  position: absolute; right: 0; bottom: 0; width: 20px; height: 20px; cursor: nwse-resize; touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 52%, var(--ws-line-strong) 52% 58%, transparent 58% 68%, var(--ws-line-strong) 68% 74%, transparent 74%);
+}
+
+/* Minimised (in the app): a pill where the capture button sits. */
+.cap-pill {
+  animation: none; position: fixed; z-index: 180; left: auto; top: auto; right: 18px; bottom: 18px; width: auto;
+  max-width: min(330px, calc(100vw - 36px)); height: 48px; max-height: none;
+  display: inline-flex; flex-direction: row; align-items: center; gap: 10px; padding: 0 18px;
+  border: 0; border-radius: 999px; background: var(--ws-primary); color: var(--ws-on-primary);
+  box-shadow: 0 8px 26px rgba(0,0,0,.25); font: 600 13px/1.2 var(--ws-sans); cursor: pointer;
+}
+.cap-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap-pill:focus-visible { outline: 3px solid var(--ws-accent); outline-offset: 3px; }
+/* One way in at a time: the floating capture button steps aside while Capture is open. */
+body:has(.cap-panel.is-inline, .cap-pill) .tablet-capture-fab { display: none !important; }
+
+/* Desktop window folded into a bubble */
+.cap-bubble {
+  flex: 1; display: flex; align-items: center; gap: 2px; min-height: 0; padding: 0 6px;
+  background: var(--ws-chrome); color: var(--ws-chrome-text);
+}
+.cap-bubble button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.cap-bubble-grip { display: grid; place-items: center; width: 26px; height: 36px; color: var(--ws-chrome-muted) !important; cursor: grab !important; }
+.cap-bubble-open {
+  flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px;
+  border-radius: 8px; font: 600 13px/1.2 var(--ws-sans); text-align: left;
+}
+.cap-bubble-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap-bubble-open:hover, .cap-bubble-icon:hover { background: color-mix(in srgb, var(--ws-chrome-text) 13%, transparent); }
+.cap-bubble-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--ws-chrome-muted) !important; }
+.quick-floating-root[data-view="bubble"] { background: var(--ws-chrome); }
+.quick-floating-notice { display: flex; align-items: center; gap: 8px; }
+.quick-floating-notice button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 16px; cursor: pointer; }
+
+/* Fingers: bigger targets, no keyboard hints. */
+@media (pointer: coarse) {
+  .cap-head { height: 52px; }
+  .cap-window button { width: 44px; height: 42px; }
+  .cap-seg button { min-height: 40px; padding: 0 15px; font-size: 13.5px; }
+  .cap-chip { min-height: 40px; padding: 0 14px; font-size: 13.5px; }
+  .cap-keys { display: none; }
+  .cap-resize { width: 32px; height: 32px; }
+  .cap-foot { padding-right: 36px; }
+}
+@media (pointer: coarse) and (max-width: 900px) {
+  .cap-pill { bottom: calc(86px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 520px) {
+  .cap-seg button { padding: 7px 10px; }
+  .cap-seg.is-icons button span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .qc-panel.cap-panel { animation: none; } }

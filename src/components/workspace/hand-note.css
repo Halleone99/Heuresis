@@ -1,0 +1,114 @@
+/* Handwriting: paper and ink follow the light/dark theme. Strokes carry hex
+   fallbacks, so a drawing still renders where this file is not loaded. */
+:root {
+  --hn-paper: #fffdf8;
+  --hn-paper-edge: rgba(105, 118, 136, .24);
+  --hn-rule: rgba(64, 98, 140, .16);
+  --hn-ink: #202938;
+  --hn-blue: #2563eb;
+  --hn-red: #c2410c;
+  --hn-green: #19805a;
+  --hn-wine: #8b3e66;
+  --hn-mark-yellow: #facc15;
+  --hn-mark-green: #4ade80;
+  --hn-mark-blue: #60a5fa;
+  --hn-mark-pink: #f472b6;
+}
+:root[data-theme="dark"] {
+  --hn-paper: #1c2028;
+  --hn-paper-edge: rgba(190, 205, 225, .16);
+  --hn-rule: rgba(160, 190, 230, .13);
+  --hn-ink: #e9edf3;
+  --hn-blue: #84aefc;
+  --hn-red: #ff9466;
+  --hn-green: #63d3a0;
+  --hn-wine: #ea98c2;
+  --hn-mark-yellow: #ffd43b;
+  --hn-mark-green: #3fbf72;
+  --hn-mark-blue: #4f8fe0;
+  --hn-mark-pink: #e0609e;
+}
+
+.hn-sheet {
+  position: relative; width: 100%; max-width: 760px;
+  border: 1px solid var(--hn-paper-edge); border-radius: 12px; overflow: hidden;
+  background: var(--hn-paper);
+}
+.hn-svg { display: block; width: 100%; height: auto; }
+.hn-paper-lines { stroke: var(--hn-rule); }
+/* A highlighter sits under the ink, as on paper: it tints, it never covers. */
+.hn-marker { mix-blend-mode: multiply; }
+:root[data-theme="dark"] .hn-marker { mix-blend-mode: screen; stroke-opacity: .62; }
+.hn-marker.is-fading, :root[data-theme="dark"] .hn-marker.is-fading { stroke-opacity: .1; }
+.nb-handnote-block { margin: 12px 0; max-width: 100%; }
+
+/* Editing pad */
+.hn-pad { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; min-height: 0; outline: none; }
+.hn-pad .hn-sheet { max-width: none; }
+.hn-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.hn-group { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 10px; background: var(--ws-sunken, rgba(127,127,127,.08)); }
+.hn-tools .hn-group[hidden] { display: none; }
+.hn-group > button {
+  display: inline-grid; place-items: center; width: 34px; height: 32px; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: var(--ws-muted); cursor: pointer;
+}
+.hn-group > button:hover:not(:disabled) { color: var(--ws-ink); background: var(--ws-accent-soft); }
+.hn-group > button.is-on, .hn-group > button[aria-pressed="true"]:not(.hn-swatch):not(.hn-size) {
+  color: var(--ws-accent); background: var(--ws-accent-soft); box-shadow: inset 0 0 0 1px var(--ws-accent-line);
+}
+.hn-group > button:disabled { opacity: .38; cursor: default; }
+.hn-group > button:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 1px; }
+.hn-group > .hn-swatch { width: 30px; }
+.hn-swatch::before {
+  content: ""; width: 18px; height: 18px; border-radius: 50%; background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+}
+.hn-pad[data-tool="marker"] .hn-swatch::before { border-radius: 5px; opacity: .75; }
+.hn-swatch[aria-pressed="true"]::before { box-shadow: 0 0 0 2px var(--ws-surface), 0 0 0 4px var(--swatch); }
+.hn-size i { display: block; border-radius: 50%; background: currentColor; }
+.hn-size[aria-pressed="true"] { color: var(--ws-accent); background: var(--ws-accent-soft); }
+.hn-hint { padding: 0 6px; color: var(--ws-muted); font: 500 12px/1.3 var(--ws-sans); }
+.hn-spacer { flex: 1; }
+.hn-scroll {
+  min-height: 0; max-height: min(56dvh, 520px); overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 12px; scrollbar-width: thin;
+}
+.hn-pad.is-fill .hn-scroll { max-height: none; height: 100%; }
+.hn-pad.is-sheet .hn-sheet { max-width: 1120px; margin: 0 auto; }
+.hn-canvas { touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+.hn-pad[data-tool="eraser"] .hn-canvas { cursor: none; }
+.hn-eraser-cursor { fill: color-mix(in srgb, var(--ws-accent) 12%, transparent); stroke: var(--ws-accent); stroke-width: 1.5; pointer-events: none; }
+.hn-status { margin: 0; color: var(--ws-muted); font: 500 12px/1.4 var(--ws-sans); }
+
+/* A drawing being added to a page: covers the page (inset) or the window (dialog). */
+.ink-sheet {
+  position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 16px; background: var(--ws-surface); color: var(--ws-text);
+}
+.ink-sheet .hn-pad { flex: 1 1 auto; min-height: 0; }
+.ink-sheet-foot { flex: none; display: flex; align-items: center; gap: 8px; }
+.ink-sheet-backdrop {
+  position: fixed; inset: 0; z-index: 1400; display: flex; padding: max(2vh, 12px) max(3vw, 12px);
+  background: var(--ws-scrim, rgba(0,0,0,.4));
+}
+.ink-sheet.is-dialog { position: relative; inset: auto; flex: 1; border-radius: 16px; box-shadow: var(--ws-shadow-2); }
+.ink-quiet {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--ws-muted); font: 600 12.5px/1 var(--ws-sans); cursor: pointer;
+}
+.ink-quiet:hover { background: var(--ws-accent-soft); color: var(--ws-ink); }
+.ink-quiet.is-danger:hover { background: var(--ws-bad-soft); color: var(--ws-bad); }
+
+/* Drawings inside the rich editor can be opened again by clicking them. */
+.nb-editor-shell.can-draw .nb-editor [data-handnote] { cursor: pointer; transition: box-shadow .12s; }
+.nb-editor-shell.can-draw .nb-editor [data-handnote]:hover { box-shadow: 0 0 0 2px var(--ws-accent-line); }
+.nb-editor [data-handnote] { max-width: 760px; }
+
+@media (pointer: coarse) {
+  .ink-quiet { min-height: 42px; }
+  .ink-sheet-backdrop { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .ink-sheet.is-dialog { border-radius: 0; }
+  .hn-group > button { width: 42px; height: 40px; }
+  .hn-group > .hn-swatch { width: 38px; }
+  .hn-swatch::before { width: 22px; height: 22px; }
+}

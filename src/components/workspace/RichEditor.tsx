@@ -1,8 +1,13 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Bold, CheckCheck, Code2, Heading1, Heading2, Highlighter, Italic, Palette, ChevronsUpDown, Lightbulb, List, ListOrdered, MessageSquareText, Minus, Pilcrow, Quote, Redo2, Scale, Strikethrough, Table2, Undo2 } from "lucide-react";
 import { editorToMarkdown, markdownToEditorHtml, type CalloutVariant, NOTE_COLOURS, type NoteColour, type TableStyle } from "../../lib/noteFormat";
+import { HAND_NOTE_PREFIX } from "../../lib/handNote";
 
-export type RichEditorHandle = { getMarkdown: () => string; focus: (where?: "start" | "end") => void; setMarkdown: (value: string) => void };
+export type RichEditorHandle = {
+  getMarkdown: () => string; focus: (where?: "start" | "end") => void; setMarkdown: (value: string) => void;
+  /** Insert a drawing (a full `::handnote:` line) as its own block at the caret. */
+  insertDrawing: (line: string) => void;
+};
 
 type Props = {
   value: string;
@@ -16,6 +21,8 @@ type Props = {
   ariaLabel?: string;
   extraTools?: ReactNode;
   compactToolbar?: boolean;
+  /** Clicking a drawing hands it over for editing; apply(null) removes it. */
+  onEditDrawing?: (line: string, apply: (next: string | null) => void) => void;
 };
 
 type BlockKind = "p" | "h2" | "h3" | "ul" | "ol" | "quote" | CalloutVariant;
@@ -29,13 +36,13 @@ function exec(command: string, value?: string) {
 }
 
 /**
- * Keep an empty paragraph after a final list, quotation, example block or divider;
+ * Keep an empty paragraph after a final list, quotation, example block, drawing or divider;
  * otherwise there is nowhere to put the caret to continue writing below it.
  */
 function ensureTrailingParagraph(root: HTMLElement | null) {
   if (!root) return;
   const last = root.lastElementChild;
-  if (!last || !/^(P|DIV|H[1-6])$/.test(last.tagName) || last.hasAttribute("data-callout")) {
+  if (!last || !/^(P|DIV|H[1-6])$/.test(last.tagName) || last.hasAttribute("data-callout") || last.hasAttribute("data-handnote")) {
     const paragraph = document.createElement("p");
     paragraph.appendChild(document.createElement("br"));
     root.appendChild(paragraph);
@@ -131,7 +138,7 @@ function normaliseQuote(quote: HTMLElement) {
 }
 
 export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEditor(
-  { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools, compactToolbar = false }, handleRef,
+  { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools, compactToolbar = false, onEditDrawing }, handleRef,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
@@ -171,6 +178,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const latest = useRef(value);
   // Preserve selections while tapping the toolbar (especially on touch screens).
   const savedSelection = useRef<Range | null>(null);
+  const insertDrawingRef = useRef<(line: string) => void>(() => undefined);
 
   const readMarkdown = useCallback(() => {
     if (source) return sourceText;
@@ -217,6 +225,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       setEmpty(!next.trim());
       onChange(next);
     },
+    insertDrawing: (line: string) => insertDrawingRef.current(line),
   }), [onChange, placeCaret, readMarkdown, source]);
 
   // Initialise once per document; afterwards the DOM is owned by the browser.
@@ -316,6 +325,25 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     emit();
     refreshActive();
   }, [emit, placeCaret, refreshActive, source]);
+
+  /** A drawing is a block of its own: it replaces an empty line, or follows the line with the caret. */
+  insertDrawingRef.current = (line: string) => run(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const holder = document.createElement("div");
+    holder.innerHTML = markdownToEditorHtml(line.startsWith(HAND_NOTE_PREFIX) ? line : HAND_NOTE_PREFIX + line);
+    const drawing = holder.firstElementChild;
+    if (!drawing?.hasAttribute("data-handnote")) return;
+    let block: Element | null = currentBlock();
+    while (block && block.parentElement !== root) block = block.parentElement;
+    if (block?.tagName === "P" && !block.textContent?.trim() && !block.querySelector("[data-handnote]")) block.replaceWith(drawing);
+    else if (block) block.after(drawing);
+    else root.appendChild(drawing);
+    const next = document.createElement("p");
+    next.appendChild(document.createElement("br"));
+    drawing.after(next);
+    caretInto(next);
+  });
 
   const setBlock = useCallback((kind: BlockKind) => run(() => {
     const quote = closest("BLOCKQUOTE");
@@ -724,7 +752,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       title={shortcut ? `${label} (${shortcut})` : label} disabled={source}
       onMouseDown={(event) => event.preventDefault()} onClick={onPress}>{icon}</button>;
 
-  return <div className={`nb-editor-shell ${source ? "is-source" : ""} ${compactToolbar ? "is-compact-toolbar" : ""}`}>
+  return <div className={`nb-editor-shell ${source ? "is-source" : ""} ${compactToolbar ? "is-compact-toolbar" : ""} ${onEditDrawing ? "can-draw" : ""}`}>
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
       {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
@@ -807,6 +835,24 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         role="textbox" aria-multiline="true" aria-label={ariaLabel} spellCheck
         hidden={source}
         onInput={handleInput} onKeyDown={handleKeyDown} onPaste={handlePaste}
+        onClick={(event) => {
+          const root = rootRef.current;
+          const drawing = event.target instanceof Element ? event.target.closest("[data-handnote]") : null;
+          if (!onEditDrawing || source || !root || !drawing || !root.contains(drawing)) return;
+          event.preventDefault();
+          onEditDrawing(HAND_NOTE_PREFIX + (drawing.getAttribute("data-handnote") ?? ""), (next) => {
+            if (!drawing.isConnected) return;
+            if (next === null) drawing.remove();
+            else {
+              const holder = document.createElement("div");
+              holder.innerHTML = markdownToEditorHtml(next.startsWith(HAND_NOTE_PREFIX) ? next : HAND_NOTE_PREFIX + next);
+              const replacement = holder.firstElementChild;
+              if (replacement?.hasAttribute("data-handnote")) drawing.replaceWith(replacement);
+            }
+            ensureTrailingParagraph(root);
+            emit();
+          });
+        }}
         onMouseDown={(event) => {
           const root = rootRef.current;
           const target = event.target;
