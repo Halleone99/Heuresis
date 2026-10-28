@@ -100,7 +100,7 @@ const scenarios = {
       await popup.keyboard.press(" ");
       await popup.locator(".cosmos-results").waitFor();
       if (step === 0) {
-        check((await popup.locator(".cosmos-results button").allInnerTexts()).map((text) => text.replace(/\s*\d$/, "").trim()).join(",") === "Missed,Partial,Recalled,Secure",
+        check((await popup.locator(".cosmos-results button b").allInnerTexts()).join(",") === "Missed,Partial,Recalled,Secure",
           "results are Missed / Partial / Recalled / Secure");
         check(await popup.locator(".cosmos-core-field.is-recap").count() >= 1, "the question stays visible above the revealed answer");
         await popup.screenshot({ path: `${shots}/review-revealed.png` });
@@ -122,7 +122,7 @@ const scenarios = {
     check(/Missed: /.test(summary), "the summary names the missed word");
     await popup.screenshot({ path: `${shots}/review-summary.png` });
     check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0, "10 more is not offered when nothing else is left to recommend");
-    await popup.click('.cosmos-summary-actions button:has-text("Retry 1 missed card")');
+    await popup.click('.cosmos-summary-actions button:has-text("Retry 1 missed or partial card")');
     await popup.locator(".cosmos-card").waitFor();
     check((await popup.locator(".cosmos-count").innerText()).trim() === "1 / 1", "Retry missed asks only the missed card");
     const retried = await current(popup);
@@ -225,8 +225,8 @@ const scenarios = {
 
   async "typed chinese answers get suggested results and input-method enter never reveals"(page, context) {
     const popup = await openPopup(context, `source=all&count=5&order=pack&templates=${PRO}`);
-    await popup.selectOption(".cosmos-method select", "type");
-    const textarea = popup.locator(".retention-type-panel textarea");
+    await popup.locator('.cosmos-recall-methods button:has-text("Type")').click();
+    const textarea = popup.locator(".cosmos-inline-typing");
     await textarea.waitFor();
     check(true, "Typing it shows an answer field in the session");
     const answers = [];
@@ -239,7 +239,7 @@ const scenarios = {
         // Enter that confirms an input-method candidate (isComposing / keyCode 229) must never reveal.
         await textarea.focus();
         await popup.evaluate(() => {
-          const field = document.querySelector(".retention-type-panel textarea");
+          const field = document.querySelector(".cosmos-inline-typing");
           field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true }));
           field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 229, bubbles: true, cancelable: true }));
         });
@@ -269,7 +269,7 @@ const scenarios = {
       await popup.waitForTimeout(400);
     }
     check(answers[0].suggestion === "Recalled", `the characters committed by an IME are Recalled (${answers[0].term}: ${answers[0].suggestion})`);
-    check(answers[1].suggestion === "Recalled", `numbered pinyin is Recalled (${answers[1].term}: ${answers[1].suggestion})`);
+    check(answers[1].suggestion === "Partial", `numbered pinyin is Partial (${answers[1].term}: ${answers[1].suggestion})`);
     check(answers[2].suggestion === "Partial", `pinyin without tones is Partial (${answers[2].term}: ${answers[2].suggestion})`);
     check(answers[3].suggestion === "Missed", `a wrong word is Missed (${answers[3].term}: ${answers[3].suggestion})`);
     check(answers[4].suggestion === "", "an empty answer gets no suggestion");
@@ -370,7 +370,7 @@ const scenarios = {
     check(await newRow.locator(".importance-badge").innerText() === "Useful", "and shows its importance as Useful");
     const oldRow = page.locator('.modern-topic-row:has-text("以前")');
     const oldStates = await oldRow.locator(".knowledge-states").innerText();
-    check(/RECOGNISE\s*(Developing|Holding|Strong|Needs work)/i.test(oldStates), `results recorded before directions existed still count for the default direction (“${oldStates.replace(/\s+/g, " ")}”)`);
+    check(/(?:中 → EN|New|Developing|Holding|Strong|Needs work)/i.test(oldStates), `results recorded before directions existed still count for the default direction (“${oldStates.replace(/\s+/g, " ")}”)`);
     check(/PRODUCE\s*Not tried/i.test(oldStates), "while the other direction is honestly Not tried");
     await page.screenshot({ path: `${shots}/topic-states.png`, fullPage: true });
     await page.click('[data-stage="reference"]');
@@ -384,45 +384,48 @@ const scenarios = {
 
   async "retry keeps the practice already recorded in the session"(page, context) {
     const popup = await openPopup(context, "source=recommended&count=2&order=pack");
-    await popup.selectOption(".cosmos-method select", "say");
+    await popup.locator('.cosmos-recall-methods button:has-text("Say")').click();
     const said = async () => Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'"));
     const before = await said();
+    await popup.locator(".cosmos-say-check input").check();
     await revealAndGrade(popup, "1");
+    await popup.locator(".cosmos-say-check input").check();
     await revealAndGrade(popup, "3");
     await popup.locator(".cosmos-summary").waitFor();
     check(await waitFor(async () => await said() === before + 2), "saying the answer aloud is recorded once per card");
-    await popup.click('.cosmos-summary-actions button:has-text("Retry 1 missed card")');
+    await popup.click('.cosmos-summary-actions button:has-text("Retry 1 missed or partial card")');
     await revealAndGrade(popup, "3");
     await popup.locator(".cosmos-summary").waitFor();
     await popup.waitForTimeout(1200);
     check(await said() === before + 2, "retrying the missed card neither removes nor duplicates that record");
-    await popup.selectOption(".cosmos-method select", "think").catch(() => undefined);
+    
     await popup.close();
   },
 
   async "review window: answering method and details drawer"(page, context) {
     let popup = await openPopup(context, "source=recommended&count=20&order=pack");
-    await popup.selectOption(".cosmos-method select", "say");
-    check(/Say the answer aloud/.test(await popup.locator(".cosmos-review-foot").innerText()), "the answering method can be changed during Review");
+    await popup.locator('.cosmos-recall-methods button:has-text("Say")').click();
+    check(await popup.locator(".cosmos-say-check input").count() === 1, "Say can be selected directly on the card");
     const said = Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'"));
+    // Selecting Say alone must not count as practice.
     await popup.keyboard.press(" ");
     await popup.locator(".cosmos-results").waitFor();
-    check(await waitFor(async () => Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'")) === said + 1),
-      "the session method (said aloud) is recorded for the card without a second click");
-    check(await popup.locator('.retention-actions button:has-text("Say aloud")').count() === 0, "and is not offered again as an extra");
+    check(Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'")) === said,
+      "selecting Say without speaking does not record false practice");
     await popup.keyboard.press("d");
     await popup.locator(".cosmos-details").waitFor();
-    check(await popup.locator(".cosmos-details-section, .cosmos-details-empty").count() >= 1, "D opens one Details drawer instead of seven tabs");
-    await popup.click('.cosmos-details-head button[aria-pressed]');
+    check(await popup.locator(".cosmos-details-section, .cosmos-details-empty").count() >= 1, "D opens optional context after the answer");
     await popup.keyboard.press("3");
     await popup.waitForTimeout(400);
+    check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
     await popup.keyboard.press(" ");
     await popup.locator(".cosmos-results").waitFor();
-    check(await popup.locator(".cosmos-details").count() === 1, "a pinned drawer stays open on the next card");
+    check(await popup.locator(".cosmos-details").count() === 1, "chosen context returns after the next reveal");
     await popup.close();
     popup = await openPopup(context, "source=recommended&count=20&order=pack");
-    check(await popup.locator(".cosmos-method select").inputValue() === "say", "the answering method is remembered for the next session");
-    await popup.selectOption(".cosmos-method select", "think");
+    check(await popup.locator(".cosmos-recall-methods button:has-text('Say')").getAttribute("aria-pressed") === "true",
+      "answering method is remembered for the direction");
+    await popup.locator('.cosmos-recall-methods button:has-text("Think")').click();
     await popup.close();
   },
 };

@@ -416,3 +416,9 @@
   .cosmos-typed-compare { grid-template-columns:1fr; }
   .cosmos-results button { min-width:calc(50% - 6px); }
 }
+
+
+/* The review footer stays quiet: real exercises and connections are secondary. */
+.cosmos-secondary-actions { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:16px; margin:5px 0; }
+.cosmos-secondary-actions .cosmos-extra-toggle { margin:0; min-height:34px; padding:6px 9px; border-radius:7px; }
+.cosmos-secondary-actions .cosmos-extra-toggle:focus-visible { outline:2px solid var(--live); outline-offset:2px; }
