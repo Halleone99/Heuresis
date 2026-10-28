@@ -27,7 +27,7 @@ export type WorkspaceMemory = {
   recentDocs: string[];
   currentLesson: CurrentLesson | null;
   capture: { topicId: string | null; subjectId?: string | null; keepOpen: boolean; attachToLesson: boolean; stream?: boolean };
-  mistakes: { subjectId: string | null; stage: "all" | "to_correct" | "practising" | "due" | "understood" };
+  mistakes: { subjectId: string | null; topicId: string | null };
   study: { view: string | null; packId: string | null };
   progress: { range: 8 | 12 | 26 };
 };
@@ -46,7 +46,7 @@ const DEFAULT_MEMORY: WorkspaceMemory = {
   recentDocs: [],
   currentLesson: null,
   capture: { topicId: null, subjectId: null, keepOpen: false, attachToLesson: true, stream: false },
-  mistakes: { subjectId: null, stage: "all" },
+  mistakes: { subjectId: null, topicId: null },
   study: { view: null, packId: null },
   progress: { range: 12 },
 };
@@ -99,7 +99,7 @@ export function readMemory(userId: string): WorkspaceMemory {
     recentDocs: Array.isArray(stored.recentDocs) ? stored.recentDocs.filter((id) => typeof id === "string").slice(0, 12) : [],
     currentLesson: stored.currentLesson ?? null,
     capture: { ...DEFAULT_MEMORY.capture, ...(stored.capture ?? {}) },
-    mistakes: { ...DEFAULT_MEMORY.mistakes, ...(stored.mistakes ?? {}) },
+    mistakes: { subjectId: stored.mistakes?.subjectId ?? null, topicId: stored.mistakes?.topicId ?? null },
     study: { ...DEFAULT_MEMORY.study, ...(stored.study ?? {}) },
     progress: { range: stored.progress?.range === 8 || stored.progress?.range === 26 ? stored.progress.range : 12 },
   };
