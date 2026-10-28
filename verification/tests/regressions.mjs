@@ -138,55 +138,52 @@ const scenarios = {
     await page.keyboard.press("Escape");
   },
 
-  async "a mistake needs only a wrong and a correct version"(page) {
+  async "a mistake is filed in the Notebook hierarchy and recurring errors stay distinct"(page) {
     await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.waitForSelector(".ml-simple-page");
-    check(await page.locator(".ml-mode-grid, .ml-languages-tabs, .ml-filters").count() === 0,
-      "No mode, language, or stage selection is required");
+    await page.waitForSelector(".ml-hierarchy");
+    check(await page.locator(".ml-organiser").count() === 0, "The old side rail has been replaced");
     await page.click('button:has-text("Add mistake")');
     const editor = page.locator(".ml-simple-edit");
-    check(await editor.locator(":scope > label.ws-field textarea").count() === 2, "The editor contains only two text fields");
+    check(await editor.locator(":scope > label.ws-field textarea").count() === 2, "A correction keeps only two main text fields");
     await editor.locator("textarea").nth(0).fill("Wrong assumption");
     await editor.locator("textarea").nth(1).fill("Corrected conclusion");
+    await editor.locator("button.ml-destination").click();
+    await page.locator(".ws-picker-search input").fill("German Grammar");
+    await page.locator('.ws-picker-list button:has-text("Grammar")').first().click();
     await editor.locator('button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Corrected conclusion")');
-    const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id = r.topic_id join knowledge_subjects s on s.id = t.subject_id where r.attempt='Wrong assumption'");
-    check(destination === "Unsorted › Inbox", "No categorisation is needed to save a mistake");
-    // Enrichment is optional but saved to the same record, not a separate cache.
-    const card = page.locator('.ml-simple-item:has-text("Corrected conclusion")').first();
-    await card.locator('[aria-label="Edit mistake"]').click();
-    const styledEditor = page.locator(".ml-simple-edit");
-    await styledEditor.locator('input[maxlength="200"]').fill("Cause and effect");
-    await styledEditor.locator('[aria-label="Colour: Violet"]').click();
-    await styledEditor.locator("summary").click();
-    await styledEditor.locator(".ml-edit-notes textarea").fill("Compare correlation and causation");
-    await styledEditor.locator('button:has-text("Save")').click();
-    await page.waitForSelector('.ml-simple-item[data-accent="violet"]:has-text("Cause and effect")');
-    check(await page.locator('.ml-simple-item[data-accent="violet"]:has-text("Compare correlation")').count() > 0,
-      "Title, colour and optional context appear on the card");
+    const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id join knowledge_subjects s on s.id=t.subject_id where r.attempt='Wrong assumption'");
+    check(destination === "German › Grammar", "Saving requires a real destination and never creates Unsorted");
 
-    await page.locator('[aria-label="New subject"]').click();
-    const subjectForm = page.locator(".ml-inline-create").first();
-    await subjectForm.locator("input").fill("Logic");
-    await subjectForm.locator("input").press("Enter");
-    await page.locator('[aria-label="Add topic to Logic"]').click();
-    const topicForm = page.locator(".ml-inline-create").first();
-    await topicForm.locator("input").fill("Reasoning");
-    await topicForm.locator("input").press("Enter");
-    await page.locator(".ml-nav-all").click();
-    await page.locator('.ml-simple-item:has-text("Cause and effect") [aria-label="Edit mistake"]').click();
-    const moveEditor = page.locator(".ml-simple-edit");
-    await moveEditor.locator("select").first().selectOption({ label: "Logic" });
-    await moveEditor.locator("select").nth(1).selectOption({ label: "Reasoning" });
-    await moveEditor.locator('button:has-text("Save")').click();
-    await page.locator('.ml-nav-topic:has-text("Reasoning")').click();
-    check(await page.locator('.ml-simple-item:has-text("Cause and effect")').count() > 0,
-      "Topic filter shows the relocated mistake");
-    await page.reload();
-    await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.locator('.ml-nav-topic:has-text("Reasoning")').click();
-    check(await page.locator('.ml-simple-item[data-accent="violet"]:has-text("Cause and effect")').count() > 0,
-      "Subject, topic, title and colour survive reload");
+    await page.locator('.ml-simple-item:has-text("Corrected conclusion") [aria-label="Edit mistake"]').click();
+    await page.locator(".ml-simple-edit input[maxlength='200']").fill("Cause and effect");
+    await page.locator(".ml-simple-edit summary").click();
+    await page.locator(".ml-edit-notes textarea").fill("Compare correlation and causation");
+    await page.locator('.ml-simple-edit button:has-text("Save")').click();
+    await page.waitForSelector('.ml-simple-item:has-text("Cause and effect")');
+    check(await page.locator('.ml-simple-item:has-text("Compare correlation")').count() === 1,
+      "The rule and its formatted explanation are preserved");
+
+    await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').click();
+    await page.locator('.ml-hierarchy-card:has-text("Grammar")').first().click();
+    const quick = page.locator(".ml-quick-add");
+    await quick.locator("input").nth(0).fill("Wrong assumption");
+    await quick.locator("input").nth(1).fill("Corrected conclusion");
+    await quick.locator('button:has-text("Add")').click();
+    await page.waitForSelector(".ml-duplicate-check");
+    await page.locator('.ml-duplicate-check button:has-text("Made again")').click();
+    await page.waitForTimeout(500);
+    check(await sql("select count(*) from knowledge_records where attempt='Wrong assumption' and deleted_at is null") === "1",
+      "A repeated mistake doesn't create a second card");
+    check(await sql("select count(*) from knowledge_practice_events where source='repeated'") === "1",
+      "Actual recurrence is distinguished from a failed recall");
+
+    await page.locator('.ml-bulk-add button:has-text("Paste a list")').click();
+    await page.locator(".ml-bulk-panel textarea").fill("ein neue Haus → ein neues Haus // adjective endings\nich habe gegangen → ich bin gegangen");
+    await page.locator('.ml-bulk-panel button:has-text("Add 2 mistakes")').click();
+    await page.waitForTimeout(600);
+    check(await sql("select count(*) from knowledge_records where attempt in ('ein neue Haus','ich habe gegangen') and deleted_at is null") === "2",
+      "Bulk paste records both corrections");
   },
 
   async "older classified mistakes remain intact in the simpler UI"(page) {
