@@ -58,6 +58,7 @@ jobs:
       - run: node scripts/check-study-workflow-polish.mjs
       - run: node scripts/check-final-clarity.mjs
       - run: node scripts/check-review-engine.mjs
+      - run: node scripts/check-review-consistency.mjs
       - run: node scripts/check-nonstudy-clarity.mjs
       - run: node scripts/check-notebook-reliability.mjs
       - run: npm run build
