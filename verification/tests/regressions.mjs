@@ -194,6 +194,7 @@ const scenarios = {
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar");
     await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.locator(".ml-search-field").fill("ich habe gegangen");
     const card = page.locator('[data-mistake="' + id + '"]');
     await card.waitFor();
     check(await card.locator(".ml-simple-wrong").innerText() === "ich habe gegangen", "Old attempt remains readable");
@@ -283,8 +284,9 @@ const scenarios = {
     await page.waitForSelector(".heuresis-section-sidebar");
     await page.waitForTimeout(1200);
     await page.click('.hw-sections button:has-text("Mistake Log")');
+    await page.locator(".ml-search-field").fill("错");
     await page.waitForSelector(".ml-simple-item");
-    check(await page.locator(".ml-simple-item").count() === 60, "Only the first 60 corrections render initially");
+    check(await page.locator(".ml-simple-item").count() === 60, "Only the first 60 matching corrections render initially");
     await page.click(".ml-simple-more");
     check(await page.locator(".ml-simple-item").count() === 120, "Show more progressively loads the next 60 corrections");
     await openPalette(page);
@@ -311,8 +313,11 @@ const scenarios = {
     const RU = "e0000000-0000-4000-8000-0000000000d4";
     check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "1", "A seeded mistake exists");
     await page.click('.hw-sections button:has-text("Mistake Log")');
-    await page.locator('[data-mistake="' + RU + '"] [aria-label="Delete mistake"]').click();
-    await page.locator('[role="alertdialog"] button:has-text("Delete")').click();
+    const ruAttempt = await sql("select attempt from knowledge_records where id='" + RU + "'");
+    await page.locator(".ml-search-field").fill(ruAttempt);
+    await page.locator('[data-mistake="' + RU + '"] [aria-label="Edit mistake"]').click();
+    await page.locator(".ml-simple-edit .ml-delete-in-editor").click();
+    await page.locator('[role="alertdialog"] button:has-text("Delete mistake")').click();
     await page.waitForTimeout(700);
     check(await sql("select count(*) from knowledge_records where id='" + RU + "' and deleted_at is null") === "0", "The mistake is deleted");
     await page.click('.hw-sections button:has-text("Overview")');
