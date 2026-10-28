@@ -3,6 +3,7 @@ import { Check, ChevronRight, GraduationCap, Pencil, Plus, Trash2, X } from "luc
 import { comparableCorrection, friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
+import { SubjectCard } from "./SubjectCard";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText } from "./RichText";
 import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
@@ -136,7 +137,7 @@ export function MistakeLog() {
   const groupByRule = Boolean(selectedTopicId && !search.trim() && !notFiledOnly);
   const repeatedRules = new Map<string, KnowledgeEntry[]>();
   if (groupByRule) {
-    for (const entry of visibleMistakes) {
+    for (const entry of visibleMistakes.slice(0, visibleCount)) {
       const name = ruleParts(entry.title).rule;
       if (!name) continue;
       repeatedRules.set(name, [...(repeatedRules.get(name) ?? []), entry]);
@@ -191,12 +192,11 @@ export function MistakeLog() {
       {subjectCards.map((subject) => {
         const entries = mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === subject.id);
         const topics = workspace.childrenOf(null, subject.id).filter((topic) => countInTopic(topic.id));
-        return <button type="button" key={subject.id} className="ml-hierarchy-card"
-          onClick={() => select(subject.id, null)}>
-          <span className="ml-hierarchy-card-heading">{subject.name}<ChevronRight size={17}/></span>
-          <strong>{entries.length} {entries.length === 1 ? "mistake" : "mistakes"}</strong>
-          <small>{topics.map((topic) => topic.name + " " + countInTopic(topic.id)).slice(0, 3).join(" · ") || "Not filed"}</small>
-        </button>;
+        return <SubjectCard key={subject.id} subject={subject} topics={topics.length}
+          notes={entries.length} editable={false}
+          detail={entries.length + (entries.length === 1 ? " mistake" : " mistakes") + " · "
+            + (topics.map((topic) => topic.name + " " + countInTopic(topic.id)).slice(0, 3).join(" · ") || "Not filed")}
+          onOpen={() => select(subject.id, null)}/>;
       })}
     </div> : null}
 
@@ -494,6 +494,7 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
     finally { setBusy(false); }
   }, [answer, busy, current, next, workspace]);
 
+  const ideaRecall = Boolean(current && isIdeaStyle(current));
   const exact = Boolean(current && answer.trim() && comparableCorrection(answer) === comparableCorrection(current.correction));
 
   return <Portal><div className="ws-dialog-backdrop" role="presentation">
@@ -514,13 +515,13 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
       </div> : current ? <>
         <div className="recall-prompt">
           <span className="ml-label">{workspace.pathLabel(current.topic_id)}</span>
-          {current.attempt ? <p className="recall-attempt"><span className="ml-label">You said</span>{current.attempt}</p> : <p className="ws-muted">Recall the correct form{current.title ? ` for “${current.title}”` : ""}.</p>}
+          {current.attempt ? <p className="recall-attempt"><span className="ml-label">Mistake</span>{current.attempt}</p> : <p className="ws-muted">Recall the correct form{current.title ? ` for “${current.title}”` : ""}.</p>}
           {current.explanation ? (hint || revealed ? <div className="recall-hint"><span className="ml-label">Why</span><RichText text={current.explanation} className="is-compact" /></div>
             : <button type="button" className="nb-link-button" onClick={() => setHint(true)}>Show the explanation as a hint</button>) : null}
         </div>
-        <label className="ws-field"><span>Write the corrected version from memory</span>
-          <textarea ref={inputRef} rows={2} value={answer} readOnly={revealed} onChange={(event) => setAnswer(event.target.value)} placeholder="Type it before revealing…" /></label>
-        {revealed ? <div className={`recall-result ${answer.trim() ? (exact ? "is-exact" : "is-different") : ""}`}>
+        <label className="ws-field"><span>{ideaRecall ? "In your own words (optional)" : "Write the corrected version from memory"}</span>
+          <textarea ref={inputRef} rows={ideaRecall ? 3 : 2} value={answer} readOnly={revealed} onChange={(event) => setAnswer(event.target.value)} placeholder={ideaRecall ? "Explain the correct idea…" : "Type it before revealing…"} /></label>
+        {revealed ? <div className={"recall-result " + (ideaRecall ? "" : answer.trim() ? (exact ? "is-exact" : "is-different") : "")}>
           <span className="ml-label">Correct form</span>
           {answer.trim() && !exact ? <p className="recall-user-answer"><DiffLine parts={mistakeDifference(answer, current.correction).before} /></p> : null}
            <p className="recall-answer"><DiffLine parts={mistakeDifference(answer, current.correction).after} /></p>
