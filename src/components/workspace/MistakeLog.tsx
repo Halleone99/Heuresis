@@ -143,6 +143,7 @@ export function MistakeLog() {
     if (!eligible.length) return;
     const latest = new Map<string, { outcome: string; created_at: string }>();
     for (const event of snapshot.practice) {
+      if (event.source === "repeated") continue;
       const previous = latest.get(event.record_id);
       if (!previous || previous.created_at < event.created_at) latest.set(event.record_id, event);
     }
@@ -152,7 +153,17 @@ export function MistakeLog() {
     };
     eligible.sort((a, b) => priority(a) - priority(b)
       || (a.last_recalled_at ?? "").localeCompare(b.last_recalled_at ?? ""));
-    setSession(eligible.map((entry) => entry.id));
+    const mixed: KnowledgeEntry[] = [];
+    let previousRule = "";
+    while (eligible.length) {
+      const top = priority(eligible[0]);
+      const index = eligible.findIndex((entry) => priority(entry) === top
+        && (ruleParts(entry.title).rule || entry.id) !== previousRule);
+      const picked = eligible.splice(index >= 0 ? index : 0, 1)[0];
+      mixed.push(picked);
+      previousRule = ruleParts(picked.title).rule || picked.id;
+    }
+    setSession(mixed.map((entry) => entry.id));
   }
 
   const groupByRule = Boolean(selectedTopicId && !search.trim() && !notFiledOnly);
@@ -481,7 +492,9 @@ function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit, sele
   const workspace = useWorkspace();
   const ideaStyle = isIdeaStyle(entry);
   const diff = ideaStyle ? null : mistakeDifference(entry.attempt, entry.correction);
-  const last = [...workspace.snapshot.practice].filter((event) => event.record_id === entry.id)
+  const events = workspace.snapshot.practice.filter((event) => event.record_id === entry.id);
+  const repeated = events.filter((event) => event.source === "repeated").length;
+  const last = events.filter((event) => event.source !== "repeated")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const rule = ruleParts(entry.title);
   return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")
@@ -508,6 +521,7 @@ function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit, sele
       <small className="ml-entry-evidence">
         {last ? (last.outcome === "incorrect" ? "Missed last time" : "Recalled last time") : "Not practised yet"}
         {showPath ? " · " + workspace.pathLabel(entry.topic_id) : ""}
+        {repeated ? " · Made again " + repeated + (repeated === 1 ? " time" : " times") : ""}
         {entry.pinned ? " · Pinned" : ""}
       </small>
     </div>
@@ -647,6 +661,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
 function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void }) {
   const workspace = useWorkspace();
   const [index, setIndex] = useState(0);
+  const [roundLimit, setRoundLimit] = useState(10);
   const [answer, setAnswer] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [missed, setMissed] = useState(false);
@@ -657,8 +672,9 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
   const queue = useMemo(() => ids.map((id) => workspace.entryById.get(id)).filter((entry): entry is KnowledgeEntry => Boolean(entry?.correction)), [ids, workspace.entryById]);
   const current = queue[index];
   const finished = index >= queue.length;
+  const roundComplete = !finished && index >= roundLimit;
 
-  useEffect(() => { if (!finished) window.requestAnimationFrame(() => inputRef.current?.focus()); }, [finished, index]);
+  useEffect(() => { if (!finished && !roundComplete) window.requestAnimationFrame(() => inputRef.current?.focus()); }, [finished, roundComplete, index]);
 
   const next = useCallback(() => {
     setIndex((value) => value + 1);
@@ -685,16 +701,26 @@ function RecallSession({ ids, onClose }: { ids: string[]; onClose: () => void })
       onKeyDown={(event) => {
         if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
         if (event.key === "Escape") { event.preventDefault(); onClose(); }
-        if (!finished && (event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!revealed) setRevealed(true); }
+        if (!finished && !roundComplete && (event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault(); if (!revealed) setRevealed(true);
+        }
+        if (!finished && !roundComplete && revealed && !missed && !busy && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (event.key === "1") { event.preventDefault(); void grade(false); }
+          if (event.key === "2") { event.preventDefault(); void grade(true); }
+        }
       }}>
       <div className="ws-dialog-head">
         <h2 id="recall-title"><GraduationCap size={17} /> Recall {queue.length > 1 && !finished ? <small>{index + 1} of {queue.length}</small> : null}</h2>
         <button type="button" className="ws-icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
       </div>
-      {finished ? <div className="recall-summary">
+      {finished || roundComplete ? <div className="recall-summary">
         <strong>{results.filter((result) => result.correct).length} of {results.length} recalled</strong>
-        <p className="ws-muted">Practice history is saved. You can return to these mistakes whenever you choose.</p>
-        <div className="ws-dialog-actions"><button type="button" className="ws-button is-primary" autoFocus onClick={onClose}>Done</button></div>
+        <p className="ws-muted">{finished ? "Practice history saved." : index + " of " + queue.length + " reviewed so far."}</p>
+        <div className="ws-dialog-actions">
+          <button type="button" className="ws-button" onClick={onClose}>Done</button>
+          {!finished ? <button type="button" className="ws-button is-primary" autoFocus
+            onClick={() => setRoundLimit((count) => count + 10)}>10 more</button> : null}
+        </div>
       </div> : current ? <>
         <div className="recall-prompt">
           <span className="ml-label">{workspace.pathLabel(current.topic_id)}</span>
