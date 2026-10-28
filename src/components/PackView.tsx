@@ -27,7 +27,6 @@ import { readReviewPrefs, rememberedTemplateIds } from "../lib/reviewPrefs";
 import { resultCountsText } from "../lib/reviewResults";
 import BrowseModal from "./BrowseModal";
 import CardImagesEditor from "./CardImagesEditor";
-import CatalogueSession from "./CatalogueSession";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ImportModal from "./ImportModal";
 import RelatedEditor from "./RelatedEditor";
@@ -48,7 +47,6 @@ type Props = {
   onChanged: () => void;
 };
 
-type TargetedSession = { title: string; cards: CardWithStats[]; templateId?: string } | null;
 /** Unsorted → Learning, or Reference (kept to look up, never reviewed). */
 type StatusFilter = "unsorted" | "learning" | "reference";
 type InterestFilter = "all" | "none" | Importance;
@@ -193,7 +191,6 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [browseOpen, setBrowseOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [targetedSession, setTargetedSession] = useState<TargetedSession>(null);
   const [focusNotice, setFocusNotice] = useState("");
   const [reviewNotice, setReviewNotice] = useState("");
   const [loadedPackId, setLoadedPackId] = useState<string | null>(null);
@@ -392,10 +389,28 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     }
   }
 
-  function openTargeted(title: string, selected: CardWithStats[], limit?: number, templateId?: string) {
+  async function openTargeted(_title: string, selected: CardWithStats[], limit?: number, templateId?: string) {
     const next = limit ? selected.slice(0, limit) : selected;
-    if (!next.length) return;
-    setTargetedSession({ title, cards: next, templateId });
+    if (!next.length || reviewStarting.current) return;
+    reviewStarting.current = true;
+    setReviewNotice("");
+    try {
+      await openCosmosWindow({
+        mode: "review",
+        packId: pack.id,
+        source: "all",
+        order: "pack",
+        count: "all",
+        cardIds: next.map((card) => card.id),
+        ...(templateId ? { templateId } : {}),
+      });
+      reviewOpened.current = true;
+    } catch (launchError) {
+      setReviewNotice(launchError instanceof Error ? launchError.message : "Could not start filtered Review.");
+    } finally {
+      // Protect against a double-click opening two sessions.
+      window.setTimeout(() => { reviewStarting.current = false; }, 800);
+    }
   }
 
   function changeSort(field: SortField) {
@@ -645,7 +660,6 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
-      {targetedSession ? <CatalogueSession title={targetedSession.title} items={targetedSession.cards.map((item) => ({ card: item, pack }))} mode="review" templateByPackId={targetedSession.templateId ? { [pack.id]: targetedSession.templateId } : undefined} onClose={() => setTargetedSession(null)} /> : null}
     </section>
   );
 }
