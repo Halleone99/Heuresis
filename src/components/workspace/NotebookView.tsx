@@ -432,6 +432,14 @@ function ScopePage({ scope, navigate, newAction }: {
   const subject = workspace.subjectById.get(subjectId) ?? null;
   const path = topic ? workspace.topicPath(topic.id) : { subject, chain: [] };
   const children = workspace.childrenOf(topic?.id ?? null, subjectId);
+  const mistakeTopicIds = topic ? new Set(workspace.subtreeIds(topic.id))
+    : new Set(snapshot.topics.filter((row) => row.subject_id === subjectId).map((row) => row.id));
+  const topicMistakes = snapshot.entries.filter((entry) => entry.kind === "mistake" && mistakeTopicIds.has(entry.topic_id));
+  const viewMistakes = () => {
+    workspace.updateMemory((current) => ({ ...current, mistakes: { subjectId, topicId: topic?.id ?? null } }));
+    workspace.goTo("mistakes");
+  };
+
   const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<NoteSort>(() => {
@@ -597,6 +605,8 @@ function ScopePage({ scope, navigate, newAction }: {
       <div className="nb-scope-actions">
         {workspace.writable && topic && isInboxTopic(topic) ? <button type="button" className="ws-button"
           onClick={() => workspace.openCleanup({ kind: "inbox", id: topic.id })}><ListChecks size={15}/> Organise Inbox</button> : null}
+        {topicMistakes.length ? <button type="button" className="ws-button" onClick={viewMistakes}>
+          {topicMistakes.length} {topicMistakes.length === 1 ? "mistake" : "mistakes"} · View</button> : null}
         {newAction}
       </div>
     </header>
