@@ -407,25 +407,19 @@ export async function deleteEntry(userId: string, id: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Mistake recall: a deliberately small schedule, not a second SRS.
-// A correct recall only extends the interval when it happens on a later day than
-// the previous correct recall, so repeating an answer five times in a row in one
-// sitting is not counted as long-term retention.
-// ---------------------------------------------------------------------------
-export const RECALL_INTERVAL_DAYS = [1, 3, 7, 21, 60];
+// Mistake recall: record what happened without scheduling automatic due dates.
+// Correct recalls on the same day count once towards the historical streak.
 export const RETAINED_STREAK = 3;
-
 export function nextRecallState(entry: KnowledgeEntry, outcome: PracticeOutcome, now = new Date()) {
   if (outcome === "incorrect") {
-    return { recall_streak: 0, last_recalled_at: now.toISOString(), recall_due_at: addDays(now, 1).toISOString() };
+    return { recall_streak: 0, last_recalled_at: now.toISOString(), recall_due_at: entry.recall_due_at };
   }
-  const sameDay = entry.last_recalled_at && entry.recall_streak > 0 && localDateKey(new Date(entry.last_recalled_at)) === localDateKey(now);
-  const streak = sameDay ? entry.recall_streak : entry.recall_streak + 1;
-  const interval = RECALL_INTERVAL_DAYS[Math.min(streak, RECALL_INTERVAL_DAYS.length) - 1] ?? 1;
+  const sameDay = entry.last_recalled_at && entry.recall_streak > 0
+    && localDateKey(new Date(entry.last_recalled_at)) === localDateKey(now);
   return {
-    recall_streak: streak,
+    recall_streak: sameDay ? entry.recall_streak : entry.recall_streak + 1,
     last_recalled_at: sameDay ? entry.last_recalled_at : now.toISOString(),
-    recall_due_at: sameDay && entry.recall_due_at ? entry.recall_due_at : addDays(now, interval).toISOString(),
+    recall_due_at: entry.recall_due_at,
   };
 }
 
@@ -506,11 +500,7 @@ export function mistakeStage(entry: KnowledgeEntry): MistakeStage {
   if (!entry.correction.trim()) return "to_correct";
   return entry.status === "understood" ? "understood" : "practising";
 }
-export function isRecallDue(entry: KnowledgeEntry, now = Date.now()) {
-  if (entry.kind !== "mistake" || !entry.correction.trim()) return false;
-  if (!entry.recall_due_at) return entry.status === "needs_practice";
-  return new Date(entry.recall_due_at).getTime() <= now;
-}
+
 
 /** First meaningful line of a note, stripped of markup, for titles and previews. */
 export function plainLine(text: string) {
