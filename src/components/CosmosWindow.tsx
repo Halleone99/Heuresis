@@ -274,6 +274,7 @@ export default function CosmosWindow() {
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
   const lastAutoAudioRef = useRef("");
+  const learningInFlightRef = useRef(new Set<string>());
 
   const mode = config.mode;
   const relatedReview = config.relatedReview;
@@ -571,24 +572,28 @@ export default function CosmosWindow() {
 
   async function markLearning(actions: LearningAction[]) {
     if (!card || !pack || !sessionRef.current) return;
-    const alreadySelected = new Set(selectedActions[card.id] ?? []);
-    const pending = Array.from(new Set(actions)).filter((action) => !alreadySelected.has(action));
+    const cardId = card.id;
+    const alreadySelected = new Set(selectedActions[cardId] ?? []);
+    const pending = Array.from(new Set(actions)).filter((action) => !alreadySelected.has(action) && !learningInFlightRef.current.has(cardId + ":" + action));
     if (!pending.length) return;
+    for (const action of pending) learningInFlightRef.current.add(cardId + ":" + action);
     try {
       for (const action of pending) {
-        const result = await toggleLearningAction({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, action });
+        const result = await toggleLearningAction({ cardId, packId: pack.id, sessionId: sessionRef.current, action });
         setSelectedActions((current) => {
-          const previous = current[card.id] ?? [];
+          const previous = current[cardId] ?? [];
           const next = result.selected ? (previous.includes(action) ? previous : [...previous, action]) : previous.filter((entry) => entry !== action);
-          return { ...current, [card.id]: next };
+          return { ...current, [cardId]: next };
         });
         setLearningCounts((current) => ({
           ...current,
-          [card.id]: { ...(current[card.id] ?? EMPTY_LEARNING_COUNTS), [action]: result.count },
+          [cardId]: { ...(current[cardId] ?? EMPTY_LEARNING_COUNTS), [action]: result.count },
         }));
       }
     } catch (actionError) {
       setNotice(actionError instanceof Error ? actionError.message : "Could not save the practice action.");
+    } finally {
+      for (const action of pending) learningInFlightRef.current.delete(cardId + ":" + action);
     }
   }
 
