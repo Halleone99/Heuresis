@@ -91,8 +91,11 @@ export function MistakeLog() {
     }
     const topic = workspace.topicById.get(entry.topic_id);
     select(topic?.subject_id ?? null, entry.topic_id);
+    const scope = new Set(workspace.subtreeIds(entry.topic_id));
+    const position = mistakes.filter((item) => scope.has(item.topic_id)).findIndex((item) => item.id === entry.id);
+    setVisibleCount(Math.max(60, position + 1));
     setHighlightId(entry.id);
-  }, [focusMistake, clearFocusMistake, mistakes, select, workspace.topicById]);
+  }, [focusMistake, clearFocusMistake, mistakes, select, workspace.topicById, workspace.subtreeIds]);
 
   useEffect(() => {
     if (!highlightId) return;
