@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, GraduationCap, Pencil, Plus, Trash2, X } from "lucide-react";
 import { comparableCorrection, friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
-import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker } from "./ui";
+import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 import { SubjectCard } from "./SubjectCard";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
@@ -342,6 +342,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
   entry?: KnowledgeEntry; preferredSubjectId?: string | null; preferredTopicId?: string | null; onDone: () => void;
 }) {
   const workspace = useWorkspace();
+  const [confirmElement, confirm] = useConfirm();
   const originalRule = ruleParts(entry?.title ?? "");
   const [topicId, setTopicId] = useState(entry?.topic_id ?? preferredTopicId ?? "");
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -384,12 +385,13 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
 
   async function remove() {
     if (!entry || busy) return;
+    if (!await confirm({ title: "Delete this mistake?", body: "You can undo this deletion immediately afterwards.", confirmLabel: "Delete mistake", danger: true })) return;
     setBusy(true);
     try { await workspace.removeEntry(entry.id); onDone(); }
     catch (reason) { setError(friendlyError(reason)); setBusy(false); }
   }
 
-  return <form className="ml-simple-edit" onSubmit={(event) => { event.preventDefault(); void save(); }}
+  return <>{confirmElement}<form className="ml-simple-edit" onSubmit={(event) => { event.preventDefault(); void save(); }}
     onKeyDown={(event) => {
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       if (event.key === "Escape" && !pickerOpen) { event.preventDefault(); onDone(); }
@@ -452,7 +454,7 @@ function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: 
         {busy ? "Saving…" : "Save"}
       </button>
     </div>
-  </form>;
+  </form></>;
 }
 
 // ---------------------------------------------------------------------------
