@@ -15,8 +15,30 @@ export type CosmosLaunch = {
   tagId?: string;
   tagIds?: string[];
   query?: string;
+  /** Exact card selection for filtered and targeted reviews. */
+  cardIds?: string[];
   related?: boolean;
 };
+
+const SELECTION_PREFIX = "heuresis.review.selection:";
+
+/** Selected cards travel safely between the main window and the Review webview. */
+export function readReviewSelection(packId: string, token: string): string[] {
+  if (!token) return [];
+  try {
+    const raw = localStorage.getItem(SELECTION_PREFIX + token);
+    if (!raw) throw new Error("The selection was not found.");
+    const selection = JSON.parse(raw) as { packId: string; cardIds: string[]; createdAt: number };
+    if (selection.packId !== packId || !Array.isArray(selection.cardIds)
+      || selection.cardIds.some((value) => typeof value !== "string")
+      || !Number.isFinite(selection.createdAt) || Date.now() - selection.createdAt > 24 * 60 * 60 * 1000) {
+      throw new Error("The selection is no longer valid.");
+    }
+    return Array.from(new Set(selection.cardIds));
+  } catch {
+    throw new Error("Could not load the selected cards. Return to the topic and start Review again.");
+  }
+}
 
 function buildParams(options: CosmosLaunch) {
   const related = Boolean(options.related && options.mode === "review");
@@ -35,6 +57,17 @@ function buildParams(options: CosmosLaunch) {
   const tagIds = Array.from(new Set([...(options.tagIds ?? []), ...(options.tagId ? [options.tagId] : [])].filter(Boolean)));
   tagIds.forEach((tagId) => params.append("tag", tagId));
   if (options.query?.trim()) params.set("q", options.query.trim());
+  if (options.cardIds) {
+    const ids = Array.from(new Set(options.cardIds.filter(Boolean)));
+    if (!ids.length) throw new Error("There are no cards to review in this selection.");
+    const token = crypto.randomUUID();
+    try {
+      localStorage.setItem(SELECTION_PREFIX + token, JSON.stringify({ packId: options.packId, cardIds: ids, createdAt: Date.now() }));
+    } catch {
+      throw new Error("This device could not retain the selected cards. Check available storage and retry.");
+    }
+    params.set("selection", token);
+  }
   return params;
 }
 
