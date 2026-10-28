@@ -94,11 +94,11 @@ export function QQueuePage({ onCapture }: { onCapture: () => void }) {
         await workspace.patchEntry(selected.id, { topic_id: target, body, description: "" });
         destinationLabel = workspace.pathLabel(target);
       } else if (kind === "mistake") {
-        if (!target) throw new Error("Choose a collection for the Mistake Log.");
+        if (!target) throw new Error("Choose a topic for the Mistake Log.");
         const [wrong, correct] = quickQueuePair("mistake", body);
-        if (!wrong.trim() || !correct.trim()) throw new Error("Both mistake and correction are needed.");
+        if (!wrong.trim()) throw new Error("Write the mistake first. You can add the correction later.");
         await workspace.addEntry({ kind: "mistake", topicId: target,
-          attempt: wrong.trim(), correction: correct.trim(), category: "note" });
+          attempt: wrong.trim(), correction: correct.trim() });
         await workspace.removeEntry(selected.id, { undo: false });
         destinationLabel = workspace.pathLabel(target);
       } else {
@@ -172,7 +172,7 @@ export function QQueuePage({ onCapture }: { onCapture: () => void }) {
             onChange={(event) => setBody(event.target.value)} />}
           <div className="q-review-destination">
             {kind === "flashcard" && !hasStrokes ? <>
-              <label>Language / collection<select value={collectionId} onChange={(event) => { setCollectionId(event.target.value); setPackId(""); }}>
+              <label>Destination<select value={collectionId} onChange={(event) => { setCollectionId(event.target.value); setPackId(""); }}>
                 <option value="">Choose language</option>
                 {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.title}</option>)}
               </select></label>
