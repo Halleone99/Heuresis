@@ -273,6 +273,7 @@ export default function CosmosWindow() {
   const [suggestion, setSuggestion] = useState<AnswerSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
+  const lastAutoAudioRef = useRef("");
 
   const mode = config.mode;
   const relatedReview = config.relatedReview;
@@ -477,6 +478,26 @@ export default function CosmosWindow() {
       .catch(() => { if (alive) setSignedImages({}); });
     return () => { alive = false; };
   }, [card?.id, card?.updated_at]);
+
+  // An audio-first question is spoken on each new card. Keep the user's Listen
+  // choice between cards; never pronounce a hidden answer.
+  useEffect(() => {
+    if (!audioPrompt) { lastAutoAudioRef.current = ""; return; }
+    if (mode !== "review" || revealed || !card || !pack || !template) return;
+    const front = template.front.length ? template.front : [fieldByRole(pack.cardType, "term")?.key].filter((key): key is string => Boolean(key));
+    const readingKey = fieldByRole(pack.cardType, "reading")?.key;
+    const spoken = reviewSpokenPrompt(front, card.data, readingKey);
+    if (!spoken) return;
+    const marker = `${card.id}:${template.id}:${index}`;
+    if (lastAutoAudioRef.current === marker) return;
+    const termKey = fieldByRole(pack.cardType, "term")?.key;
+    const meaningKey = fieldByRole(pack.cardType, "meaning")?.key;
+    const role: ReviewSpeechRole = spoken.key === termKey ? "term" : spoken.key === meaningKey ? "meaning" : "other";
+    if (speakReviewText(spoken.text, reviewSpeechLanguage(spoken.text, pack.title, pack.cardType?.name ?? "", role))) {
+      lastAutoAudioRef.current = marker;
+      void markLearning(["hear"]);
+    }
+  }, [audioPrompt, mode, revealed, card?.id, pack?.id, template?.id, index]);
 
   // Keep both Review side panels visible as the session progresses; only legacy Sort uses the pinned drawer.
   useEffect(() => {
@@ -950,6 +971,7 @@ export default function CosmosWindow() {
   }
 
   function playAudio(text: string, fieldKey?: string) {
+    if (!pack) return;
     const spokenRole: ReviewSpeechRole = fieldKey === term?.key ? "term" : fieldKey === meaning?.key ? "meaning" : "other";
     const locale = reviewSpeechLanguage(text, pack.title, pack.cardType?.name ?? "", spokenRole);
     if (!speakReviewText(text, locale)) { setNotice("Audio playback is not available on this device."); return; }
