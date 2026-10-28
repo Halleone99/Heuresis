@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Trash2, X,
+  MoreHorizontal, Pencil, PenLine, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, loadKnowledge, localDateKey, mistakeStage,
@@ -11,7 +11,9 @@ import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
 import { adoptOwnSaveRevision } from "../../lib/noteRevision";
 import { readDocumentDraft, writeDocumentDraft, type NotebookLocation } from "../../lib/workspaceMemory";
 import { getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
+import { DrawingSheet } from "./DrawingSheet";
 import { FlashcardDialog } from "./FlashcardDialog";
+import { decodeHandNote, emptyHandNote, encodeHandNote, type HandNote } from "../../lib/handNote";
 import type { NewDocRequest } from "./NotebookView";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText, type LinkResolver } from "./RichText";
@@ -80,6 +82,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   }, [canvasColumns, userId]);
   const [confirmElement, confirm] = useConfirm();
   const editorRef = useRef<RichEditorHandle>(null);
+  // A drawing being added or changed while editing (the same pen as Capture).
+  const [drawing, setDrawing] = useState<{ note: HandNote; apply: ((line: string | null) => void) | null } | null>(null);
   const entryIdRef = useRef<string | null>(entry?.id ?? null);
   // New notes also need a durable draft key before they acquire a server ID.
   const draftIdRef = useRef(entry?.id ?? `unsaved:${newDoc?.draftKey ?? newDoc?.topicId ?? "inbox"}`);
@@ -567,7 +571,22 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       <RichEditor ref={editorRef} resetKey={editorKey.current} value={draft.body} autoFocus
         placeholder={lesson ? "Write during or after the lesson — or add the outline above. Quick captures appear below." : draft.category === "reference" ? "Start with ## Chapter title, then write your chapter. Add more ## headings to build the contents." : "Start writing. Use # for a heading, - for a list, > for a quotation, or the Example and Rule blocks."}
         onChange={(body) => updateDraft({ body })}
-        onEscape={() => void finishEditing()} onDone={() => void finishEditing()} onSave={() => void persist()} />
+        onEscape={() => void finishEditing()} onDone={() => void finishEditing()} onSave={() => void persist()}
+        onEditDrawing={(line, apply) => setDrawing({ note: decodeHandNote(line), apply })}
+        extraTools={<div className="nb-toolbar-group">
+          <button type="button" title="Draw: handwriting or a sketch, placed at the cursor" aria-label="Draw"
+            onMouseDown={(event) => event.preventDefault()} onClick={() => setDrawing({ note: emptyHandNote(), apply: null })}>
+            <PenLine size={15} aria-hidden="true" /><span>Draw</span></button>
+        </div>} />
+      {drawing ? <DrawingSheet layout="dialog" note={drawing.note} editing={!!drawing.apply}
+        onNoteChange={(note) => setDrawing((current) => current ? { ...current, note } : current)}
+        onCancel={() => setDrawing(null)} onRemove={() => { drawing.apply?.(null); setDrawing(null); }}
+        onDone={() => {
+          const line = drawing.note.strokes.length ? encodeHandNote(drawing.note) : null;
+          if (drawing.apply) drawing.apply(line);
+          else if (line) editorRef.current?.insertDrawing(line);
+          setDrawing(null);
+        }} /> : null}
       <p className="nb-editor-hints"><Kbd>{MOD_KEY} B</Kbd> bold · <Kbd>{MOD_KEY} I</Kbd> italic · <Kbd>{MOD_KEY} ⇧ H</Kbd> highlight · <span>Colours</span> for text or highlighting · click heading arrows to fold · <code>[[Title]]</code> links another note · <Kbd>{MOD_KEY} ↵</Kbd> done</p>
     </div> : <div className="nb-doc-body">
       {!editing && /\p{Script=Han}/u.test(draft.body) && draft.body.toLowerCase().includes("[!example]") ? <div className="nb-reading-controls">

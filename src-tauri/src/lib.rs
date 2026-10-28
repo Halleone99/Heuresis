@@ -59,7 +59,7 @@ pub fn run() {
                 )
                 .title("Quick Capture · Heuresis")
                 .inner_size(490.0, 348.0)
-                .min_inner_size(210.0, 90.0)
+                .min_inner_size(220.0, 56.0)
                 .decorations(false)
                 .resizable(true)
                 .always_on_top(true)

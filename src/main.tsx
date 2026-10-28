@@ -63,7 +63,6 @@ import "./theme/chrome.css";
 // does not parse the Review and card-capture screens at start-up.
 const CaptureWindow = React.lazy(() => import("./components/CaptureWindow"));
 const CosmosWindow = React.lazy(() => import("./components/CosmosWindow"));
-const ReviewScratchpad = React.lazy(() => import("./components/ReviewScratchpad"));
 
 const params = new URLSearchParams(window.location.search);
 markAndroidRuntime();
@@ -75,7 +74,7 @@ const content = params.get("quick") === "1"
   : params.get("capture") === "1"
     ? <React.Suspense fallback={null}><CaptureWindow /></React.Suspense>
   : params.get("cosmos") === "1"
-    ? <React.Suspense fallback={null}><CosmosWindow /><ReviewScratchpad /></React.Suspense>
+    ? <React.Suspense fallback={null}><CosmosWindow /></React.Suspense>
     : <App />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

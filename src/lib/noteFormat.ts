@@ -13,7 +13,7 @@
  * without reflowing what the user wrote. Unknown syntax is kept verbatim.
  */
 
-import { decodeHandNote, HAND_NOTE_PREFIX, HAND_NOTE_SIZE } from "./handNote";
+import { decodeHandNote, handNoteSvgMarkup, HAND_NOTE_PREFIX } from "./handNote";
 
 export type CalloutVariant = "example" | "rule" | "correction" | "tip";
 export type ListItem = { text: string; depth: number; ordered: boolean; start?: number };
@@ -305,8 +305,10 @@ export function markdownToEditorHtml(markdown: string): string {
       case "callout": return `<blockquote data-callout="${block.variant}">${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
       case "hr": return "<hr>";
       case "handnote": {
-        const paths = decodeHandNote(block.encoded).map((stroke) => `<path d="${stroke.d}" stroke="${stroke.color}" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
-        return `<div data-handnote="${block.encoded}" contenteditable="false" style="margin:10px 0;max-width:100%;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:white"><svg viewBox="0 0 ${HAND_NOTE_SIZE.width} ${HAND_NOTE_SIZE.height}" role="img" aria-label="Handwritten note" style="width:100%;display:block;max-height:350px">${paths}</svg></div>`;
+        // The base64 payload is the only content: the editor serialises the
+        // attribute back verbatim, so an unreadable drawing is never altered.
+        const note = decodeHandNote(block.encoded);
+        return `<div class="hn-sheet" data-handnote="${block.encoded}" data-paper="${note.paper}" contenteditable="false" style="margin:10px 0;max-width:760px;border:1px solid rgba(105,118,136,.24);border-radius:12px;overflow:hidden;background:var(--hn-paper,#fffdf8)">${handNoteSvgMarkup(note)}</div>`;
       }
       case "table": return tableHtml(block);
       default: return paragraphHtml(block.text);
