@@ -311,6 +311,7 @@ export default function CosmosWindow() {
   }, []);
 
   const closeSession = useCallback(async () => {
+    stopReviewAudio();
     const id = sessionRef.current;
     if (!id) return;
     sessionRef.current = null;
@@ -494,7 +495,7 @@ export default function CosmosWindow() {
     const termKey = fieldByRole(pack.cardType, "term")?.key;
     const meaningKey = fieldByRole(pack.cardType, "meaning")?.key;
     const role: ReviewSpeechRole = spoken.key === termKey ? "term" : spoken.key === meaningKey ? "meaning" : "other";
-    if (speakReviewText(spoken.text, reviewSpeechLanguage(spoken.text, pack.title, pack.cardType?.name ?? "", role))) {
+    if (speakReviewText(spoken.text, reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role))) {
       lastAutoAudioRef.current = marker;
       void markLearning(["hear"]);
     }
@@ -978,7 +979,7 @@ export default function CosmosWindow() {
   function playAudio(text: string, fieldKey?: string) {
     if (!pack) return;
     const spokenRole: ReviewSpeechRole = fieldKey === term?.key ? "term" : fieldKey === meaning?.key ? "meaning" : "other";
-    const locale = reviewSpeechLanguage(text, pack.title, pack.cardType?.name ?? "", spokenRole);
+    const locale = reviewSpeechLanguage(text, pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenRole);
     if (!speakReviewText(text, locale)) { setNotice("Audio playback is not available on this device."); return; }
     void markLearning(["hear"]);
   }
