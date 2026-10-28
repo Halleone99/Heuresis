@@ -2443,3 +2443,22 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .ml-hierarchy .ml-simple-pair p { font-size: 16px; }
   .ml-hierarchy-card { min-height: 98px; }
 }
+
+.ml-duplicate-check { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px;
+  background: var(--ws-raised); border: 1px solid var(--ws-line); border-radius: 8px; color: var(--ws-text); font-size: 12px; }
+.ml-duplicate-check span { flex: 1 1 240px; }
+.ml-bulk-add { display: grid; gap: 8px; }
+.ml-bulk-add > button { justify-self: start; }
+.ml-bulk-panel { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--ws-line); border-radius: 9px; background: var(--ws-surface); }
+.ml-bulk-panel textarea { width: 100%; white-space: pre-wrap; }
+.ml-bulk-panel small { color: var(--ws-muted); }
+.ml-bulk-panel .ws-button { justify-self: start; }
+.ml-bulk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.ml-bulk-toolbar .ws-muted { font-size: 12px; }
+.ml-bulk-rule-input { width: 150px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--ws-line); border-radius: 8px; background: var(--ws-surface); color: var(--ws-ink); font: 400 12px var(--ws-sans); }
+.ml-bulk-toolbar .ml-bulk-delete { color: var(--ws-bad); }
+.ml-select-checkbox { flex: none; margin: 5px 0 0; accent-color: var(--ws-accent); width: 17px; height: 17px; }
+@media (max-width: 640px) {
+  .ml-bulk-toolbar { gap: 6px; }
+  .ml-bulk-toolbar .ws-button { font-size: 11px; }
+}
