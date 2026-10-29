@@ -2553,3 +2553,30 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .ml-theme-open { min-height: 86px; }
   .ml-study-selection .ws-button { flex: 1 1 auto; justify-content: center; }
 }
+
+
+/* Document reading toolbar: keep creation with the note controls, not floating
+   independently above them. Low-frequency actions live in the existing menu. */
+.nb-doc-bar .nb-crumbs { flex: 1 1 auto; }
+.nb-doc-actions { flex: 0 1 auto; min-width: 0; gap: 9px; }
+.nb-doc-actions .nb-view-switcher { margin-right: 5px; }
+.nb-doc-primary-actions { display: inline-flex; align-items: center; gap: 7px; flex: none; }
+.nb-doc-actions .nb-doc-primary-actions .nb-new-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: auto; min-width: 82px; height: 36px; padding: 0 12px;
+  border: 1px solid var(--ws-line-strong); border-radius: 9px;
+  background: var(--ws-raised); color: var(--ws-ink);
+  font: 600 12.5px/1 var(--ws-sans); white-space: nowrap;
+}
+.nb-doc-actions .nb-doc-primary-actions .nb-new-button:hover { background: var(--ws-surface-2); border-color: var(--ws-accent-line); }
+.nb-doc-actions .nb-doc-primary-actions .ws-menu-list { left: auto; right: 0; min-width: 184px; }
+.nb-doc-actions .nb-doc-close { width: 38px; margin-left: 2px; border-left: 1px solid var(--ws-line); border-radius: 0 8px 8px 0; }
+@media (max-width: 700px) {
+  .nb-doc-bar .nb-crumbs { flex: 1 1 100%; }
+  .nb-doc-actions { flex: 1 1 100%; width: 100%; flex-wrap: wrap; justify-content: flex-end; }
+  .nb-doc-actions .nb-view-switcher { margin-right: auto; }
+}
+@media (max-width: 400px) {
+  .nb-doc-actions .nb-view-switcher { flex-basis: 100%; justify-content: center; margin: 0 0 4px; }
+  .nb-doc-primary-actions { margin-right: auto; }
+}
