@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, MoreHorizontal, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   DISCARDED_AT_KEY,
   patchCardData,
@@ -64,6 +64,24 @@ const LEARNING_SHORT: Array<[LearningAction, string]> = [
   ["say", "Say"],
   ["hear", "Hear"],
 ];
+
+const CHINESE_SELECTION_THEMES = [
+  { name: "Everyday conversation", color: "#4c7a6e" },
+  { name: "Time & plans", color: "#7273a4" },
+  { name: "Food & restaurants", color: "#a8773d" },
+  { name: "Shopping & money", color: "#aa6970" },
+  { name: "Transport & directions", color: "#4b8398" },
+  { name: "People & social life", color: "#8a68a0" },
+  { name: "Home & belongings", color: "#738b53" },
+  { name: "Feelings & opinions", color: "#a66588" },
+  { name: "Health & basic needs", color: "#528c81" },
+  { name: "Work, study & technology", color: "#7970a5" },
+] as const;
+
+function themeTagStyle(name: string): CSSProperties | undefined {
+  const theme = CHINESE_SELECTION_THEMES.find((item) => item.name === name);
+  return theme ? ({ "--theme-accent": theme.color } as CSSProperties) : undefined;
+}
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
@@ -151,7 +169,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
             <button type="button" className="toggle-pill" disabled={saving} onClick={() => { setSaving(true); void onRetention(card.retention === "reference" ? "learning" : "reference").catch((error) => setMessage(error instanceof Error ? error.message : "Could not change this card.")).finally(() => setSaving(false)); }}
               title={card.retention === "reference" ? "Bring it back into Learning (it will be reviewed)" : "Keep it to look up only; it leaves Review"}>
               <BookOpen size={14} /> {card.retention === "reference" ? "Move to Learning" : "Keep as reference"}</button></div>
-          {tags.length ? <div className="tag-editor"><span className="eyebrow">TAGS</span><div className="tag-choice-list">{tags.map((tag) => { const selected = tagIds.includes(tag.id); return <button key={tag.id} className={`tag-choice ${selected ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} onClick={() => setTagIds((current) => selected ? current.filter((id) => id !== tag.id) : [...current, tag.id])}>{tag.name}</button>; })}</div></div> : null}
+          {tags.length ? <div className="tag-editor"><span className="eyebrow">TAGS</span><div className="tag-choice-list">{tags.map((tag) => { const selected = tagIds.includes(tag.id); return <button key={tag.id} className={`tag-choice ${selected ? "selected" : ""} ${tag.is_badge ? "badge" : ""} ${themeTagStyle(tag.name) ? "theme-tag" : ""}`} style={themeTagStyle(tag.name)} onClick={() => setTagIds((current) => selected ? current.filter((id) => id !== tag.id) : [...current, tag.id])}>{tag.name}</button>; })}</div></div> : null}
           <CardImagesEditor card={card} onChanged={onChanged} />
           <RelatedEditor pack={pack} card={card} onChanged={onChanged} />
         </div>
@@ -283,6 +301,13 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const lessonTags = useMemo(() => tags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tags]);
   const otherTags = useMemo(() => tags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => a.name.localeCompare(b.name)), [tags]);
   const selectedTag = tagFilter !== "all" && tagFilter !== "none" ? tags.find((tag) => tag.id === tagFilter) ?? null : null;
+  // Reuse ordinary card tags; the coloured theme strip is only shown for Chinese Selection.
+  const selectionThemeTags = pack.title === "中文 Selection"
+    ? CHINESE_SELECTION_THEMES.flatMap((theme) => {
+        const tag = tags.find((entry) => entry.name === theme.name);
+        return tag ? [{ tag, count: cards.filter((card) => card.tags.some((entry) => entry.id === tag.id)).length }] : [];
+      })
+    : [];
 
   const visibleTotal = loadedPackId === pack.id ? cards.length + referenceCards.length : pack.card_count;
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
@@ -575,6 +600,19 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         </div>
       </div>
 
+      {selectionThemeTags.length ? <nav className="chinese-selection-themes" aria-label="Chinese vocabulary themes">
+        <span className="chinese-selection-themes-label">Themes</span>
+        <button type="button" className={`theme-choice ${tagFilter === "all" ? "selected" : ""}`} aria-pressed={tagFilter === "all"}
+          onClick={() => setTagFilter("all")}><span className="theme-dot" />All <small>{cards.length}</small></button>
+        {selectionThemeTags.map(({ tag, count }) => (
+          <button type="button" key={tag.id} className={`theme-choice ${tagFilter === tag.id ? "selected" : ""}`}
+            style={themeTagStyle(tag.name)} aria-pressed={tagFilter === tag.id}
+            onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>
+            <span className="theme-dot" />{tag.name}<small>{count}</small>
+          </button>
+        ))}
+      </nav> : null}
+
       {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
@@ -643,7 +681,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             </div>
 
             <div className="modern-meta-cell compact-meta-cell">
-              <div className="row-tags">{visibleTags.map((tag) => <span key={tag.id} className={tag.is_badge ? "badge" : ""}>{tag.name}</span>)}{card.tags.length > visibleTags.length ? <span>+{card.tags.length - visibleTags.length}</span> : null}{!card.tags.length ? <small>No tags</small> : null}</div>
+              <div className="row-tags">{visibleTags.map((tag) => <span key={tag.id} className={`${tag.is_badge ? "badge" : ""} ${themeTagStyle(tag.name) ? "theme-tag" : ""}`} style={themeTagStyle(tag.name)}>{tag.name}</span>)}{card.tags.length > visibleTags.length ? <span>+{card.tags.length - visibleTags.length}</span> : null}{!card.tags.length ? <small>No tags</small> : null}</div>
               <div className="row-mini-actions">
                 {selected ? <button onClick={(event) => { event.stopPropagation(); setEditing(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Edit card"><Pencil size={13} /> Edit</button> : null}
                 <button className="row-connections-icon" onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><GitFork size={15} /></button>
