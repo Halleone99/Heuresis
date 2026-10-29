@@ -18,7 +18,7 @@ type Props = {
   compactToolbar?: boolean;
 };
 
-type BlockKind = "p" | "h2" | "h3" | "ul" | "ol" | "quote" | CalloutVariant;
+type BlockKind = "p" | "h2" | "h3" | "h4" | "ul" | "ol" | "quote" | CalloutVariant;
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const MOD = isMac ? "⌘" : "Ctrl";
 
@@ -48,7 +48,7 @@ const BLOCK_TAG = /^(P|DIV|H[1-6]|UL|OL|BLOCKQUOTE|HR|PRE|TABLE)$/;
 function updateFolds(root: HTMLElement) {
   let foldedLevel: number | null = null;
   for (const child of Array.from(root.children) as HTMLElement[]) {
-    const level = /^H[23]$/.test(child.tagName) ? Number(child.tagName[1]) : null;
+    const level = /^H[234]$/.test(child.tagName) ? Number(child.tagName[1]) : null;
     if (level !== null && foldedLevel !== null && level <= foldedLevel) foldedLevel = null;
     const hidden = foldedLevel !== null;
     child.toggleAttribute("data-fold-hidden", hidden);
@@ -267,7 +267,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       : closest("OL") ? "ol"
         : quote ? (variant ?? "quote")
           : closest("H2") || closest("H1") ? "h2"
-            : closest("H3") ? "h3" : "p";
+            : closest("H3") ? "h3" : closest("H4") ? "h4" : "p";
     let bold = false; let italic = false;
     try { bold = document.queryCommandState("bold"); italic = document.queryCommandState("italic"); } catch { /* optional */ }
     setActive({ block, bold, italic, mark: Boolean(closest("MARK")) });
@@ -325,7 +325,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       return;
     }
     if (list) exec(list.tagName === "UL" ? "insertUnorderedList" : "insertOrderedList");
-    if (kind === "p" || kind === "h2" || kind === "h3") {
+    if (kind === "p" || kind === "h2" || kind === "h3" || kind === "h4") {
       exec("formatBlock", kind === "p" ? "<p>" : `<${kind}>`);
       return;
     }
@@ -547,7 +547,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const foldAll = useCallback(() => {
     const root = rootRef.current;
     if (!root) return;
-    const headings = Array.from(root.children).filter((node) => /^H[23]$/.test(node.tagName)) as HTMLElement[];
+    const headings = Array.from(root.children).filter((node) => /^H[234]$/.test(node.tagName)) as HTMLElement[];
     if (!headings.length) return;
     const shouldFold = headings.some((heading) => heading.dataset.folded !== "true");
     headings.forEach((heading) => { heading.dataset.folded = String(shouldFold); });
@@ -570,6 +570,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     if (mod && !event.shiftKey && event.code === "KeyS") { event.preventDefault(); onSave?.(); return; }
     if (mod && event.shiftKey && !event.altKey && event.code === "Digit1") { event.preventDefault(); setBlock("h2"); return; }
     if (mod && event.shiftKey && !event.altKey && event.code === "Digit2") { event.preventDefault(); setBlock("h3"); return; }
+    if (mod && event.shiftKey && !event.altKey && event.code === "Digit3") { event.preventDefault(); setBlock("h4"); return; }
     if (mod && event.shiftKey && !event.altKey && event.code === "Digit0") { event.preventDefault(); setBlock("p"); return; }
     if (mod && event.shiftKey && event.code === "Digit8") { event.preventDefault(); setBlock("ul"); return; }
     if (mod && event.shiftKey && event.code === "Digit7") { event.preventDefault(); setBlock("ol"); return; }
@@ -668,7 +669,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     before.selectNodeContents(block);
     before.setEnd(selection.getRangeAt(0).endContainer, selection.getRangeAt(0).endOffset);
     const typed = before.toString().replace(/ /g, " ");
-    const map: Record<string, BlockKind> = { "# ": "h2", "## ": "h3", "- ": "ul", "* ": "ul", "1. ": "ol", "1) ": "ol", "> ": "quote" };
+    const map: Record<string, BlockKind> = { "# ": "h2", "## ": "h3", "### ": "h4", "- ": "ul", "* ": "ul", "1. ": "ol", "1) ": "ol", "> ": "quote" };
     const kind = map[typed];
     if (!kind || closest("LI") || (kind === "quote" && closest("BLOCKQUOTE"))) return;
     selection.removeAllRanges();
@@ -730,6 +731,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
         {tool("Heading", `${MOD}+Shift+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
         {tool("Subheading", `${MOD}+Shift+2`, <Heading2 size={15} />, () => setBlock(active.block === "h3" ? "p" : "h3"), active.block === "h3")}
+        {tool("Small heading", `${MOD}+Shift+3`, <Heading2 size={13} />, () => setBlock(active.block === "h4" ? "p" : "h4"), active.block === "h4")}
       </div> : null}
       <div className="nb-toolbar-group">
         {tool("Bold", `${MOD}+B`, <Bold size={15} />, () => run(() => exec("bold")), active.bold)}
@@ -811,10 +813,11 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
           const root = rootRef.current;
           const target = event.target;
           if (!root || !(target instanceof Element)) return;
-          const heading = target.closest("h2,h3") as HTMLElement | null;
+          const heading = target.closest("h2,h3,h4") as HTMLElement | null;
           if (!heading || heading.parentElement !== root) return;
           // The arrow occupies the first 22px; clicking the words still edits the heading.
-          if (event.clientX - heading.getBoundingClientRect().left > 22) return;
+          const offset = event.clientX - heading.getBoundingClientRect().left;
+          if (offset < -30 || offset > 0) return;
           event.preventDefault();
           heading.dataset.folded = String(heading.dataset.folded !== "true");
           updateFolds(root);

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Trash2, X,
+  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Printer, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, loadKnowledge, localDateKey, mistakeStage,
   type KnowledgeEntry, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
 import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
+import { isAndroidRuntime } from "../../lib/platform";
 import { adoptOwnSaveRevision } from "../../lib/noteRevision";
 import { readDocumentDraft, writeDocumentDraft, type NotebookLocation } from "../../lib/workspaceMemory";
 import { getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
@@ -21,6 +23,8 @@ import { useWorkspace } from "./WorkspaceContext";
 
 type Draft = { title: string; body: string; category: NoteCategory; lessonDate: string; topicId: string };
 type SaveState = { kind: "idle" | "dirty" | "saving" | "local" | "saved" | "error" | "invalid"; message?: string; at?: string };
+type ReaderPrefs = { size: 15 | 17 | 19 | 21; width: "narrow" | "normal" | "wide"; face: "sans" | "serif"; spacing: "compact" | "comfortable" };
+const DEFAULT_READER_PREFS: ReaderPrefs = { size: 17, width: "normal", face: "sans", spacing: "comfortable" };
 
 const LESSON_OUTLINE = "# Grammar\n\n# Explanation\n\n# Examples\n> [!example]\n> \n\n# New expressions\n- \n\n# To revisit\n- ";
 
@@ -53,6 +57,13 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const [flashcardTarget, setFlashcardTarget] = useState<KnowledgeEntry | null>(null);
   const [addingChapter, setAddingChapter] = useState(false);
   const [chapterTitle, setChapterTitle] = useState("");
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (!printing) return;
+    const complete = () => { document.body.classList.remove("nb-printing"); setPrinting(false); };
+    window.addEventListener("afterprint", complete);
+    return () => window.removeEventListener("afterprint", complete);
+  }, [printing]);
   const [rubyPinyin, setRubyPinyin] = useState(() => {
     try { return localStorage.getItem(`heuresis.notebook.ruby.v1:${userId}`) === "true"; }
     catch { return false; }
@@ -61,6 +72,19 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     try { localStorage.setItem(`heuresis.notebook.ruby.v1:${userId}`, String(rubyPinyin)); }
     catch { /* Optional reading preference. */ }
   }, [rubyPinyin, userId]);
+  const [readerPrefs, setReaderPrefs] = useState<ReaderPrefs>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(`heuresis.notebook.reader.v1:${userId}`) ?? "{}") as Partial<ReaderPrefs>;
+      return { size: [15, 17, 19, 21].includes(Number(stored.size)) ? stored.size! : 17,
+        width: stored.width === "narrow" || stored.width === "wide" ? stored.width : "normal",
+        face: stored.face === "serif" ? "serif" : "sans",
+        spacing: stored.spacing === "compact" ? "compact" : "comfortable" };
+    } catch { return DEFAULT_READER_PREFS; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(`heuresis.notebook.reader.v1:${userId}`, JSON.stringify(readerPrefs)); }
+    catch { /* Preferences are local and optional. */ }
+  }, [readerPrefs, userId]);
   const [readMode, setReadMode] = useState<NotebookReadMode>(() => {
     try {
       const saved = localStorage.getItem("heuresis.notebook.readmode.v1:" + userId);
@@ -360,6 +384,20 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const capturedMistakes = captures.filter((row) => row.kind === "mistake");
   const capturing = Boolean(lessonId && workspace.currentLesson?.id === lessonId);
   const path = workspace.topicPath(draft.topicId);
+  const readerStyle = {
+    "--nb-reader-size": `${readerPrefs.size}px`,
+    "--nb-reader-width": readerPrefs.width === "narrow" ? "600px" : readerPrefs.width === "wide" ? "850px" : "720px",
+    "--nb-reader-font": readerPrefs.face === "serif" ? "var(--ws-serif)" : "var(--ws-sans)",
+    "--nb-reader-line-height": readerPrefs.spacing === "compact" ? "1.55" : "1.75",
+  } as CSSProperties;
+  const wordCount = (draft.body.match(/[\p{L}\p{N}]+(?:[\u2019\u0027-][\p{L}\p{N}]+)*/gu) ?? []).length;
+  const printNote = useCallback(() => {
+    if (isAndroidRuntime()) return;
+    document.body.classList.add("nb-printing");
+    setPrinting(true);
+    // Wait for the complete, unfolded print copy to mount outside the app shell.
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
+  }, []);
 
   async function remove() {
     if (!liveEntry) { onBack(); return; }
@@ -454,7 +492,15 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         : save.kind === "error" ? save.message ?? "Could not save"
           : save.kind === "invalid" ? save.message ?? "" : entryIdRef.current ? "All changes saved" : "Not saved yet";
 
-  return <article className={`nb-doc ${editing ? "is-editing" : ""} ${lesson ? "is-lesson" : ""} ${!editing ? "is-" + readMode : ""}`} aria-label={title || "New note"}>
+  return <article className={`nb-doc ${editing ? "is-editing" : ""} ${lesson ? "is-lesson" : ""} ${!editing ? "is-" + readMode : ""}`} style={readerStyle} aria-label={title || "New note"}>
+    {printing && createPortal(<div className="nb-print-root" aria-label="Printable note">
+      <header className="nb-print-header">
+        <small>{[path.subject?.name, ...path.chain.map((item) => item.name)].filter(Boolean).join(" · ")}</small>
+        <h1>{title || "Untitled"}</h1>
+        {liveEntry ? <small>{formatDay(liveEntry.updated_at)}</small> : null}
+      </header>
+      <RichText text={draft.body} rubyPinyin={rubyPinyin} collapsible={false} className="nb-print-prose" />
+    </div>, document.body)}
     {confirmElement}
     {flashcardTarget ? <FlashcardDialog entry={flashcardTarget} onClose={() => setFlashcardTarget(null)} /> : null}
     <div className="nb-doc-bar">
@@ -469,6 +515,24 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
       </nav>
       <div className="nb-doc-actions">
         {!editing ? <NoteViewSwitcher mode={readMode} onChange={setReadMode} /> : null}
+        {!editing && readMode === "document" ? <details className="nb-reader-settings">
+          <summary title="Reading appearance" aria-label="Reading appearance">Aa</summary>
+          <div className="nb-reader-panel">
+            <strong>Reading appearance</strong>
+            <label>Text size<select value={readerPrefs.size} onChange={(event) => setReaderPrefs((prev) => ({ ...prev, size: Number(event.target.value) as ReaderPrefs["size"] }))}>
+              {([15, 17, 19, 21] as const).map((v) => <option key={v} value={v}>{v} px</option>)}
+            </select></label>
+            <label>Line width<select value={readerPrefs.width} onChange={(event) => setReaderPrefs((prev) => ({ ...prev, width: event.target.value as ReaderPrefs["width"] }))}>
+              <option value="narrow">Narrow</option><option value="normal">Normal</option><option value="wide">Wide</option>
+            </select></label>
+            <label>Typeface<select value={readerPrefs.face} onChange={(event) => setReaderPrefs((prev) => ({ ...prev, face: event.target.value as ReaderPrefs["face"] }))}>
+              <option value="sans">Sans</option><option value="serif">Serif</option>
+            </select></label>
+            <label>Spacing<select value={readerPrefs.spacing} onChange={(event) => setReaderPrefs((prev) => ({ ...prev, spacing: event.target.value as ReaderPrefs["spacing"] }))}>
+              <option value="comfortable">Comfortable</option><option value="compact">Compact</option>
+            </select></label>
+          </div>
+        </details> : null}
         {editing ? <>
           <span className={`nb-save-state is-${save.kind}`} role="status" aria-live="polite">
             {save.kind === "saving" ? <span className="ws-spinner is-small" /> : save.kind === "local" || save.kind === "saved" || save.kind === "idle" ? <Check size={13} /> : null}
@@ -487,6 +551,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
             pinned={Boolean(liveEntry.pinned)}
             onMove={workspace.writable ? () => setMoving(true) : undefined}
             onCopy={() => { void navigator.clipboard?.writeText([liveEntry.title, liveEntry.body].filter(Boolean).join("\n\n")).then(() => workspace.toast("Copied to the clipboard.")); }}
+            onPrint={!isAndroidRuntime() ? printNote : undefined}
             onFlashcard={() => { if (liveEntry) setFlashcardTarget(liveEntry); }}
             onDelete={workspace.writable ? () => void remove() : undefined} /> : null}
         </>}
@@ -526,9 +591,10 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         {liveEntry?.lesson_id ? <button type="button" className="nb-link-button" onClick={() => navigate({ topicId: workspace.entryById.get(liveEntry.lesson_id!)?.topic_id ?? null, docId: liveEntry.lesson_id })}>
           · from {entryTitle(workspace.entryById.get(liveEntry.lesson_id) ?? liveEntry)}</button> : null}
       </div>
-      {editing ? <input className="nb-title-input" value={draft.title} maxLength={200} aria-label="Title"
+      {editing ? <textarea className="nb-title-input" rows={1} value={draft.title} maxLength={200} aria-label="Title"
         placeholder={lesson ? "Lesson title — e.g. HSK 2 · Chapter 4" : "Title (optional)"}
         onChange={(event) => updateDraft({ title: event.target.value })}
+        onInput={(event) => { const field = event.currentTarget; field.style.height = "auto"; field.style.height = `${field.scrollHeight}px`; }}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (event.key === "Enter" || event.key === "ArrowDown") { event.preventDefault(); editorRef.current?.focus("start"); }
@@ -585,6 +651,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         : <p className="ws-muted nb-doc-empty">{lesson ? "No lesson notes written yet." : "This note is empty."}</p>}
       {workspace.writable && !detached ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}
     </div>}
+    <p className="nb-note-metrics">{wordCount.toLocaleString()} words · {draft.body.length.toLocaleString()} characters{draft.body.length >= 40000 ? " · approaching 50,000-character limit" : ""}</p>
 
     {lessonId ? <section className="nb-lesson-extras" aria-label="Captured during this lesson">
       {capturedQuestions.length ? <div className="nb-extra-block">
@@ -661,7 +728,7 @@ function CaptureRow({ capture, onOpen, onFlashcard, actions }: { capture: Knowle
   </div>;
 }
 
-function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onFlashcard, onDelete }: { onDetach?: () => void; onPin?: () => void; pinned?: boolean; onMove?: () => void; onCopy: () => void; onFlashcard: () => void; onDelete?: () => void }) {
+function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onPrint, onFlashcard, onDelete }: { onDetach?: () => void; onPin?: () => void; pinned?: boolean; onMove?: () => void; onCopy: () => void; onPrint?: () => void; onFlashcard: () => void; onDelete?: () => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = usePopover(open, close);
@@ -675,6 +742,7 @@ function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onFlashcard,
       {item("Move to…", <FolderInput size={14} />, onMove)}
       {item("Make a flashcard…", <Layers size={14} />, onFlashcard)}
       {item("Copy text", <Copy size={14} />, onCopy)}
+       {item("Print or save as PDF…", <Printer size={14} />, onPrint)}
       {item("Delete", <Trash2 size={14} />, onDelete, true)}
     </div> : null}
   </div>;

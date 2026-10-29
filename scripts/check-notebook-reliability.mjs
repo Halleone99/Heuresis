@@ -20,7 +20,8 @@ assert.deepEqual(text("**Hinweis:**Text"), [{type:"strong",text:"Hinweis:"},{typ
 const triple = text("***bold italic***");
 assert.deepEqual(triple, [{ type: "strong", text: "*bold italic*" }]);
 assert.equal(notes.inlinePlain("***bold italic***"), "bold italic");
-assert.equal(notes.parseBlocks("### Third level")[0].text, "### Third level");
+assert.deepEqual(notes.parseBlocks("### Third level")[0], { type: "h4", text: "Third level" });
+assert.equal(notes.parseBlocks("#### Deeper heading")[0].text, "#### Deeper heading", "Unsupported heading levels remain literal");
 const numbered = notes.parseBlocks("5. First\n6. Second")[0];
 assert.equal(numbered.type, "ol");
 assert.equal(numbered.items[0].start, 5, "Lists must not silently restart at 1");
