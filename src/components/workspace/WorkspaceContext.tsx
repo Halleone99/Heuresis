@@ -339,7 +339,8 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
         practice: current.practice.filter((event) => !removedEntryIds.has(event.record_id)),
       };
     });
-  }, [setSnapshotLocal, userId]);
+    await reload(true); // Reconcile server revisions before the next edit.
+  }, [reload, setSnapshotLocal, userId]);
   const addTopic = useCallback(async (subjectId: string, name: string, parentId: string | null = null) => {
     const created = await createTopic(userId, subjectId, name, parentId);
     setSnapshotLocal((current) => ({ ...current, topics: [...current.topics, created] }));
@@ -390,7 +391,8 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
         practice: current.practice.filter((event) => !removedEntryIds.has(event.record_id)),
       };
     });
-  }, [setSnapshotLocal, userId]);
+    await reload(true); // Updated topic_id also changes the record revision.
+  }, [reload, setSnapshotLocal, userId]);
   const ensureInbox = useCallback(async (subjectId: string) => {
     const existing = snapshotRef.current.topics.find((topic) => topic.subject_id === subjectId && !topic.parent_id && topic.name.toLowerCase() === "inbox");
     if (existing) return existing;
