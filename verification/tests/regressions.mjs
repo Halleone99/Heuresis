@@ -164,6 +164,7 @@ const scenarios = {
     check(await page.locator('.ml-simple-item:has-text("Compare correlation")').count() === 1,
       "The rule and its formatted explanation are preserved");
 
+    await page.locator('.ml-crumbs button:has-text("Mistake Log")').click();
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').click();
     const grammarTheme = page.locator('.ml-theme-tile:has-text("Grammar")').first();
     await grammarTheme.locator(".ml-theme-pick").click();
