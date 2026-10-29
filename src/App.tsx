@@ -597,28 +597,59 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           <details className="desktop-account-menu" ref={accountMenuRef}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
-              <div className="desktop-account-identity"><span>ACCOUNT</span><strong>{accountLabel}</strong></div>
-              <button onClick={() => void runSync(false)}><RefreshCw size={14} /> Sync now</button>
-              {supportsLocalBackup() ? <button title="Automatic daily PC backups while Heuresis is open and online"
-                onClick={() => { setLocalBackupNotice("Checking PC backup…"); void runLocalBackup(true); }}>
-                <HardDriveDownload size={14} /> Check PC backup
-              </button> : null}
-              {supportsLocalBackup() && localBackupNotice ? <small className="desktop-backup-detail">{localBackupNotice}</small> : null}
-              {supportsLocalBackup() && !localBackupNotice && localBackupAgeNotice ? <small className="desktop-backup-detail">{localBackupAgeNotice}</small> : null}
-              <button onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
-                <ArchiveRestore size={14}/> Offline recovery{syncState.legacyPending + syncState.held ? ` (${syncState.legacyPending + syncState.held})` : ""}
+              <div className="desktop-account-identity">
+                <span>Signed in</span>
+                <strong title={accountLabel}>{accountLabel}</strong>
+              </div>
+              <button type="button" onClick={() => { setSettingsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <Settings2 size={15} /> Settings & appearance
               </button>
-              <button onClick={() => { setTrashOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
-                <Trash2 size={14}/> Trash & export
+              <button type="button" onClick={() => { toggleFocus(); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <Maximize2 size={15} /> {sidebarMode === "hidden" ? "Exit focus mode" : "Focus mode"}
               </button>
-              <button onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}><RefreshCw size={14} /> Refresh data</button>
-              <button onClick={() => { toggleFocus(); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
-                <Maximize2 size={14}/> {sidebarMode === "hidden" ? "Leave focus mode" : "Focus mode · hide sidebar"}
+              <button type="button" onClick={() => { setShortcutsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                <Keyboard size={15} /> Keyboard shortcuts
               </button>
-              <button onClick={() => { setShortcutsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Keyboard size={14} /> Keyboard shortcuts</button>
-              <button onClick={() => { setSettingsOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}><Settings2 size={14} /> Settings & appearance</button>
               <div className="desktop-account-divider" />
-              <button onClick={() => void supabase?.auth.signOut()}><LogOut size={14} /> Sign out</button>
+              <details className="desktop-account-data">
+                <summary>
+                  <span className="desktop-account-data-name"><HardDriveDownload size={15} /> Data & backup</span>
+                  <span className="desktop-account-data-end">
+                    {syncState.legacyPending + syncState.held > 0
+                      ? <span className="desktop-account-pending" title="Items in offline recovery">{syncState.legacyPending + syncState.held}</span>
+                      : null}
+                    <ChevronDown size={14} className="desktop-account-data-chevron" aria-hidden="true" />
+                  </span>
+                </summary>
+                <div className="desktop-account-data-items">
+                  <button type="button" onClick={() => void runSync(false)}><RefreshCw size={14} /> Sync now</button>
+                  {supportsLocalBackup() ? <>
+                    <button type="button" title="Check or save today's automatic PC backup"
+                      onClick={() => { setLocalBackupNotice("Checking PC backup…"); void runLocalBackup(true); }}>
+                      <HardDriveDownload size={14} /> PC backup
+                    </button>
+                    {(localBackupNotice || localBackupAgeNotice) ? (
+                      <small className="desktop-backup-detail" title={localBackupNotice || localBackupAgeNotice || undefined}>
+                        {localBackupNotice || localBackupAgeNotice}
+                      </small>
+                    ) : null}
+                  </> : null}
+                  <button type="button" onClick={() => { setRecoveryOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                    <ArchiveRestore size={14} /> Offline recovery
+                    {syncState.legacyPending + syncState.held > 0
+                      ? <span className="desktop-recovery-count">{syncState.legacyPending + syncState.held}</span>
+                      : null}
+                  </button>
+                  <button type="button" onClick={() => { setTrashOpen(true); if (accountMenuRef.current) accountMenuRef.current.open = false; }}>
+                    <Trash2 size={14} /> Trash & export
+                  </button>
+                  <button type="button" onClick={() => { void reload(true).then(() => setNotice("Heuresis refreshed.")).catch(() => undefined); void workspace.reload(true); }}>
+                    <RefreshCw size={14} /> Refresh data
+                  </button>
+                </div>
+              </details>
+              <div className="desktop-account-divider" />
+              <button type="button" onClick={() => void supabase?.auth.signOut()}><LogOut size={15} /> Sign out</button>
             </div>
           </details>
         </div>
