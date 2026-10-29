@@ -15,10 +15,10 @@ assert.match(palette, /event\.nativeEvent\.isComposing \|\| event\.keyCode === 2
 assert.match(palette, /role: "option"/, "Actions and results expose listbox options");
 assert.match(app, /commands=\{paletteCommands\}/, "App passes live command functions");
 assert.match(app, /const paletteCommands: PaletteCommand\[\] =/, "Commands are defined in app shell");
-for (const id of ["capture-note","capture-mistake","practise-due","organise-inbox","settings","sidebar","focus","sync","trash","export"]) {
+for (const id of ["capture-note","capture-mistake","practise-mistakes","organise-inbox","settings","sidebar","focus","sync","trash","export"]) {
   assert.ok(app.includes(`id: "${id}"`), `Missing command: ${id}`);
 }
-assert.match(app, /workspace\.openMistake\(due\[0\]\.id, \{ practise: true/, "Due review opens a real session");
+assert.match(app, /workspace\.openMistake\(eligible\[0\]\.id, \{ practise: true, ids: eligible\.map/, "Mistake review opens a full correction session");
 assert.match(app, /const topicId = inboxForContext\(\);/, "Inbox clean-up uses the current language, not the first Inbox");
 assert.match(app, /await exportKnowledgeJson\(session\.user\.id\)/, "Export reads the signed-in user's Notebook");
 assert.match(app, /anchor\.download =/, "Export is a real download");
