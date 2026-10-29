@@ -34,7 +34,7 @@ export function KnowledgeRemovalDialog({ target, onClose, onRemoved }: {
       .map((topic) => ({ id: topic.id, label: workspace.pathLabel(topic.id) }));
   async function perform(action: "move" | "delete") {
     if (working || (action === "move" && !destinations.some((row) => row.id === destination))
-      || (action === "delete" && nonempty && verification !== target.name)) return;
+      || (action === "delete" && verification !== target.name)) return;
     setWorking(true); setError("");
     try {
       if (target.kind === "subject") await workspace.manageSubjectTree(target.id, action, action === "move" ? destination : undefined);
@@ -84,11 +84,11 @@ export function KnowledgeRemovalDialog({ target, onClose, onRemoved }: {
             onClick={() => void perform("move")}>{working ? "Moving…" : "Move and remove"}</button></div>
       </> : <>
         <p className="nb-remove-warning">This permanently deletes the selected {target.kind}, its subtopics and all contained records, including archived material and associated recall history. It cannot be undone.</p>
-        {nonempty ? <label className="ws-field"><span>Type <strong>{target.name}</strong> to confirm deletion</span>
+        <label className="ws-field"><span>Type <strong>{target.name}</strong> to confirm deletion</span>
           <input autoFocus type="text" value={verification} disabled={working} onChange={(event) => setVerification(event.target.value)}
-            autoComplete="off" /></label> : null}
+            autoComplete="off" /></label>
         <div className="ws-dialog-actions"><button type="button" className="ws-button" disabled={working} onClick={() => setStep("choice")}><ArrowLeft size={14}/> Back</button>
-          <button type="button" className="ws-button nb-remove-confirm" disabled={working || (nonempty && verification !== target.name)}
+          <button type="button" className="ws-button nb-remove-confirm" disabled={working || verification !== target.name}
             onClick={() => void perform("delete")}>{working ? "Deleting…" : "Confirm deletion"}</button></div>
       </>}
       {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
