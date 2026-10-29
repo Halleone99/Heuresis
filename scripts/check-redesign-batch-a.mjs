@@ -22,7 +22,7 @@ assert.match(mistakes, /<h1>\{title\}<\/h1>/, "Mistake Log heading reflects the 
 assert.match(mistakes, /aria-label="Mistake Log location"/, "Breadcrumbs retain a clear home location");
 assert.doesNotMatch(mistakes, /Mistake → Correction → Practice → Progress/, "No developer-style headings");
 assert.doesNotMatch(overview, /Objectives from Personal OS appear here/, "No technical objective empty-state copy");
-assert.match(overview, /onOpenTopic\(pack\)/, "Overview opens a Study topic directly");
+assert.match(overview, /onOpenTopic\(selected\)/, "Overview opens the selected Study topic directly");
 assert.doesNotMatch(overview, /<button[^>]*>Open lesson <ArrowRight/, "No duplicate primary action in active lesson");
 assert.doesNotMatch(notebook, /action=\{workspace\.writable && fallbackTopic \? <div className="ws-empty-actions"/, "Notebook empty state relies on header action");
 
