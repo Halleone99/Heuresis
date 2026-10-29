@@ -31,7 +31,7 @@ assert.deepEqual(filter(sessions, reviews).map((session) => session.id),
 assert.deepEqual(filter(sessions, []).map((session) => session.id),
   ["browse", "graded-browse"]);
 assert.deepEqual(filter([], reviews), []);
-assert.ok(source.includes('select("event_type,created_at,pack_id,session_id")'),
+assert.ok(source.includes('select("event_type,created_at,pack_id,card_id,session_id")'),
   "The review query must retrieve session_id to associate graded events");
 const progress = readFileSync("src/components/workspace/ProgressView.tsx", "utf8");
 assert.ok(progress.includes("meaningfulStudySessions(activity?.sessions ?? [], reviews)"),
