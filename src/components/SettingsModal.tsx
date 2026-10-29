@@ -123,9 +123,8 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
             </option>)}
           </select>
           <span className="pb-page-status">
-            {background.hasImage ? "Custom background"
-              : selectedPage === "heuresis" ? "No shared background yet"
-                : shownImage ? "Using All pages" : "No background"}
+            {selectedPage === "heuresis" ? (background.hasImage ? "Shared background" : "No shared background")
+              : background.hasImage ? "Custom background" : shownImage ? "Using All pages" : "No background"}
           </span>
         </div>
         <div className="pb-toolbar-actions">
