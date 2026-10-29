@@ -553,7 +553,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }
 
 
-  const workspaceNotice = workspace.schema !== "v2" && section !== "study" && section !== "reading" && section !== "quotations" ? <div className="ws-schema-notice" role="status">
+  const workspaceNotice = workspace.schema !== "v2" && section !== "overview" && section !== "study" && section !== "reading" && section !== "quotations" ? <div className="ws-schema-notice" role="status">
     <TriangleAlert size={16} />
     <span>{workspace.schema === "missing"
       ? <>The Notebook tables do not exist in this database yet. Apply the two Knowledge migrations in <code>supabase/migrations/</code> to start writing notes. Study is unaffected.</>
@@ -657,13 +657,13 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </aside>
         <main className={`desktop-content ${section === "study" ? "is-study" : "is-workspace"}`}>
           {workspaceNotice}
-          {section !== "study" && section !== "reading" && section !== "quotations" && workspace.error ? <div className="ws-error-panel" role="alert">
+          {section !== "overview" && section !== "study" && section !== "reading" && section !== "quotations" && workspace.error ? <div className="ws-error-panel" role="alert">
             <strong>{getOfflineSyncState().online ? "The Notebook could not be loaded." : "This device has no offline copy of the Notebook yet."}</strong>
             <span>{workspace.error}</span>
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
-          {section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
-          {section === "overview" && !workspace.loading && !workspace.error ? <OverviewView collections={collections} packs={packs} studyLoading={loading} studyError={error} onOpenTopic={(pack) => { setSection("study"); openPack(pack); }} /> : null}
+          {section !== "overview" && section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
+          {section === "overview" ? <OverviewView collections={collections} packs={packs} studyLoading={loading} studyError={error} onOpenTopic={(pack) => { setSection("study"); openPack(pack); }} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
