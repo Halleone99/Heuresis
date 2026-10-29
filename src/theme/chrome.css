@@ -277,3 +277,109 @@
 @media (hover: hover) and (pointer: fine) {
   :root[data-theme] .desktop-action.hw-sidebar-header-toggle { display: none; }
 }
+
+/* Account menu: prioritise everyday actions and reveal maintenance on demand. */
+:root[data-theme] .desktop-account-popover {
+  width: 264px;
+  max-width: calc(100vw - 24px);
+  max-height: min(76vh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  border-radius: 12px;
+}
+:root[data-theme] .desktop-account-identity {
+  gap: 3px;
+  padding: 10px 11px 12px;
+}
+:root[data-theme] .desktop-account-identity span {
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+:root[data-theme] .desktop-account-identity strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root[data-theme] .desktop-account-popover button {
+  min-height: 37px;
+  padding: 0 10px;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+:root[data-theme] .desktop-account-popover button svg {
+  flex: 0 0 auto;
+  opacity: .84;
+}
+:root[data-theme] .desktop-account-divider {
+  margin: 6px 3px;
+}
+:root[data-theme] .desktop-account-data {
+  margin: 0;
+}
+:root[data-theme] .desktop-account-data > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 37px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--ws-ink);
+  cursor: pointer;
+  font-size: 12.5px;
+  list-style: none;
+  user-select: none;
+}
+:root[data-theme] .desktop-account-data > summary::-webkit-details-marker { display: none; }
+:root[data-theme] .desktop-account-data > summary:hover,
+:root[data-theme] .desktop-account-data[open] > summary { background: var(--ws-accent-soft); }
+:root[data-theme] .desktop-account-data-name,
+:root[data-theme] .desktop-account-data-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+:root[data-theme] .desktop-account-data-name svg { opacity: .84; }
+:root[data-theme] .desktop-account-data-end { gap: 8px; }
+:root[data-theme] .desktop-account-data-chevron { transition: transform .16s ease; }
+:root[data-theme] .desktop-account-data[open] .desktop-account-data-chevron { transform: rotate(180deg); }
+:root[data-theme] .desktop-account-pending,
+:root[data-theme] .desktop-recovery-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 23px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--ws-accent-soft);
+  color: var(--ws-ink);
+  font: 500 10px "DM Mono",ui-monospace,monospace;
+}
+:root[data-theme] .desktop-recovery-count { margin-left: auto; }
+:root[data-theme] .desktop-account-popover button .desktop-recovery-count {
+  color: var(--ws-ink);
+}
+:root[data-theme] .desktop-account-data-items {
+  margin: 3px 0 4px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--ws-ink) 4%, transparent);
+  border-radius: 8px;
+}
+:root[data-theme] .desktop-account-data-items button { min-height: 34px; }
+:root[data-theme] .desktop-backup-detail {
+  display: block;
+  margin: 1px 6px 5px 30px;
+  padding: 0 2px;
+  max-width: calc(100% - 40px);
+  font: 400 10.5px/1.4 Inter,system-ui,sans-serif;
+  color: var(--ws-muted);
+  overflow-wrap: anywhere;
+  max-height: 3em;
+  overflow: hidden;
+}
