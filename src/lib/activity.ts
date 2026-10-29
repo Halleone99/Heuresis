@@ -77,3 +77,32 @@ export function weekStart(date: Date) {
   copy.setDate(copy.getDate() - day);
   return copy;
 }
+
+
+/**
+ * Small read-only inventory for Overview. All counts use current, non-discarded
+ * main cards; reference cards count as cards added but not as reviewable cards.
+ * Cards removed from the current library do not inflate review coverage.
+ */
+export type StudyInventoryCard = { id: string; pack_id: string; created_at: string; retention: "learning" | "reference" };
+export async function loadStudyInventory(packIds: string[]): Promise<StudyInventoryCard[]> {
+  const ids = [...new Set(packIds)].filter(Boolean);
+  if (!ids.length) return [];
+  if (!supabase) throw new Error("Supabase is not configured.");
+  // Batches also avoid overlong URLs when the library has many topics.
+  const all: StudyInventoryCard[] = [];
+  for (let start = 0; start < ids.length; start += 60) {
+    const group = ids.slice(start, start + 60);
+    const rows = await paged<StudyInventoryCard>((from, to) => supabase!
+      .from("heuresis_cards")
+      .select("id,pack_id,created_at,retention")
+      .in("pack_id", group)
+      .eq("role", "main")
+      .is("data->>_discarded_at", null)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to), 100);
+    all.push(...rows);
+  }
+  return all;
+}
