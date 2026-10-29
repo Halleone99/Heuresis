@@ -16,6 +16,7 @@ import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { ReferenceLibrary } from "./ReferenceLibrary";
 import { SubjectCard } from "./SubjectCard";
+import { KnowledgeRemovalDialog, type KnowledgeRemovalTarget } from "./KnowledgeRemovalDialog";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
 import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
 import { useWorkspace } from "./WorkspaceContext";
@@ -258,6 +259,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
   const [creating, setCreating] = useState<null | { subjectId: string | null; parentId: string | null }>(null);
   const [renaming, setRenaming] = useState<null | { kind: "subject" | "topic"; id: string }>(null);
   const [confirmElement, confirm] = useConfirm();
+  const [removingTarget, setRemovingTarget] = useState<KnowledgeRemovalTarget | null>(null);
   const expanded = new Set(memory.notebook.expanded);
   const activeTopicId = location.docId ? workspace.entryById.get(location.docId)?.topic_id ?? location.topicId : location.topicId;
 
@@ -280,37 +282,12 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
   });
   const expand = (id: string) => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: Array.from(new Set([...current.notebook.expanded, id])) } }));
 
-  async function removeTopic(topic: KnowledgeTopic) {
-    const subtree = workspace.subtreeIds(topic.id);
-    const entries = snapshot.entries.filter((entry) => subtree.includes(entry.topic_id)).length;
-    if (entries) {
-      workspace.toast(`“${topic.name}” still contains ${entries} ${entries === 1 ? "entry" : "entries"}. Move or delete them first.`, { tone: "error" });
-      return;
-    }
-    if (subtree.length > 1) {
-      workspace.toast(`“${topic.name}” still has sub-topics. Delete those first.`, { tone: "error" });
-      return;
-    }
-    if (!await confirm({ title: `Delete “${topic.name}”?`, body: "This topic is empty. Deleting it cannot be undone.", confirmLabel: "Delete topic", danger: true })) return;
-    try {
-      await workspace.removeTopic(topic.id);
-      if (location.topicId === topic.id) navigate({ topicId: topic.parent_id, docId: null, subjectId: topic.parent_id ? null : topic.subject_id });
-    } catch (error) { workspace.toast(error instanceof Error ? error.message : String(error), { tone: "error" }); }
+  function removeTopic(topic: KnowledgeTopic) {
+    setRemovingTarget({ kind: "topic", id: topic.id, name: topic.name });
   }
-  async function removeSubject(subjectId: string) {
+  function removeSubject(subjectId: string) {
     const subject = workspace.subjectById.get(subjectId);
-    if (!subject) return;
-    const topicIds = new Set(snapshot.topics.filter((topic) => topic.subject_id === subjectId).map((topic) => topic.id));
-    const entries = snapshot.entries.filter((entry) => topicIds.has(entry.topic_id)).length;
-    if (entries || topicIds.size) {
-      workspace.toast(`${subject.name} still has ${topicIds.size} topic${topicIds.size === 1 ? "" : "s"} and ${entries} entr${entries === 1 ? "y" : "ies"}. Delete only empty topics first; nothing was removed.`, { tone: "error" });
-      return;
-    }
-    if (!await confirm({ title: `Delete empty subject ${subject.name}?`, body: "This subject has no topics or notes. Deletion cannot be undone.", confirmLabel: "Delete subject", danger: true })) return;
-    try {
-      await workspace.removeSubject(subjectId);
-      navigate({ topicId: null, docId: null, subjectId: null });
-    } catch (error) { workspace.toast(error instanceof Error ? error.message : String(error), { tone: "error" }); }
+    if (subject) setRemovingTarget({ kind: "subject", id: subject.id, name: subject.name });
   }
 
   const renderTopics = (subjectId: string, parentId: string | null, depth: number) => workspace.childrenOf(parentId, subjectId).map((topic) => {
@@ -351,6 +328,8 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
 
   return <aside className="nb-rail" aria-label="Notebook topics">
     {confirmElement}
+    {removingTarget ? <KnowledgeRemovalDialog key={removingTarget.id} target={removingTarget}
+      onClose={() => setRemovingTarget(null)} onRemoved={() => navigate({ topicId: null, docId: null, subjectId: null })}/> : null}
     <div className="nb-rail-head">
       <button type="button" className="ws-icon-button nb-rail-collapse" aria-label="Hide topics" title="Hide topics" onClick={onCollapse}><PanelLeftClose size={15} /></button>
     </div>
