@@ -52,6 +52,8 @@ export function MistakeLog() {
   const [notFiledOnly, setNotFiledOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(60);
   const [search, setSearch] = useState("");
+  const [chosenThemeIds, setChosenThemeIds] = useState<string[]>([]);
+  const [browsingAll, setBrowsingAll] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkPicker, setBulkPicker] = useState(false);
@@ -72,6 +74,7 @@ export function MistakeLog() {
     setNotFiledOnly(unfiled);
     setVisibleCount(60);
     setSearch("");
+    setBrowsingAll(false);
     setAdding(false);
     setEditingId(null);
     setSelectedIds([]);
@@ -141,8 +144,8 @@ export function MistakeLog() {
   const currentUnfiledCount = selectedSubjectId ? mistakes.filter((entry) =>
     workspace.topicById.get(entry.topic_id)?.subject_id === selectedSubjectId && isUnfiled(entry)).length : unfiledCount;
 
-  function practiseShown() {
-    const eligible = visibleMistakes.filter((entry) => entry.correction.trim());
+  function startPractice(entries: KnowledgeEntry[]) {
+    const eligible = entries.filter((entry) => entry.correction.trim());
     if (!eligible.length) return;
     const latest = new Map<string, { outcome: string; created_at: string }>();
     for (const event of snapshot.practice) {
@@ -169,6 +172,19 @@ export function MistakeLog() {
     setSession(mixed.map((entry) => entry.id));
   }
 
+  // The selection basket is separate from navigation and survives visiting other
+  // subjects. Choosing a parent theme includes all its subtopics; overlaps count once.
+  const chosenMistakes = useMemo(() => {
+    const scope = new Set(chosenThemeIds.flatMap((id) => workspace.subtreeIds(id)));
+    return mistakes.filter((entry) => scope.has(entry.topic_id) && entry.correction.trim());
+  }, [chosenThemeIds, mistakes, workspace.subtreeIds]);
+  const selectedThemeCount = chosenThemeIds.filter((id) => workspace.topicById.has(id)).length;
+  const themeChooser = !selectedTopicId && !notFiledOnly && !search.trim() && !browsingAll && !adding;
+  function toggleChosenTheme(id: string) {
+    setChosenThemeIds((current) => current.includes(id)
+      ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
   const groupByRule = Boolean(selectedTopicId && !search.trim() && !notFiledOnly);
   const repeatedRules = new Map<string, KnowledgeEntry[]>();
   if (groupByRule) {
@@ -180,8 +196,7 @@ export function MistakeLog() {
   }
   const groups = [...repeatedRules.entries()].filter(([, entries]) => entries.length > 1);
   const groupedIds = new Set(groups.flatMap(([, entries]) => entries.map((entry) => entry.id)));
-  const listEntries = !selectedSubjectId && !notFiledOnly && !search.trim()
-    ? mistakes.slice(0, 5) : visibleMistakes.slice(0, visibleCount);
+  const listEntries = visibleMistakes.slice(0, visibleCount);
 
   async function moveSelected(topicId: string) {
     setBulkPicker(false);
@@ -262,23 +277,34 @@ export function MistakeLog() {
     </nav>
     <header className="ws-page-head">
       <div><h1>{title}</h1>
-        <p className="ws-muted ml-page-subtitle">{allPage ? "Understand mistakes. Keep the correction."
+        <p className="ws-muted ml-page-subtitle">{themeChooser
+          ? (allPage ? "Choose a subject, then select the themes you want to practise."
+            : "Select one or several themes, or open a theme to review its corrections.")
           : visibleMistakes.length + (visibleMistakes.length === 1 ? " mistake" : " mistakes")}</p></div>
       <div className="ws-page-actions">
         <button className="ws-button" type="button" disabled={!visibleMistakes.some((entry) => entry.correction.trim())}
-          onClick={practiseShown}><GraduationCap size={16}/> Practise {allPage ? "all" : title}</button>
+          onClick={() => startPractice(visibleMistakes)}><GraduationCap size={16}/> Practise {allPage ? "all" : title}</button>
         {workspace.writable ? <button className="ws-button is-primary" type="button"
           onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={16}/> Add mistake</button> : null}
       </div>
     </header>
 
+    {selectedThemeCount > 0 ? <div className="ml-study-selection" role="region" aria-label="Selected practice themes">
+      <div className="ml-study-selection-copy">
+        <strong>{selectedThemeCount} {selectedThemeCount === 1 ? "theme" : "themes"} selected</strong>
+        <span>{chosenMistakes.length} correctable {chosenMistakes.length === 1 ? "mistake" : "mistakes"} across your selection</span>
+      </div>
+      <button className="ws-button is-primary" type="button" disabled={!chosenMistakes.length}
+        onClick={() => startPractice(chosenMistakes)}><GraduationCap size={15}/> Practise selected</button>
+      <button className="ws-button" type="button" onClick={() => setChosenThemeIds([])}>Clear</button>
+    </div> : null}
     {allPage && unfiledCount > 0 ? <button className="ml-not-filed" type="button"
       onClick={() => select(null, null, true)}>{unfiledCount} {unfiledCount === 1 ? "mistake" : "mistakes"} not filed yet <ChevronRight size={15}/></button> : null}
     {selectedSubjectId && !selectedTopicId && !notFiledOnly && currentUnfiledCount > 0
       ? <button className="ml-not-filed" type="button" onClick={() => select(selectedSubjectId, null, true)}>
         Not filed · {currentUnfiledCount}<ChevronRight size={15}/></button> : null}
 
-    {allPage && !search.trim() ? <div className="ml-hierarchy-grid">
+    {allPage && !search.trim() && !browsingAll ? <div className="ml-hierarchy-grid">
       {subjectCards.map((subject) => {
         const entries = mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === subject.id);
         const topics = workspace.childrenOf(null, subject.id).filter((topic) => countInTopic(topic.id));
@@ -290,12 +316,28 @@ export function MistakeLog() {
       })}
     </div> : null}
 
-    {childTopics.length && !search.trim() ? <div className="ml-hierarchy-grid">
-      {childTopics.map((topic) => <button type="button" key={topic.id} className="ml-hierarchy-card"
-        onClick={() => select(topic.subject_id, topic.id)}>
-        <span className="ml-hierarchy-card-heading">{topic.name}<ChevronRight size={17}/></span>
-        <strong>{countInTopic(topic.id)} {countInTopic(topic.id) === 1 ? "mistake" : "mistakes"}</strong>
-      </button>)}
+    {childTopics.length && !search.trim() && !browsingAll ? <div className="ml-theme-gallery" aria-label="Available themes">
+      {childTopics.map((topic) => {
+        const checked = chosenThemeIds.includes(topic.id);
+        const count = countInTopic(topic.id);
+        return <div className={"ml-theme-tile" + (checked ? " is-chosen" : "")} key={topic.id}>
+          <button type="button" className="ml-theme-open"
+            onClick={() => select(topic.subject_id, topic.id)}
+            aria-label={"Open " + topic.name + " mistakes"}>
+            <span className="ml-theme-title">{topic.name}<ChevronRight size={17}/></span>
+            <span className="ml-theme-count">{count} {count === 1 ? "mistake" : "mistakes"}</span>
+          </button>
+          <button type="button" className="ml-theme-pick" aria-pressed={checked}
+            onClick={() => toggleChosenTheme(topic.id)}>
+            <Check size={15}/>{checked ? "Selected for practice" : "Select for practice"}
+          </button>
+        </div>;
+      })}
+    </div> : null}
+    {themeChooser && mistakes.length > 0 ? <div className="ml-chooser-footer">
+      <button className="nb-link-button" type="button" onClick={() => setBrowsingAll(true)}>
+        {allPage ? "Browse all corrections" : "Browse all mistakes in " + title} <ChevronRight size={14}/>
+      </button>
     </div> : null}
 
     {workspace.writable && !allPage ? <div className="ml-bulk-toolbar">
@@ -323,7 +365,7 @@ export function MistakeLog() {
       <TopicPicker value={selectedTopicId} onClose={() => setBulkPicker(false)}
         onChange={(topicId) => void moveSelected(topicId)}/>
     </div></Portal> : null}
-    <section className="ml-hierarchy-content">
+    {!themeChooser ? <section className="ml-hierarchy-content">
       {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeQuickAdd key={selectedTopicId}
         initialTopicId={selectedTopicId}/> : null}
       {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeBulkAdd key={"bulk:" + selectedTopicId} topicId={selectedTopicId}/> : null}
@@ -336,8 +378,7 @@ export function MistakeLog() {
           onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
           placeholder={allPage ? "Search all mistakes…" : "Search in " + title + "…"} />
       </label>
-      {allPage && !search.trim() && mistakes.length > 0 ? <h2 className="ml-section-label">Recently added</h2>
-        : !allPage || search.trim() ? <h2 className="ml-section-label">{search.trim() ? "Search results" : "All mistakes"}</h2> : null}
+      <h2 className="ml-section-label">{search.trim() ? "Search results" : "Mistakes and corrections"}</h2>
       {!mistakes.length && !adding ? <EmptyState title="No mistakes recorded yet" icon={<Pencil size={22}/>}>
         Add a mistake and its correction. File it under any Notebook subject and topic.
       </EmptyState> : null}
@@ -353,9 +394,9 @@ export function MistakeLog() {
           <div className="ml-simple-list">{entries.map((entry) => renderItem(entry, true))}</div>
         </section>) : null}
       <div className="ml-simple-list">{listEntries.filter((entry) => !groupedIds.has(entry.id)).map((entry) => renderItem(entry))}</div>
-      {!allPage && visibleMistakes.length > visibleCount ? <button className="ml-simple-more" type="button"
+      {visibleMistakes.length > visibleCount ? <button className="ml-simple-more" type="button"
         onClick={() => setVisibleCount((count) => count + 60)}>Show more</button> : null}
-    </section>
+    </section> : null}
     {session ? <RecallSession ids={session} onClose={() => setSession(null)}/> : null}
   </div>;
 }
