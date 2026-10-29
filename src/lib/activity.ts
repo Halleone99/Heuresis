@@ -5,7 +5,7 @@ import { supabase } from "./supabase";
  * session and review-event tables — never Personal OS's Anki Tracker.
  */
 export type StudySession = { id: string; pack_id: string; mode: string; started_at: string; ended_at: string | null; cards_encountered: number };
-export type ReviewEvent = { event_type: string; created_at: string; pack_id: string; session_id: string | null };
+export type ReviewEvent = { event_type: string; created_at: string; pack_id: string; card_id: string; session_id: string | null };
 export type StudyActivity = { sessions: StudySession[]; reviews: ReviewEvent[]; since: string; loadedAt: number };
 
 export const GRADE_EVENTS = ["again", "hard", "good", "easy"] as const;
@@ -45,7 +45,7 @@ export async function loadStudyActivity(userId: string, days = 84, maxAgeMs = 60
       .select("id,pack_id,mode,started_at,ended_at,cards_encountered")
       .eq("user_id", userId).gte("started_at", sinceIso).order("started_at", { ascending: false }).range(from, to)),
     paged<ReviewEvent>((from, to) => client.from("heuresis_card_events")
-      .select("event_type,created_at,pack_id,session_id")
+      .select("event_type,created_at,pack_id,card_id,session_id")
       .eq("user_id", userId).gte("created_at", sinceIso).in("event_type", [...GRADE_EVENTS])
       .order("created_at", { ascending: false }).range(from, to)),
   ]);
