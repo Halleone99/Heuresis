@@ -594,7 +594,13 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             title={`Search notes, Study cards and commands (${MOD_KEY}+K)`} aria-label={`Search everywhere (${MOD_KEY}+K)`}>
             <Search size={17} aria-hidden="true" />
           </button>
-          <details className="desktop-account-menu" ref={accountMenuRef}>
+          <details className="desktop-account-menu" ref={accountMenuRef}
+            onToggle={(event) => {
+              if (!event.currentTarget.open) {
+                const dataMenu = event.currentTarget.querySelector<HTMLDetailsElement>(".desktop-account-data");
+                if (dataMenu) dataMenu.open = false;
+              }
+            }}>
             <summary aria-label="Account menu"><span className="desktop-account-avatar">{accountInitial}</span><ChevronDown size={13} /></summary>
             <div className="desktop-account-popover">
               <div className="desktop-account-identity">
