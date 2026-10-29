@@ -60,7 +60,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     if (!printing) return;
-    const complete = () => setPrinting(false);
+    const complete = () => { document.body.classList.remove("nb-printing"); setPrinting(false); };
     window.addEventListener("afterprint", complete);
     return () => window.removeEventListener("afterprint", complete);
   }, [printing]);
@@ -393,6 +393,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   const wordCount = (draft.body.match(/[\p{L}\p{N}]+(?:[\u2019\u0027-][\p{L}\p{N}]+)*/gu) ?? []).length;
   const printNote = useCallback(() => {
     if (isAndroidRuntime()) return;
+    document.body.classList.add("nb-printing");
     setPrinting(true);
     // Wait for the complete, unfolded print copy to mount outside the app shell.
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
