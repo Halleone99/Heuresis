@@ -34,10 +34,11 @@ function draftFromEntry(entry: KnowledgeEntry | null, newDoc: NewDocRequest): Dr
   };
 }
 
-export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote, onDetach, startInEditMode = false, detached = false }: {
+export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote, newAction, onDetach, startInEditMode = false, detached = false }: {
   entry: KnowledgeEntry | null; newDoc: NewDocRequest; onBack: () => void; onClose: () => void;
   navigate: (location: NotebookLocation) => void; onCreated: (entry: KnowledgeEntry) => void;
   onNewNote: (topicId: string | null, title?: string) => void;
+  newAction?: React.ReactNode;
   onDetach?: () => void; startInEditMode?: boolean; detached?: boolean;
 }) {
   const workspace = useWorkspace();
@@ -476,17 +477,20 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           </span>
           <button type="button" className="ws-button is-primary" onClick={() => void finishEditing()} title={`Done (${MOD_KEY}+Enter)`}><Check size={15} /> Done</button>
         </> : <>
-          {onDetach && liveEntry ? <button type="button" className="ws-button nb-open-window" onClick={onDetach} title="Open this note in a separate window"><ExternalLink size={14} /> Open window</button> : null}
-          {liveEntry && workspace.writable ? <button type="button" className={`ws-icon-button ${liveEntry.pinned ? "is-on" : ""}`} onClick={() => void togglePin()}
-            aria-pressed={liveEntry.pinned} aria-label="Pin to Overview" title={liveEntry.pinned ? "Pinned to Overview — click to unpin" : "Pin to Overview"}><Pin size={16} fill={liveEntry.pinned ? "currentColor" : "none"} /></button> : null}
-          {workspace.writable ? <button type="button" className="ws-button" onClick={() => startEditing()} title="Edit (E)"><Pencil size={14} /> Edit</button> : null}
+          <div className="nb-doc-primary-actions">
+            {workspace.writable ? <button type="button" className="ws-button" onClick={() => startEditing()} title="Edit (E)"><Pencil size={14} /> Edit</button> : null}
+            {newAction}
+          </div>
           {liveEntry ? <DocMenu
+            onDetach={onDetach}
+            onPin={workspace.writable ? () => void togglePin() : undefined}
+            pinned={Boolean(liveEntry.pinned)}
             onMove={workspace.writable ? () => setMoving(true) : undefined}
             onCopy={() => { void navigator.clipboard?.writeText([liveEntry.title, liveEntry.body].filter(Boolean).join("\n\n")).then(() => workspace.toast("Copied to the clipboard.")); }}
             onFlashcard={() => { if (liveEntry) setFlashcardTarget(liveEntry); }}
             onDelete={workspace.writable ? () => void remove() : undefined} /> : null}
         </>}
-        <button type="button" className="ws-icon-button" aria-label="Close note" title="Close note (Esc)" onClick={() => void closeNote()}><X size={16} /></button>
+        <button type="button" className="ws-icon-button nb-doc-close" aria-label="Close note" title="Close note (Esc)" onClick={() => void closeNote()}><X size={16} /></button>
       </div>
     </div>
 
@@ -657,15 +661,17 @@ function CaptureRow({ capture, onOpen, onFlashcard, actions }: { capture: Knowle
   </div>;
 }
 
-function DocMenu({ onMove, onCopy, onFlashcard, onDelete }: { onMove?: () => void; onCopy: () => void; onFlashcard: () => void; onDelete?: () => void }) {
+function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onFlashcard, onDelete }: { onDetach?: () => void; onPin?: () => void; pinned?: boolean; onMove?: () => void; onCopy: () => void; onFlashcard: () => void; onDelete?: () => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = usePopover(open, close);
   const item = (label: string, icon: React.ReactNode, run?: () => void, danger = false) => run
     ? <button type="button" role="menuitem" className={danger ? "is-danger" : ""} onClick={() => { setOpen(false); run(); }}>{icon}{label}</button> : null;
   return <div className="ws-menu" ref={ref}>
-    <button type="button" className="ws-icon-button" aria-label="More actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal size={17} /></button>
+    <button type="button" className={`ws-icon-button ${pinned ? "is-on" : ""}`} aria-label="More actions" title={pinned ? "More actions · pinned to Overview" : "More actions"} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal size={17} /></button>
     {open ? <div className="ws-menu-list is-right" role="menu">
+      {item("Open in new window", <ExternalLink size={14} />, onDetach)}
+      {item(pinned ? "Unpin from Overview" : "Pin to Overview", <Pin size={14} fill={pinned ? "currentColor" : "none"} />, onPin)}
       {item("Move to…", <FolderInput size={14} />, onMove)}
       {item("Make a flashcard…", <Layers size={14} />, onFlashcard)}
       {item("Copy text", <Copy size={14} />, onCopy)}
