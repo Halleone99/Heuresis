@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   createEntry, createSubject, createTopic, deleteEntry, deleteSubject, deleteTopic, EMPTY_SNAPSHOT,
-  entryTitle, friendlyError, isLesson, loadKnowledge, recordPractice, recordRepeatedMistake, renameSubject, restoreEntry,
+  entryTitle, friendlyError, isLesson, loadKnowledge, manageKnowledgeSubject, manageKnowledgeTopic, recordPractice, recordRepeatedMistake, renameSubject, restoreEntry,
   updateEntry, updateTopic,
   type EntryInput, type EntryPatch, type KnowledgeEntry, type KnowledgeSnapshot, type KnowledgeSubject, type NoteCategory,
   type KnowledgeTopic, type PracticeOutcome, type SchemaLevel,
@@ -41,9 +41,11 @@ type WorkspaceValue = {
   addSubject: (name: string) => Promise<KnowledgeSubject>;
   renameSubjectById: (id: string, name: string) => Promise<void>;
   removeSubject: (id: string) => Promise<void>;
+  manageSubjectTree: (id: string, action: "move" | "delete", destinationId?: string) => Promise<void>;
   addTopic: (subjectId: string, name: string, parentId?: string | null) => Promise<KnowledgeTopic>;
   changeTopic: (id: string, patch: { name?: string; parent_id?: string | null }) => Promise<void>;
   removeTopic: (id: string) => Promise<void>;
+  manageTopicTree: (id: string, action: "move" | "delete", destinationId?: string) => Promise<void>;
   ensureInbox: (subjectId: string) => Promise<KnowledgeTopic>;
   addEntry: (input: EntryInput) => Promise<KnowledgeEntry>;
   /** Quick-capture save: survives slow networks and restarts, never stores twice. */
@@ -319,6 +321,25 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       };
     });
   }, [setSnapshotLocal, userId]);
+  const manageSubjectTree = useCallback(async (id: string, action: "move" | "delete", destinationId?: string) => {
+    await manageKnowledgeSubject(userId, id, action, destinationId);
+    setSnapshotLocal((current) => {
+      const topicIds = new Set(current.topics.filter((topic) => topic.subject_id === id).map((topic) => topic.id));
+      if (action === "move" && destinationId) return {
+        ...current,
+        subjects: current.subjects.filter((subject) => subject.id !== id),
+        topics: current.topics.map((topic) => topicIds.has(topic.id) ? { ...topic, subject_id: destinationId } : topic),
+      };
+      const removedEntryIds = new Set(current.entries.filter((entry) => topicIds.has(entry.topic_id)).map((entry) => entry.id));
+      return {
+        ...current,
+        subjects: current.subjects.filter((subject) => subject.id !== id),
+        topics: current.topics.filter((topic) => !topicIds.has(topic.id)),
+        entries: current.entries.filter((entry) => !removedEntryIds.has(entry.id)),
+        practice: current.practice.filter((event) => !removedEntryIds.has(event.record_id)),
+      };
+    });
+  }, [setSnapshotLocal, userId]);
   const addTopic = useCallback(async (subjectId: string, name: string, parentId: string | null = null) => {
     const created = await createTopic(userId, subjectId, name, parentId);
     setSnapshotLocal((current) => ({ ...current, topics: [...current.topics, created] }));
@@ -337,6 +358,36 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
         topics: current.topics.filter((row) => row.id !== id),
         entries: current.entries.filter((row) => !deletedEntryIds.has(row.id)),
         practice: current.practice.filter((row) => !deletedEntryIds.has(row.record_id)),
+      };
+    });
+  }, [setSnapshotLocal, userId]);
+  const manageTopicTree = useCallback(async (id: string, action: "move" | "delete", destinationId?: string) => {
+    await manageKnowledgeTopic(userId, id, action, destinationId);
+    setSnapshotLocal((current) => {
+      const tree = new Set<string>([id]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const topic of current.topics) if (topic.parent_id && tree.has(topic.parent_id) && !tree.has(topic.id)) {
+          tree.add(topic.id); grew = true;
+        }
+      }
+      const destinationSubjectId = current.topics.find((topic) => topic.id === destinationId)?.subject_id;
+      if (action === "move" && destinationId && destinationSubjectId) return {
+        ...current,
+        topics: current.topics.filter((topic) => topic.id !== id).map((topic) => ({
+          ...topic,
+          parent_id: topic.parent_id === id ? destinationId : topic.parent_id,
+          subject_id: tree.has(topic.id) ? destinationSubjectId : topic.subject_id,
+        })),
+        entries: current.entries.map((entry) => entry.topic_id === id ? { ...entry, topic_id: destinationId } : entry),
+      };
+      const removedEntryIds = new Set(current.entries.filter((entry) => tree.has(entry.topic_id)).map((entry) => entry.id));
+      return {
+        ...current,
+        topics: current.topics.filter((topic) => !tree.has(topic.id)),
+        entries: current.entries.filter((entry) => !removedEntryIds.has(entry.id)),
+        practice: current.practice.filter((event) => !removedEntryIds.has(event.record_id)),
       };
     });
   }, [setSnapshotLocal, userId]);
@@ -526,7 +577,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const value: WorkspaceValue = {
     userId, snapshot, schema, writable: schema === "v2", loading, error, reload,
     subjectById, topicById, entryById, childrenOf, topicPath, pathLabel, subtreeIds,
-    addSubject, renameSubjectById, removeSubject, addTopic, changeTopic, removeTopic, ensureInbox,
+    addSubject, renameSubjectById, removeSubject, manageSubjectTree, addTopic, changeTopic, removeTopic, manageTopicTree, ensureInbox,
     addEntry, submitCapture, patchEntry, removeEntry, practise, recordRepeated,
     memory, updateMemory,
     section, goTo, openDocument, openTopic, openMistake, pendingEditId, consumePendingEdit, focusMistake, clearFocusMistake,
