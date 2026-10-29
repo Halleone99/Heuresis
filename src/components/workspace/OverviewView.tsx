@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, RefreshCw } from "lucide-react";
-import { loadStudyActivity, weekStart, type ReviewEvent, type StudyActivity } from "../../lib/activity";
+import { loadStudyActivity, loadStudyInventory, weekStart, type StudyActivity, type StudyInventoryCard, type ReviewEvent } from "../../lib/activity";
 import type { Collection, PackWithType } from "../../lib/heuresis";
 import { useWorkspace } from "./WorkspaceContext";
 import "./overview-heatmap.css";
@@ -16,208 +16,216 @@ type Props = {
 const dayKey = (date: Date) =>
   [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
 
-const level = (count: number) =>
+const intensity = (count: number) =>
   count === 0 ? "0" : count === 1 ? "1" : count <= 3 ? "2" : count <= 7 ? "3" : "4";
 
-type Summary = {
-  cards: number;
-  answers: number;
-  activeDays: number;
-  days: Map<string, number>;
-  weeks: Map<string, number>;
-};
-
-function summarise(reviews: ReviewEvent[]): Summary {
-  const distinct = new Set<string>();
+function summary(reviews: ReviewEvent[]) {
+  const unique = new Set<string>();
   const byDay = new Map<string, Set<string>>();
-  const byWeek = new Map<string, Set<string>>();
   for (const review of reviews) {
-    if (!review.card_id) continue;
     const date = new Date(review.created_at);
-    if (!Number.isFinite(date.getTime())) continue;
-    const day = dayKey(date);
-    const week = dayKey(weekStart(date));
-    distinct.add(review.card_id);
-    if (!byDay.has(day)) byDay.set(day, new Set());
-    if (!byWeek.has(week)) byWeek.set(week, new Set());
-    byDay.get(day)!.add(review.card_id);
-    byWeek.get(week)!.add(review.card_id);
+    if (!Number.isFinite(date.getTime()) || !review.card_id) continue;
+    const key = dayKey(date);
+    unique.add(review.card_id);
+    if (!byDay.has(key)) byDay.set(key, new Set());
+    byDay.get(key)!.add(review.card_id);
   }
   return {
-    cards: distinct.size,
+    unique: unique.size,
     answers: reviews.length,
     activeDays: byDay.size,
     days: new Map([...byDay].map(([day, cards]) => [day, cards.size])),
-    weeks: new Map([...byWeek].map(([week, cards]) => [week, cards.size])),
   };
 }
 
 export function OverviewView({ collections, packs, studyLoading, studyError, onOpenTopic }: Props) {
   const { userId } = useWorkspace();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [topicId, setTopicId] = useState("");
   const [activity, setActivity] = useState<StudyActivity | null>(null);
-  const [activityError, setActivityError] = useState("");
   const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState("");
+  const [inventory, setInventory] = useState<StudyInventoryCard[] | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState("");
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    let alive = true;
+    let mounted = true;
     setActivityLoading(true);
     setActivityError("");
     setActivity(null);
     void loadStudyActivity(userId, 190, 0)
-      .then((result) => { if (alive) setActivity(result); })
-      .catch((error) => { if (alive) setActivityError(error instanceof Error ? error.message : "Study history is unavailable."); })
-      .finally(() => { if (alive) setActivityLoading(false); });
-    return () => { alive = false; };
+      .then((data) => { if (mounted) setActivity(data); })
+      .catch((error) => { if (mounted) setActivityError(error instanceof Error ? error.message : "Review history unavailable."); })
+      .finally(() => { if (mounted) setActivityLoading(false); });
+    return () => { mounted = false; };
   }, [userId, retry]);
+
+  useEffect(() => {
+    let mounted = true;
+    setInventory(null);
+    setInventoryError("");
+    if (studyLoading || studyError) {
+      setInventoryLoading(studyLoading);
+      return () => { mounted = false; };
+    }
+    setInventoryLoading(true);
+    void loadStudyInventory(packs.map((pack) => pack.id))
+      .then((rows) => { if (mounted) setInventory(rows); })
+      .catch((error) => { if (mounted) setInventoryError(error instanceof Error ? error.message : "Card inventory unavailable."); })
+      .finally(() => { if (mounted) setInventoryLoading(false); });
+    return () => { mounted = false; };
+  }, [packs, studyLoading, studyError, retry]);
+
+  const orderedCollections = useMemo(() => [...collections].sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title)), [collections]);
+  const orderedPacks = useMemo(() => [...packs].sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title)), [packs]);
+  const selected = packs.find((pack) => pack.id === topicId) ?? null;
+  const activeId = selected?.id ?? "";
 
   const calendar = useMemo(() => {
     const start = weekStart(new Date());
     start.setDate(start.getDate() - 25 * 7);
     const today = dayKey(new Date());
-    const weeks = Array.from({ length: 26 }, (_, index) => {
-      const date = new Date(start);
-      date.setDate(date.getDate() + index * 7);
-      const previous = new Date(date);
-      previous.setDate(previous.getDate() - 7);
-      return {
-        key: dayKey(date),
-        label: index === 0 || date.getMonth() !== previous.getMonth()
-          ? date.toLocaleDateString("en-GB", { month: "short" }) : "",
-      };
-    });
     const days = Array.from({ length: 26 * 7 }, (_, index) => {
       const date = new Date(start);
       date.setDate(date.getDate() + index);
       const key = dayKey(date);
-      return { key, future: key > today, label: date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+      return { key, label: date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), future: key > today };
     });
-    return { weeks, days, first: days[0].key, today };
+    const weeks = Array.from({ length: 26 }, (_, index) => {
+      const startDate = new Date(start);
+      startDate.setDate(startDate.getDate() + index * 7);
+      const previous = new Date(startDate);
+      previous.setDate(previous.getDate() - 7);
+      return { key: dayKey(startDate), label: index === 0 || startDate.getMonth() !== previous.getMonth() ? startDate.toLocaleDateString("en-GB", { month: "short" }) : "" };
+    });
+    return { days, weeks, first: days[0].key, today };
   }, []);
 
-  const packById = useMemo(() => new Map(packs.map((pack) => [pack.id, pack])), [packs]);
-  const selected = selectedId && packById.has(selectedId) ? selectedId : null;
-  const reviews = useMemo(() => (activity?.reviews ?? []).filter((review) => {
-    if (!packById.has(review.pack_id) || !review.card_id) return false;
-    const time = new Date(review.created_at);
-    if (!Number.isFinite(time.getTime())) return false;
-    const key = dayKey(time);
-    return key >= calendar.first && key <= calendar.today;
-  }), [activity, packById, calendar.first, calendar.today]);
-
-  const byPack = useMemo(() => {
-    const grouped = new Map<string, ReviewEvent[]>();
-    for (const review of reviews) {
-      const current = grouped.get(review.pack_id) ?? [];
-      current.push(review);
-      grouped.set(review.pack_id, current);
-    }
-    return new Map(packs.map((pack) => [pack.id, summarise(grouped.get(pack.id) ?? [])]));
-  }, [packs, reviews]);
-  const summary = useMemo(
-    () => summarise(selected ? reviews.filter((review) => review.pack_id === selected) : reviews),
-    [reviews, selected],
-  );
-  const selectedTitle = selected ? packById.get(selected)?.title ?? "Selected topic" : "All Study topics";
-  const groups = useMemo(() => {
-    const sorted = [...collections].sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title));
-    const rows = sorted.map((collection) => ({
-      collection,
-      topics: packs.filter((pack) => pack.collection_id === collection.id)
-        .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title)),
-    })).filter((group) => group.topics.length);
-    const ungrouped = packs.filter((pack) => !collections.some((collection) => collection.id === pack.collection_id));
-    if (ungrouped.length) rows.push({
-      collection: { id: "ungrouped", title: "Other topics", description: null, accent: "slate", glyph: null, sort_order: 999 } as Collection,
-      topics: ungrouped.sort((a, b) => a.title.localeCompare(b.title)),
+  const last30 = useMemo(() => Date.now() - 30 * 86400000, []);
+  const relevant = useMemo(() => {
+    const allowedPacks = new Set(packs.map((pack) => pack.id));
+    const activeLearning = inventory ? new Set(inventory.filter((card) => card.retention === "learning").map((card) => card.id)) : null;
+    return (activity?.reviews ?? []).filter((review) => {
+      if (!review.card_id || !allowedPacks.has(review.pack_id) || (activeId && review.pack_id !== activeId)) return false;
+      if (activeLearning && !activeLearning.has(review.card_id)) return false;
+      const date = new Date(review.created_at);
+      return Number.isFinite(date.getTime()) && dayKey(date) >= calendar.first && dayKey(date) <= calendar.today;
     });
-    return rows;
-  }, [collections, packs]);
+  }, [activity, activeId, packs, inventory, calendar.first, calendar.today]);
 
-  const historyReady = !!activity && !activityLoading && !activityError;
+  const recent = useMemo(() => relevant.filter((review) => new Date(review.created_at).getTime() >= last30), [relevant, last30]);
+  const period = useMemo(() => summary(relevant), [relevant]);
+  const month = useMemo(() => summary(recent), [recent]);
+  const matchingInventory = useMemo(() => inventory?.filter((card) => !activeId || card.pack_id === activeId) ?? null, [inventory, activeId]);
+  const allCards = selected ? selected.card_count : packs.reduce((sum, pack) => sum + pack.card_count, 0);
+  const recentAdditions = matchingInventory ? matchingInventory.filter((card) => new Date(card.created_at).getTime() >= last30).length : null;
+  const learningCount = matchingInventory ? matchingInventory.filter((card) => card.retention === "learning").length : null;
+  const coverage = learningCount === null || learningCount === 0 ? null : Math.min(100, Math.round((month.unique / learningCount) * 100));
+  const historyReady = !activityLoading && !activityError && activity !== null;
+  const title = selected ? selected.title : "All topics";
+  const collection = selected ? collections.find((entry) => entry.id === selected.collection_id) : null;
+
   return <div className="ov-page oh-overview">
     <header className="ws-page-head">
       <div>
         <span className="ws-eyebrow">STUDY ACTIVITY</span>
         <h1>Overview</h1>
-        <p className="ws-page-sub">Cards reviewed across your Study topics.</p>
+        <p className="ws-page-sub">One view of your cards and study activity.</p>
       </div>
     </header>
-
-    <section className="ws-panel oh-calendar-panel" aria-labelledby="oh-calendar-title">
-      <div className="ws-panel-head oh-calendar-heading">
-        <div>
-          <h2 id="oh-calendar-title">{selectedTitle}</h2>
-          <span className="ws-muted ws-tiny">Last 26 weeks · one square per day</span>
+    <section className="ws-panel oh-main-panel" aria-label="Study Overview">
+      <div className="oh-selection">
+        <div className="oh-selection-heading">
+          <span className="oh-label">VIEW</span>
+          <h2>{title}</h2>
+          {collection ? <p>{collection.title}</p> : <p>Your entire Study library</p>}
         </div>
-        {selected ? <button className="nb-link-button" type="button" onClick={() => setSelectedId(null)}>Show all topics <ArrowRight size={14}/></button> : null}
+        <div className="oh-controls">
+          <label className="oh-sr" htmlFor="oh-topic-choice">Choose a Study topic</label>
+          <select id="oh-topic-choice" className="oh-select" aria-label="Choose a Study topic" value={activeId}
+            disabled={studyLoading || Boolean(studyError)} onChange={(event) => setTopicId(event.target.value)}>
+            <option value="">All topics</option>
+            {orderedCollections.map((collection) => <optgroup label={collection.title} key={collection.id}>
+              {orderedPacks.filter((pack) => pack.collection_id === collection.id).map((pack) =>
+                <option key={pack.id} value={pack.id}>{pack.title}</option>)}
+            </optgroup>)}
+            {orderedPacks.some((pack) => !collections.some((collection) => collection.id === pack.collection_id)) ? <optgroup label="Other topics">
+              {orderedPacks.filter((pack) => !collections.some((collection) => collection.id === pack.collection_id)).map((pack) =>
+                <option key={pack.id} value={pack.id}>{pack.title}</option>)}
+            </optgroup> : null}
+          </select>
+          {selected ? <button type="button" className="nb-link-button oh-open" onClick={() => onOpenTopic(selected)}>Open topic <ArrowRight size={14}/></button> : null}
+        </div>
       </div>
-      {activityError ? <div className="ws-inline-warning" role="alert">
-        <span>Study history is unavailable. The figures below are not zero: {activityError}</span>
-        <button type="button" className="ws-button is-small" onClick={() => setRetry((value) => value + 1)}><RefreshCw size={14}/> Retry</button>
-      </div> : null}
-      {activityLoading ? <p className="ws-muted" role="status">Loading study activity…</p> : null}
-      {historyReady ? <>
-        <div className="oh-totals">
-          <span><strong>{summary.cards.toLocaleString()}</strong> unique cards reviewed</span>
-          <span><strong>{summary.answers.toLocaleString()}</strong> review answers</span>
-          <span><strong>{summary.activeDays.toLocaleString()}</strong> active days</span>
+
+      {studyError ? <p className="ws-inline-warning" role="alert">Could not load Study topics: {studyError}</p> : null}
+
+      <div className="oh-metrics">
+        <div className="oh-metric">
+          <span>Total cards</span>
+          <strong>{studyLoading || studyError ? "—" : allCards.toLocaleString()}</strong>
+          <small>Currently in {selected ? "this topic" : "your library"}</small>
         </div>
+        <div className="oh-metric">
+          <span>Added in 30 days</span>
+          <strong>{inventoryLoading || inventoryError || recentAdditions === null ? "—" : "+" + recentAdditions.toLocaleString()}</strong>
+          <small>New cards saved</small>
+        </div>
+        <div className="oh-metric">
+          <span>Reviewed in 30 days</span>
+          <strong>{historyReady ? month.unique.toLocaleString() : "—"}</strong>
+          <small>Distinct cards reviewed</small>
+        </div>
+      </div>
+
+      {inventoryError ? <p className="oh-note oh-error" role="alert">New-card statistics unavailable: {inventoryError} <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></p> : null}
+      {activityError ? <p className="oh-note oh-error" role="alert">Review history unavailable: {activityError} <button type="button" onClick={() => setRetry((value) => value + 1)}><RefreshCw size={12}/> Retry</button></p> : null}
+      {activityLoading || inventoryLoading ? <p className="oh-note" role="status">Loading study statistics…</p> : null}
+
+      <div className="oh-coverage">
+        <div className="oh-coverage-head">
+          <div>
+            <strong>30-day review coverage</strong>
+            <small>How many of your learning cards you reviewed recently</small>
+          </div>
+          <b>{historyReady && learningCount !== null ? month.unique + " / " + learningCount : "—"}</b>
+        </div>
+        <div className="oh-track" role="progressbar" aria-label="Learning cards reviewed in the last 30 days"
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={historyReady && coverage !== null ? coverage : undefined}
+          aria-valuetext={historyReady && learningCount !== null ? month.unique + " of " + learningCount + " learning cards reviewed" : "Not available"}>
+          <span style={{ width: historyReady && coverage !== null ? coverage + "%" : "0%" }} />
+        </div>
+        <p className="oh-coverage-note">{historyReady && learningCount === 0 ? "There are no learning cards in this selection." : "Coverage measures review activity, not whether a card has been mastered."}</p>
+      </div>
+
+      <div className="oh-heat-heading">
+        <div><h3>Review activity</h3><p>Last 26 weeks · each square is one day</p></div>
+        <div className="oh-heat-summary">{historyReady ? <><strong>{period.activeDays}</strong> active days <span>·</span> <strong>{period.answers.toLocaleString()}</strong> review answers</> : "—"}</div>
+      </div>
+      {historyReady ? <>
         <div className="oh-calendar-scroll">
           <div className="oh-calendar-inner">
             <div className="oh-months" aria-hidden="true">{calendar.weeks.map((week) => <span key={week.key}>{week.label}</span>)}</div>
             <div className="oh-calendar-body">
               <div className="oh-weekdays" aria-hidden="true"><span>M</span><span/><span>W</span><span/><span>F</span><span/><span/></div>
-              <div className="oh-days" role="img" aria-label={selectedTitle + ": " + summary.cards + " distinct cards reviewed in the last 26 weeks"}>
+              <div className="oh-days" role="img" aria-label={title + ": daily number of different cards reviewed over 26 weeks"}>
                 {calendar.days.map((day) => {
-                  const count = summary.days.get(day.key) ?? 0;
-                  return <span key={day.key} className="oh-cell" data-level={day.future ? "future" : level(count)}
-                    title={day.future ? day.label : day.label + ": " + count + " unique " + (count === 1 ? "card" : "cards") + " reviewed"} />;
+                  const count = period.days.get(day.key) ?? 0;
+                  return <span key={day.key} className="oh-cell" data-level={day.future ? "future" : intensity(count)}
+                    title={day.future ? day.label : day.label + " · " + count + (count === 1 ? " card" : " cards") + " reviewed"} />;
                 })}
               </div>
             </div>
           </div>
         </div>
         <div className="oh-calendar-footer">
-          <span>A card counts once per day, even if reviewed repeatedly.</span>
-          <div className="oh-legend" aria-label="Fewer to more cards reviewed"><span>Less</span>{[0, 1, 2, 3, 4].map((n) => <i className="oh-cell" data-level={n} key={n} />)}<span>More</span></div>
-        </div>
-      </> : null}
-    </section>
-
-    <section className="ws-panel oh-topics-panel" aria-labelledby="oh-topics-title">
-      <div className="ws-panel-head">
-        <div><h2 id="oh-topics-title">By topic</h2><span className="ws-muted ws-tiny">Select a topic to filter the calendar, or open it in Study.</span></div>
-      </div>
-      {studyError ? <p role="alert" className="ws-muted">Study topics are unavailable: {studyError}</p>
-        : studyLoading ? <p role="status" className="ws-muted">Loading topics…</p>
-        : groups.length ? groups.map(({ collection, topics }) => <div className="oh-group" key={collection.id}>
-          <h3>{collection.title} <small>{topics.length} {topics.length === 1 ? "topic" : "topics"}</small></h3>
-          <div className="oh-topic-list">
-            {topics.map((pack) => {
-              const stats = byPack.get(pack.id);
-              return <div className={"oh-topic-row" + (selected === pack.id ? " is-selected" : "")} key={pack.id}>
-                <button type="button" className="oh-topic-select" onClick={() => setSelectedId(selected === pack.id ? null : pack.id)}
-                  aria-pressed={selected === pack.id} title={"Show activity for " + pack.title}>
-                  <span className="oh-topic-name">{pack.title}</span>
-                  <small>{pack.card_count.toLocaleString()} cards in library</small>
-                </button>
-                <div className="oh-topic-weeks" role="img" aria-label={pack.title + ": " + (historyReady ? (stats?.cards ?? 0) + " distinct cards reviewed" : "review history unavailable")}>
-                  {calendar.weeks.map((week) => {
-                    const count = historyReady ? stats?.weeks.get(week.key) ?? 0 : 0;
-                    return <i key={week.key} className="oh-cell" data-level={historyReady ? level(count) : "unknown"}
-                      title={historyReady ? week.key + ": " + count + " unique cards reviewed" : "Review history not loaded"} />;
-                  })}
-                </div>
-                <span className="oh-topic-count" title="Distinct cards reviewed in the last 26 weeks">
-                  {historyReady ? (stats?.cards ?? 0).toLocaleString() : "—"} <small>reviewed</small>
-                </span>
-                <button type="button" className="oh-topic-open" aria-label={"Open " + pack.title + " in Study"} title="Open in Study" onClick={() => onOpenTopic(pack)}><ArrowRight size={15}/></button>
-              </div>;
-            })}
+          <span>Hover over any square to see the daily count.</span>
+          <div className="oh-legend" aria-label="Daily count scale">
+            <span>0</span>{[0, 1, 2, 3, 4].map((n) => <i key={n} className="oh-cell" data-level={String(n)} />)}<span>8+ cards</span>
           </div>
-        </div>) : <p className="ws-muted">No Study topics yet. Create your first topic in Study.</p>}
+        </div>
+      </> : <p className="oh-note">Review history has not loaded.</p>}
     </section>
   </div>;
 }
