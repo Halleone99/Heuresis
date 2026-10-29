@@ -165,7 +165,13 @@ const scenarios = {
       "The rule and its formatted explanation are preserved");
 
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').click();
-    await page.locator('.ml-hierarchy-card:has-text("Grammar")').first().click();
+    const grammarTheme = page.locator('.ml-theme-tile:has-text("Grammar")').first();
+    await grammarTheme.locator(".ml-theme-pick").click();
+    check(await page.locator('.ml-study-selection:has-text("1 theme selected")').count() === 1,
+      "A whole theme can be selected for targeted practice without opening corrections");
+    check(await page.locator('.ml-study-selection button:has-text("Practise selected")').isEnabled(),
+      "The selected theme has correctable mistakes ready for practice");
+    await grammarTheme.locator(".ml-theme-open").click();
     const quick = page.locator(".ml-quick-add");
     await quick.locator("input").nth(0).fill("Wrong assumption");
     await quick.locator("input").nth(1).fill("Corrected conclusion");
