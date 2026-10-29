@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   createEntry, createSubject, createTopic, deleteEntry, deleteSubject, deleteTopic, EMPTY_SNAPSHOT,
-  entryTitle, friendlyError, isLesson, loadKnowledge, recordPractice, renameSubject, restoreEntry,
+  entryTitle, friendlyError, isLesson, loadKnowledge, recordPractice, recordRepeatedMistake, renameSubject, restoreEntry,
   updateEntry, updateTopic,
   type EntryInput, type EntryPatch, type KnowledgeEntry, type KnowledgeSnapshot, type KnowledgeSubject, type NoteCategory,
   type KnowledgeTopic, type PracticeOutcome, type SchemaLevel,
@@ -51,6 +51,7 @@ type WorkspaceValue = {
   patchEntry: (id: string, patch: EntryPatch) => Promise<KnowledgeEntry>;
   removeEntry: (id: string, options?: { undo?: boolean }) => Promise<void>;
   practise: (id: string, outcome: PracticeOutcome, answer: string) => Promise<KnowledgeEntry>;
+  recordRepeated: (id: string) => Promise<void>;
   // device-local context
   memory: WorkspaceMemory;
   updateMemory: (update: (current: WorkspaceMemory) => WorkspaceMemory) => void;
@@ -457,6 +458,13 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     return result.entry;
   }, [setSnapshotLocal, userId]);
 
+  const recordRepeated = useCallback(async (id: string) => {
+    const current = snapshotRef.current.entries.find((row) => row.id === id && row.kind === "mistake");
+    if (!current) throw new Error("This mistake no longer exists.");
+    const event = await recordRepeatedMistake(userId, current);
+    setSnapshotLocal((value) => ({ ...value, practice: [event, ...value.practice] }));
+  }, [setSnapshotLocal, userId]);
+
   // Section navigation means "open Notebook home", never "resume the last note".
   // Direct note/topic links below still set their target before changing section.
   const goTo = useCallback((next: WorkspaceSection) => {
@@ -519,7 +527,7 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
     userId, snapshot, schema, writable: schema === "v2", loading, error, reload,
     subjectById, topicById, entryById, childrenOf, topicPath, pathLabel, subtreeIds,
     addSubject, renameSubjectById, removeSubject, addTopic, changeTopic, removeTopic, ensureInbox,
-    addEntry, submitCapture, patchEntry, removeEntry, practise,
+    addEntry, submitCapture, patchEntry, removeEntry, practise, recordRepeated,
     memory, updateMemory,
     section, goTo, openDocument, openTopic, openMistake, pendingEditId, consumePendingEdit, focusMistake, clearFocusMistake,
     capture, openCapture, closeCapture, startLesson, endLesson, currentLesson,

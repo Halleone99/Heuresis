@@ -39,7 +39,7 @@ assert.match(css,/\.pg-empty-chart \{/);
 assert.match(notebook,/aria-label="Subjects and topics"/);
 assert.match(notebook,/label="Subject name"/);
 assert.match(capture,/label="Subject name"/);
-assert.match(icons,/New language/);
+assert.match(icons,/New subject/);
 assert.doesNotMatch(mistakes,/ml-languages-tabs/, "Corrections apply to every subject without language tabs");
 assert.match(progress,/<h2>By language<\/h2>/);
 

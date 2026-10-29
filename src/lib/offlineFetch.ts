@@ -39,7 +39,7 @@ const DB_NAME = "heuresis-offline-network-v1";
 const DB_VERSION = 2;
 const CACHE_STORE = "responses";
 const RECOVERY_STORE = "knowledge-recovery";
-const KNOWLEDGE_TABLES = new Set(["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events", "knowledge_mistake_modes"]);
+const KNOWLEDGE_TABLES = new Set(["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events"]);
 const QUEUE_STORE = "queue";
 const LAST_SYNC_KEY = "heuresis.offline.lastSync.v1";
 const READ_RPCS = new Set([
@@ -271,7 +271,7 @@ async function saveResponse(key: string, method: string, url: string, response: 
  */
 export async function exportCachedKnowledgeForRecovery(userId: string): Promise<{ json: string; counts: Record<string, number> }> {
   if (!userId || userId !== cacheOwner()) throw new Error("Sign in to the original account before checking the device cache.");
-  const tables = ["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events", "knowledge_mistake_modes"] as const;
+  const tables = ["knowledge_subjects", "knowledge_topics", "knowledge_records", "knowledge_practice_events"] as const;
   type Table = typeof tables[number];
   const collected = Object.fromEntries(tables.map((table) => [table, new Map<string, Record<string, unknown>>()])) as Record<Table, Map<string, Record<string, unknown>>>;
   const cached = [

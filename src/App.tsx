@@ -38,7 +38,7 @@ import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
-import { entryTitle, friendlyError, isRecallDue } from "./lib/knowledgeWorkspace";
+import { entryTitle, friendlyError } from "./lib/knowledgeWorkspace";
 import { isInboxTopic } from "./lib/lessonCleanup";
 import { quickQueueKind } from "./lib/quickQueue";
 import { useCaptureReviewIds } from "./lib/captureReviewQueue";
@@ -417,10 +417,10 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     ...SECTIONS.map((item) => ({ id: `go-${item.id}`, label: `Go to ${item.label}`, detail: `Navigate to ${item.label} · Alt+${item.key}`, keywords: "section navigate", run: () => navigateSection(item.id) })),
     { id: "capture-note", label: "Capture a note", detail: "Quick note · Ctrl+Shift+N", keywords: "create write capture", run: () => openNotebookCapture("note") },
     { id: "capture-mistake", label: "Record a mistake", detail: "Quick correction · Ctrl+Shift+M", keywords: "mistake recall", run: () => openNotebookCapture("mistake") },
-    { id: "practise-due", label: "Practise due mistakes", detail: "Start a recall session", keywords: "review test recall", run: () => {
-      const due = workspace.snapshot.entries.filter((entry) => entry.kind === "mistake" && isRecallDue(entry));
-      if (due.length) workspace.openMistake(due[0].id, { practise: true, ids: due.map((entry) => entry.id) });
-      else workspace.toast("No mistakes are due for recall.");
+    { id: "practise-mistakes", label: "Practise mistakes", detail: "Review your recorded corrections", keywords: "review test recall", run: () => {
+      const eligible = workspace.snapshot.entries.filter((entry) => entry.kind === "mistake" && entry.correction.trim());
+      if (eligible.length) workspace.openMistake(eligible[0].id, { practise: true, ids: eligible.map((entry) => entry.id) });
+      else workspace.toast("Add a correction before practising.");
     } },
     { id: "organise-inbox", label: "Organise Inbox captures", detail: "Review captured notes and file them", keywords: "sort tidy cleanup", run: () => {
       const topicId = inboxForContext();

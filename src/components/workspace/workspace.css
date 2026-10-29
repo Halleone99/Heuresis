@@ -2379,6 +2379,182 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
 .ov-library-subjects button svg { opacity: .5; }
 .ov-library-subjects button:hover, .ov-library-subjects button:focus-visible { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
 
+
+/* Mistake Log: subject / topic / rule navigation. Single-column and touch-friendly. */
+.ml-hierarchy { max-width: 1120px; }
+.ml-hierarchy .ws-page-head { margin-top: 8px; margin-bottom: 20px; }
+.ml-crumbs { margin-bottom: 10px; }
+.ml-hierarchy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 12px; margin-bottom: 20px; }
+.ml-hierarchy-card {
+  display: grid; justify-items: start; align-content: start; gap: 9px;
+  padding: 20px; min-height: 116px; border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-lg); background: var(--ws-surface);
+  color: var(--ws-ink); text-align: left; font-family: var(--ws-sans); cursor: pointer;
+}
+.ml-hierarchy-card:hover, .ml-hierarchy-card:focus-visible { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ml-hierarchy-card-heading { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 16px; font-weight: 650; }
+.ml-hierarchy-card-heading svg { flex: none; color: var(--ws-muted); }
+.ml-hierarchy-card strong { color: var(--ws-text); font-size: 13px; font-weight: 500; }
+.ml-hierarchy-card small { color: var(--ws-muted); font: 400 11.5px/1.5 var(--ws-sans); }
+.ml-not-filed {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; margin-bottom: 16px; padding: 12px 16px;
+  border: 1px solid var(--ws-line); border-radius: 9px; background: var(--ws-surface);
+  color: var(--ws-text); font: 500 13px/1.3 var(--ws-sans); cursor: pointer;
+}
+.ml-not-filed:hover { background: var(--ws-raised); color: var(--ws-ink); }
+.ml-hierarchy-content { display: grid; gap: 12px; max-width: 100%; }
+.ml-section-label { margin: 7px 0 1px; color: var(--ws-muted); font: 600 12px/1.3 var(--ws-sans); }
+.ml-rule-group { display: grid; gap: 10px; }
+.ml-rule-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 3px; border-bottom: 1px solid var(--ws-line); }
+.ml-rule-head h3 { margin: 0; font: 600 14px/1.4 var(--ws-sans); color: var(--ws-ink); }
+.ml-rule-head h3 small { font-weight: 400; color: var(--ws-muted); }
+.ml-rule-head .nb-link-button { white-space: nowrap; }
+.ml-hierarchy .ml-simple-item { padding: 16px 18px; gap: 12px; box-shadow: var(--ws-shadow-1); }
+.ml-hierarchy .ml-simple-body { gap: 7px; }
+.ml-hierarchy .ml-simple-pair p { font-size: 17px; line-height: 1.48; }
+.ml-hierarchy .ml-simple-item.is-idea-style .ml-simple-pair p { font: 400 15px/1.55 var(--ws-sans); }
+.ml-hierarchy .ml-simple-item .ml-entry-title { margin: 0; font-size: 13.5px; }
+.ml-hierarchy .ml-entry-title small, .ml-entry-detail { color: var(--ws-muted); font: 400 11.5px/1.3 var(--ws-sans); }
+.ml-hierarchy .ml-entry-context-wrap { padding-top: 7px; }
+.ml-hierarchy .ml-entry-context { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ml-hierarchy .ml-entry-evidence { font: 400 11px/1.4 var(--ws-sans); color: var(--ws-muted); }
+.ml-hierarchy .ml-simple-actions { opacity: .72; }
+.ml-hierarchy .ml-simple-item:hover .ml-simple-actions, .ml-hierarchy .ml-simple-item:focus-within .ml-simple-actions { opacity: 1; }
+.ml-diff-gap { color: var(--ws-bad); font-weight: 700; text-decoration: underline; }
+.ml-quick-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(120px, .65fr) auto; gap: 10px; align-items: end;
+  padding: 13px; border: 1px solid var(--ws-line); border-radius: 10px; background: var(--ws-surface); }
+.ml-quick-add label { display: grid; min-width: 0; gap: 4px; color: var(--ws-muted); font: 600 11px/1.3 var(--ws-sans); }
+.ml-quick-add input { min-width: 0; width: 100%; padding: 9px 10px; border: 1px solid var(--ws-line); border-radius: 7px;
+  color: var(--ws-ink); background: var(--ws-raised); font: 400 13px/1.3 var(--ws-sans); }
+.ml-quick-add .ws-field-error { grid-column: 1 / -1; }
+.ml-destination { justify-content: space-between; width: 100%; min-height: 39px; text-align: left; }
+.ml-copy-mistake { justify-self: start; }
+.ml-pin-option { display: inline-flex; align-items: center; gap: 7px; font: 400 12px var(--ws-sans); color: var(--ws-text); }
+.ml-simple-edit-actions .ml-delete-in-editor { margin-right: auto; color: var(--ws-bad); }
+@media (max-width: 850px) {
+  .ml-quick-add { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ml-quick-add .ws-button { justify-self: start; }
+}
+@media (max-width: 560px) {
+  .ml-quick-add { grid-template-columns: minmax(0, 1fr); }
+  .ml-hierarchy .ws-page-head { align-items: flex-start; }
+  .ml-hierarchy .ml-simple-item { padding: 13px 12px; }
+  .ml-hierarchy .ml-simple-pair p { font-size: 16px; }
+  .ml-hierarchy-card { min-height: 98px; }
+}
+
+.ml-duplicate-check { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px;
+  background: var(--ws-raised); border: 1px solid var(--ws-line); border-radius: 8px; color: var(--ws-text); font-size: 12px; }
+.ml-duplicate-check span { flex: 1 1 240px; }
+.ml-bulk-add { display: grid; gap: 8px; }
+.ml-bulk-add > button { justify-self: start; }
+.ml-bulk-panel { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--ws-line); border-radius: 9px; background: var(--ws-surface); }
+.ml-bulk-panel textarea { width: 100%; white-space: pre-wrap; }
+.ml-bulk-panel small { color: var(--ws-muted); }
+.ml-bulk-panel .ws-button { justify-self: start; }
+.ml-bulk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.ml-bulk-toolbar .ws-muted { font-size: 12px; }
+.ml-bulk-rule-input { width: 150px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--ws-line); border-radius: 8px; background: var(--ws-surface); color: var(--ws-ink); font: 400 12px var(--ws-sans); }
+.ml-bulk-toolbar .ml-bulk-delete { color: var(--ws-bad); }
+.ml-select-checkbox { flex: none; margin: 5px 0 0; accent-color: var(--ws-accent); width: 17px; height: 17px; }
+@media (max-width: 640px) {
+  .ml-bulk-toolbar { gap: 6px; }
+  .ml-bulk-toolbar .ws-button { font-size: 11px; }
+}
+
+
+/* Mistake Log practice chooser: browsing and practising are separate actions.
+   These cards deliberately differ from Notebook note cards: the lower action
+   selects an entire topic subtree, while the heading opens its corrections. */
+.ml-theme-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 13px;
+  margin: 8px 0 22px;
+}
+.ml-theme-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-lg);
+  background: var(--ws-surface);
+  box-shadow: var(--ws-shadow-1);
+  overflow: hidden;
+  transition: border-color .15s, background-color .15s;
+}
+.ml-theme-tile:hover { border-color: var(--ws-accent-line); }
+.ml-theme-tile.is-chosen { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ml-theme-open {
+  display: grid;
+  gap: 12px;
+  flex: 1;
+  width: 100%;
+  min-height: 102px;
+  padding: 18px 18px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ml-theme-open:hover { background: color-mix(in srgb, var(--ws-accent-soft) 60%, transparent); }
+.ml-theme-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  font: 500 20px/1.25 var(--ws-display);
+}
+.ml-theme-title svg { color: var(--ws-muted); flex: 0 0 auto; margin-top: 3px; }
+.ml-theme-count { color: var(--ws-muted); font: 400 12px/1.3 var(--ws-sans); }
+.ml-theme-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 17px;
+  border: 0;
+  border-top: 1px solid var(--ws-line);
+  background: transparent;
+  color: var(--ws-text);
+  font: 600 12px/1.2 var(--ws-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.ml-theme-pick svg { color: var(--ws-muted); }
+.ml-theme-pick[aria-pressed="true"] { color: var(--ws-accent); }
+.ml-theme-pick[aria-pressed="true"] svg { color: var(--ws-accent); }
+.ml-theme-pick:hover { background: var(--ws-raised); }
+.ml-study-selection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 13px 16px;
+  margin: 4px 0 20px;
+  border: 1px solid var(--ws-accent-line);
+  border-radius: 11px;
+  background: var(--ws-surface);
+}
+.ml-study-selection-copy { display: grid; gap: 3px; flex: 1 1 200px; }
+.ml-study-selection-copy strong { color: var(--ws-ink); font: 600 13px/1.3 var(--ws-sans); }
+.ml-study-selection-copy span { color: var(--ws-muted); font: 400 11.5px/1.3 var(--ws-sans); }
+.ml-chooser-footer { display: flex; margin: 2px 0 24px; }
+.ml-chooser-footer button { display: inline-flex; align-items: center; gap: 5px; }
+.ml-theme-open:focus-visible, .ml-theme-pick:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: -3px;
+}
+@media (max-width: 560px) {
+  .ml-theme-gallery { grid-template-columns: 1fr; }
+  .ml-theme-open { min-height: 86px; }
+  .ml-study-selection .ws-button { flex: 1 1 auto; justify-content: center; }
+}
+
+
 /* Document reading toolbar: keep creation with the note controls, not floating
    independently above them. Low-frequency actions live in the existing menu. */
 .nb-doc-bar .nb-crumbs { flex: 1 1 auto; }

@@ -74,8 +74,8 @@ function readColour(userId: string, subjectId: string): string {
   } catch { return ""; }
 }
 
-export function SubjectCard({ subject, topics, notes, onOpen }: {
-  subject: KnowledgeSubject; topics: number; notes: number; onOpen: () => void;
+export function SubjectCard({ subject, topics, notes, detail, editable = true, onOpen }: {
+  subject: KnowledgeSubject; topics: number; notes: number; detail?: string; editable?: boolean; onOpen: () => void;
 }) {
   const workspace = useWorkspace();
   const { userId } = workspace;
@@ -121,6 +121,7 @@ export function SubjectCard({ subject, topics, notes, onOpen }: {
     setEditing(true);
   }
   function clickCard(event: React.MouseEvent<HTMLButtonElement>) {
+    if (!editable) { onOpen(); return; }
     if (event.detail === 0) { onOpen(); return; }
     if (clickTimer.current !== null) window.clearTimeout(clickTimer.current);
     // Wait for the real double-click event: opening a modal during click #2
@@ -183,15 +184,15 @@ export function SubjectCard({ subject, topics, notes, onOpen }: {
       style={{ "--nb-subject-accent": colour || defaultAccent,
         backgroundImage: cover ? `linear-gradient(90deg, rgba(13,18,27,.86), rgba(13,18,27,.40)), url("${cover}")` : undefined } as CSSProperties}>
       <button type="button" className="nb-subject-open" onClick={clickCard}
-        onDoubleClick={(event) => { event.preventDefault(); beginEdit(); }}
-        title={`Open ${subject.name}; double-click to customise`}>
+        onDoubleClick={editable ? (event) => { event.preventDefault(); beginEdit(); } : undefined}
+        title={editable ? `Open ${subject.name}; double-click to customise` : `Open ${subject.name}` }>
         <span className="nb-subject-icon" aria-hidden="true"><BookOpen /></span>
         <span className="nb-subject-copy">
           <strong>{subject.name}</strong>
-          <span>{topics} {topics === 1 ? "topic" : "topics"} · {notes} {notes === 1 ? "note" : "notes"}</span>
+          <span>{detail ?? `${topics} ${topics === 1 ? "topic" : "topics"} · ${notes} ${notes === 1 ? "note" : "notes"}`}</span>
         </span>
       </button>
-      {workspace.writable ? <button type="button" className="nb-subject-edit" onClick={beginEdit}
+      {workspace.writable && editable ? <button type="button" className="nb-subject-edit" onClick={beginEdit}
         aria-label={`Customise ${subject.name}`} title="Customise subject"><Pencil size={14} /></button> : null}
     </div>
     {editing ? <div className="nb-cover-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(false); }}>
