@@ -57,8 +57,8 @@ try {
   });
   assert(geometry.upload && geometry.canvas && geometry.upload.bottom < geometry.canvas.top,
     "Image uploader must sit ABOVE the preview instead of being hidden beneath it: "+JSON.stringify(geometry));
-  assert(geometry.caption && geometry.presets && geometry.caption.bottom < geometry.presets.top,
-    "The live preview must not overlap the next section: "+JSON.stringify(geometry));
+  assert(geometry.caption && geometry.presets && geometry.canvas.right + 8 <= geometry.presets.left,
+    "Preview and atmosphere choices must sit side by side without overlap: "+JSON.stringify(geometry));
   const canvas = page.locator(".background-preview-canvas");
   assert.equal(await canvas.isDisabled(),true,"Page with only the shared fallback cannot edit shared image focus");
   const fallbackOpacity = await canvas.evaluate(el=>getComputedStyle(el).opacity);
