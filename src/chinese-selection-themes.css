@@ -1,0 +1,71 @@
+/* Chinese Selection: compact, coloured topic filters using the existing Heuresis tags. */
+.chinese-selection-themes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 4px 10px;
+  margin: 0 0 8px;
+}
+.chinese-selection-themes-label {
+  margin: 0 6px 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ws-muted, #777);
+}
+.chinese-selection-themes .theme-choice {
+  --theme-accent: #748077;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 25%, transparent);
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: var(--ws-text);
+  background: color-mix(in srgb, var(--theme-accent) 9%, var(--ws-raised, white));
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.chinese-selection-themes .theme-choice:hover {
+  background: color-mix(in srgb, var(--theme-accent) 16%, var(--ws-raised, white));
+}
+.chinese-selection-themes .theme-choice.selected {
+  border-color: color-mix(in srgb, var(--theme-accent) 58%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 19%, var(--ws-raised, white));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+.chinese-selection-themes .theme-choice .theme-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--theme-accent);
+}
+.chinese-selection-themes .theme-choice small {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ws-muted, #777);
+}
+.row-tags > .theme-tag {
+  --theme-accent: #748077;
+  color: var(--ws-text);
+  background: color-mix(in srgb, var(--theme-accent) 13%, var(--ws-raised, white));
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 24%, transparent);
+  border-radius: 7px;
+  padding: 3px 7px;
+}
+.tag-editor .tag-choice.theme-tag.selected {
+  border-color: var(--theme-accent);
+  background: color-mix(in srgb, var(--theme-accent) 20%, var(--ws-raised, white));
+}
+@media (max-width: 620px) {
+  .chinese-selection-themes { gap: 5px; }
+  .chinese-selection-themes .theme-choice { padding: 5px 8px; font-size: 11px; }
+}
