@@ -21,11 +21,17 @@ assert.match(sidebar, /workspace\.ensureInbox\(subject\.id\)/);
 assert.match(sidebar, /workspace\.addTopic\(creating\.subjectId, clean, creating\.parentId\)/);
 assert.match(sidebar, /workspace\.renameSubjectById/);
 assert.match(sidebar, /workspace\.changeTopic/);
-assert.match(sidebar, /workspace\.subtreeIds\(topic\.id\)/);
-assert.match(sidebar, /if \(entries \|\| workspace\.childrenOf\(topic\.id, topic\.subject_id\)\.length\)/,
-  "Prevent deletion of non-empty topic");
-assert.match(sidebar, /if \(snapshot\.entries\.some\(\(entry\) => ids\.has\(entry\.topic_id\)\)\)/,
-  "Prevent deleting a language with notes");
+const removal=readFileSync("src/components/workspace/KnowledgeRemovalDialog.tsx","utf8");
+const workspace=readFileSync("src/components/workspace/WorkspaceContext.tsx","utf8");
+assert.match(sidebar, /KnowledgeRemovalDialog/, "Sidebar uses shared confirmation and move-first dialog");
+assert.match(notebook, /KnowledgeRemovalDialog/, "Notebook drawer uses the same safe removal flow");
+assert.match(removal, /Move contents first/, "Offer relocation before permanent deletion");
+assert.match(removal, /Delete everything/, "Destructive removal remains an explicit choice");
+assert.match(removal, /verification !== target\.name/, "Require exact-name confirmation for non-empty trees");
+assert.match(removal, /workspace\.manageSubjectTree/, "Deletion executes an owner-scoped transaction");
+assert.match(removal, /workspace\.manageTopicTree/, "Topic removal can preserve subtopic trees");
+assert.match(workspace, /manageSubjectTree/, "Workspace synchronises moved subjects");
+assert.match(workspace, /manageTopicTree/, "Workspace synchronises moved topics");
 assert.match(notebook, /<NotebookRail location=\{location\}/,
   "Legacy narrow-window Notebook drawer must remain");
 assert.match(css, /@media \(min-width: 901px\) \{[\s\S]*?\.heuresis-desktop\[data-section="notebook"\] \.nb-rail,[\s\S]*?display: none !important;/);
@@ -41,4 +47,4 @@ assert.ok(notebook.includes("lastRevealedTopicId.current === visibleTopicId"),
   "Only a changed navigation destination reveals the selected topic");
 assert.ok(notebook.includes("if (!missing.length) return current;"),
   "Refreshes cannot rebuild the expanded folder list");
-console.log("Notebook main sidebar integration and single-tree guards passed.");
+console.log("Notebook main sidebar and move-first tree removal contracts passed.");

@@ -260,6 +260,23 @@ export async function deleteSubject(userId: string, id: string) {
   if (error) throw error;
 }
 
+/** Transactional tree operation. No data is removed merely by opening the dialog.
+ * The database checks auth.uid() and owns the whole move/delete transaction. */
+export async function manageKnowledgeSubject(userId: string, id: string, action: "move" | "delete", destinationId?: string) {
+  requireWritable();
+  const { error } = await db().rpc("heuresis_manage_knowledge_subject", {
+    p_subject_id: id, p_action: action, p_destination_subject_id: destinationId ?? null,
+  });
+  if (error) throw error;
+}
+export async function manageKnowledgeTopic(userId: string, id: string, action: "move" | "delete", destinationId?: string) {
+  requireWritable();
+  const { error } = await db().rpc("heuresis_manage_knowledge_topic", {
+    p_topic_id: id, p_action: action, p_destination_topic_id: destinationId ?? null,
+  });
+  if (error) throw error;
+}
+
 export async function createTopic(userId: string, subjectId: string, rawName: string, parentId: string | null = null): Promise<KnowledgeTopic> {
   requireWritable();
   const now = new Date().toISOString();
