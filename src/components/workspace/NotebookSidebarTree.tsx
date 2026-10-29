@@ -4,6 +4,7 @@ import type { KnowledgeTopic } from "../../lib/knowledgeWorkspace";
 import { isDocument, isOpenQuestion } from "../../lib/knowledgeWorkspace";
 import { useWorkspace } from "./WorkspaceContext";
 import { RowMenu } from "./NotebookView";
+import { KnowledgeRemovalDialog, type KnowledgeRemovalTarget } from "./KnowledgeRemovalDialog";
 import { useConfirm } from "./ui";
 
 type CreateTarget = { subjectId: string | null; parentId: string | null };
@@ -17,7 +18,8 @@ export function NotebookSidebarTree() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [confirmElement, confirm] = useConfirm();
+  const [confirmElement] = useConfirm();
+  const [removingTarget, setRemovingTarget] = useState<KnowledgeRemovalTarget | null>(null);
   const activeTopic = memory.notebook.docId
     ? workspace.entryById.get(memory.notebook.docId)?.topic_id ?? memory.notebook.topicId
     : memory.notebook.topicId;
@@ -94,32 +96,11 @@ export function NotebookSidebarTree() {
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save. Try again."); }
     finally { setBusy(false); }
   }
-  async function removeTopic(topic: KnowledgeTopic) {
-    const subtree = workspace.subtreeIds(topic.id);
-    const entries = snapshot.entries.filter((entry) => subtree.includes(entry.topic_id)).length;
-    if (entries || workspace.childrenOf(topic.id, topic.subject_id).length) {
-      setError("Move or delete the notes and sub-topics before removing this topic.");
-      return;
-    }
-    if (!await confirm({ title: `Delete “${topic.name}”?`,
-      body: "This empty topic will be permanently deleted.", confirmLabel:"Delete topic", danger:true })) return;
-    try {
-      setError(""); await workspace.removeTopic(topic.id);
-      if (activeTopic === topic.id) goSubject(topic.subject_id);
-    } catch (err) { setError(err instanceof Error ? err.message : "Deletion failed."); }
+  function removeTopic(topic: KnowledgeTopic) {
+    setRemovingTarget({ kind: "topic", id: topic.id, name: topic.name });
   }
-  async function removeSubject(id: string, label: string) {
-    const topics = snapshot.topics.filter((topic) => topic.subject_id === id);
-    const ids = new Set(topics.map((topic) => topic.id));
-    if (snapshot.entries.some((entry) => ids.has(entry.topic_id))) {
-      setError("Move or delete this subject's entries before deleting it.");
-      return;
-    }
-    if (!await confirm({ title: `Delete “${label}”?`,
-      body: `The subject and its ${topics.length} empty topics will be permanently removed.`,
-      confirmLabel:"Delete subject", danger:true })) return;
-    try { setError(""); await workspace.removeSubject(id); if (activeSubject === id) goHome(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Deletion failed."); }
+  function removeSubject(id: string, label: string) {
+    setRemovingTarget({ kind: "subject", id, name: label });
   }
   function editor() {
     return <form className="hw-nb-editor" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
@@ -155,7 +136,7 @@ export function NotebookSidebarTree() {
             ...(depth < 4 ? [{ label:"New sub-topic", icon:<FolderPlus size={14}/>,
               run:() => prepareCreate({subjectId,parentId:topic.id}) }] : []),
             { label:"Rename", icon:<Pencil size={14}/>, run:() => prepareRename("topic",topic.id,topic.name) },
-            { label:"Delete empty topic", icon:<Trash2 size={14}/>, danger:true, run:() => void removeTopic(topic) },
+            { label:"Delete", icon:<Trash2 size={14}/>, danger:true, run:() => void removeTopic(topic) },
           ]}/> : null}
         </div>
         {renaming?.id === topic.id ? editor() : null}
@@ -166,6 +147,8 @@ export function NotebookSidebarTree() {
   }
   return <section className="hw-notebook-tree" aria-label="Notebook subjects and topics">
     {confirmElement}
+    {removingTarget ? <KnowledgeRemovalDialog key={removingTarget.id} target={removingTarget}
+      onClose={() => setRemovingTarget(null)} onRemoved={goHome}/> : null}
     <div className="hw-nb-heading"><span>Subjects & topics</span>
 
     </div>
@@ -188,7 +171,7 @@ export function NotebookSidebarTree() {
               {workspace.writable ? <RowMenu label={subject.name} items={[
                 {label:"New topic",icon:<FolderPlus size={14}/>,run:() => prepareCreate({subjectId:subject.id,parentId:null})},
                 {label:"Rename",icon:<Pencil size={14}/>,run:() => prepareRename("subject",subject.id,subject.name)},
-                {label:"Delete empty subject",icon:<Trash2 size={14}/>,danger:true,run:()=>void removeSubject(subject.id,subject.name)},
+                {label:"Delete",icon:<Trash2 size={14}/>,danger:true,run:()=>void removeSubject(subject.id,subject.name)},
               ]}/> : null}
             </div>
             {renaming?.id===subject.id ? editor() : null}
