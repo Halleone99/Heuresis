@@ -46,9 +46,9 @@ try {
   }
   const page = await browser.newPage({ viewport:{width:1200,height:900} });
   await page.goto(url);
-  const pages = page.getByRole("group",{name:"Select page background"});
-  await pages.getByRole("button",{name:"Study"}).click();
-  const upload = page.getByRole("button",{name:"Choose image"});
+  const pages = page.getByLabel("Page",{exact:true});
+  await pages.selectOption("heuresis-study");
+  const upload = page.getByRole("button",{name:"Upload image"});
   await upload.waitFor();
   const geometry = await page.evaluate(() => {
     const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect().toJSON();
@@ -65,20 +65,22 @@ try {
   assert.equal(fallbackOpacity,"1","Shared fallback remains visible instead of being faded as disabled");
   await page.getByRole("button",{name:"Mist",exact:true}).click();
   // The shared fallback is already an image; await the NEW page image upload.
-  await page.getByRole("button",{name:"Replace image"}).waitFor();
+  await page.getByRole("button",{name:"Change image"}).waitFor();
   await page.locator(".background-preview-canvas img").waitFor();
+  await page.getByText("More adjustments").click();
   assert.equal(await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).isEnabled(),true);
   await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).click();
   assert.equal(await page.locator(".background-preview-canvas img").evaluate(el=>getComputedStyle(el).objectFit),"contain");
-  await pages.getByRole("button",{name:"Notebook"}).click();
-  assert.equal(await page.getByRole("button",{name:"Choose image"}).isVisible(),true);
-  assert.equal(await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).isDisabled(),true);
+  await pages.selectOption("heuresis-notebook");
+  assert.equal(await page.getByRole("button",{name:"Upload image"}).isVisible(),true);
+  assert.equal(await page.locator(".pb-advanced").count(),0,"Fine-tuning is hidden on inherited pages");
+  assert.equal(await page.locator(".background-preview-canvas").isDisabled(),true);
   const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAusB9WlLT5sAAAAASUVORK5CYII=","base64");
   await page.locator('input[type="file"]').setInputFiles({name:"own.png",mimeType:"image/png",buffer:png});
-  await page.getByRole("button",{name:"Replace image"}).waitFor();
-  await pages.getByRole("button",{name:"Study"}).click();
-  assert.equal(await page.getByRole("button",{name:"Replace image"}).isVisible(),true,"Study retains its own chosen preset");
-  console.log("Background Studio: visible upload, no overlap, fallback, presets, fit and per-page uploads passed.");
+  await page.getByRole("button",{name:"Change image"}).waitFor();
+  await pages.selectOption("heuresis-study");
+  assert.equal(await page.getByRole("button",{name:"Change image"}).isVisible(),true,"Study retains its own chosen preset");
+  console.log("Background Studio: compact page selector, clear fallback, atmosphere presets, disclosure, fit and independent uploads passed.");
   await page.close();
 } finally {
   await browser.close();
