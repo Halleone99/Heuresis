@@ -20,7 +20,7 @@ export type ListItem = { text: string; depth: number; ordered: boolean; start?: 
 export type TableStyle = "plain" | "striped" | "study";
 export type Block =
   | { type: "p"; text: string }
-  | { type: "h2" | "h3"; text: string }
+  | { type: "h2" | "h3" | "h4"; text: string }
   | { type: "ul" | "ol"; items: ListItem[] }
   | { type: "quote"; lines: string[] }
   | { type: "callout"; variant: CalloutVariant; lines: string[] }
@@ -113,10 +113,9 @@ export function parseBlocks(markdown: string): Block[] {
     }
     const heading = line.match(HEADING_RE);
     if (heading) {
-      // Only two heading levels have editable block representations. Preserve
-      // unsupported levels literally instead of silently rewriting ### as ##.
-      if (heading[1].length > 2) blocks.push({ type: "p", text: line });
-      else blocks.push({ type: heading[1].length === 1 ? "h2" : "h3", text: heading[2] });
+      // Three heading levels are editable; keep unsupported deeper levels literal.
+      if (heading[1].length > 3) blocks.push({ type: "p", text: line });
+      else blocks.push({ type: heading[1].length === 1 ? "h2" : heading[1].length === 2 ? "h3" : "h4", text: heading[2] });
       continue;
     }
     if (HR_RE.test(line)) { blocks.push({ type: "hr" }); continue; }
@@ -299,6 +298,7 @@ export function markdownToEditorHtml(markdown: string): string {
     switch (block.type) {
       case "h2": return `<h2>${inlineHtml(block.text) || "<br>"}</h2>`;
       case "h3": return `<h3>${inlineHtml(block.text) || "<br>"}</h3>`;
+      case "h4": return `<h4>${inlineHtml(block.text) || "<br>"}</h4>`;
       case "ul": case "ol": return listHtml(block.items);
       // Quotations and callouts may contain their own lists and headings.
       case "quote": return `<blockquote>${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
@@ -405,7 +405,7 @@ function serializeChildren(root: HTMLElement): string[] {
     flushInline();
     const tag = node.tagName;
     if (tag === "H1" || tag === "H2") out.push(`# ${blockLines(node).join(" ").trim()}`.trimEnd());
-    else if (/^H[3-6]$/.test(tag)) out.push(`## ${blockLines(node).join(" ").trim()}`.trimEnd());
+    else if (/^H[3-6]$/.test(tag)) out.push(`${"#".repeat(Math.min(6, Number(tag[1]) - 1))} ${blockLines(node).join(" ").trim()}`.trimEnd());
     else if (tag === "HR") out.push("---");
     else if (tag === "DIV" && node.hasAttribute("data-handnote")) out.push(HAND_NOTE_PREFIX + node.getAttribute("data-handnote"));
     else if (tag === "TABLE") {

@@ -617,8 +617,9 @@
 .nb-prose p { margin: 0; min-height: 1.75em; }
 .nb-prose .nb-gap { height: 1.75em; } /* Match a blank editable paragraph in reading mode. */
 .nb-prose h2 { margin: 1.5em 0 .45em; color: var(--ws-ink); font: 400 1.62em/1.2 var(--ws-display); letter-spacing: -.01em; }
-.nb-prose h3 { margin: 1.35em 0 .35em; color: var(--ws-ink); font: 600 .78em/1.4 var(--ws-sans); letter-spacing: .09em; text-transform: uppercase; }
-.nb-prose > h2:first-child, .nb-prose > h3:first-child { margin-top: .2em; }
+.nb-prose h3 { margin: 1.25em 0 .4em; color: var(--ws-ink); font: 600 1.22em/1.3 var(--ws-sans); letter-spacing: -.015em; text-transform: none; }
+.nb-prose h4 { margin: 1.1em 0 .35em; color: var(--ws-ink); font: 600 1.05em/1.35 var(--ws-sans); letter-spacing: 0; }
+.nb-prose > :is(h2,h3,h4):first-child { margin-top: .2em; }
 .nb-prose strong, .nb-prose b { color: var(--ws-ink); font-weight: 700; }
 .nb-prose em, .nb-prose i { font-style: italic; }
 .nb-prose s, .nb-prose del { color: var(--ws-muted); text-decoration-color: color-mix(in srgb, var(--ws-bad) 60%, transparent); text-decoration-thickness: 1.5px; }
@@ -643,11 +644,11 @@
 .nb-prose blockquote[data-callout="correction"]::before { content: "Correction"; }
 .nb-prose blockquote[data-callout="tip"]::before { content: "Tip"; }
 .nb-prose [data-callout="rule"] { background: color-mix(in srgb, var(--ws-surface) 88%, var(--ws-accent) 4%); }
-.nb-prose [data-callout="rule"]::after { background: var(--ws-ink); opacity: .55; }
+.nb-prose :is(blockquote, .nb-callout)[data-callout="rule"]::after { background: var(--ws-ink); opacity: .55; }
 .nb-prose [data-callout="rule"]::before, .nb-prose [data-callout="rule"] .nb-callout-label { color: var(--ws-ink); }
-.nb-prose [data-callout="tip"]::after { background: var(--ws-good); }
+.nb-prose :is(blockquote, .nb-callout)[data-callout="tip"]::after { background: var(--ws-good); }
 .nb-prose [data-callout="tip"]::before, .nb-prose [data-callout="tip"] .nb-callout-label { color: var(--ws-good); }
-.nb-prose [data-callout="correction"]::after { background: var(--ws-bad); }
+.nb-prose :is(blockquote, .nb-callout)[data-callout="correction"]::after { background: var(--ws-bad); }
 .nb-prose [data-callout="correction"]::before, .nb-prose [data-callout="correction"] .nb-callout-label { color: var(--ws-bad); }
 .nb-prose blockquote[data-callout="example"] > p:first-child { color: var(--ws-ink); font-size: 1.12em; }
 .nb-example { position: relative; padding: .15em 2.2em .15em 0; }
@@ -681,7 +682,7 @@
 .nb-toolbar button { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; justify-content: center; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--ws-muted); font: 500 12px/1 var(--ws-sans); cursor: pointer; }
 .nb-toolbar button:hover:not(:disabled) { background: var(--ws-accent-soft); color: var(--ws-ink); }
 .nb-toolbar button.is-active { background: var(--ws-accent-soft); color: var(--ws-accent); }
-.nb-toolbar button:disabled { opacity: 1; cursor: default; color: var(--ws-muted); }
+.nb-toolbar button:disabled { opacity: .4; cursor: default; color: var(--ws-muted); }
 .nb-editor-surface { position: relative; }
 .nb-editor { min-height: 46vh; padding: 4px 0 40px; outline: none; caret-color: var(--ws-accent); }
 .nb-editor:focus { outline: none; }
@@ -2580,6 +2581,16 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .nb-doc-actions .nb-view-switcher { flex-basis: 100%; justify-content: center; margin: 0 0 4px; }
   .nb-doc-primary-actions { margin-right: auto; }
 }
+
+/* A compact formatting row, with horizontally accessible controls on narrow screens. */
+.nb-toolbar { flex-wrap: nowrap; overflow: visible; }
+.nb-toolbar-group { flex: 0 0 auto; }
+.nb-toolbar-spacer { min-width: 0; }
+.nb-toolbar-blocks button span { display: none; }
+.nb-title-input { display: block; min-height: 1.1em; resize: none; overflow: hidden; field-sizing: content; }
+
+@media (max-width: 920px) { .nb-toolbar { flex-wrap: wrap; } }
+
 
 
 /* Notebook tree removal: explicit move-first / destructive choice. */

@@ -29,7 +29,7 @@ export function NoteReadingViews({ text, mode, resolve, rubyPinyin, columns, onC
   useEffect(() => { setIndex(0); setRevealed(false); }, [mode, text]);
   const selected = sections[Math.min(index, sections.length - 1)];
 
-  if (mode === "document") return <RichText key={foldStorageKey} text={text} resolve={resolve} className="nb-reading" rubyPinyin={rubyPinyin} collapsible foldStorageKey={foldStorageKey} />;
+  if (mode === "document") return <RichText key={foldStorageKey} text={text} resolve={resolve} className="nb-reading" rubyPinyin={rubyPinyin} collapsible foldStorageKey={foldStorageKey} showOutline />;
 
   if (mode === "canvas") return <div className="nb-canvas">
     <div className="nb-canvas-heading">

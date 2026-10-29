@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Copy } from "lucide-react";
 import { CALLOUTS, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
 import { decodeHandNote } from "../../lib/handNote";
@@ -96,6 +96,7 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
   switch (block.type) {
     case "h2": return <h2><InlineText text={block.text} resolve={resolve} /></h2>;
     case "h3": return <h3><InlineText text={block.text} resolve={resolve} /></h3>;
+    case "h4": return <h4><InlineText text={block.text} resolve={resolve} /></h4>;
     case "hr": return <hr />;
     case "handnote": return <div className="nb-handnote-block" style={{ margin: "12px 0", maxWidth: "100%" }}>
       <HandNoteDrawing strokes={decodeHandNote(block.encoded)} />
@@ -135,34 +136,28 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
 }
 
 type FoldNode = { kind: "item"; block: Block } | {
-  kind: "section"; id: string; heading: Extract<Block, { type: "h2" | "h3" }>; children: FoldNode[];
+  kind: "section"; id: string; heading: Extract<Block, { type: "h2" | "h3" | "h4" }>; children: FoldNode[];
 };
 
-/** Section headings fold their following text, with subheadings nested naturally. */
+/** Consistent nested sections for three semantic heading levels. */
 function groupHeadings(blocks: Block[]): FoldNode[] {
   const root: FoldNode[] = [];
-  let firstLevel: FoldNode[] = root;
-  let secondLevel: FoldNode[] | null = null;
-  let parentId = "";
+  const stack: { level: number; id: string; children: FoldNode[] }[] = [{ level: 1, id: "", children: root }];
   const occurrences = new Map<string, number>();
-  // A heading's ID survives inserting or removing unrelated sections.
-  const headingId = (scope: string, block: Extract<Block, { type: "h2" | "h3" }>) => {
-    const base = `${scope}/${block.type}:${block.text.trim().toLowerCase()}`;
+  for (const block of blocks) {
+    if (block.type !== "h2" && block.type !== "h3" && block.type !== "h4") {
+      stack[stack.length - 1].children.push({ kind: "item", block });
+      continue;
+    }
+    const level = Number(block.type.slice(1));
+    while (stack.length > 1 && stack[stack.length - 1].level >= level) stack.pop();
+    const parent = stack[stack.length - 1];
+    const base = `${parent.id}/${block.type}:${block.text.trim().toLowerCase()}`;
     const count = (occurrences.get(base) ?? 0) + 1;
     occurrences.set(base, count);
-    return `${base}#${count}`;
-  };
-  for (const block of blocks) {
-    if (block.type === "h2") {
-      const id = headingId("", block);
-      const section: FoldNode = { kind: "section", id, heading: block, children: [] };
-      root.push(section); firstLevel = section.children; secondLevel = null; parentId = id;
-    } else if (block.type === "h3") {
-      const section: FoldNode = { kind: "section", id: headingId(parentId, block), heading: block, children: [] };
-      firstLevel.push(section); secondLevel = section.children;
-    } else {
-      (secondLevel ?? firstLevel).push({ kind: "item", block });
-    }
+    const section: FoldNode = { kind: "section", id: `${base}#${count}`, heading: block, children: [] };
+    parent.children.push(section);
+    stack.push({ level, id: section.id, children: section.children });
   }
   return root;
 }
@@ -173,8 +168,8 @@ function FoldView({ node, resolve, rubyPinyin, closedSections, onToggle }: {
 }) {
   if (node.kind === "item") return <BlockView block={node.block} resolve={resolve} rubyPinyin={rubyPinyin}/>;
   const open = !closedSections.has(node.id);
-  const Heading = node.heading.type === "h2" ? "h2" : "h3";
-  return <section className={`nb-fold ${open ? "is-open" : "is-closed"}`}>
+  const Heading = node.heading.type;
+  return <section data-fold-id={node.id} className={`nb-fold ${open ? "is-open" : "is-closed"}`}>
     <Heading className="nb-fold-heading">
       <span className="nb-fold-title">
         <button type="button" className="nb-fold-toggle" aria-expanded={open}
@@ -191,9 +186,10 @@ function FoldView({ node, resolve, rubyPinyin, closedSections, onToggle }: {
   </section>;
 }
 
-export function RichText({ text, resolve, className = "", rubyPinyin = false, collapsible = false, foldStorageKey }: {
-  text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean; foldStorageKey?: string;
+export function RichText({ text, resolve, className = "", rubyPinyin = false, collapsible = false, foldStorageKey, showOutline = false }: {
+  text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean; foldStorageKey?: string; showOutline?: boolean;
 }) {
+  const proseRef = useRef<HTMLDivElement>(null);
   const [closedSections, setClosedSections] = useState<Set<string>>(() => {
     if (!foldStorageKey) return new Set();
     try {
@@ -213,10 +209,43 @@ export function RichText({ text, resolve, className = "", rubyPinyin = false, co
     return next;
   });
   const blocks = parseBlocks(text);
-  return <div className={`nb-prose ${className}`}>
-    {collapsible ? groupHeadings(blocks).map((node, index) =>
+  const nodes = collapsible ? groupHeadings(blocks) : [];
+  type OutlineEntry = { id: string; text: string; depth: number; ancestors: string[] };
+  const outline: OutlineEntry[] = [];
+  const collect = (items: FoldNode[], depth = 0, ancestors: string[] = []) => {
+    for (const node of items) {
+      if (node.kind !== "section") continue;
+      outline.push({ id: node.id, text: node.heading.text, depth, ancestors });
+      collect(node.children, depth + 1, [...ancestors, node.id]);
+    }
+  };
+  if (showOutline) collect(nodes);
+  const jumpTo = (entry: OutlineEntry) => {
+    setClosedSections((previous) => {
+      const next = new Set(previous);
+      entry.ancestors.forEach((id) => next.delete(id));
+      return next;
+    });
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const heading = Array.from(proseRef.current?.querySelectorAll<HTMLElement>("[data-fold-id]") ?? [])
+        .find((element) => element.dataset.foldId === entry.id);
+      heading?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }));
+  };
+  const content = <div ref={proseRef} className={`nb-prose ${className}`}>
+    {collapsible ? nodes.map((node, index) =>
       <FoldView key={node.kind === "section" ? node.id : index} node={node} resolve={resolve} rubyPinyin={rubyPinyin}
         closedSections={closedSections} onToggle={toggleSection}/>) :
       blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin}/>)}
+  </div>;
+  if (!showOutline || outline.length < 2) return content;
+  return <div className="nb-reading-layout">
+    {content}
+    <nav className="nb-note-outline" aria-label="Note contents">
+      <span className="nb-note-outline-label">Contents</span>
+      {outline.map((entry) => <button type="button" key={entry.id}
+        title={entry.text} style={{ paddingLeft: `${9 + Math.min(entry.depth, 3) * 12}px` }}
+        onClick={() => jumpTo(entry)}>{entry.text}</button>)}
+    </nav>
   </div>;
 }
