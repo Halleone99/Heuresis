@@ -285,7 +285,7 @@ export function MistakeLog() {
         <button className="ws-button" type="button" disabled={!visibleMistakes.some((entry) => entry.correction.trim())}
           onClick={() => startPractice(visibleMistakes)}><GraduationCap size={16}/> Practise {allPage ? "all" : title}</button>
         {workspace.writable ? <button className="ws-button is-primary" type="button"
-          onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={16}/> Add mistake</button> : null}
+          onClick={() => { setBrowsingAll(true); setAdding(true); setEditingId(null); }}><Plus size={16}/> Add mistake</button> : null}
       </div>
     </header>
 
@@ -303,6 +303,13 @@ export function MistakeLog() {
     {selectedSubjectId && !selectedTopicId && !notFiledOnly && currentUnfiledCount > 0
       ? <button className="ml-not-filed" type="button" onClick={() => select(selectedSubjectId, null, true)}>
         Not filed · {currentUnfiledCount}<ChevronRight size={15}/></button> : null}
+
+    <label className="ml-search-label ml-chooser-search">
+      <span className="sr-only">Search mistakes</span>
+      <input className="ml-search-field" type="search" value={search}
+        onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
+        placeholder={allPage ? "Search all mistakes…" : "Search in " + title + "…"} />
+    </label>
 
     {allPage && !search.trim() && !browsingAll ? <div className="ml-hierarchy-grid">
       {subjectCards.map((subject) => {
@@ -372,12 +379,6 @@ export function MistakeLog() {
       {adding ? <MistakeEditor key={"new:" + (selectedTopicId ?? selectedSubjectId ?? "all")}
         preferredSubjectId={selectedSubjectId} preferredTopicId={selectedTopicId}
         onDone={() => setAdding(false)}/> : null}
-      <label className="ml-search-label">
-        <span className="sr-only">Search mistakes</span>
-        <input className="ml-search-field" type="search" value={search}
-          onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
-          placeholder={allPage ? "Search all mistakes…" : "Search in " + title + "…"} />
-      </label>
       <h2 className="ml-section-label">{search.trim() ? "Search results" : "Mistakes and corrections"}</h2>
       {!mistakes.length && !adding ? <EmptyState title="No mistakes recorded yet" icon={<Pencil size={22}/>}>
         Add a mistake and its correction. File it under any Notebook subject and topic.
