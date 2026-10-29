@@ -25,7 +25,7 @@ assert.match(icons,/new Intl\.DateTimeFormat\("en-GB", \{ day: "numeric", month:
 assert.match(icons,/if \(days === 1\) return "yesterday";/);
 assert.match(icons,/if \(days <= 6\) return `\$\{days\} days ago`;/);
 assert.match(icons,/if \(elapsed < -60_000\) return formatDay\(value\);/);
-assert.match(overview,/b\.updated_at\.localeCompare\(a\.updated_at\)/, "Recent notes may be sorted by edit date without exposing activity stats");
+assert.match(overview,/summarise\(selected \? reviews\.filter/, "Overview reports selected Study topic review history");
 assert.doesNotMatch(overview,/formatLongDay\(/);
 
 // #13: Zero counts keep keyboard navigation and search, just lose prominence.
