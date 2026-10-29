@@ -2462,3 +2462,94 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .ml-bulk-toolbar { gap: 6px; }
   .ml-bulk-toolbar .ws-button { font-size: 11px; }
 }
+
+
+/* Mistake Log practice chooser: browsing and practising are separate actions.
+   These cards deliberately differ from Notebook note cards: the lower action
+   selects an entire topic subtree, while the heading opens its corrections. */
+.ml-theme-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 13px;
+  margin: 8px 0 22px;
+}
+.ml-theme-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-lg);
+  background: var(--ws-surface);
+  box-shadow: var(--ws-shadow-1);
+  overflow: hidden;
+  transition: border-color .15s, background-color .15s;
+}
+.ml-theme-tile:hover { border-color: var(--ws-accent-line); }
+.ml-theme-tile.is-chosen { border-color: var(--ws-accent); background: var(--ws-accent-soft); }
+.ml-theme-open {
+  display: grid;
+  gap: 12px;
+  flex: 1;
+  width: 100%;
+  min-height: 102px;
+  padding: 18px 18px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ml-theme-open:hover { background: color-mix(in srgb, var(--ws-accent-soft) 60%, transparent); }
+.ml-theme-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  font: 500 20px/1.25 var(--ws-display);
+}
+.ml-theme-title svg { color: var(--ws-muted); flex: 0 0 auto; margin-top: 3px; }
+.ml-theme-count { color: var(--ws-muted); font: 400 12px/1.3 var(--ws-sans); }
+.ml-theme-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 17px;
+  border: 0;
+  border-top: 1px solid var(--ws-line);
+  background: transparent;
+  color: var(--ws-text);
+  font: 600 12px/1.2 var(--ws-sans);
+  text-align: left;
+  cursor: pointer;
+}
+.ml-theme-pick svg { color: var(--ws-muted); }
+.ml-theme-pick[aria-pressed="true"] { color: var(--ws-accent); }
+.ml-theme-pick[aria-pressed="true"] svg { color: var(--ws-accent); }
+.ml-theme-pick:hover { background: var(--ws-raised); }
+.ml-study-selection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 13px 16px;
+  margin: 4px 0 20px;
+  border: 1px solid var(--ws-accent-line);
+  border-radius: 11px;
+  background: var(--ws-surface);
+}
+.ml-study-selection-copy { display: grid; gap: 3px; flex: 1 1 200px; }
+.ml-study-selection-copy strong { color: var(--ws-ink); font: 600 13px/1.3 var(--ws-sans); }
+.ml-study-selection-copy span { color: var(--ws-muted); font: 400 11.5px/1.3 var(--ws-sans); }
+.ml-chooser-footer { display: flex; margin: 2px 0 24px; }
+.ml-chooser-footer button { display: inline-flex; align-items: center; gap: 5px; }
+.ml-theme-open:focus-visible, .ml-theme-pick:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: -3px;
+}
+@media (max-width: 560px) {
+  .ml-theme-gallery { grid-template-columns: 1fr; }
+  .ml-theme-open { min-height: 86px; }
+  .ml-study-selection .ws-button { flex: 1 1 auto; justify-content: center; }
+}
