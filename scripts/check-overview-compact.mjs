@@ -1,30 +1,25 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const overview = readFileSync("src/components/workspace/OverviewView.tsx", "utf8");
+const activity = readFileSync("src/lib/activity.ts", "utf8");
 const app = readFileSync("src/App.tsx", "utf8");
-const reading = readFileSync("src/components/workspace/ReadingView.tsx", "utf8");
-const memory = readFileSync("src/lib/workspaceMemory.ts", "utf8");
-const css = readFileSync("src/components/workspace/workspace.css", "utf8");
+const css = readFileSync("src/components/workspace/overview-heatmap.css", "utf8");
 
-assert.match(overview, /PERSONAL KNOWLEDGE LIBRARY/);
-assert.match(overview, /Notes to revisit/);
-assert.match(overview, /entry\.description\.trim\(\)/, "Overview previews should use the saved note description");
-assert.match(overview, /Filter notes by subject/);
-assert.match(overview, /openSubject\(subject.id\)/);
-const subjectHandler = overview.slice(overview.indexOf("function openSubject"), overview.indexOf("return <div className="));
-assert.ok(subjectHandler.indexOf('workspace.goTo("notebook")') < subjectHandler.indexOf("workspace.updateMemory("),
-  "Subject navigation must set the Notebook location after its home reset");
-for (const unwanted of ["ActivityHeatmap", "loadStudyActivity", "loadPersonalOsAnkiDays", "Learning activity", "View progress", "Objectives", "saveGoal", "GOAL_PREFIX"]) {
-  assert.ok(!overview.includes(unwanted), "Overview should not track " + unwanted);
+assert.match(overview, /Last 26 weeks/);
+assert.match(overview, /By topic/);
+assert.match(overview, /onOpenTopic\(pack\)/);
+assert.match(overview, /setSelectedId/);
+assert.match(overview, /review\.card_id/);
+assert.match(overview, /summarise\(selected \? reviews\.filter/);
+assert.match(overview, /Loading study activity/);
+assert.match(overview, /Study history is unavailable/);
+assert.match(overview, /historyReady \? \(stats\?\.cards \?\? 0\)/);
+assert.match(activity, /pack_id,card_id,session_id/);
+assert.match(app, /<OverviewView collections=\{collections\} packs=\{packs\}/);
+for (const unwanted of ["Notes to revisit", "Browse subjects", "ov-quicklinks", "loadPersonalOsAnkiDays", "NotebookPen", "GOAL_PREFIX"]) {
+  assert.ok(!overview.includes(unwanted), "Overview should not include " + unwanted);
 }
-assert.match(css, /\.ov-library-subjects/);
-assert.match(app, /<OverviewView onOpenStudy/);
+assert.match(css, /\.oh-topic-weeks/);
+assert.match(css, /\.oh-calendar-scroll/);
 assert.ok(!app.includes("<ProgressView"));
-assert.ok(!app.includes('id: "progress"'));
-assert.ok(!reading.includes("Log time"));
-assert.ok(!reading.includes("logged reading"));
-assert.ok(!reading.includes("bookMinutes"));
-assert.match(reading, /<ReadingJournal/);
-assert.match(reading, /Page progress/);
-assert.ok(!memory.includes('stored === "progress"'));
-console.log("Knowledge-first Overview, subject browsing, reading journal and hidden tracking: OK");
+console.log("Study-only Overview heatmap, per-topic counts and navigation: OK");
