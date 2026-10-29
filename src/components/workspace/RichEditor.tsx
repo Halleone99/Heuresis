@@ -325,7 +325,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       return;
     }
     if (list) exec(list.tagName === "UL" ? "insertUnorderedList" : "insertOrderedList");
-    if (kind === "p" || kind === "h2" || kind === "h3") {
+    if (kind === "p" || kind === "h2" || kind === "h3" || kind === "h4") {
       exec("formatBlock", kind === "p" ? "<p>" : `<${kind}>`);
       return;
     }
