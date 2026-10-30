@@ -43,7 +43,7 @@ import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, typ
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
-import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY } from "../lib/reviewMethodCounts";
+import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW_LAST_METHOD_KEY } from "../lib/reviewMethodCounts";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
@@ -299,19 +299,16 @@ export default function CosmosWindow() {
   const blocks = parseBlocks(card);
 
   const setMethod = (next: ReviewMethod) => {
-    setMethodState(next); writeReviewMethod(next);
-    if (template?.id) {
-      try { localStorage.setItem("heuresis.review.method.direction:" + template.id, next); } catch { /* preference only */ }
-    }
+    setMethodState(next);
+    writeReviewMethod(next);
   };
-  // Recognition and production have different sensible defaults and remember overrides separately.
+  // Remember the method last used for this specific card (not the direction).
   useEffect(() => {
-    if (mode !== "review" || !pack || !template) return;
-    let saved: string | null = null;
-    try { saved = localStorage.getItem("heuresis.review.method.direction:" + template.id); } catch { /* preference only */ }
+    if (mode !== "review" || !card) return;
+    const saved = card.data[REVIEW_LAST_METHOD_KEY];
     const valid = saved === "think" || saved === "type" || saved === "handwrite" || saved === "say";
-    setMethodState(valid ? saved as ReviewMethod : templateDirection(pack, template) === "production" ? "type" : "think");
-  }, [mode, pack?.id, template?.id]);
+    setMethodState(valid ? saved as ReviewMethod : readReviewMethod() === "hear" ? "think" : readReviewMethod());
+  }, [mode, card?.id]);
 
   const patchLocalCard = useCallback((cardId: string, updater: (card: CardWithStats) => CardWithStats) => {
     setCards((current) => current.map((entry) => entry.id === cardId ? updater(entry) : entry));
@@ -693,7 +690,10 @@ export default function CosmosWindow() {
       // Count the method used on each completed attempt, not just a click.
       try {
         const updated = countReviewMethod(reviewMethodCounts(card, learningCounts[card.id]), method);
-        const data = await patchCardData(card.id, { [REVIEW_METHOD_COUNTS_KEY]: JSON.stringify(updated) });
+        const data = await patchCardData(card.id, {
+          [REVIEW_METHOD_COUNTS_KEY]: JSON.stringify(updated),
+          [REVIEW_LAST_METHOD_KEY]: method,
+        });
         patchLocalCard(card.id, (entry) => ({ ...entry, data }));
       } catch {
         setNotice("Review saved, but the learning-method count could not be synchronised.");
@@ -1074,7 +1074,7 @@ export default function CosmosWindow() {
     {whyOpen && item?.reasons.length ? <div className="cosmos-why-panel" role="dialog" aria-label="Why this card was recommended">
       <strong>Why this card</strong>
       <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-      <small>Recommendations weigh results in this direction, whether it has been tried, time since it was last seen, and importance (gently). Nothing is ever due.</small>
+      <small>The selection follows your chosen ordering and filters. Cards have no compulsory review deadlines.</small>
     </div> : null}
     <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / queue.length) * 100)}%` }} /></div>
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
