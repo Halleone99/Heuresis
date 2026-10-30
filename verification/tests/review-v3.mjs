@@ -66,7 +66,15 @@ async function revealAndGrade(popup, key) {
   // Blur it first so the session's keyboard shortcut reveals the actual card.
   await popup.evaluate(() => document.activeElement?.blur?.());
   await popup.keyboard.press(" ");
-  await popup.locator(".cosmos-results").waitFor();
+  await popup.locator(".cosmos-results").waitFor({ timeout: 15000 }).catch(async (error) => {
+    console.log("  reveal diagnostic:", JSON.stringify(await popup.evaluate(() => ({ online: navigator.onLine,
+      active: document.activeElement?.outerHTML?.slice(0, 300),
+      card: document.querySelector(".cosmos-card")?.textContent?.slice(0, 250),
+      state: document.querySelector(".cosmos-state")?.textContent,
+      notice: document.querySelector(".cosmos-notice")?.textContent,
+      buttons: [...document.querySelectorAll(".cosmos-card button")].slice(0, 12).map((b) => ({ text: b.textContent?.trim().slice(0, 30), disabled: b.disabled })) }))));
+    throw error;
+  });
   await popup.keyboard.press(key);
   await popup.waitForTimeout(350);
 }
@@ -168,8 +176,9 @@ const scenarios = {
     await openTopic(page);
     check(await stageCount(page, "unsorted") === 1, "the card left for later is still unsorted");
 
-    await page.click(".desktop-account-menu summary");
-    await page.click('button:has-text("Trash & export")');
+    await page.click(".desktop-account-menu > summary");
+    await page.locator(".desktop-account-data > summary").click();
+    await page.click('.desktop-account-data-items button:has-text("Trash & export")');
     const row = page.locator(`.ws-dialog :text("${first}")`).first();
     await row.waitFor({ timeout: 10000 });
     check(true, "Trash lists the discarded card");
@@ -188,8 +197,9 @@ const scenarios = {
     await page.keyboard.press("d");
     await page.waitForTimeout(800);
     await page.keyboard.press("Escape");
-    await page.click(".desktop-account-menu summary");
-    await page.click('button:has-text("Trash & export")');
+    await page.click(".desktop-account-menu > summary");
+    await page.locator(".desktop-account-data > summary").click();
+    await page.click('.desktop-account-data-items button:has-text("Trash & export")');
     await page.locator(`.ws-dialog :text("${first}")`).first().waitFor({ timeout: 10000 });
     page.once("dialog", (dialog) => void dialog.accept());
     await page.locator('.ws-dialog button:has-text("Delete permanently")').first().click();
@@ -379,6 +389,7 @@ const scenarios = {
     await popup.keyboard.press("3");
     await popup.waitForTimeout(400);
     check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
+    await popup.evaluate(() => document.activeElement?.blur?.());
     await popup.keyboard.press(" ");
     await popup.locator(".cosmos-results").waitFor();
     check(await popup.locator(".cosmos-details").count() === 1, "chosen context returns after the next reveal");
