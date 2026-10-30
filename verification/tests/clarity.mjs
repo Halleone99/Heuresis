@@ -86,10 +86,18 @@ const scenarios = {
     await page.keyboard.press("Escape");
     await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
+    // Eligibility can change when historical grades arrive: mastered cards are excluded
+    // unless requested. Assert against the *loaded* pool, not its transient initial count.
+    await page.locator('.study-state:has-text("Loading cards and review history")').waitFor({ state: "hidden" });
     const meta = await page.locator(".compact-study-meta").innerText();
     check(/\d+\s*available/.test(meta), `Review shows eligible cards (“${meta.replace(/\s+/g, " ")}”)`);
-    await page.waitForFunction(() => { const button = document.querySelector(".study-start"); return button && !button.disabled; });
-    check(await page.locator(".study-start").isEnabled(), "Review can start after session setup loads");
+    const available = Number(meta.match(/(\d+)\s*available/)?.[1] ?? 0);
+    const start = page.locator(".study-start");
+    const error = await page.locator(".study-error").allInnerTexts();
+    const directionMissing = await page.locator('.study-state:has-text("No review direction")').count();
+    check(error.length === 0 && !directionMissing, `Review setup loads a direction without errors (errors: ${error.join("; ") || "none"}; missing direction: ${directionMissing})`);
+    check((await start.isEnabled()) === (available > 0),
+      `Review starts only with eligible cards (available: ${available}; enabled: ${await start.isEnabled()})`);
     await page.screenshot({ path: `${shots}/review-setup.png` });
   },
 
