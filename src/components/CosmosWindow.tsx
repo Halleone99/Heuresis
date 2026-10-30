@@ -129,8 +129,8 @@ function parseConfig(): Config {
     packId,
     templateId: params.get("template") ?? "",
     templateIds,
-    source: source === "recommended" || source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
-    order: params.get("order") === "random" || params.get("order") === "weakest" || params.get("order") === "oldest" ? params.get("order") as Order : "pack",
+    source: source === "recommended" ? "all" : source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
+    order: params.get("order") === "random" || params.get("order") === "weakest" || params.get("order") === "oldest" ? params.get("order") as Order : source === "recommended" ? "weakest" : "pack",
     count: rawCount === "all" || !Number.isFinite(numeric) || numeric <= 0 ? "all" : Math.floor(numeric),
     tagIds: params.getAll("tag").filter(Boolean),
     reviewFlags: params.getAll("flag").filter(Boolean),
@@ -396,11 +396,11 @@ export default function CosmosWindow() {
               ...Object.values(entry.data).flatMap((value) => Array.isArray(value) ? value : [value]).filter((value): value is string => typeof value === "string"),
             ].join(" ").toLocaleLowerCase().includes(q));
           }
-          if (!relatedReview && config.mode === "review" && !selection.length) {
+          if (!relatedReview && config.mode === "review") {
             pool = pool.filter((entry) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
-              return reviewEligible(cardBarProgress(entry, grades, oldState), grades, entry.stats.last_encountered_at, config.includeMastered);
+              return reviewEligible(cardBarProgress(entry, grades, oldState), grades, entry.stats.last_encountered_at, config.includeMastered || selection.length > 0);
             });
           }
           if (config.order === "random") pool = shuffle(pool);
