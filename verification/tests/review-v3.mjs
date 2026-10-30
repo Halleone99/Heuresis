@@ -311,9 +311,9 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-card").waitFor();
     const later = (await page.locator(".sort-card > strong").innerText()).trim();
+    const previousCardId = await page.locator(".sort-card").getAttribute("data-card-id");
     await page.locator('.sort-quiet-actions button:has-text("Sort Later")').click();
-    await page.waitForFunction((previous) => document.querySelector(".sort-card")?.getAttribute("data-card-id") !== previous,
-      await page.locator(".sort-card").getAttribute("data-card-id"));
+    await page.waitForFunction((previous) => document.querySelector(".sort-card")?.getAttribute("data-card-id") !== previous, previousCardId);
     const active = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.locator(".sort-rating button:has-text('Active')").click();
     await page.locator(".sort-finished").waitFor();
