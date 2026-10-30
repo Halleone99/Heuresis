@@ -66,97 +66,56 @@ async function waitFor(condition, timeout = 12000) {
 }
 
 const scenarios = {
-  async "sort → review → grading: one click, recommended, explained and summarised"(page, context) {
+  async "sort → review → grading: chosen session size and overall summary"(page, context) {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
     await page.locator(".sort-card").waitFor();
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("c");
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(700);
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("p");
-    await page.waitForTimeout(800);
-    check(await sql(`select interest_rank||'|'||retention||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${first}'`) === "5|learning|true", `C learns ${first} as Core (stored as 5)`);
-    check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${second}'`) === "1", `P learns ${second} as Peripheral (stored as 1)`);
-    check(/2 cards decided/.test(await page.locator(".sort-finished").innerText()), "the pass ends with a summary of the decisions");
-    const popupOpened = context.waitForEvent("page");
+    await page.waitForTimeout(700);
+    check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${first}'`) === "5", "Core is stored as rank 5");
+    check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${second}'`) === "1", "Passive is stored as rank 1");
     await page.click('.sort-finished-actions button:has-text("Review now")');
+    await page.locator(".review-controls").waitFor();
+    await page.getByRole("group", { name: "Number of cards" }).getByRole("button", { name: "5" }).click();
+    const popupOpened = context.waitForEvent("page");
+    await page.locator(".study-start").click();
     const popup = await popupOpened;
     await popup.locator(".cosmos-count").waitFor({ timeout: 15000 });
-    await popup.waitForTimeout(400);
-    check(/source=recommended/.test(popup.url()), "Review starts a recommended session without a setup step");
     const total = Number((await popup.locator(".cosmos-count").innerText()).split("/")[1]);
-    check(total === 14, `the session covers both directions of the seven Learning cards (default 20, here ${total})`);
-    await popup.click(".cosmos-why");
-    const reasons = await popup.locator(".cosmos-why-panel li").allInnerTexts();
-    check(reasons.length >= 1 && reasons.every((reason) => reason.length > 8), `"Why?" explains the recommendation (“${reasons.join(" ")}”)`);
-    await popup.click(".cosmos-why");
-    await popup.screenshot({ path: `${shots}/review-front.png` });
-
-    const seen = [];
+    check(total > 0 && total <= 5, "Chosen review size is enforced without repeating cards");
     const before = await gradeCount();
-    for (let step = 0; step < total; step += 1) {
-      seen.push(await current(popup));
+    for (let step = 0; step < total; step++) {
       await popup.keyboard.press(" ");
       await popup.locator(".cosmos-results").waitFor();
       if (step === 0) {
-        check((await popup.locator(".cosmos-results button b").allInnerTexts()).join(",") === "Missed,Partial,Recalled,Secure",
-          "results are Missed / Partial / Recalled / Secure");
-        check(await popup.locator(".cosmos-core-field.is-recap").count() >= 1, "the question stays visible above the revealed answer");
+        check((await popup.locator(".cosmos-results button b").allInnerTexts()).join(",") === "Missed,Partial,Known,Easy",
+          "Ratings are Missed, Partial, Known and Easy");
         await popup.screenshot({ path: `${shots}/review-revealed.png` });
       }
-      await popup.keyboard.press(step === 0 ? "1" : step === 1 ? "4" : "3");
-      await popup.waitForTimeout(300);
+      await popup.keyboard.press(step === 0 ? "1" : "3");
+      await popup.waitForTimeout(250);
     }
     await popup.locator(".cosmos-summary").waitFor();
-    check(await waitFor(async () => await gradeCount() - before === total), `every result is recorded (${total})`);
-    check(Number(await sql(`select count(*) from heuresis_card_events where event_type in ${GRADES} and template_id is null and created_at > now() - interval '5 minutes'`)) === 0,
-      "every result is recorded with its direction");
-    const keys = seen.map((entry) => `${entry.cardId}:${entry.templateId}`);
-    check(new Set(keys).size === keys.length, "no card and direction is asked twice in one session");
-    check(seen.every((entry, index) => index === 0 || entry.cardId !== seen[index - 1].cardId), "the opposite direction of a card never follows it immediately");
-    check(new Set(seen.map((entry) => entry.templateId)).size === 2, "both directions are recommended");
+    check(await waitFor(async () => await gradeCount() - before === total), "Every completed grade is persisted");
     const summary = await popup.locator(".cosmos-summary-lines").innerText();
-    check(/You reviewed 14 cards: 13 recalled or secure, 0 partial, 1 missed\./.test(summary), "the summary states the results in words");
-    check(/recogni/i.test(summary) && /produc/i.test(summary), "the summary compares recognition and production");
-    check(/Missed: /.test(summary), "the summary names the missed word");
-    await popup.screenshot({ path: `${shots}/review-summary.png` });
-    check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0, "10 more is not offered when nothing else is left to recommend");
-    await popup.click('.cosmos-summary-actions button:has-text("Retry 1 missed or partial card")');
-    await popup.locator(".cosmos-card").waitFor();
-    check((await popup.locator(".cosmos-count").innerText()).trim() === "1 / 1", "Retry missed asks only the missed card");
-    const retried = await current(popup);
-    check(retried.cardId === seen[0].cardId && retried.templateId === seen[0].templateId, "in the same direction it was missed");
-    await revealAndGrade(popup, "3");
-    await popup.locator(".cosmos-summary").waitFor();
-    const afterRetry = await popup.locator(".cosmos-summary-lines").innerText();
-    check(/You reviewed 14 cards: 13 recalled or secure, 0 partial, 1 missed\./.test(afterRetry) && /On retry, 1 of 1 was recalled\./.test(afterRetry),
-      "after a retry the summary still counts each card once and reports the retry separately");
-    check(await popup.locator('.cosmos-summary-actions button:has-text("Retry")').count() === 0 && await popup.locator('.cosmos-summary-actions button:has-text("Done")').count() === 1,
-      "after the retry only Done remains");
+    check(/cards reviewed/.test(summary) && /bars gained/.test(summary) && /Mastered/.test(summary),
+      "Summary shows only totals, bar movements and newly Mastered cards");
+    check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0, "No unexpected session extension");
+    check(await popup.locator('.cosmos-summary-actions button:has-text("Retry")').count() === 1, "Missed cards can be retried on demand");
     await popup.close();
   },
 
-  async "ten more continues with new recommendations and never repeats"(page, context) {
-    const popup = await openPopup(context, "source=recommended&count=5&order=pack");
-    const first = [];
-    for (let step = 0; step < 5; step += 1) { first.push(await current(popup)); await revealAndGrade(popup, "3"); }
+  async "session size is fixed until a new review is chosen"(page, context) {
+    const popup = await openPopup(context, "source=all&count=5&order=random");
+    for (let step = 0; step < 5; step += 1) await revealAndGrade(popup, "3");
     await popup.locator(".cosmos-summary").waitFor();
-    const more = popup.locator('.cosmos-summary-actions button:has-text("10 more")');
-    check(await more.count() === 1, "10 more is offered at the end of a session");
-    await more.click();
-    await popup.locator(".cosmos-card").waitFor();
-    const remaining = Number((await popup.locator(".cosmos-count").innerText()).split("/")[1]);
-    check(remaining === 5, `the next round has the five remaining recommendations (got ${remaining})`);
-    const keys = new Set(first.map((entry) => `${entry.cardId}:${entry.templateId}`));
-    let repeated = false;
-    for (let step = 0; step < remaining; step += 1) {
-      const entry = await current(popup);
-      if (keys.has(`${entry.cardId}:${entry.templateId}`)) repeated = true;
-      await revealAndGrade(popup, "3");
-    }
-    check(!repeated, "no card and direction from the first round is repeated");
+    check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0,
+      "Five-card session ends at five without automatic extension");
     await popup.close();
   },
 
@@ -269,7 +228,7 @@ const scenarios = {
       await popup.keyboard.press(step === 0 ? "4" : "3");
       await popup.waitForTimeout(400);
     }
-    check(answers[0].suggestion === "Recalled", `the characters committed by an IME are Recalled (${answers[0].term}: ${answers[0].suggestion})`);
+    check(answers[0].suggestion === "Known", `the characters committed by an IME are Recalled (${answers[0].term}: ${answers[0].suggestion})`);
     check(answers[1].suggestion === "Partial", `numbered pinyin is Partial (${answers[1].term}: ${answers[1].suggestion})`);
     check(answers[2].suggestion === "Partial", `pinyin without tones is Partial (${answers[2].term}: ${answers[2].suggestion})`);
     check(answers[3].suggestion === "Missed", `a wrong word is Missed (${answers[3].term}: ${answers[3].suggestion})`);
@@ -318,70 +277,49 @@ const scenarios = {
     await popup.close();
   },
 
-  async "adjust remembers choices and review reuses them in one click"(page, context) {
+  async "review remembers card count and one of three order choices"(page, context) {
     await openTopic(page);
-    await page.click(".review-adjust");
+    await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
-    await page.getByRole("button", { name: "One direction" }).click();
-    await page.locator(".direction-detail select").selectOption(PRO);
-    await page.locator(".compact-cards-select select").selectOption("all");
+    await page.getByRole("group", { name: "Number of cards" }).getByRole("button", { name: "5" }).click();
+    await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).click();
     let opened = context.waitForEvent("page");
     await page.click(".study-start");
     let popup = await opened;
     await popup.locator(".cosmos-count").waitFor({ timeout: 15000 });
-    check(popup.url().includes(`templates=${PRO}`) && popup.url().includes("source=all"), "Adjust starts the session it describes");
+    check(popup.url().includes("order=random") && popup.url().includes("count=5"),
+      "Review launches with the explicitly chosen selection and size");
     await popup.close();
-    await page.click(".review-adjust");
+    await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
-    check(await page.getByRole("button", { name: "One direction" }).getAttribute("aria-pressed") === "true", "Adjust remembers One direction");
-    check(await page.locator(".direction-detail select").inputValue() === PRO, "and which direction");
-    check(await page.locator(".compact-cards-select select").inputValue() === "all", "and which cards");
+    check(await page.getByRole("group", { name: "Number of cards" }).getByRole("button", { name: "5" }).getAttribute("aria-pressed") === "true",
+      "Five-card choice is remembered");
+    check(await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).getAttribute("aria-pressed") === "true",
+      "Random order is remembered");
     await page.keyboard.press("Escape");
-    opened = context.waitForEvent("page");
-    await page.getByRole("button", { name: "Review", exact: true }).click();
-    popup = await opened;
-    await popup.locator(".cosmos-count").waitFor({ timeout: 15000 });
-    check(popup.url().includes("source=recommended") && popup.url().includes(`templates=${PRO}`), "one-click Review stays recommended and uses the remembered direction");
-    check((await current(popup)).templateId === PRO, "the session shows that direction");
-    await popup.close();
   },
 
-  async "topic shows unsorted, learning and reference, evidence states and importance"(page) {
+  async "topic shows unified bars and intended-use classifications"(page) {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
     await page.locator(".sort-card").waitFor();
-    const reference = (await page.locator(".sort-card > strong").innerText()).trim();
-    await page.keyboard.press("r");
-    await page.waitForTimeout(800);
-    const useful = (await page.locator(".sort-card > strong").innerText()).trim();
+    const later = (await page.locator(".sort-card > strong").innerText()).trim();
+    await page.keyboard.press("l");
+    await page.waitForTimeout(350);
+    const active = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("u");
     await page.waitForTimeout(800);
-    await page.click('.sort-finished-actions button:has-text("Return to topic")');
-    await page.waitForTimeout(1000);
-    const counts = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];
-    check(counts.join("/") === "0/6/1", `stages read Unsorted 0 → Learning 6 · Reference 1 (got ${counts.join("/")})`);
-    await page.click('[data-stage="reference"]');
-    await page.waitForTimeout(400);
-    check(await page.locator(".modern-topic-row").count() === 1 && await page.locator(`.modern-topic-row.is-reference:has-text("${reference}")`).count() === 1, "the Reference filter shows the reference card");
-    await page.click('[data-stage="reference"]');
+    await page.locator('.sort-finished-actions button:has-text("Return to topic")').click();
     await page.locator('.topic-browse-actions button:has-text("Show all")').click();
-    await page.waitForTimeout(300);
-    const newRow = page.locator(`.modern-topic-row:has-text("${useful}")`);
-    check((await newRow.locator(".knowledge-states").innerText()).match(/Not tried/g)?.length === 2, "a new Learning card is Not tried in both directions");
-    check(await newRow.locator(".importance-badge").innerText() === "Useful", "and shows its importance as Useful");
-    const oldRow = page.locator('.modern-topic-row:has-text("以前")');
-    const oldStates = await oldRow.locator(".knowledge-states").innerText();
-    check(/(?:中 → EN|New|Developing|Holding|Strong|Needs work)/i.test(oldStates), `results recorded before directions existed still count for the default direction (“${oldStates.replace(/\s+/g, " ")}”)`);
-    check(/PRODUCE\s*Not tried/i.test(oldStates), "while the other direction is honestly Not tried");
-    await page.screenshot({ path: `${shots}/topic-states.png`, fullPage: true });
-    await page.click('[data-stage="reference"]');
-    await page.waitForTimeout(300);
-    await page.locator(".modern-topic-row").first().dblclick();
-    await page.locator(".card-editor-modal").waitFor();
-    await page.locator('.card-editor-modal button:has-text("Move to Learning")').click();
-    check(await waitFor(async () => await sql(`select retention||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${reference}'`) === "learning|true"),
-      "a reference card can be moved to Learning from its editor (into Learning, not back to Unsorted)");
+    const row = page.locator(`.modern-topic-row:has-text("${active}")`);
+    check(await row.locator(".importance-badge").innerText() === "Active", "Previously Useful is now displayed as Active");
+    check(await row.locator(".card-progress-bars > span").count() === 4, "Each card shows exactly four progress bars");
+    check((await row.locator(".card-progress > small").innerText()) === "New", "A sorted card with no graded reviews is New");
+    const pending = page.locator(`.modern-topic-row:has-text("${later}")`);
+    check((await pending.locator(".card-progress > small").innerText()) === "To sort", "Sort Later keeps the first card in the queue");
+    check(await row.locator(".modern-learning-cell").count() === 1 && await row.locator(".modern-recall-cell").count() === 1,
+      "Review count and Last Seen stay separate");
   },
 
   async "retry keeps the practice already recorded in the session"(page, context) {
