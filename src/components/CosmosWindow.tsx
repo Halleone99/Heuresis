@@ -43,6 +43,7 @@ import { assessState, directionEvidence, STATE_LABEL, STATE_PROGRESSION, type Gr
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
+import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY } from "../lib/reviewMethodCounts";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
@@ -688,6 +689,14 @@ export default function CosmosWindow() {
     setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
+      // Count the method used on each completed attempt, not just a click.
+      try {
+        const updated = countReviewMethod(reviewMethodCounts(card, learningCounts[card.id]), method);
+        const data = await patchCardData(card.id, { [REVIEW_METHOD_COUNTS_KEY]: JSON.stringify(updated) });
+        patchLocalCard(card.id, (entry) => ({ ...entry, data }));
+      } catch {
+        setNotice("Review saved, but the learning-method count could not be synchronised.");
+      }
       const stateBefore = item.state ?? (events ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null);
       setResults((current) => [...current, { cardId: card.id, templateId: template.id, grade, stateBefore }]);
       // Local evidence, so "10 more" and the summary see this answer at once.
@@ -925,6 +934,7 @@ export default function CosmosWindow() {
   const backKeys = mode === "review" ? (template?.back ?? []) : [];
   const detailKeys = mode === "review" ? (template?.details ?? []) : [];
   const activeLearning = new Set(selectedActions[card.id] ?? []);
+  const methodCounts = reviewMethodCounts(card, learningCounts[card.id]);
   const badges = tags.filter((tag) => tag.is_badge).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   const context = relatedReview ? relatedContext.find((row) => row.target_card_id === card.id) ?? null : null;
   const currentState = mode === "review" && !relatedReview && template ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null;
@@ -1063,7 +1073,7 @@ export default function CosmosWindow() {
       {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
         <span>Answer by</span>
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"]] as const).map(([value,label]) =>
-          <button key={value} type="button" aria-pressed={method === value} onClick={() => setMethod(value)}>{label}</button>)}
+          <button key={value} type="button" aria-pressed={method === value} onClick={() => setMethod(value)}>{label} · {methodCounts[value]}×</button>)}
         {canListen ? <button type="button" className="cosmos-audio-switch" aria-pressed={audioPrompt} onClick={() => setAudioPrompt((value) => {
           try { localStorage.setItem("heuresis.review.audioPrompt.v1", value ? "0" : "1"); } catch { /* preference only */ }
           return !value;
@@ -1092,7 +1102,12 @@ export default function CosmosWindow() {
   return <main className="cosmos-shell">
     <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
-      {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentState ? ` · ${STATE_LABEL[currentState]}` : ""}</span> : <span className="cosmos-mode-note">{mode === "sort" ? "organisation · priority · badges" : ""}</span>}
+      {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}
+        {sessionTemplates.length > 1 && !revealed ? <button type="button" className="cosmos-extra-toggle" disabled={busy}
+          onClick={() => setQueue((items) => items.map((entry, position) => position === index
+            ? { ...entry, templateId: sessionTemplates[(sessionTemplates.findIndex((candidate) => candidate.id === entry.templateId) + 1) % sessionTemplates.length].id }
+            : entry))}>Switch direction</button> : null}
+      </span> : <span className="cosmos-mode-note">{mode === "sort" ? "organisation · priority · badges" : ""}</span>}
       <span className="cosmos-spacer" />
       {mode === "review" && revealed ? <div className="cosmos-panel-toggles" role="group" aria-label="Review side panels">
         <button type="button" aria-pressed={leftContextOpen} disabled={!revealed} onClick={() => setLeftContextOpen((value) => !value)} title={revealed ? "Show or hide examples and connections (E)" : "Available after reveal"}>
