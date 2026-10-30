@@ -388,11 +388,11 @@ const scenarios = {
     console.log("NB77: save cover");
     await page.locator('.nb-cover-dialog button:has-text("Save")').click();
     await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
-    const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
-    check(colour === "rgb(53, 75, 104)", "a colour choice changes the subject card");
+    const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).getPropertyValue("--nb-subject-accent").trim());
+    check(colour === "#354b68", "a colour choice changes the subject card accent");
     await page.reload();
     await page.waitForSelector('.nb-home-subject:has-text("German")');
-    const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
+    const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).getPropertyValue("--nb-subject-accent").trim());
     check(retained === colour, "subject colour survives reopening");
     // Cover images should survive reload without any database migration.
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
@@ -441,14 +441,14 @@ const scenarios = {
       "the note is still a Reference note in the Notebook");
   },
 
-  async "header sidebar toggle changes navigation mode"(page) {
-    const toggle = page.locator(".hw-sidebar-header-toggle");
-    check(await toggle.count() === 1, "one header sidebar toggle is present");
-    const before = await toggle.getAttribute("aria-expanded");
-    await toggle.click();
-    check(await toggle.getAttribute("aria-expanded") !== before, "sidebar toggle changes its expanded state");
-    await toggle.click();
-    check(await toggle.getAttribute("aria-expanded") === before, "sidebar can return to its previous state");
+  async "sidebar shortcut changes navigation mode"(page) {
+    check(await page.locator(".hw-sidebar-header-toggle").count() === 1, "one header sidebar toggle exists");
+    const desktop = page.locator(".heuresis-desktop");
+    const before = await desktop.getAttribute("data-sidebar");
+    await page.keyboard.press("Control+Backslash");
+    check(await desktop.getAttribute("data-sidebar") !== before, "sidebar shortcut changes navigation mode");
+    await page.keyboard.press("Control+Backslash");
+    check(await desktop.getAttribute("data-sidebar") === before, "sidebar can return to its previous mode");
   },
 };
 
