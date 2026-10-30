@@ -19,7 +19,7 @@ import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import { openCosmosWindow } from "../lib/cosmosWindow";
 import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, importanceOf, ranksFor, type Importance } from "../lib/importance";
-import { assessState, directionEvidence, STATE_ATTENTION, STATE_LABEL, STATE_PROGRESSION, summaryState, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
+import { assessState, directionEvidence, summaryState, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { defaultDirections, directionPairs, legacyTemplateId } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { readReviewPrefs, rememberedTemplateIds } from "../lib/reviewPrefs";
@@ -50,6 +50,8 @@ type Props = {
 type StatusFilter = "unsorted" | "learning" | "reference";
 type InterestFilter = "all" | "none" | Importance;
 type DirectionState = { templateId: string; label: string; state: KnowledgeState; agedFrom: KnowledgeState | null };
+type ProgressStage = "new" | "review" | "known" | "mastered";
+const PROGRESS_STAGES: ProgressStage[] = ["new", "review", "known", "mastered"];
 type DetailFilter = "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
 type SortDirection = "asc" | "desc";
@@ -175,7 +177,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
-  const [stateFilter, setStateFilter] = useState<KnowledgeState | null>(null);
+  const [stateFilter, setStateFilter] = useState<ProgressStage | null>(null);
   const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
@@ -290,13 +292,19 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
   const learningCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "learning"), [cards]);
+  const stageOf = (card: CardWithStats): ProgressStage => {
+    const progress = cardBars.get(card.id);
+    return progress?.mastered ? "mastered" : progress?.bars === 4 ? "known" : reviewGradeCount(card) ? "review" : "new";
+  };
   const stateCounts = useMemo(() => {
-    const counts = Object.fromEntries(STATE_PROGRESSION.map((state) => [state, 0])) as Record<KnowledgeState, number>;
-    for (const card of learningCards) { const state = cardSummary(card); if (state) counts[state] += 1; }
+    const counts: Record<ProgressStage, number> = { new: 0, review: 0, known: 0, mastered: 0 };
+    for (const card of learningCards) {
+      const progress = cardBars.get(card.id);
+      const stage = progress?.mastered ? "mastered" : progress?.bars === 4 ? "known" : reviewGradeCount(card) ? "review" : "new";
+      counts[stage] += 1;
+    }
     return counts;
-    // cardSummary reads cardStates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardStates, learningCards]);
+  }, [cardBars, learningCards]);
   const favouriteCards = useMemo(() => cards.filter((card) => card.favourite), [cards]);
   // Offer only tags used by this topic; the card editor retains the global tag catalogue.
   const tagFacets = useMemo(() => {
@@ -342,7 +350,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     const filtered = source.filter((card) => {
       const status = workflowStatus(card);
       if (statusFilters.length && !statusFilters.includes(status)) return false;
-      if (stateFilter && cardSummary(card) !== stateFilter) return false;
+      if (stateFilter && stageOf(card) !== stateFilter) return false;
 
       if (favouriteOnly && !card.favourite) return false;
       if (interestFilter === "none" && card.interest_rank != null) return false;
@@ -457,7 +465,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setStatusFilters(statusFilters.length === 1 && statusFilters[0] === stage ? [] : [stage]);
   }
 
-  function chooseState(state: KnowledgeState) {
+  function chooseState(state: ProgressStage) {
     setAllCardsExpanded(false);
     if (stateFilter === state) { setStateFilter(null); return; }
     setStatusFilters(["learning"]);
@@ -485,7 +493,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
-  const learningBreakdown = STATE_PROGRESSION.filter((state) => stateCounts[state]);
+  const learningBreakdown = PROGRESS_STAGES.filter((state) => stateCounts[state]);
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
       <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
@@ -520,9 +528,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           </button>
         </div>
         {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
-          <span>Of {learningCards.length} learning cards{stateTemplates.length > 1 ? " (weakest direction)" : ""}:</span>
+          <span>Of {learningCards.length} sorted cards:</span>
           {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
-            {state !== "not-tried" ? <i className="knowledge-dot" data-state={state} aria-hidden="true" /> : null} {stateCounts[state]} {state === "not-tried" ? "new" : STATE_LABEL[state].toLowerCase()}</button>)}
+            {stateCounts[state]} {state === "new" ? "new" : state === "review" ? "review" : state === "known" ? "known" : "mastered"}</button>)}
         </div> : null}
       </section>
 
