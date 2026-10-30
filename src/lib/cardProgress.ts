@@ -29,6 +29,38 @@ function approximateLegacy(card: CardWithStats, oldState: KnowledgeState | null)
   return { bars: Math.min(3, Math.max(1, successes)), mastered: false, estimated: true };
 }
 
+
+/** A completed successful grade locks normal review until tomorrow.
+ * A subsequent miss unlocks the card for same-day recovery.
+ * Partial never unlocks an earlier success and never locks a card by itself.
+ */
+export function reviewedSuccessfullyToday(history: GradeEvent[] | null, now = Date.now()): boolean {
+  if (!history) return false;
+  const today = dayOf(now);
+  let locked = false;
+  for (const event of [...history].sort((a, b) => a.at - b.at)) {
+    if (dayOf(event.at) !== today) continue;
+    if (event.grade === "again") locked = false;
+    if (event.grade === "good" || event.grade === "easy") locked = true;
+  }
+  return locked;
+}
+
+/** Mastered cards are intentionally rare in the normal pool, not scheduled tasks. */
+export function reviewEligible(
+  progress: CardBarProgress,
+  history: GradeEvent[] | null,
+  lastReviewed: string | null,
+  includeMastered = false,
+  now = Date.now(),
+): boolean {
+  if (includeMastered) return true;
+  if (reviewedSuccessfullyToday(history, now)) return false;
+  if (!progress.mastered) return true;
+  const latest = history?.length ? Math.max(...history.map((event) => event.at)) : Date.parse(lastReviewed ?? "");
+  return Number.isFinite(latest) && now - latest >= 180 * 86_400_000;
+}
+
 export function cardBarProgress(
   card: CardWithStats,
   history: GradeEvent[] | null,
@@ -36,7 +68,7 @@ export function cardBarProgress(
 ): CardBarProgress {
   const attempts = reviewGradeCount(card);
   if (!attempts) return { bars: 0, mastered: false, estimated: false };
-  if (!history || history.length !== attempts) return approximateLegacy(card, oldState);
+  if (!history || history.length < attempts) return approximateLegacy(card, oldState);
 
   let bars = 0;
   let mastered = false;
@@ -66,7 +98,6 @@ export function cardBarProgress(
       } else if (bars < dailyPeak) {
         bars += 1;
       }
-      dailyPeak = Math.max(dailyPeak, bars);
     }
   }
   return { bars, mastered, estimated: false };
