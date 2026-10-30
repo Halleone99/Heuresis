@@ -111,8 +111,10 @@ const scenarios = {
   },
 
   async "session size is fixed until a new review is chosen"(page, context) {
-    const popup = await openPopup(context, "source=all&count=5&order=random");
-    for (let step = 0; step < 5; step += 1) await revealAndGrade(popup, "3");
+    const popup = await openPopup(context, "source=all&count=5&order=random&mastered=1");
+    const total = Number((await popup.locator(".cosmos-count").innerText()).split("/")[1]);
+    check(total > 0 && total <= 5, "Session shows no more than the selected five cards");
+    for (let step = 0; step < total; step += 1) await revealAndGrade(popup, "3");
     await popup.locator(".cosmos-summary").waitFor();
     check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0,
       "Five-card session ends at five without automatic extension");
