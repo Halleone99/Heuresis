@@ -8,3 +8,11 @@
 .study-done{margin:auto;text-align:center;max-width:560px;padding:45px}.study-done>svg{color:var(--c-sage);margin-bottom:15px}
 @media(max-width:900px){.study-mode-grid{grid-template-columns:1fr}.study-mode-card{min-height:220px}.study-sort-options,.study-options{grid-template-columns:1fr 1fr}.study-order{align-self:stretch}}
 @media(max-width:720px){.study-modal{height:96vh}.study-launch,.study-mode-picker{padding:30px 22px}.study-options,.study-sort-options{grid-template-columns:1fr}.study-review{padding:15px}.study-grades{grid-template-columns:1fr 1fr}}
+
+/* Concise Review setup: optional tag filters without adding another panel. */
+.review-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; max-height: 126px; overflow-y: auto; }
+.review-filter-chips > button { min-height: 28px; padding: 5px 10px; border: 1px solid var(--ws-border, #a0a0a0); border-radius: 999px; background: transparent; color: var(--ws-text); font-size: 11px; cursor: pointer; }
+.review-filter-chips > button.selected, .review-filter-chips > button[aria-pressed="true"] { border-color: var(--c-sage); background: color-mix(in srgb, var(--c-sage) 15%, transparent); }
+.review-filter-chips > small { color: var(--ws-muted); }
+.review-include-mastered { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--ws-text); cursor: pointer; }
+.review-include-mastered input { accent-color: var(--c-sage); }
