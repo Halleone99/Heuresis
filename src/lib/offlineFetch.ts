@@ -233,6 +233,9 @@ async function requestParts(input: RequestInfo | URL, init?: RequestInit) {
 
 async function saveResponse(key: string, method: string, url: string, response: Response, ownerId: string) {
   if (!response.ok) return;
+  // Clone before the first await. The caller consumes the original response while
+  // recovery-store reads run; cloning afterwards can throw and silently lose the cache.
+  const responseCopy = response.clone();
   try {
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, name) => { responseHeaders[name] = value; });
@@ -256,7 +259,7 @@ async function saveResponse(key: string, method: string, url: string, response: 
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
-      body: await response.clone().arrayBuffer(),
+      body: await responseCopy.arrayBuffer(),
       updatedAt: new Date().toISOString(),
     });
   } catch {
