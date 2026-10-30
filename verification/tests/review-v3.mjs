@@ -292,7 +292,9 @@ const scenarios = {
     const before = await gradeCount();
     await context.setOffline(true);
     for (const key of ["3", "1", "2"]) await revealAndGrade(popup, key);
-    check(await popup.locator(".cosmos-card").count() === 1 && (await popup.locator(".cosmos-count").innerText()).startsWith("4 /"), "Review continues offline");
+    const nextCard = await popup.locator(".cosmos-card").count() === 1 && (await popup.locator(".cosmos-count").innerText()).startsWith("4 /");
+    const sessionFinished = await popup.locator(".cosmos-summary").count() === 1;
+    check(nextCard || sessionFinished, "Review continues offline, including when the chosen session ends after three cards");
     await page.waitForTimeout(1000);
     check(await gradeCount() === before, "offline results wait on the device");
     await context.setOffline(false);
