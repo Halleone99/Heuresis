@@ -12,12 +12,12 @@ export type ReviewPrefs = {
   templateId: string | null;
   source: ReviewSourceChoice;
   size: number;
-  order: "pack" | "random";
+  order: "pack" | "random" | "weakest" | "oldest";
 };
 
 export const DEFAULT_SESSION_SIZE = 20;
 export const MORE_SIZE = 10;
-export const DEFAULT_REVIEW_PREFS: ReviewPrefs = { directionMode: "auto", pairKey: null, templateId: null, source: "recommended", size: DEFAULT_SESSION_SIZE, order: "pack" };
+export const DEFAULT_REVIEW_PREFS: ReviewPrefs = { directionMode: "auto", pairKey: null, templateId: null, source: "recommended", size: DEFAULT_SESSION_SIZE, order: "weakest" };
 
 export const METHOD_LABEL: Record<ReviewMethod, string> = {
   think: "In my head",
@@ -53,7 +53,7 @@ export function readReviewPrefs(packId: string): ReviewPrefs {
       templateId: typeof raw.templateId === "string" ? raw.templateId : null,
       source: SOURCES.includes(raw.source as ReviewSourceChoice) ? raw.source as ReviewSourceChoice : "recommended",
       size: Number.isFinite(raw.size) && Number(raw.size) > 0 ? Math.min(500, Math.floor(Number(raw.size))) : DEFAULT_SESSION_SIZE,
-      order: raw.order === "random" ? "random" : "pack",
+      order: raw.order === "random" || raw.order === "weakest" || raw.order === "oldest" ? raw.order : "weakest",
     };
   } catch { return { ...DEFAULT_REVIEW_PREFS }; }
 }
