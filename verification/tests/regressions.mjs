@@ -338,13 +338,15 @@ const scenarios = {
 
   async "server unreachable: the device copy is shown and captures are not called stored"(page, context) {
     await page.click('.hw-sections button:has-text("Notebook")');
-    await page.waitForTimeout(1200);
+    // Seed the device copy from a fully loaded Notebook before cutting the connection.
+    await page.locator('.nb-home-subject:has-text("Chinese")').waitFor({ timeout: 15000 });
     await context.route("http://localhost:54321/**", (route) => route.abort("connectionrefused"));
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar", { timeout: 20000 });
     await page.click('.hw-sections button:has-text("Notebook")');
-    await page.waitForTimeout(3000);
-    check(/Chinese/.test(await page.locator("main").innerText()), "the Notebook opens from the device copy");
+    await page.locator('.nb-home-subject:has-text("Chinese")').waitFor({ timeout: 15000 }).catch(() => undefined);
+    const offlineMain = await page.locator("main").innerText();
+    check(/Chinese/.test(offlineMain), `the Notebook opens from the device copy (${offlineMain.slice(0, 250)})`);
     await page.keyboard.press("Control+Shift+KeyN");
     await page.locator(".q-capture-editor textarea").fill("Server down capture");
     await page.keyboard.press("Control+Enter");
