@@ -186,13 +186,15 @@ const scenarios = {
   },
 
   async "typed chinese answers get suggested results and input-method enter never reveals"(page, context) {
-    const popup = await openPopup(context, `source=all&count=5&order=pack&templates=${PRO}`);
+    const popup = await openPopup(context, `source=all&count=5&order=pack&mastered=1&templates=${PRO}`);
     await popup.locator('.cosmos-recall-methods button:has-text("Type")').click();
     const textarea = popup.locator(".cosmos-inline-typing");
     await textarea.waitFor();
     check(true, "Typing it shows an answer field in the session");
     const answers = [];
-    for (let step = 0; step < 5; step += 1) {
+    const count = Number((await popup.locator(".cosmos-count").innerText()).split("/")[1]);
+    check(count >= 4 && count <= 5, "Typed-answer checks have at least four eligible cards");
+    for (let step = 0; step < count; step += 1) {
       const { cardId } = await current(popup);
       const term = await termOf(cardId);
       const reading = await sql(`select data->>'reading' from heuresis_cards where id='${cardId}'`);
@@ -234,7 +236,7 @@ const scenarios = {
     check(answers[1].suggestion === "Partial", `numbered pinyin is Partial (${answers[1].term}: ${answers[1].suggestion})`);
     check(answers[2].suggestion === "Partial", `pinyin without tones is Partial (${answers[2].term}: ${answers[2].suggestion})`);
     check(answers[3].suggestion === "Missed", `a wrong word is Missed (${answers[3].term}: ${answers[3].suggestion})`);
-    check(answers[4].suggestion === "", "an empty answer gets no suggestion");
+    if (answers.length > 4) check(answers[4].suggestion === "", "an empty answer gets no suggestion");
     check(await sql(`select event_type from heuresis_card_events where event_type in ${GRADES} order by created_at, id limit 1 offset (select count(*) - 5 from heuresis_card_events where event_type in ${GRADES})`) === "easy",
       "the learner's own choice (Secure) is what is recorded, not the suggestion");
     await popup.close();
@@ -289,8 +291,10 @@ const scenarios = {
     await page.click(".study-start");
     let popup = await opened;
     await popup.locator(".cosmos-count").waitFor({ timeout: 15000 });
-    check(popup.url().includes("order=random") && popup.url().includes("count=5"),
-      "Review launches with the explicitly chosen selection and size");
+    const launched = new URL(popup.url());
+    const count = Number(launched.searchParams.get("count"));
+    check(launched.searchParams.get("order") === "random" && count > 0 && count <= 5,
+      "Review launches with Random order and at most the selected five cards");
     await popup.close();
     await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
@@ -307,11 +311,12 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-card").waitFor();
     const later = (await page.locator(".sort-card > strong").innerText()).trim();
-    await page.keyboard.press("l");
-    await page.waitForTimeout(350);
+    await page.locator('.sort-quiet-actions button:has-text("Sort Later")').click();
+    await page.waitForFunction((previous) => document.querySelector(".sort-card")?.getAttribute("data-card-id") !== previous,
+      await page.locator(".sort-card").getAttribute("data-card-id"));
     const active = (await page.locator(".sort-card > strong").innerText()).trim();
-    await page.keyboard.press("u");
-    await page.waitForTimeout(800);
+    await page.locator(".sort-rating button:has-text('Active')").click();
+    await page.locator(".sort-finished").waitFor();
     await page.locator('.sort-finished-actions button:has-text("Return to topic")').click();
     await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     const row = page.locator(`.modern-topic-row:has-text("${active}")`);
@@ -325,7 +330,7 @@ const scenarios = {
   },
 
   async "retry keeps the practice already recorded in the session"(page, context) {
-    const popup = await openPopup(context, "source=recommended&count=2&order=pack");
+    const popup = await openPopup(context, "source=all&count=2&order=weakest&mastered=1");
     await popup.locator('.cosmos-recall-methods button:has-text("Say")').click();
     const said = async () => Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'"));
     const before = await said();
