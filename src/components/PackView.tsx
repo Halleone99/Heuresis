@@ -409,24 +409,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     onChanged();
   }
 
-  /** One click: a recommended session with the remembered directions and size (Adjust changes them). */
-  async function startReview() {
-    // A double click must not open two Review windows (two sessions).
-    if (reviewStarting.current) return;
-    reviewStarting.current = true;
-    setReviewNotice("");
-    const prefs = readReviewPrefs(pack.id);
-    const templateIds = rememberedTemplateIds(prefs, templates, directionPairs(templates));
-    try {
-      await openCosmosWindow({ mode: "review", packId: pack.id, source: "recommended", order: "pack", count: prefs.size, templateIds });
-      reviewOpened.current = true;
-    } catch (startError) {
-      setReviewNotice(startError instanceof Error ? startError.message : "Could not open Review.");
-    } finally {
-      // The second click of a double click arrives after the window has opened.
-      window.setTimeout(() => { reviewStarting.current = false; }, 800);
-    }
-  }
+  /** Review always opens the user's simple selection screen. */
+  function startReview() { setStudyOpen(true); }
 
   async function openTargeted(_title: string, selected: CardWithStats[], limit?: number, templateId?: string) {
     const next = limit ? selected.slice(0, limit) : selected;
@@ -549,12 +533,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
           <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <span className="review-split">
-            <button className="primary-button review-command" disabled={!learningCards.length}
-              title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review</button>
-            <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
-              title="Choose directions, cards, session size and order">▾</button>
-          </span>
+          <button className="primary-button review-command" disabled={!learningCards.length}
+            title="Choose cards, tags and review order" onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
           {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
             const selected = shown.filter((card) => workflowStatus(card) === "learning");
             openTargeted("Review filtered lesson", selected);
