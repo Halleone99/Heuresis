@@ -39,7 +39,7 @@ import {
 } from "../lib/study";
 import { isWordSized, suggestResult, type AnswerKind, type AnswerSuggestion, type ExpectedAnswer } from "../lib/answerCheck";
 import { mistakeDifference } from "../lib/mistakeDiff";
-import { assessState, directionEvidence, STATE_LABEL, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
+import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
@@ -886,7 +886,9 @@ export default function CosmosWindow() {
   const methodCounts = reviewMethodCounts(card, learningCounts[card.id]);
   const badges = tags.filter((tag) => tag.is_badge).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   const context = relatedReview ? relatedContext.find((row) => row.target_card_id === card.id) ?? null : null;
-  const currentState = mode === "review" && !relatedReview && template ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null;
+  const currentBars = mode === "review" && !relatedReview
+    ? cardBarProgress(card, events?.filter((entry) => entry.cardId === card.id) ?? null,
+      assessState(directionEvidence(card, null, events)).state) : null;
 
   const fieldEntriesFor = (dimension: DimensionId) => (type?.field_schema ?? []).flatMap((field) => {
     if (fieldDimension(field) !== dimension) return [];
@@ -1051,7 +1053,7 @@ export default function CosmosWindow() {
   return <main className="cosmos-shell">
     <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
-      {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}
+      {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentBars ? ` · ${currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : currentBars.bars + "/4 bars"}` : ""}
         {sessionTemplates.length > 1 && !revealed ? <button type="button" className="cosmos-extra-toggle" disabled={busy}
           onClick={() => setQueue((items) => items.map((entry, position) => position === index
             ? { ...entry, templateId: sessionTemplates[(sessionTemplates.findIndex((candidate) => candidate.id === entry.templateId) + 1) % sessionTemplates.length].id }
