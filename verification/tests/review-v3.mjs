@@ -30,11 +30,16 @@ async function addUnsortedCards() {
     ('${USER}','${HSK}','{"term":"马上","reading":"mǎshàng","meaning":"immediately","example":"我马上来。"}'),
     ('${USER}','${HSK}','{"term":"最近","reading":"zuìjìn","meaning":"recently"}')`);
 }
+async function showAllIfAvailable(page) {
+  // The topic keeps its expanded state when revisited; Show all is then absent.
+  const showAll = page.locator('.topic-browse-actions button:has-text("Show all")');
+  if (await showAll.count()) await showAll.click();
+}
 async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
   await page.waitForTimeout(800);
   await page.locator('button:has-text("HSK 2 — Time")').first().click();
-  await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+  await showAllIfAvailable(page);
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(500);
 }
@@ -318,7 +323,7 @@ const scenarios = {
     await page.locator(".sort-rating button:has-text('Active')").click();
     await page.locator(".sort-finished").waitFor();
     await page.locator('.sort-finished-actions button:has-text("Return to topic")').click();
-    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    await showAllIfAvailable(page);
     const row = page.locator(`.modern-topic-row:has-text("${active}")`);
     check(await row.locator(".importance-badge").innerText() === "Active", "Previously Useful is now displayed as Active");
     check(await row.locator(".card-progress-bars > span").count() === 4, "Each card shows exactly four progress bars");
@@ -331,6 +336,9 @@ const scenarios = {
 
   async "retry keeps the practice already recorded in the session"(page, context) {
     const popup = await openPopup(context, "source=all&count=2&order=weakest&mastered=1");
+    const available = (await popup.locator(".cosmos-count").innerText()).trim();
+    console.log(`  retry scenario: selected ${available}`);
+    check(available.endsWith("/ 2"), "Retry fixture starts with two eligible cards");
     await popup.locator('.cosmos-recall-methods button:has-text("Say")').click();
     const said = async () => Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'"));
     const before = await said();
