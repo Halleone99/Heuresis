@@ -103,6 +103,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((pack.cardType?.field_schema ?? []).map((field) => [field.key, fieldText(card.data, field.key)])));
   const [note, setNote] = useState(card.note ?? "");
   const [favourite, setFavourite] = useState(card.favourite);
+  const [reviewImportant, setReviewImportant] = useState(card.data["_review_important"] === "true");
   const [interest, setInterest] = useState<number | null>(card.interest_rank);
   const [tagIds, setTagIds] = useState<string[]>(card.tags.map((tag) => tag.id));
   const [saving, setSaving] = useState(false);
@@ -120,6 +121,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
     setSaving(true); setMessage("");
     try {
       await updateCard(pack, card.id, values, { note, favourite, interest_rank: interest, tagIds, expectedUpdatedAt: card.updated_at });
+      await patchCardData(card.id, { "_review_important": reviewImportant ? "true" : null });
       onSaved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save card.");
@@ -147,7 +149,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
             <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
           ))}
           <label className="field-row"><span>Note</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-          <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><label className="interest-control">Importance <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{IMPORTANCE_ORDER.map((level) => <option key={level} value={IMPORTANCE_RANK[level]}>{IMPORTANCE_LABEL[level]}</option>)}{interest != null && !IMPORTANCE_ORDER.some((level) => IMPORTANCE_RANK[level] === interest) ? <option value={interest}>{IMPORTANCE_LABEL[importanceOf(interest) ?? "useful"]} (kept as {interest} / 5)</option> : null}</select></label>
+          <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><button type="button" className={`toggle-pill ${reviewImportant ? "selected" : ""}`} onClick={() => setReviewImportant((value) => !value)} aria-pressed={reviewImportant}>Important (review)</button><label className="interest-control">Importance <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{IMPORTANCE_ORDER.map((level) => <option key={level} value={IMPORTANCE_RANK[level]}>{IMPORTANCE_LABEL[level]}</option>)}{interest != null && !IMPORTANCE_ORDER.some((level) => IMPORTANCE_RANK[level] === interest) ? <option value={interest}>{IMPORTANCE_LABEL[importanceOf(interest) ?? "useful"]} (kept as {interest} / 5)</option> : null}</select></label>
             <button type="button" className="toggle-pill" disabled={saving} onClick={() => { setSaving(true); void onRetention(card.retention === "reference" ? "learning" : "reference").catch((error) => setMessage(error instanceof Error ? error.message : "Could not change this card.")).finally(() => setSaving(false)); }}
               title={card.retention === "reference" ? "Bring it back into Learning (it will be reviewed)" : "Keep it to look up only; it leaves Review"}>
               <BookOpen size={14} /> {card.retention === "reference" ? "Move to Learning" : "Keep as reference"}</button></div>
