@@ -154,7 +154,7 @@ async function reviewByTouch(page, name, { start = "topic" } = {}) {
   await page.waitForTimeout(1500);
   check(!(await webviewDestroyed(page)), "Done keeps the app alive (the Android WebView is not closed)");
   check(!(await tauriCalls(page)).some((call) => /plugin:window\|(close|destroy)/.test(call)), "Review never asks Android to close its only window");
-  check(await page.locator(".modern-topic-row").first().waitFor({ timeout: 15000 }).then(() => true).catch(() => false), "Done returns to the topic that was open");
+  check(await page.locator('.modern-topic-title h1:has-text("HSK 2 — Time")').waitFor({ timeout: 15000 }).then(() => true).catch(() => false), "Done returns to the topic that was open");
   check(Number(await sql(`select count(*) from heuresis_sessions where mode='flashcards' and ended_at is null`)) === 0, "the Review session is closed");
 }
 
@@ -179,7 +179,7 @@ const scenarios = {
     tapped(await fingerTap(page, ".cosmos-close", { label: "Close" }), "the close button is tapped");
     await page.waitForTimeout(1500);
     check(!(await webviewDestroyed(page)), "closing keeps the app alive");
-    check(await page.locator(".modern-topic-row").first().waitFor({ timeout: 15000 }).then(() => true).catch(() => false), "closing returns to the topic");
+    check(await page.locator('.modern-topic-title h1:has-text("HSK 2 — Time")').waitFor({ timeout: 15000 }).then(() => true).catch(() => false), "closing returns to the topic");
     check(await waitFor(async () => Number(await sql(`select count(*) from heuresis_sessions where mode='flashcards' and ended_at is null`)) === 0), "the session is closed");
     check(Number(await sql(`select count(*) from heuresis_card_events where event_type='good' and created_at > now() - interval '5 minutes'`)) === 1, "the answer given before closing is saved");
   },
