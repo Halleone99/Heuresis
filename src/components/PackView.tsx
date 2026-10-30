@@ -494,7 +494,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
           <div className="topic-study-actions" role="group" aria-label="Sort and Review" data-priority={unsortedCards.length ? "sort" : "review"}>
-            <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
+            <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)} title="Choose unsorted cards to discover and decide what to learn"><SlidersHorizontal size={15} /> Discover <b>{unsortedCards.length}</b></button>
             <span className="review-split">
               <button className="primary-button review-command" disabled={!learningCards.length}
                 title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review <b>{learningCards.length}</b></button>
@@ -528,7 +528,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
             <span className="workflow-stage-dot" />
             <strong>{unsortedCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>To sort</b></span>
+            <span className="workflow-stage-copy"><b>To discover</b></span>
           </button>
           <button className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" onClick={() => chooseStage("learning")}>
             <span className="workflow-stage-dot" />
