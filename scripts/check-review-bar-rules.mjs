@@ -40,4 +40,10 @@ assert.equal(reviewEligible(read(), events, null, true, start + 3 * DAY), true, 
 add(183, "again");
 assert.equal(read().bars, 3, "A mastered miss removes a bar");
 assert.equal(read().mastered, false, "A mastered miss removes mastery");
+add(183, "good");
+assert.equal(read().bars, 4, "Same-day recovery returns to Known");
+add(183, "good");
+assert.equal(read().mastered, false, "Cannot re-master on the recovery day");
+add(184, "good");
+assert.equal(read().mastered, true, "A separate day's confirmation restores mastery");
 console.log("Review bar rules: one level per day, recovery, Easy, mastery and 180-day eligibility passed.");
