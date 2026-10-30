@@ -90,14 +90,16 @@ export function cardBarProgress(
     } else if (event.grade === "good" || event.grade === "easy") {
       if (mastered) continue;
       if (bars < dailyPeak && event.grade !== "easy") {
-        // A lost bar may be recovered on the same day.
+        // Recovery never grants a fresh advancement on the same date.
         bars += 1;
+        advancedToday = true;
       } else if (!advancedToday) {
         if (bars === 4) mastered = true;
         else bars = event.grade === "easy" ? 4 : Math.min(4, bars + 1);
         advancedToday = true;
       } else if (bars < dailyPeak) {
         bars += 1;
+        advancedToday = true;
       }
       dailyPeak = Math.max(dailyPeak, bars);
     }
