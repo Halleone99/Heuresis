@@ -393,7 +393,7 @@ const scenarios = {
     await popup.keyboard.press("d");
     await popup.locator(".cosmos-details").waitFor();
     check(await popup.locator(".cosmos-details-section, .cosmos-details-empty").count() >= 1, "D opens optional context after the answer");
-    await popup.keyboard.press("3");
+    await popup.keyboard.press("1");
     await popup.waitForTimeout(400);
     check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
     if (await popup.locator(".cosmos-card").count() === 1) {
@@ -408,7 +408,7 @@ const scenarios = {
     await popup.close();
     popup = await openPopup(context, "source=recommended&count=20&order=pack");
     check(await popup.locator(".cosmos-recall-methods button:has-text('Say')").getAttribute("aria-pressed") === "true",
-      "answering method is remembered for the direction");
+      "answering method is remembered for the card after a missed attempt");
     await popup.locator('.cosmos-recall-methods button:has-text("Think")').click();
     await popup.close();
   },
