@@ -19,7 +19,9 @@ assert.match(review, /mode: "review"/, "Review session must still launch");
 
 assert.match(sort, /completeCardSort\(/, "Keep interest scoring");
 assert.match(sort, /setSortTags\(/, "Keep per-card tag editing");
-assert.match(sort, /setCardRetention\(card\.id, "reference"\)/, "Keep reference action");
+assert.doesNotMatch(sort, /setCardRetention\(card\.id, "reference"\)|keepReference\(/, "Sorting has no redundant Reference action");
+assert.match(sort, /Sort Later/, "Sorting retains a later decision");
+assert.match(sort, /Discard/, "Sorting retains recoverable Discard");
 assert.match(sort, /function beginSort\(/, "One sort setup must select its queue");
 assert.match(sort, /const candidates = useMemo\(/, "Sort setup must retain search/tag filtering");
 assert.match(sort, /const \[randomOrder/, "Sort setup must retain card ordering");
