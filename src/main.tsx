@@ -65,6 +65,7 @@ import "./quick-capture-refresh.css";
 import "./android-tablet.css";
 import "./theme/chrome.css";
 import "./chinese-selection-themes.css";
+import "./topic-tag-first.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
