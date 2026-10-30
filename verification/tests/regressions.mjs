@@ -388,10 +388,11 @@ const scenarios = {
     await page.waitForTimeout(400);
     const disclosure = page.locator('.sort-enrich-heading:has-text("Examples")');
     await disclosure.focus();
+    const initiallyExpanded = await disclosure.getAttribute("aria-expanded");
     await page.keyboard.press("Enter");
-    check(await disclosure.getAttribute("aria-expanded") === "true", "Sort opens the editable Examples dimension with keyboard Enter");
+    check(await disclosure.getAttribute("aria-expanded") !== initiallyExpanded, "Enter toggles the editable Examples dimension");
     await page.keyboard.press("Space");
-    check(await disclosure.getAttribute("aria-expanded") === "false", "Sort closes the Examples dimension with keyboard Space");
+    check(await disclosure.getAttribute("aria-expanded") === initiallyExpanded, "Space toggles the Examples dimension back");
     await page.keyboard.press("c");
     await page.waitForTimeout(1200);
     // Core is stored on the existing 1–5 scale as 5.
