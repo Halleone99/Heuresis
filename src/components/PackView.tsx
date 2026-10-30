@@ -196,6 +196,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
+  const [allCardsExpanded, setAllCardsExpanded] = useState(false);
+  const [expandedTagList, setExpandedTagList] = useState(false);
   const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -238,6 +240,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setFavouriteOnly(false);
     setInterestFilter("all");
     setTagFilter("all");
+    setAllCardsExpanded(false);
+    setExpandedTagList(false);
     setDetailFilters([]);
     setSortField("status");
     setSortDirection("asc");
@@ -298,21 +302,35 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardStates, learningCards]);
   const favouriteCards = useMemo(() => cards.filter((card) => card.favourite), [cards]);
-  const lessonTags = useMemo(() => tags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tags]);
-  const otherTags = useMemo(() => tags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => a.name.localeCompare(b.name)), [tags]);
+  // Offer only tags used by this topic; the card editor retains the global tag catalogue.
+  const tagFacets = useMemo(() => {
+    const counts = new Map<string, { tag: HeuresisTag; count: number }>();
+    for (const card of [...cards, ...referenceCards]) {
+      for (const tag of card.tags) {
+        const found = counts.get(tag.id);
+        if (found) found.count += 1;
+        else counts.set(tag.id, { tag, count: 1 });
+      }
+    }
+    return [...counts.values()].sort((a, b) => {
+      if (pack.title === "中文 Selection") {
+        const indexA = CHINESE_SELECTION_THEMES.findIndex((theme) => theme.name === a.tag.name);
+        const indexB = CHINESE_SELECTION_THEMES.findIndex((theme) => theme.name === b.tag.name);
+        if ((indexA >= 0) !== (indexB >= 0)) return indexA >= 0 ? -1 : 1;
+        if (indexA >= 0 && indexB >= 0) return indexA - indexB;
+      }
+      return b.count - a.count || a.tag.name.localeCompare(b.tag.name);
+    });
+  }, [cards, referenceCards, pack.title]);
+  const tagCountById = useMemo(() => new Map(tagFacets.map(({ tag, count }) => [tag.id, count])), [tagFacets]);
+  const lessonTags = useMemo(() => tagFacets.map(({ tag }) => tag).filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tagFacets]);
+  const otherTags = useMemo(() => tagFacets.map(({ tag }) => tag).filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)), [tagFacets]);
+  const untaggedCount = useMemo(() => [...cards, ...referenceCards].filter((card) => !card.tags.length).length, [cards, referenceCards]);
   const selectedTag = tagFilter !== "all" && tagFilter !== "none" ? tags.find((tag) => tag.id === tagFilter) ?? null : null;
-  // Reuse ordinary card tags; the coloured theme strip is only shown for Chinese Selection.
-  const selectionThemeTags = pack.title === "中文 Selection"
-    ? CHINESE_SELECTION_THEMES.flatMap((theme) => {
-        const tag = tags.find((entry) => entry.name === theme.name);
-        return tag ? [{ tag, count: cards.filter((card) => card.tags.some((entry) => entry.id === tag.id)).length }] : [];
-      })
-    : [];
 
   const visibleTotal = loadedPackId === pack.id ? cards.length + referenceCards.length : pack.card_count;
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
   const richDiagnostics = explored >= 20;
-  const showingReference = statusFilters.includes("reference");
 
   const statusRank = (card: CardWithStats) => {
     const status = workflowStatus(card);
@@ -324,7 +342,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const source = showingReference ? [...cards, ...referenceCards] : cards;
+    const source = [...cards, ...referenceCards];
     const filtered = source.filter((card) => {
       const status = workflowStatus(card);
       if (statusFilters.length && !statusFilters.includes(status)) return false;
@@ -364,7 +382,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     });
     // statusRank and cardSummary read cardStates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, cardStates, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, showingReference, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
+  }, [cards, cardStates, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
 
   // Show the card chosen in Search: clear anything that could hide it, select it, scroll to it.
   useEffect(() => {
@@ -372,6 +390,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     if (!focusCardId || loading || loadedPackId !== pack.id) return;
     const isReference = referenceCards.some((card) => card.id === focusCardId);
     if (isReference || cards.some((card) => card.id === focusCardId)) {
+      setAllCardsExpanded(true);
       setQuery(""); setStatusFilters(isReference ? ["reference"] : []); setStateFilter(null); setFavouriteOnly(false); setInterestFilter("all"); setTagFilter("all"); setDetailFilters([]);
       setSelectedCardId(focusCardId);
       setFocusNotice("");
@@ -386,7 +405,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     onFocusCardShown?.();
   }, [cards, focusCardId, loadedPackId, loading, onFocusCardShown, pack.id, referenceCards]);
 
-  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0);
+  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
+  const showCardList = allCardsExpanded || activeFilterCount > 0;
   const selectedCard = selectedCardId ? [...cards, ...referenceCards].find((card) => card.id === selectedCardId) ?? null : null;
 
   async function refreshAll(closeEditor = false) {
@@ -452,17 +472,21 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   }
 
   function chooseStage(stage: StatusFilter) {
+    setAllCardsExpanded(false);
     setStateFilter(null);
     setStatusFilters(statusFilters.length === 1 && statusFilters[0] === stage ? [] : [stage]);
   }
 
   function chooseState(state: KnowledgeState) {
+    setAllCardsExpanded(false);
     if (stateFilter === state) { setStateFilter(null); return; }
     setStatusFilters(["learning"]);
     setStateFilter(state);
   }
 
   function clearFilters() {
+    setAllCardsExpanded(false);
+    setQuery("");
     setStatusFilters([]);
     setStateFilter(null);
     setFavouriteOnly(false);
@@ -494,7 +518,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
           <span>Learning stages</span>
-          <small>{statusFilters.length || stateFilter ? "Filtered · click again for all" : `${plural(visibleTotal, "card")} · click to filter`}</small>
+          <small>{statusFilters.length || stateFilter ? "Filtered · click again for overview" : `${plural(visibleTotal, "card")} · choose a stage`}</small>
         </div>
         <div className="workflow-overview-stages">
           <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
@@ -581,9 +605,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           <details className="filter-menu tag-filter-menu">
             <summary className={tagFilter !== "all" ? "active" : ""}><span>{selectedTag ? selectedTag.name : tagFilter === "none" ? "No tags" : "Tags"}</span><ChevronDown size={14} /></summary>
             <div className="filter-menu-popover tag-menu-popover">
-              {lessonTags.length ? <section><p>Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{lesson}</button>; })}</div></section> : null}
-              {otherTags.length ? <section><p>Other tags</p><div className="other-tag-list">{otherTags.map((tag) => <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>{tag.name}</button>)}</div></section> : null}
-              <div className="tag-menu-footer"><button className={tagFilter === "none" ? "selected" : ""} onClick={() => setTagFilter(tagFilter === "none" ? "all" : "none")}>No tags</button>{tagFilter !== "all" ? <button onClick={() => setTagFilter("all")}>Any tag</button> : null}</div>
+              {lessonTags.length ? <section><p>Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }} title={`${tagCountById.get(tag.id) ?? 0} cards`}>{lesson}</button>; })}</div></section> : null}
+              {otherTags.length ? <section><p>Other tags</p><div className="other-tag-list">{otherTags.map((tag) => <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }}>{tag.name} <small>{tagCountById.get(tag.id) ?? 0}</small></button>)}</div></section> : null}
+              <div className="tag-menu-footer"><button className={tagFilter === "none" ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === "none" ? "all" : "none"); }}>Untagged ({untaggedCount})</button>{tagFilter !== "all" ? <button onClick={() => setTagFilter("all")}>Any tag</button> : null}</div>
             </div>
           </details>
 
