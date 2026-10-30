@@ -68,7 +68,8 @@ type Source = "recommended" | "all" | "new" | "favourites" | "interesting" | "ag
 type Order = "pack" | "random" | "weakest" | "oldest";
 /** One step of a session: a card in one direction, with the reasons it was chosen. */
 type QueueItem = { cardId: string; templateId: string | null; reasons: string[]; state: KnowledgeState | null };
-type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null };
+type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null;
+  barsBefore: number; barsAfter: number; masteredBefore: boolean; masteredAfter: boolean };
 
 type Config = {
   valid: boolean;
@@ -698,9 +699,15 @@ export default function CosmosWindow() {
         setNotice("Review saved, but the learning-method count could not be synchronised.");
       }
       const stateBefore = item.state ?? (events ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null);
-      setResults((current) => [...current, { cardId: card.id, templateId: template.id, grade, stateBefore }]);
-      // Local evidence, so "10 more" and the summary see this answer at once.
-      setEvents((current) => current ? [...current, { cardId: card.id, templateId: template.id, grade, at: Date.now() }] : current);
+      const previousGrades = events?.filter((event) => event.cardId === card.id) ?? null;
+      const legacyState = assessState(directionEvidence(card, null, previousGrades)).state;
+      const before = cardBarProgress(card, previousGrades, legacyState);
+      const graded = { cardId: card.id, templateId: template.id, grade, at: Date.now() };
+      const after = cardBarProgress(card, previousGrades ? [...previousGrades, graded] : null, legacyState);
+      setResults((current) => [...current, { cardId: card.id, templateId: template.id, grade, stateBefore,
+        barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered }]);
+      // Local evidence, so retries and the summary see this answer at once.
+      setEvents((current) => current ? [...current, graded] : current);
       await advance(queue, index + 1);
     } catch (answerError) {
       setNotice(answerError instanceof Error ? answerError.message : "Could not save the result.");
@@ -840,74 +847,17 @@ export default function CosmosWindow() {
   // Summary in words
   // ---------------------------------------------------------------------------
   const summary = useMemo(() => {
-    if (!done || !pack || !results.length) return null;
-    // The session's results are the first answer for each card and direction; a retry
-    // of a missed card is reported separately instead of counting it twice.
-    const firstKeys = new Set<string>();
-    const first: SessionResult[] = [];
-    const retries: SessionResult[] = [];
-    for (const entry of results) {
-      const key = candidateKey(entry.cardId, entry.templateId ?? "");
-      if (firstKeys.has(key)) retries.push(entry);
-      else { firstKeys.add(key); first.push(entry); }
-    }
-    const count = (grade: StudyGrade) => first.filter((entry) => entry.grade === grade).length;
-    const successes = first.filter((entry) => isSuccess(entry.grade)).length;
-    const lines: string[] = [];
-    lines.push(`You reviewed ${plural(first.length, "card")}: ${successes} recalled or secure, ${count("hard")} partial, ${count("again")} missed.`);
-    if (retries.length) {
-      const lastRetry = new Map<string, SessionResult>();
-      for (const entry of retries) lastRetry.set(candidateKey(entry.cardId, entry.templateId ?? ""), entry);
-      const recovered = Array.from(lastRetry.values()).filter((entry) => isSuccess(entry.grade)).length;
-      lines.push(`On retry, ${recovered} of ${lastRetry.size} ${lastRetry.size === 1 ? "was" : "were"} recalled.`);
-    }
-
-    const byKind = { recognition: { total: 0, ok: 0, name: "" }, production: { total: 0, ok: 0, name: "" } };
-    for (const entry of first) {
-      const entryTemplate = templates.find((candidate) => candidate.id === entry.templateId);
-      if (!entryTemplate) continue;
-      const kind = templateDirection(pack, entryTemplate);
-      if (kind === "other") continue;
-      byKind[kind].total += 1;
-      byKind[kind].name = entryTemplate.name;
-      if (isSuccess(entry.grade)) byKind[kind].ok += 1;
-    }
-    const rec = byKind.recognition; const pro = byKind.production;
-    if (rec.total && pro.total) {
-      const recRate = rec.ok / rec.total; const proRate = pro.ok / pro.total;
-      const detail = `${rec.ok} of ${rec.total} recognising (${rec.name}), ${pro.ok} of ${pro.total} producing (${pro.name})`;
-      if (recRate - proRate >= 0.15) lines.push(`Recognition went better than production: ${detail}. Producing the word is the part to practise.`);
-      else if (proRate - recRate >= 0.15) lines.push(`Production went better than recognition: ${detail}.`);
-      else lines.push(`Recognition and production were about even: ${detail}.`);
-    } else if (pro.total && !rec.total) lines.push(`This was production practice (${pro.name}): ${pro.ok} of ${pro.total} recalled.`);
-
-    const termKey = (fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null)?.key;
-    const missedTerms = Array.from(new Set(first.filter((entry) => entry.grade === "again")
-      .map((entry) => fieldText(cards.find((candidate) => candidate.id === entry.cardId)?.data ?? {}, termKey)).filter(Boolean)));
-    if (missedTerms.length) lines.push(`Missed: ${missedTerms.slice(0, 6).join(", ")}${missedTerms.length > 6 ? ` and ${missedTerms.length - 6} more` : ""}.`);
-
-    // Evidence-based movement: states before this session against states with today's answers.
-    if (events) {
-      let improved = 0; let lowered = 0; let firstEvidence = 0;
-      const seen = new Set<string>();
-      for (const entry of first) {
-        const key = candidateKey(entry.cardId, entry.templateId ?? "");
-        if (seen.has(key) || !entry.stateBefore) continue;
-        seen.add(key);
-        const target = cards.find((candidate) => candidate.id === entry.cardId);
-        if (!target) continue;
-        const after = assessState(directionEvidence(target, entry.templateId, events, { includeUnattributed: entry.templateId === legacyId })).state;
-        const before = STATE_PROGRESSION.indexOf(entry.stateBefore);
-        const now = STATE_PROGRESSION.indexOf(after);
-        if (entry.stateBefore === "not-tried") firstEvidence += 1;
-        else if (now > before) improved += 1;
-        else if (now < before) lowered += 1;
-      }
-      const parts = [improved ? `${plural(improved, "card")} moved up a state` : "", lowered ? `${lowered} moved down` : "", firstEvidence ? `${plural(firstEvidence, "card")} tried for the first time` : ""].filter(Boolean);
-      if (parts.length) lines.push(`${parts.join(", ")}. Successes on the same day count once towards Holding and Strong.`);
-    }
-    return lines;
-  }, [cards, done, events, legacyId, pack, results, templates]);
+    if (!done || !results.length) return null;
+    const reviewed = new Set(results.map((item) => item.cardId)).size;
+    const gained = results.reduce((sum, item) => sum + Math.max(0, item.barsAfter - item.barsBefore), 0);
+    const lost = results.reduce((sum, item) => sum + Math.max(0, item.barsBefore - item.barsAfter), 0);
+    const mastered = results.filter((item) => !item.masteredBefore && item.masteredAfter).length;
+    return [
+      reviewed + " cards reviewed",
+      gained + " bars gained · " + lost + " bars lost",
+      mastered + " cards newly Mastered",
+    ];
+  }, [done, results]);
 
   if (loading) return <div className="cosmos-state">Opening Heuresis…</div>;
   if (error || !pack) return <div className={`cosmos-state ${emptySelection ? "done" : "error"}`}><strong>{emptySelection ? (relatedReview ? "No related words to review." : mode === "sort" ? "Nothing to sort here." : "Nothing to review here.") : "Heuresis could not open."}</strong><p>{error || "Missing topic data."}</p><button onClick={() => void closeDesktopWindow()}>Close</button></div>;
