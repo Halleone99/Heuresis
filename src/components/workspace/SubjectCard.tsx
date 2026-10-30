@@ -3,7 +3,7 @@ import { BookOpen, ImagePlus, Pencil, Trash2, X } from "lucide-react";
 import type { KnowledgeSubject } from "../../lib/knowledgeWorkspace";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { useWorkspace } from "./WorkspaceContext";
-import { useConfirm } from "./ui";
+import { KnowledgeRemovalDialog } from "./KnowledgeRemovalDialog";
 
 // Appearance is a device preference. Notes and subject names remain in Supabase.
 // Store photographs in IndexedDB rather than filling localStorage with base64.
@@ -83,6 +83,7 @@ export function SubjectCard({ subject, topics, notes, detail, editable = true, o
   const [colour, setColour] = useState(() => readColour(userId, subject.id));
   const [cover, setCover] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [name, setName] = useState(subject.name);
   const [draftColour, setDraftColour] = useState(colour);
   const [pendingImage, setPendingImage] = useState<Blob | null | undefined>(undefined);
@@ -90,7 +91,6 @@ export function SubjectCard({ subject, topics, notes, detail, editable = true, o
   const [busy, setBusy] = useState(false);
   const clickTimer = useRef<number | null>(null);
   const id = useId();
-  const [confirmElement, confirm] = useConfirm();
 
   useEffect(() => {
     let active = true;
@@ -155,31 +155,7 @@ export function SubjectCard({ subject, topics, notes, detail, editable = true, o
     } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
     finally { setBusy(false); }
   }
-  async function remove() {
-    if (busy) return;
-    if (topics > 0) {
-      workspace.toast(`This subject contains ${topics} topic${topics === 1 ? "" : "s"} and ${notes} note${notes === 1 ? "" : "s"}. Move or delete its topics before deleting the subject; nothing was removed.`, { tone: "error" });
-      return;
-    }
-    const approved = await confirm({
-      title: `Delete ${subject.name}?`,
-      body: "This empty subject will be permanently deleted. This cannot be undone.",
-      confirmLabel: "Delete subject",
-      danger: true,
-    });
-    if (!approved) return;
-    setBusy(true);
-    try {
-      // This also checks the server for topics, including changes made on other devices.
-      await workspace.removeSubject(subject.id);
-      try { localStorage.removeItem(colourKey(userId, subject.id)); } catch { /* optional device preference */ }
-      void writeCover(imageKey(userId, subject.id), null).catch(() => undefined);
-      setEditing(false);
-    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
-    finally { setBusy(false); }
-  }
   return <>
-    {confirmElement}
     <div className={`nb-home-subject ${cover ? "has-cover" : ""} ${colour ? "has-colour" : ""}`}
       style={{ "--nb-subject-accent": colour || defaultAccent,
         backgroundImage: cover ? `linear-gradient(90deg, rgba(13,18,27,.86), rgba(13,18,27,.40)), url("${cover}")` : undefined } as CSSProperties}>
@@ -219,11 +195,19 @@ export function SubjectCard({ subject, topics, notes, detail, editable = true, o
         <p className="nb-cover-hint">Double-click any subject card to edit it. Images and colours are saved on this device.</p>
         <div className="nb-cover-actions">
           <button type="button" className="ws-button is-quiet" style={{ marginRight: "auto", color: "var(--ws-bad)" }}
-            disabled={busy} onClick={() => void remove()}><Trash2 size={14} /> Delete</button>
+            disabled={busy} onClick={() => { setEditing(false); setRemoving(true); }}><Trash2 size={14} /> Delete</button>
           <button type="button" className="ws-button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
           <button type="submit" className="ws-button is-primary" disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </form>
     </div> : null}
+    {removing ? <KnowledgeRemovalDialog
+      target={{ kind: "subject", id: subject.id, name: subject.name }}
+      onClose={() => setRemoving(false)}
+      onRemoved={() => {
+        try { localStorage.removeItem(colourKey(userId, subject.id)); } catch { /* optional device preference */ }
+        void writeCover(imageKey(userId, subject.id), null).catch(() => undefined);
+      }}
+    /> : null}
   </>;
 }
