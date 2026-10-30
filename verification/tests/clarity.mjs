@@ -84,10 +84,10 @@ const scenarios = {
     check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
     check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
     await page.keyboard.press("Escape");
-    await page.locator(".review-adjust").click();
+    await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
     const meta = await page.locator(".compact-study-meta").innerText();
-    check(/5\s*learning/.test(meta), `Adjust counts the five Learning cards (“${meta.replace(/\s+/g, " ")}”)`);
+    check(/\d+\s*available/.test(meta), `Review shows eligible cards (“${meta.replace(/\s+/g, " ")}”)`);
     check(await page.locator(".study-start").isEnabled(), "Review can start from Adjust");
     await page.screenshot({ path: `${shots}/review-setup.png` });
   },
@@ -108,9 +108,9 @@ const scenarios = {
 
   async "selected review direction stays readable while hovered"(page) {
     await openTopic(page);
-    await page.locator(".review-adjust").click();
+    await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
-    const selected = page.locator('.direction-mode-toggle button[aria-pressed="true"]');
+    const selected = page.locator('.study-order-toggle button[aria-pressed="true"]');
     await selected.hover();
     await page.waitForTimeout(300);
     const colours = await selected.evaluate((element) => { const style = getComputedStyle(element); return { color: style.color, background: style.backgroundColor }; });
@@ -161,21 +161,18 @@ const scenarios = {
     check(true, "Sort opens straight into the queue (no setup step)");
     const decision = page.locator(".sort-panel");
     check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
-    check(await decision.getByRole("button", { name: "Importance Core" }).count() === 1, "Core importance is available");
-    await decision.getByRole("button", { name: "Other actions" }).click();
-    check(await decision.getByRole("button", { name: "Keep as reference" }).count() === 1, "Reference is available without adding a second panel");
-    check(await decision.getByRole("button", { name: "Discard to Trash" }).count() === 1, "Discard is recoverable");
-    check(await decision.getByRole("button", { name: "Decide later" }).count() === 1, "Later is available");
-    await decision.getByRole("button", { name: "Other actions" }).click();
-    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-control .sort-side-heading button").count() === 1, "tags are behind one secondary control");
+    check(await decision.getByRole("button", { name: "Learn as Core" }).count() === 1, "Core classification is available");
+    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is no longer a Sort action");
+    check(await decision.getByRole("button", { name: /Sort Later/ }).count() === 1, "Sort Later is available");
+    check(await decision.getByRole("button", { name: /Discard/ }).count() === 1, "Discard to Trash remains recoverable");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
-    await page.keyboard.press("r");
-    await page.waitForTimeout(900);
-    check(await sql(`select retention from heuresis_cards where data->>'term'='${first}'`) === "reference", `R keeps the first card (${first}) as reference`);
+    await page.keyboard.press("l");
+    await page.waitForTimeout(350);
+    check(await sql(`select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='${first}'`) === "t", "Sort Later leaves the first card unsorted");
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("u");
     await page.waitForTimeout(900);
-    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", `U sends the second card (${second}) to Learning as Useful (stored as 3)`);
+    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", "Active stores rank 3 and marks the card sorted");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
