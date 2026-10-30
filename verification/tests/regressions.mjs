@@ -378,7 +378,7 @@ const scenarios = {
     await page.click("button.sort-command");
     // Sort opens straight into the queue; narrowing it is behind Filter.
     await page.waitForSelector(".sort-card");
-    await page.click(".sort-filter-toggle");
+    await page.click(".sort-filter-open");
     await page.fill(".sort-setup-search input", "再见");
     check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
@@ -389,13 +389,15 @@ const scenarios = {
     check(await disclosure.getAttribute("aria-expanded") === "true", "Sort opens the editable Examples dimension with keyboard Enter");
     await page.keyboard.press("Space");
     check(await disclosure.getAttribute("aria-expanded") === "false", "Sort closes the Examples dimension with keyboard Space");
-    await page.keyboard.press("4");
+    await page.keyboard.press("c");
     await page.waitForTimeout(1200);
-    // Digit 4 is Core, stored on the existing 1–5 scale as 5.
+    // Core is stored on the existing 1–5 scale as 5.
     check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "5|true", "sorting stores importance (Core) and completion");
     // Review is one click from the end of a Sort pass.
-    const popupOpened = context.waitForEvent("page");
     await page.click('.sort-finished-actions button:has-text("Review now")');
+    await page.locator(".review-controls").waitFor();
+    const popupOpened = context.waitForEvent("page");
+    await page.locator(".study-start").click();
     const popup = await popupOpened;
     await popup.waitForSelector(".cosmos-count", { timeout: 15000 });
     await popup.keyboard.press(" ");
@@ -421,7 +423,7 @@ for (const [name, run] of Object.entries(scenarios)) {
     check(!unexpected.length, `no page errors${unexpected.length ? `: ${unexpected.join(" | ")}` : ""}`);
   } catch (error) {
     failures += 1;
-    console.log(`  ✗ ${name}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    console.log(`  ✗ ${name}: ${error instanceof Error ? error.stack ?? error.message : error}`);
     process.exitCode = 1;
   } finally {
     await browser.close();
