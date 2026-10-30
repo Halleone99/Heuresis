@@ -1,5 +1,6 @@
 import { ArrowRight, Brain, Check, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
@@ -232,7 +233,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
 
-  return <div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="Sort cards">
+  // Render outside the workspace column stacking context: otherwise the desktop
+  // header can cover Sort controls even though the backdrop has a high z-index.
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="Sort cards">
     <header className="sort-topbar">
       <div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div>
       <span>{filtersOpen ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
@@ -333,5 +336,5 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         </div>
       </div>
     </div> : null}
-  </section></div>;
+  </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
 }
