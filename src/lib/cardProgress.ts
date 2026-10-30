@@ -66,9 +66,10 @@ export function cardBarProgress(
   history: GradeEvent[] | null,
   oldState: KnowledgeState | null,
 ): CardBarProgress {
-  const attempts = reviewGradeCount(card);
-  if (!attempts) return { bars: 0, mastered: false, estimated: false };
-  if (!history || history.length < attempts) return approximateLegacy(card, oldState);
+  const recordedAttempts = reviewGradeCount(card);
+  // An answer just recorded locally can precede the server's aggregate counts.
+  if (!recordedAttempts && !history?.length) return { bars: 0, mastered: false, estimated: false };
+  if (!history || history.length < recordedAttempts) return approximateLegacy(card, oldState);
 
   let bars = 0;
   let mastered = false;
