@@ -3,6 +3,7 @@ import type { LearningCounts } from "./learning";
 import type { ReviewMethod } from "./reviewPrefs";
 
 export const REVIEW_METHOD_COUNTS_KEY = "_review_method_counts";
+export const REVIEW_LAST_METHOD_KEY = "_review_last_method";
 export type MethodCounts = Record<"think" | "say" | "type" | "handwrite", number>;
 
 /** Read persistent lifetime counts. Legacy learning-action counters are retained as a starting point. */
