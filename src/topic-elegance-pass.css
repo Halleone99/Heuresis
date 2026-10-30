@@ -353,3 +353,20 @@
   }
 }
 .topic-status-cell { min-width: 0; }
+
+/* Card table: one compact four-step progress indicator. Four stronger green bars
+   indicate confirmed mastery; four lighter bars indicate Known. */
+.topic-status-cell .card-progress { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 64px; }
+.topic-status-cell .card-progress-bars { display: inline-flex; align-items: flex-end; gap: 4px; height: 26px; }
+.topic-status-cell .card-progress-bars > span {
+  display: block; width: 9px; border-radius: 5px 5px 2px 2px;
+  background: color-mix(in srgb, var(--ws-text) 13%, transparent);
+}
+.topic-status-cell .card-progress-bars > span:nth-child(1) { height: 8px; }
+.topic-status-cell .card-progress-bars > span:nth-child(2) { height: 13px; }
+.topic-status-cell .card-progress-bars > span:nth-child(3) { height: 18px; }
+.topic-status-cell .card-progress-bars > span:nth-child(4) { height: 24px; }
+.topic-status-cell .card-progress-bars > span.filled { background: color-mix(in srgb, var(--c-sage) 62%, var(--ws-text)); }
+.topic-status-cell .card-progress.is-mastered .card-progress-bars > span.filled { background: var(--c-sage); }
+.topic-status-cell .card-progress > small { color: var(--ws-muted); font-size: 10px; font-weight: 600; letter-spacing: .01em; }
+.topic-status-cell .card-progress.is-mastered > small { color: var(--c-sage); }
