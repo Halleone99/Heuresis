@@ -59,6 +59,9 @@ async function current(popup) {
   return { cardId: await article.getAttribute("data-card-id"), templateId: await article.getAttribute("data-template-id") };
 }
 async function revealAndGrade(popup, key) {
+  // A checked Say/Write input keeps focus; space there must not toggle the control.
+  // Blur it first so the session's keyboard shortcut reveals the actual card.
+  await popup.evaluate(() => document.activeElement?.blur?.());
   await popup.keyboard.press(" ");
   await popup.locator(".cosmos-results").waitFor();
   await popup.keyboard.press(key);
