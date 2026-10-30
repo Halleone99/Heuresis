@@ -160,7 +160,7 @@ const scenarios = {
     await page.locator('.ml-simple-item:has-text("Corrected conclusion") [aria-label="Edit mistake"]').click();
     await page.locator(".ml-simple-edit input[maxlength='200']").fill("Cause and effect");
     await page.locator(".ml-simple-edit summary").click();
-    await page.locator(".ml-edit-notes textarea").fill("Compare correlation and causation");
+    await page.locator('.ml-edit-notes [contenteditable="true"]').fill("Compare correlation and causation");
     await page.locator('.ml-simple-edit button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Cause and effect")');
     check(await page.locator('.ml-simple-item:has-text("Compare correlation")').count() === 1,
