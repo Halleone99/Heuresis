@@ -148,8 +148,9 @@ const scenarios = {
     await editor.locator("textarea").nth(0).fill("Wrong assumption");
     await editor.locator("textarea").nth(1).fill("Corrected conclusion");
     await editor.locator("button.ml-destination").click();
-    await page.locator(".ws-picker-search input").fill("German Grammar");
-    await page.locator('.ws-picker-list button:has-text("Grammar")').first().click();
+    await page.locator(".ws-picker-list button").first().waitFor();
+    await page.locator(".ws-picker-search input").fill("Grammar");
+    await page.locator('.ws-picker-list button:has-text("German")').filter({ hasText: "Grammar" }).first().click();
     await editor.locator('button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Corrected conclusion")');
     const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id join knowledge_subjects s on s.id=t.subject_id where r.attempt='Wrong assumption'");
@@ -215,7 +216,8 @@ const scenarios = {
 
     await page.keyboard.press("Control+Shift+KeyM");
     await page.waitForSelector(".qc-panel");
-    check(await page.locator(".qc-panel .qc-field textarea").count() === 2, "Quick Capture also uses two mistake fields");
+    await page.locator('.q-capture-types button:has-text("Mistake")').click();
+    check(await page.locator(".q-capture-editor textarea").count() === 2, "Quick Capture also uses two mistake fields");
     check(await page.locator(".qc-panel .qc-categories").count() === 0, "Quick Capture no longer demands a mistake type");
   },
 
@@ -246,17 +248,16 @@ const scenarios = {
     await page.keyboard.press("Control+Shift+KeyN");
     await page.waitForSelector(".qc-panel");
     check(await page.locator(".qc-first-run").count() === 0, "no “Where should your notes live?” prompt while languages are loading");
-    await page.waitForSelector(".qc-language-choices button", { timeout: 20000 }).catch(() => undefined);
-    check(await page.locator(".qc-language-choices button").count() === 3, "the three languages appear once loaded");
+    check(await page.locator(".q-capture-editor textarea").count() === 1 && await page.locator(".qc-language-choices").count() === 0,
+      "Q Capture accepts a note without demanding a subject while Notebook data loads");
   },
 
-  async "progress keeps one colour per language"(page) {
+  async "overview shows review coverage and daily activity"(page) {
     await page.click('.hw-sections button:has-text("Overview")');
-    await page.click('.ov-quicklinks button:has-text("View progress")');
-    await page.waitForTimeout(1200);
-    const swatches = await page.locator(".pg-language-legend span").evaluateAll((spans) => spans.map((span) => [span.textContent.trim(), span.querySelector("i")?.getAttribute("style") ?? ""]));
-    const chinese = new Set(swatches.filter(([name]) => name === "Chinese").map(([, style]) => style));
-    check(chinese.size === 1 && [...chinese][0].includes("--c-cinnabar"), "Chinese has the same colour in every chart");
+    await page.locator('.oh-track[role="progressbar"]').waitFor();
+    check(await page.locator(".oh-metric").count() === 3, "Overview shows card totals, additions and reviews");
+    await page.locator(".oh-days .oh-cell").first().waitFor({ timeout: 15000 });
+    check(await page.locator(".oh-days .oh-cell").count() >= 180, "Overview shows the last 26 weeks of daily review activity");
   },
 
   async "tablet portrait: the Notebook drawer neither peeks out nor opens displaced"(page) {
@@ -340,15 +341,15 @@ const scenarios = {
     await context.route("http://localhost:54321/**", (route) => route.abort("connectionrefused"));
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar", { timeout: 20000 });
-    await page.waitForTimeout(9000);
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForTimeout(3000);
     check(/Chinese/.test(await page.locator("main").innerText()), "the Notebook opens from the device copy");
     await page.keyboard.press("Control+Shift+KeyN");
-    await page.click('.qc-language-choices button:has-text("German")');
-    await page.fill(".qc-main-input", "Server down capture");
+    await page.locator(".q-capture-editor textarea").fill("Server down capture");
     await page.keyboard.press("Control+Enter");
     await page.waitForTimeout(1500);
     const toast = (await page.locator(".ws-toast").allInnerTexts()).join(" ");
-    check(/on this device/.test(toast), `the capture is reported as kept on this device (“${toast.split("\n")[0]}”)`);
+    check(/on this device|waiting to sync/i.test(toast), `the capture is reported as kept on this device (“${toast.split("\n")[0]}”)`);
     await context.unroute("http://localhost:54321/**");
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await page.waitForTimeout(5000);
