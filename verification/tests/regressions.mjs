@@ -150,12 +150,12 @@ const scenarios = {
     await editor.locator("textarea").nth(1).fill("Corrected conclusion");
     await editor.locator("button.ml-destination").click();
     await page.locator(".ws-picker-list button").first().waitFor();
-    await page.locator(".ws-picker-search input").fill("Grammar");
-    await page.locator('.ws-picker-list button:has-text("German")').filter({ hasText: "Grammar" }).first().click();
+    await page.locator(".ws-picker-search input").fill("B1.2");
+    await page.locator('.ws-picker-list button:has-text("German")').filter({ hasText: "B1.2" }).first().click();
     await editor.locator('button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Corrected conclusion")');
     const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id join knowledge_subjects s on s.id=t.subject_id where r.attempt='Wrong assumption'");
-    check(destination === "German › Grammar", "Saving requires a real destination and never creates Unsorted");
+    check(destination === "German › B1.2", "Saving requires a real destination and never creates Unsorted");
 
     await page.locator('.ml-simple-item:has-text("Corrected conclusion") [aria-label="Edit mistake"]').click();
     await page.locator(".ml-simple-edit input[maxlength='200']").fill("Cause and effect");
@@ -168,7 +168,7 @@ const scenarios = {
 
     await page.locator('.ml-crumbs button:has-text("Mistake Log")').click();
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').click();
-    const grammarTheme = page.locator('.ml-theme-tile:has-text("Grammar")').first();
+    const grammarTheme = page.locator('.ml-theme-tile:has-text("B1.2")').first();
     await grammarTheme.locator(".ml-theme-pick").click();
     check(await page.locator('.ml-study-selection:has-text("1 theme selected")').count() === 1,
       "A whole theme can be selected for targeted practice without opening corrections");
