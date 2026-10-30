@@ -14,8 +14,7 @@ import {
   type HeuresisTag,
   type PackWithType,
 } from "../lib/heuresis";
-import { getLearningCounts, type LearningAction, type LearningCounts } from "../lib/learning";
-import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, recognitionPerformance, reviewGradeCount, templateDirection, type DirectionTemplates } from "../lib/learningSignals";
+import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, reviewGradeCount, templateDirection, type DirectionTemplates } from "../lib/learningSignals";
 import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import { openCosmosWindow } from "../lib/cosmosWindow";
@@ -24,7 +23,7 @@ import { assessState, directionEvidence, STATE_ATTENTION, STATE_LABEL, STATE_PRO
 import { defaultDirections, directionPairs, legacyTemplateId } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { readReviewPrefs, rememberedTemplateIds } from "../lib/reviewPrefs";
-import { resultCountsText } from "../lib/reviewResults";
+import { cardBarProgress } from "../lib/cardProgress";
 import BrowseModal from "./BrowseModal";
 import CardImagesEditor from "./CardImagesEditor";
 import ConnectionsPanel from "./ConnectionsPanel";
@@ -55,16 +54,6 @@ type DetailFilter = "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
 type SortDirection = "asc" | "desc";
 
-const LEARNING_SHORT: Array<[LearningAction, string]> = [
-  ["handwrite", "Hand"],
-  ["type", "Type"],
-  ["sentence", "Sentence"],
-  ["rephrase", "Rephrase"],
-  ["example", "Example"],
-  ["say", "Say"],
-  ["hear", "Hear"],
-];
-
 const CHINESE_SELECTION_THEMES = [
   { name: "Everyday conversation", color: "#4c7a6e" },
   { name: "Time & plans", color: "#7273a4" },
@@ -85,13 +74,6 @@ function themeTagStyle(name: string): CSSProperties | undefined {
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
-}
-
-function pct(value: number | null | undefined) { return value == null ? null : Math.round(value * 100); }
-
-function compactLearning(counts: LearningCounts | undefined) {
-  if (!counts) return [];
-  return LEARNING_SHORT.flatMap(([key, label]) => counts[key] ? [{ key, label, count: counts[key] }] : []);
 }
 
 /** Where a card is in the workflow. Review results never move a card between these. */
@@ -187,7 +169,6 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
   const [events, setEvents] = useState<GradeEvent[] | null>(null);
-  const [learningCounts, setLearningCounts] = useState<Record<string, LearningCounts>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -220,8 +201,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     try {
       const [topicCards, nextTags, setup, history] = await Promise.all([listTopicCards(pack.id), listTags(), loadStudySetup(pack.id, pack.card_type_id), loadGradeEvents(pack.id).catch(() => null)]);
       const nextCards = topicCards.learning;
-      const nextLearning = await getLearningCounts(nextCards.map((card) => card.id)).catch(() => ({} as Record<string, LearningCounts>));
-      setCards(nextCards); setReferenceCards(topicCards.reference); setTags(nextTags); setTemplates(setup.templates); setDefaultTemplateId(setup.defaultTemplateId); setEvents(history); setLearningCounts(nextLearning);
+      setCards(nextCards); setReferenceCards(topicCards.reference); setTags(nextTags); setTemplates(setup.templates); setDefaultTemplateId(setup.defaultTemplateId); setEvents(history);
       setLoadedPackId(pack.id);
       const all = [...nextCards, ...topicCards.reference];
       setEditing((current) => current ? all.find((card) => card.id === current.id) ?? current : null);
@@ -289,6 +269,20 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     const states = cardStates.get(card.id);
     return states?.length ? summaryState(states.map((entry) => entry.state)) : null;
   };
+  // Unified per-card bars, backed by graded history where available.
+  const cardBars = useMemo(() => {
+    const gradesByCard = new Map<string, GradeEvent[]>();
+    for (const grade of events ?? []) {
+      const list = gradesByCard.get(grade.cardId);
+      if (list) list.push(grade);
+      else gradesByCard.set(grade.cardId, [grade]);
+    }
+    return new Map([...cards, ...referenceCards].map((card) => {
+      const previous = cardStates.get(card.id);
+      const old = previous?.length ? summaryState(previous.map((entry) => entry.agedFrom ?? entry.state)) : null;
+      return [card.id, cardBarProgress(card, events ? gradesByCard.get(card.id) ?? [] : null, old)] as const;
+    }));
+  }, [cards, referenceCards, cardStates, events]);
   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
@@ -336,8 +330,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     const status = workflowStatus(card);
     if (status === "unsorted") return 0;
     if (status === "reference") return 10;
-    const state = cardSummary(card);
-    return 1 + (state ? STATE_ATTENTION.indexOf(state) : 5);
+    const progress = cardBars.get(card.id);
+    return 1 + (progress?.mastered ? 5 : progress?.bars ?? 0);
   };
 
   const shown = useMemo(() => {
@@ -382,7 +376,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     });
     // statusRank and cardSummary read cardStates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, cardStates, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
+  }, [cards, cardStates, cardBars, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
 
   // Show the card chosen in Search: clear anything that could hide it, select it, scroll to it.
   useEffect(() => {
