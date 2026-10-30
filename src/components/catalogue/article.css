@@ -1,0 +1,273 @@
+/* Catalogue pages: fixed A4 (210 × 297 mm), three typography presets and three
+   colour presets. Shared by the Article Designer, the reader and the PDF export,
+   so every rule here must be something the exporter can paint: solid colours,
+   solid or dashed borders, text and images. No gradients, shadows or pseudo-element
+   text inside a page. The application's own theme never reaches inside a page. */
+
+.ap-page {
+  /* colour preset — Warm by default */
+  --ap-paper: #F5F0E7; --ap-ink: #3B2C24; --ap-muted: #776253; --ap-accent: #A47D58;
+  --ap-rule: rgba(164, 125, 88, .55); --ap-hair: rgba(59, 44, 36, .16); --ap-mark: rgba(196, 160, 110, .30);
+  --ap-red: #9a3f30; --ap-blue: #3c5d7d; --ap-green: #4d6a3e; --ap-amber: #9a6a1c; --ap-purple: #6c4a78;
+  /* typography preset — Classical by default */
+  --ap-display: "Libre Caslon Display", "EB Garamond", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-text: "EB Garamond", "Noto Serif", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-meta: "EB Garamond", "Noto Serif", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-size: 11.4pt; --ap-leading: 1.47; --ap-indent: 1.35em; --ap-gap: 6mm; --ap-strong: 600;
+  --ap-col-gap: 7mm;
+  position: relative; box-sizing: border-box; flex: none;
+  width: 210mm; height: 297mm; overflow: hidden;
+  background: var(--ap-paper); color: var(--ap-ink);
+  font-family: var(--ap-text); font-size: var(--ap-size); line-height: var(--ap-leading);
+  font-weight: 400; font-style: normal; font-kerning: normal; font-variant-ligatures: common-ligatures;
+  font-synthesis: weight style; letter-spacing: 0; word-spacing: 0; text-transform: none; text-align: left;
+  hyphens: manual; overflow-wrap: break-word; -webkit-font-smoothing: antialiased;
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.ap-page *, .ap-page *::before, .ap-page *::after { box-sizing: border-box; }
+.ap-page.ap-colour-white {
+  --ap-paper: #FFFFFF; --ap-ink: #252321; --ap-muted: #67625C; --ap-accent: #8E8880;
+  --ap-rule: #D8D6D2; --ap-hair: #E3E1DD; --ap-mark: rgba(238, 213, 122, .45);
+  --ap-red: #a03a2e; --ap-blue: #2f5577; --ap-green: #3f6a3a; --ap-amber: #8f6214; --ap-purple: #604471;
+}
+.ap-page.ap-colour-dark {
+  --ap-paper: #211D1B; --ap-ink: #F0E8DD; --ap-muted: #BDB0A0; --ap-accent: #B59670;
+  --ap-rule: rgba(181, 150, 112, .48); --ap-hair: rgba(240, 232, 221, .14); --ap-mark: rgba(181, 150, 112, .32);
+  --ap-red: #e3a191; --ap-blue: #a9c3dd; --ap-green: #b7cfa0; --ap-amber: #e5c07e; --ap-purple: #cdb2da;
+}
+.ap-page.ap-type-literary {
+  --ap-display: "Cormorant Garamond", "EB Garamond", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-text: "EB Garamond", "Noto Serif", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-meta: "Cormorant Garamond", "EB Garamond", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-size: 12pt; --ap-leading: 1.56; --ap-indent: 1.6em; --ap-gap: 7mm; --ap-col-gap: 8mm;
+}
+.ap-page.ap-type-archive {
+  --ap-display: "Noto Serif", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-text: "Noto Serif", "Heuresis Catalogue SC", Georgia, serif;
+  --ap-meta: "Inter", "Heuresis Catalogue SC", system-ui, sans-serif;
+  --ap-size: 9.6pt; --ap-leading: 1.62; --ap-indent: 0; --ap-gap: 5.5mm; --ap-strong: 700; --ap-col-gap: 6.5mm;
+}
+
+/* ---------------------------------------------------------------- frame */
+.ap-content {
+  position: absolute; top: var(--ap-mt); bottom: var(--ap-mb); left: var(--ap-mi); right: var(--ap-mo);
+  display: block;
+}
+.ap-page.is-editing { overflow: visible; }
+.ap-running, .ap-folio {
+  position: absolute; left: var(--ap-mi); right: var(--ap-mo); color: var(--ap-muted);
+  font-family: var(--ap-meta); font-size: 7.6pt; line-height: 1.2; letter-spacing: .16em; text-transform: uppercase; text-align: center;
+}
+.ap-running { top: calc(var(--ap-mt) * .48); }
+.ap-folio { bottom: calc(var(--ap-mb) * .42); letter-spacing: .08em; font-size: 8.6pt; text-transform: none; }
+.ap-type-literary .ap-folio { font-style: italic; font-size: 10pt; letter-spacing: .02em; }
+.ap-type-archive .ap-running { text-align: left; letter-spacing: .14em; font-size: 6.6pt; }
+.ap-type-archive .ap-folio { text-align: right; font-size: 7.4pt; letter-spacing: .1em; }
+
+/* ---------------------------------------------------------------- blocks */
+.ap-block { position: relative; margin: 0; }
+.ap-block + .ap-block { margin-top: var(--ap-gap); }
+.ap-block[data-space="none"] { margin-top: 0; }
+.ap-block[data-space="small"] { margin-top: 2.5mm; }
+.ap-block[data-space="medium"] { margin-top: 7mm; }
+.ap-block[data-space="large"] { margin-top: 15mm; }
+.ap-block:first-child { margin-top: 0; }
+/* Sections breathe above their heading and stay close to the text they introduce. */
+.ap-block:not([data-space]) + .ap-heading.is-section:not([data-space]) { margin-top: calc(var(--ap-gap) * 1.7); }
+.ap-heading.is-section + .ap-block:not([data-space]) { margin-top: calc(var(--ap-gap) * .55); }
+/* After a cover, the opening keeps only its introduction. */
+.ap-page .ap-heading.is-opening.is-after-cover { padding-top: 0; }
+/* An opening that prints nothing must not push the next block down (it has no element when printed). */
+.ap-block[data-print-empty="true"] + .ap-block { margin-top: 0; }
+.ap-page .ap-heading.is-opening.is-after-cover .ap-standfirst { margin-top: 0; }
+
+.ap-kicker {
+  font-family: var(--ap-meta); font-size: 7.8pt; line-height: 1.3; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--ap-accent); margin: 0 0 3.2mm;
+}
+.ap-type-archive .ap-kicker { font-size: 6.9pt; font-weight: 600; letter-spacing: .16em; }
+
+/* Opening: title, subtitle, author and introduction at the top of an article */
+.ap-heading.is-opening { padding-top: 6mm; }
+.ap-type-literary .ap-heading.is-opening { padding-top: 22mm; }
+.ap-heading.is-opening.align-center { text-align: center; }
+.ap-title {
+  margin: 0; font-family: var(--ap-display); font-weight: 400; font-size: 34pt; line-height: 1.06; letter-spacing: -.005em; color: var(--ap-ink);
+}
+.ap-type-literary .ap-title { font-weight: 600; font-size: 40pt; line-height: 1.02; letter-spacing: -.01em; }
+.ap-type-archive .ap-title { font-size: 26pt; line-height: 1.14; letter-spacing: -.012em; }
+.ap-subtitle { margin: 3.4mm 0 0; font-family: var(--ap-text); font-style: italic; font-size: 14pt; line-height: 1.32; color: var(--ap-muted); white-space: pre-wrap; }
+.ap-type-literary .ap-subtitle { font-family: var(--ap-display); font-weight: 500; font-size: 17pt; }
+.ap-type-archive .ap-subtitle { font-size: 11.5pt; font-style: normal; }
+.ap-byline {
+  margin: 4.2mm 0 0; font-family: var(--ap-meta); font-size: 8.4pt; letter-spacing: .18em; text-transform: uppercase; color: var(--ap-ink);
+}
+.ap-type-archive .ap-byline { font-size: 7.2pt; letter-spacing: .12em; font-weight: 500; }
+.ap-standfirst { margin: 6mm 0 0; font-size: 1.16em; line-height: 1.45; font-style: italic; color: var(--ap-ink); }
+.ap-standfirst p { margin: 0; }
+.ap-standfirst p + p { margin-top: .5em; }
+.ap-type-archive .ap-standfirst { font-style: normal; font-size: 1.1em; color: var(--ap-muted); }
+.ap-opening-rule { width: 16mm; height: 0; margin: 7mm 0 0; border-top: .6pt solid var(--ap-rule); }
+.ap-heading.align-center .ap-opening-rule { margin-left: auto; margin-right: auto; }
+.ap-type-archive .ap-opening-rule { width: 100%; border-top-color: var(--ap-hair); }
+
+/* Section headings */
+.ap-heading.is-section .ap-kicker { margin-bottom: 2mm; }
+.ap-section-title { margin: 0; font-family: var(--ap-display); font-weight: 400; font-size: 19pt; line-height: 1.16; color: var(--ap-ink); }
+.ap-type-literary .ap-section-title { font-weight: 600; font-size: 23pt; line-height: 1.1; }
+.ap-type-archive .ap-section-title { font-size: 15pt; line-height: 1.25; }
+.ap-heading.is-section .ap-standfirst { margin-top: 3mm; font-size: 1.05em; }
+.ap-heading.is-section.align-center { text-align: center; }
+
+/* Running text */
+.ap-text-body { text-align: left; }
+.ap-text.align-justify .ap-text-body { text-align: justify; text-align-last: left; }
+.ap-text.cols-2 .ap-text-body { column-count: 2; column-gap: var(--ap-col-gap); column-fill: balance; }
+.ap-text-body > :first-child { margin-top: 0; }
+.ap-text-body p, .ap-image-text .ap-text-body p { margin: 0; text-indent: var(--ap-indent); orphans: 2; widows: 2; }
+.ap-text-body > p:first-child, .ap-text-body > :is(h2, h3, h4, ul, ol, blockquote, table, hr) + p,
+.ap-text.is-continued .ap-text-body > p:first-child { text-indent: 0; }
+/* A paragraph that runs on to the next page ends this page with a full, justified line. */
+.ap-text.align-justify.runs-on .ap-text-body > p:last-child { text-align-last: justify; }
+.ap-type-archive .ap-text-body p + p { margin-top: .62em; }
+.ap-text-body h2, .ap-text-body h3, .ap-text-body h4 { break-after: avoid; }
+.ap-text-body h2 { margin: 1.25em 0 .45em; font-family: var(--ap-display); font-weight: 400; font-size: 1.42em; line-height: 1.2; }
+.ap-type-literary .ap-text-body h2 { font-weight: 600; }
+.ap-text-body h3 { margin: 1.15em 0 .32em; font-family: var(--ap-text); font-style: italic; font-weight: 400; font-size: 1.12em; line-height: 1.3; }
+.ap-type-archive .ap-text-body h3 { font-style: normal; font-weight: 700; font-size: 1.04em; }
+.ap-text-body h4 { margin: 1.05em 0 .25em; font-family: var(--ap-meta); font-weight: 400; font-size: .74em; line-height: 1.4; letter-spacing: .18em; text-transform: uppercase; color: var(--ap-accent); }
+.ap-type-archive .ap-text-body h4 { font-weight: 600; letter-spacing: .12em; }
+.ap-text-body ul, .ap-text-body ol { margin: .5em 0 .5em; padding-left: 1.35em; }
+.ap-text-body li { margin: .12em 0; padding-left: .15em; }
+.ap-text-body li > ul, .ap-text-body li > ol { margin: .1em 0; }
+.ap-text-body ul { list-style: disc outside; }
+.ap-text-body ol { list-style: decimal outside; }
+.ap-text-body li::marker { color: var(--ap-accent); }
+.ap-text-body strong { font-weight: var(--ap-strong); }
+.ap-text-body em { font-style: italic; }
+.ap-text-body s { text-decoration: line-through; text-decoration-thickness: .06em; }
+.ap-text-body mark, .ap-standfirst mark { background: var(--ap-mark); color: inherit; padding: 0 .06em; }
+.ap-page [data-ink="red"] { color: var(--ap-red); }
+.ap-page [data-ink="blue"] { color: var(--ap-blue); }
+.ap-page [data-ink="green"] { color: var(--ap-green); }
+.ap-page [data-ink="amber"] { color: var(--ap-amber); }
+.ap-page [data-ink="purple"] { color: var(--ap-purple); }
+.ap-page mark[data-tone] { background: var(--ap-mark); }
+.ap-text-body blockquote { margin: .7em 0; padding: 0 0 0 4mm; border-left: .8pt solid var(--ap-rule); font-size: .95em; }
+.ap-text-body blockquote p { text-indent: 0; }
+.ap-text-body blockquote[data-callout] { padding: 2.2mm 3.5mm; border: .5pt solid var(--ap-hair); border-left: 1.4pt solid var(--ap-accent); }
+.ap-text-body hr { height: 0; margin: 1em auto; width: 22%; border: 0; border-top: .5pt solid var(--ap-rule); }
+.ap-text-body table { width: 100%; margin: .8em 0; border-collapse: collapse; font-size: .9em; line-height: 1.35; break-inside: avoid; text-align: left; }
+.ap-text-body th, .ap-text-body td { padding: 1.3mm 2mm 1.3mm 0; border-bottom: .5pt solid var(--ap-hair); vertical-align: top; text-indent: 0; }
+.ap-text-body th { font-family: var(--ap-meta); font-weight: 600; font-size: .82em; letter-spacing: .08em; text-transform: uppercase; border-bottom: .7pt solid var(--ap-rule); color: var(--ap-muted); }
+.ap-text-body .nb-table-scroll { overflow: visible; }
+.ap-text-body [data-wikilink] { color: inherit; }
+
+/* Drop capital at the opening of a chapter: a real float, painted from the page as laid out. */
+.ap-text.has-dropcap .ap-text-body > p:first-child { text-indent: 0; }
+.ap-text.has-dropcap .ap-text-body > p:first-child::first-letter {
+  float: left; font-family: var(--ap-display); font-weight: 400; font-style: normal; color: var(--ap-accent);
+  font-size: 3.55em; line-height: .86; margin: .045em .09em 0 0; padding: 0;
+}
+.ap-type-literary .ap-text.has-dropcap .ap-text-body > p:first-child::first-letter { font-weight: 500; font-size: 3.9em; line-height: .82; }
+
+/* Figures */
+.ap-figure { margin: 0; }
+.ap-image .ap-figure { width: 100%; }
+.ap-image.size-wide .ap-figure { width: 75%; }
+.ap-image.size-half .ap-figure { width: 50%; }
+.ap-image.size-third .ap-figure { width: 33.333%; }
+.ap-image.place-center .ap-figure { margin-left: auto; margin-right: auto; }
+.ap-image.place-right .ap-figure { margin-left: auto; }
+.ap-image.is-bleed .ap-frame { margin-left: calc(-1 * var(--ap-mi)); width: calc(100% + var(--ap-mi) + var(--ap-mo)); }
+.ap-frame { position: relative; width: 100%; overflow: hidden; }
+.ap-frame img { position: absolute; display: block; max-width: none; max-height: none; margin: 0; padding: 0; user-select: none; }
+.ap-figcaption { margin-top: 2.4mm; font-size: 8.8pt; line-height: 1.4; color: var(--ap-muted); text-align: left; }
+.ap-type-archive .ap-figcaption { font-family: var(--ap-meta); font-size: 7.2pt; }
+.ap-caption-text { font-style: italic; white-space: pre-wrap; }
+.ap-type-archive .ap-caption-text { font-style: normal; }
+.ap-credit { display: block; margin-top: .7mm; font-family: var(--ap-meta); font-size: 6.4pt; letter-spacing: .06em; color: var(--ap-muted); font-style: normal; text-transform: none; }
+
+.ap-image-text-grid { display: grid; grid-template-columns: 40fr 60fr; column-gap: 6mm; align-items: start; }
+.ap-image-text.ratio-33 .ap-image-text-grid { grid-template-columns: 33fr 67fr; }
+.ap-image-text.ratio-50 .ap-image-text-grid { grid-template-columns: 1fr 1fr; }
+.ap-image-text.side-right .ap-image-text-grid > .ap-figure { order: 2; }
+.ap-image-text .ap-text-body { text-align: justify; text-align-last: left; }
+.ap-image-text .ap-text-body > p:first-child { text-indent: 0; }
+
+/* Quotations */
+.ap-quote-inner { margin: 0; padding: 2mm 9mm; text-align: center; }
+.ap-quote-text { font-family: var(--ap-display); font-size: 15pt; line-height: 1.34; white-space: pre-wrap; color: var(--ap-ink); }
+.ap-type-classical .ap-quote-text { font-family: var(--ap-text); font-style: italic; font-size: 14.5pt; }
+.ap-type-literary .ap-quote-text { font-style: italic; font-weight: 500; font-size: 17pt; }
+.ap-type-archive .ap-quote-text { font-size: 12.5pt; line-height: 1.45; }
+.ap-quote-source { margin-top: 3mm; font-family: var(--ap-meta); font-size: 7.6pt; letter-spacing: .18em; text-transform: uppercase; color: var(--ap-accent); }
+.ap-quote.style-pull .ap-quote-inner { padding: 1mm 0 1mm 6mm; text-align: left; border-left: 1.4pt solid var(--ap-accent); }
+.ap-quote.style-pull .ap-quote-text { font-size: 17pt; }
+.ap-type-literary .ap-quote.style-pull .ap-quote-text { font-size: 20pt; }
+
+/* Dividers */
+.ap-rule { height: 0; border-top: .5pt solid var(--ap-rule); }
+.ap-divider.style-space .ap-rule { height: 6mm; border: 0; }
+.ap-ornament { display: flex; align-items: center; justify-content: center; gap: 3mm; height: 4mm; }
+.ap-orn-rule { display: block; width: 13mm; height: 0; border-top: .5pt solid var(--ap-rule); }
+.ap-orn-diamond { display: block; width: 1.5mm; height: 1.5mm; background: var(--ap-accent); transform: rotate(45deg); }
+
+/* Caption and source */
+.ap-caption-block { font-size: 8.6pt; line-height: 1.4; color: var(--ap-muted); padding-top: 1.6mm; border-top: .5pt solid var(--ap-hair); }
+.ap-caption-source { margin-top: .8mm; font-family: var(--ap-meta); font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Covers */
+.ap-cover { height: 100%; }
+.ap-cover .ap-title { font-size: 44pt; line-height: 1.02; }
+.ap-type-literary .ap-cover .ap-title { font-size: 50pt; }
+.ap-type-archive .ap-cover .ap-title { font-size: 34pt; }
+.ap-cover .ap-kicker { margin-bottom: 6mm; }
+.ap-cover.style-framed { display: flex; flex-direction: column; }
+.ap-cover.style-framed .ap-cover-text { flex: 1 1 auto; padding-top: 4mm; }
+.ap-cover-figure { flex: none; padding: 2mm; border: .5pt solid var(--ap-rule); }
+.ap-cover-figure .ap-frame { width: 100%; }
+.ap-cover.style-full-bleed .ap-cover-bleed { position: absolute; top: calc(-1 * var(--ap-mt)); left: calc(-1 * var(--ap-mi)); width: 210mm; }
+.ap-cover.style-full-bleed .ap-cover-text { position: absolute; left: 0; right: 0; bottom: 0; }
+.ap-cover.style-plain .ap-cover-plain { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 9mm; }
+.ap-cover-ornament { width: 28mm; height: 0; border-top: .6pt solid var(--ap-rule); }
+.ap-cover.style-plain .ap-cover-text { text-align: center; }
+
+/* Volume contents (the opening pages of a volume PDF) */
+.ap-contents-head { padding-top: 6mm; margin-bottom: 11mm; }
+.ap-contents-head .ap-section-title { font-size: 28pt; line-height: 1.1; }
+.ap-type-literary .ap-contents-head .ap-section-title { font-size: 32pt; }
+.ap-type-archive .ap-contents-head .ap-section-title { font-size: 22pt; }
+.ap-contents { list-style: none; margin: 0; padding: 0; border-top: .5pt solid var(--ap-rule); }
+.ap-contents li { display: grid; grid-template-columns: 13mm 1fr 14mm; column-gap: 3mm; align-items: baseline; padding: 4mm 0; border-bottom: .5pt solid var(--ap-hair); }
+.ap-contents-number { font-family: var(--ap-display); font-size: 12pt; line-height: 1.2; color: var(--ap-accent); }
+.ap-contents-name { display: block; font-family: var(--ap-display); font-size: 15pt; line-height: 1.22; color: var(--ap-ink); }
+.ap-type-literary .ap-contents-name { font-weight: 600; font-size: 16pt; }
+.ap-type-archive .ap-contents-name { font-size: 12.5pt; }
+.ap-contents-sub { display: block; margin-top: 1mm; font-style: italic; font-size: 10pt; line-height: 1.35; color: var(--ap-muted); }
+.ap-type-archive .ap-contents-sub { font-style: normal; font-size: 8.8pt; }
+.ap-contents-page { font-family: var(--ap-meta); font-size: 9pt; line-height: 1.2; letter-spacing: .06em; color: var(--ap-muted); text-align: right; }
+
+/* ---------------------------------------------------------------- editing only */
+/* While the designer measures overflow, the page is laid out as printed. */
+.is-measuring .ap-page.is-editing .ap-editable[data-empty="true"],
+.is-measuring .ap-page.is-editing [data-print-empty="true"],
+.is-measuring .ap-page.is-editing .ap-opening-note { display: none !important; }
+.ap-page.is-editing .ap-opening-note { margin: 0 0 2mm; font: 500 8pt/1.3 Inter, system-ui, sans-serif; letter-spacing: .02em; color: var(--ap-muted); opacity: .75; }
+.ap-page.is-editing .ap-editable { outline: none; cursor: text; min-height: 1em; }
+.ap-page.is-editing .ap-editable[data-empty="true"]::before { content: attr(data-placeholder); color: var(--ap-muted); opacity: .55; pointer-events: none; font-style: italic; }
+.ap-page.is-editing .ap-text-body.ap-editable[data-empty="true"]::before { display: block; text-indent: 0; }
+.ap-page.is-editing .ap-block { cursor: default; }
+.ap-page.is-editing .ap-block::after {
+  content: ""; position: absolute; inset: -2.2mm -2.6mm; border: 1px solid transparent; border-radius: 3px; pointer-events: none;
+}
+.ap-page.is-editing .ap-block:hover::after { border-color: color-mix(in srgb, var(--ap-accent) 35%, transparent); }
+.ap-page.is-editing .ap-block[data-selected="true"]::after { border-color: var(--ap-accent); border-width: 1.5px; }
+.ap-frame.is-empty { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--ap-rule); background: color-mix(in srgb, var(--ap-paper) 92%, var(--ap-ink)); }
+.ap-add-image {
+  display: flex; flex-direction: column; align-items: center; gap: 2mm; border: 0; background: none; color: var(--ap-muted);
+  font: 500 9pt/1.2 Inter, system-ui, sans-serif; letter-spacing: .02em; cursor: pointer; padding: 6mm;
+}
+.ap-add-image:hover { color: var(--ap-ink); }
+.ap-frame-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 8pt/1.2 Inter, system-ui, sans-serif; color: var(--ap-muted); }
+.ap-page .ap-chrome { position: absolute; z-index: 3; }

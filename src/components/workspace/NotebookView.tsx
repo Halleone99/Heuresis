@@ -14,7 +14,6 @@ import { quickQueueKind } from "../../lib/quickQueue";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
-import { ReferenceLibrary } from "./ReferenceLibrary";
 import { SubjectCard } from "./SubjectCard";
 import { KnowledgeRemovalDialog, type KnowledgeRemovalTarget } from "./KnowledgeRemovalDialog";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
@@ -35,14 +34,12 @@ function docSortKey(entry: KnowledgeEntry) {
   return isLesson(entry) && entry.lesson_date ? `${entry.lesson_date}T23:59:59` : entry.updated_at;
 }
 
-export function NotebookView({ referenceOnly = false, onExitReference }: { referenceOnly?: boolean; onExitReference?: () => void } = {}) {
+export function NotebookView() {
   const workspace = useWorkspace();
   const { memory, updateMemory, snapshot, entryById, topicById, subjectById } = workspace;
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocRequest>(null);
-  const [referencesOpen, setReferencesOpen] = useState(referenceOnly);
-  const [referenceReturnId, setReferenceReturnId] = useState<string | null>(null);
   const [creatingKind, setCreatingKind] = useState<"subject" | "topic" | null>(null);
   const [targetSubjectId, setTargetSubjectId] = useState("");
   const [railOpenMobile, setRailOpenMobile] = useState(false);
@@ -161,7 +158,7 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
     window.scrollTo(0, 0);
   }, [pageKey]);
 
-  const newAction = workspace.writable && !referenceOnly ? <RowMenu label="New Notebook item" buttonLabel="New" items={[
+  const newAction = workspace.writable ? <RowMenu label="New Notebook item" buttonLabel="New" items={[
     { label: "New subject", icon: <Plus size={14}/>, run: () => setCreatingKind("subject") },
     { label: "New topic", icon: <FolderPlus size={14}/>, run: () => {
       setTargetSubjectId(topic?.subject_id ?? subject?.id ?? (snapshot.subjects.length === 1 ? snapshot.subjects[0].id : ""));
@@ -197,28 +194,25 @@ export function NotebookView({ referenceOnly = false, onExitReference }: { refer
 
   let main;
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
-  else if (referencesOpen) main = <ReferenceLibrary initialWorkId={referenceReturnId} onClose={() => { if (referenceOnly) onExitReference?.(); else setReferencesOpen(false); }}
-    onCreate={(topicId) => { setReferencesOpen(false); setReferenceReturnId(null); startNewNote(topicId, "", "reference"); }}
-    onEdit={(entry) => { setReferencesOpen(false); setReferenceReturnId(entry.id); workspace.openDocument(entry.id, { edit: true, stayInSection: referenceOnly }); }} />;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.draftKey ?? newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
-    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.draftKey ?? newDoc.topicId}`); setNewDoc(null); if (created.category === "reference") setReferenceReturnId(created.id); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
+    onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.draftKey ?? newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
     onNewNote={startNewNote} newAction={newAction} />;
-  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => { closeDocument(doc.topic_id); if (referenceReturnId === doc.id) setReferencesOpen(true); }} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} newAction={newAction}
+  else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} newAction={newAction}
     onDetach={() => void openNoteWindow({ noteId: doc.id }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }))} />;
   else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction} />;
   else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} />;
   else main = <NotebookHome navigate={navigate} newAction={newAction} onShowCaptures={() => workspace.goTo("queue")} />;
 
-  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${referenceOnly ? "is-reference-standalone" : ""}`}>
-    {!referenceOnly ? <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} /> : null}
-    {!referenceOnly ? <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} /> : null}
+  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
+    <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} />
+    <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
     <section className="nb-main">
-      {!referenceOnly ? <div className="nb-main-tools">
+      <div className="nb-main-tools">
         <button type="button" className="ws-icon-button nb-rail-toggle" onClick={() => { if (window.matchMedia("(max-width: 900px)").matches) setRailOpenMobile((value) => !value); else toggleRail(); }}
           aria-label={railCollapsed ? "Show topics" : "Hide topics"} title={railCollapsed ? "Show topics" : "Hide topics"}>
           {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
-      </div> : null}
+      </div>
       {creatingKind ? <div className="nb-create-shell">
         {creatingKind === "subject" ? <InlineNameForm label="New subject" placeholder="Philosophy, History, German…" onCancel={() => setCreatingKind(null)}
           onSubmit={async (name) => {
@@ -266,7 +260,7 @@ function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
   const counts = useMemo(() => {
     const map = new Map<string, { docs: number; questions: number }>();
     for (const entry of snapshot.entries) {
-      if (!isDocument(entry) || entry.category === "reference") continue;
+      if (!isDocument(entry)) continue;
       const row = map.get(entry.topic_id) ?? { docs: 0, questions: 0 };
       row.docs += 1;
       if (isOpenQuestion(entry)) row.questions += 1;
@@ -451,7 +445,7 @@ function ScopePage({ scope, navigate, newAction }: {
   const [descriptionSaving, setDescriptionSaving] = useState(false);
   // Never flatten a subject's notes onto an ancestor page.
   const docs = topic ? snapshot.entries.filter((entry) =>
-    entry.topic_id === topic.id && isDocument(entry) && entry.category !== "reference") : [];
+    entry.topic_id === topic.id && isDocument(entry)) : [];
   const counts = {
     all: docs.length,
     notes: docs.filter((entry) => !isOpenQuestion(entry)).length,
@@ -593,7 +587,7 @@ function ScopePage({ scope, navigate, newAction }: {
     {children.length ? <div className="nb-topic-grid" aria-label={topic ? "Subtopics" : "Topics"}>
       {children.map((child) => {
         const subtree = new Set(workspace.subtreeIds(child.id));
-        const noteCount = snapshot.entries.filter((entry) => subtree.has(entry.topic_id) && isDocument(entry) && entry.category !== "reference").length;
+        const noteCount = snapshot.entries.filter((entry) => subtree.has(entry.topic_id) && isDocument(entry)).length;
         const mistakeCount = snapshot.entries.filter((entry) => subtree.has(entry.topic_id) && entry.kind === "mistake").length;
         const childCount = workspace.childrenOf(child.id, subjectId).length;
         return <button type="button" key={child.id} className="nb-topic-card"
@@ -730,7 +724,7 @@ function NotebookHome({ navigate, newAction, onShowCaptures }: { navigate: (loca
   const workspace = useWorkspace();
   const { snapshot } = workspace;
   const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
-  const docs = snapshot.entries.filter((entry) => isDocument(entry) && entry.category !== "reference");
+  const docs = snapshot.entries.filter((entry) => isDocument(entry));
   const inboxIds = new Set(snapshot.topics.filter(isInboxTopic).map((row) => row.id));
   const pendingCaptures = snapshot.entries.filter((entry) => inboxIds.has(entry.topic_id) && quickQueueKind(entry)).length;
   const [rescueBusy, setRescueBusy] = useState(false);

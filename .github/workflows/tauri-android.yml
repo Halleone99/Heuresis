@@ -61,7 +61,7 @@ jobs:
       - name: Initialise Android project
         run: npm run tauri android init -- --ci --skip-targets-install
 
-      - name: Enable immersive fullscreen on Android
+      - name: Enable immersive fullscreen, keyboard insets and PDF saving on Android
         shell: bash
         run: |
           MAIN_ACTIVITY="$(find src-tauri/gen/android/app/src/main/java -type f -name 'MainActivity.kt' -print -quit)"
@@ -71,19 +71,66 @@ jobs:
           cat > "$MAIN_ACTIVITY" <<EOF
           $PACKAGE_LINE
 
+          import android.content.ContentValues
+          import android.os.Build
           import android.os.Bundle
+          import android.os.Environment
+          import android.provider.MediaStore
+          import android.util.Base64
           import android.view.View
           import android.view.WindowManager
+          import android.webkit.JavascriptInterface
+          import android.webkit.WebView
           import androidx.core.view.ViewCompat
           import androidx.core.view.WindowCompat
           import androidx.core.view.WindowInsetsCompat
           import androidx.core.view.WindowInsetsControllerCompat
+          import java.io.File
 
           class MainActivity : TauriActivity() {
             override fun onCreate(savedInstanceState: Bundle?) {
               super.onCreate(savedInstanceState)
               hideSystemBars()
               keepContentAboveKeyboard()
+            }
+
+            // The WebView has no download handler, so the Catalogue's "Export PDF" calls
+            // window.HeuresisAndroidFiles.savePdf(name, base64) (src/lib/catalogue/save.ts).
+            override fun onWebViewCreate(webView: WebView) {
+              super.onWebViewCreate(webView)
+              webView.addJavascriptInterface(HeuresisFiles(), "HeuresisAndroidFiles")
+            }
+
+            inner class HeuresisFiles {
+              // Android 10+: Downloads/Heuresis through MediaStore (no storage permission needed).
+              // Older Android: the app's own Documents/Heuresis folder.
+              // Returns where the file went, or "error:" and a reason.
+              @JavascriptInterface
+              fun savePdf(name: String, base64: String): String {
+                return try {
+                  val bytes = Base64.decode(base64, Base64.DEFAULT)
+                  val fileName = name.replace('/', ' ').trim().ifEmpty { "Heuresis.pdf" }
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                      put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                      put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                      put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Heuresis")
+                    }
+                    val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                      ?: return "error:Android did not create the file."
+                    val stream = contentResolver.openOutputStream(uri) ?: return "error:Android did not open the file."
+                    stream.use { it.write(bytes) }
+                    "Downloads/Heuresis"
+                  } else {
+                    val folder = File(getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "Heuresis")
+                    folder.mkdirs()
+                    File(folder, fileName).writeBytes(bytes)
+                    "the app's Documents/Heuresis folder"
+                  }
+                } catch (error: Exception) {
+                  "error:" + (error.message ?: "unknown error")
+                }
+              }
             }
 
             // A full-screen (edge-to-edge) window is not resized for the on-screen keyboard,
@@ -115,7 +162,7 @@ jobs:
             }
           }
           EOF
-          echo "Patched $MAIN_ACTIVITY for immersive fullscreen and the on-screen keyboard"
+          echo "Patched $MAIN_ACTIVITY for immersive fullscreen, the on-screen keyboard and PDF saving"
 
       - name: Type-check and build web app
         run: npm run build

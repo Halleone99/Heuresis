@@ -108,6 +108,48 @@ tap first checks that the control is on screen and not covered.
 | typed answers | the answer field and Show answer stay reachable with the keyboard open |
 | Browse by touch | Browse's controls are above the app header |
 
+`tests/catalogue.mjs` (also in CI) covers the Catalogue — the editorial studio that is
+separate from the Notebook (see `docs/CATALOGUE.md`). The gateway stands in for Supabase
+Storage (files under `verification/storage/`, git-ignored); PDF checks use `pdftotext`,
+`pdfinfo` and `pdftoppm` from poppler-utils when they are installed. Wikimedia Commons is
+answered by a recorded response (`page.route`), so the suite needs no network.
+
+| Scenario | Proves |
+|---|---|
+| empty catalogue | with 14 Notebook notes the Catalogue is empty: title, one-line description, one Create Article |
+| blank article | A4 page (794 × 1123 CSS px), title and text typed, saved as a draft |
+| notebook note → copy | the article records its source; the note is byte-for-byte unchanged; editing, soft-deleting and hard-deleting the note never changes the article |
+| DOCX import | title, subtitle, headings, bold/italic, lists, table, quotation with attribution, picture with caption, English/German/Russian/Chinese; underline reported as not kept; never published |
+| pages | Add Page with seven layouts, insert before, duplicate, move, drag to reorder, delete (asks only when the page holds words or pictures) |
+| overflow | a page that is too full is marked; "Move overflow to next page" keeps every word and marks the continuation; when the two parts of a divided paragraph meet on one page again they are joined |
+| presets | Classical/Warm by default; Literary/Dark and Modern Archive/White saved; the app's own theme is untouched |
+| images | upload, crop (proportion, fill/fit, zoom, focal point), caption, reopen and re-frame; the stored file is unchanged |
+| image search | Wikimedia Commons: unlicensed results hidden, licence and author shown, credit printed, licence/source stored |
+| undo and redo | typing and structural changes |
+| drafts / published | drafts stay on the Drafts shelf; published articles are shelved and readable |
+| subjects and volumes | Volume I suggested, contents order, reorder, removing a subject keeps its articles |
+| reader | pages, folios, arrow keys, zoom, Esc; no editing controls |
+| PDF export | A4 pages in order, selectable text in four scripts, embedded fonts and pictures |
+| PDF overflow | export refuses to clip; after moving the overflow it succeeds |
+| offline | an edit made offline is saved after reconnecting |
+| Notebook unchanged | Reference notes stay in the Notebook and are not shown in the Catalogue |
+| preview | Preview shows unsaved words at once, ignores editing keys, and closes back into the same designer |
+| reopening quickly | an article reopened while its last save is still running waits for it: last words shown, no false conflict |
+| publishing | an overflowing page stops publishing until the overflow is moved; empty picture frames are pointed out; empty frames are not shown to readers |
+| acceptance | an essay from Word (`fixtures/gulf-stream.docx`) becomes an illustrated four-page Warm/Classical article: cover, drop initial, picture frames filled, no broken paragraph after reflowing, published, exported as a 4-page PDF |
+| change on another device | a save never overwrites a newer version: the designer says so, keeps the edits as a separate draft and opens the other version |
+| showcase | every block type in an illustrated, multilingual article in a volume; reader, designer, article PDF; volume PDF with title page, contents (start pages), page numbers running on, drafts left out |
+| phone and tablet layouts | 390 × 844 and 820 × 1180: no sideways scrolling; library, designer and reader fit |
+
+Run one scenario with `node tests/catalogue.mjs <part of its name>`; screenshots and
+PDFs go to `screenshots/catalogue/`. The acceptance and showcase scenarios also compare
+the PDF word by word with the page on screen (`pdftotext -bbox-layout`).
+
+`tests/catalogue-migration.sh` (also in CI) applies the Catalogue migration to a database
+that already holds Notebook and Study data, and proves that every existing table, row and
+policy is byte-for-byte unchanged, that a second run changes nothing, and that articles and
+images are visible and changeable only by their owner.
+
 `tests/desktop-unchanged.mjs` is the matching proof for Windows: it captures the same
 Study screens (topic, Sort, Adjust, Browse, Review before and after reveal) in this build
 and in a reference build, for a 1440 px and a 1200 px Windows window and a Windows

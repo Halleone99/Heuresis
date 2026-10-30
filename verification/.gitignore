@@ -8,3 +8,4 @@ gateway.log
 node_modules/
 screenshots/
 tests/state.json
+storage/

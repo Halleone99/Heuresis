@@ -27,6 +27,8 @@ The app has five sections in a compact sidebar: **Overview, Study, Notebook, Mis
 
 **Database requirement:** apply `supabase/migrations/20261012090000_knowledge_workspace_v2.sql` (additive; it does not change existing rows). Until it is applied the Notebook and Mistake Log are read-only and say so; Study works either way.
 
+**Catalogue:** a separate editorial studio for designed A4 articles and volumes, with PDF export. It never changes Notebook notes; *From Notebook* copies a note into a new draft. Apply `supabase/migrations/20261030090000_catalogue_publications.sql` (additive; new tables and a private image bucket only). Until it is applied the Catalogue says so and the rest of the app is unaffected. Details: `docs/CATALOGUE.md`.
+
 Details: `docs/KNOWLEDGE_WORKSPACE.md`. What changed in this version, how it was verified and what is still open: `docs/WORKSPACE_V2_REPORT.md`. Local end-to-end harness (PostgreSQL + PostgREST + Playwright, no real Supabase project needed): `verification/README.md`.
 
 ## Shared database contract

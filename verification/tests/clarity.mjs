@@ -389,39 +389,35 @@ const scenarios = {
     check(true, "cover image survives reopening");
   },
 
-  async "reference work opens as a book and edits through Notebook"(page) {
+  async "reference note stays in the Notebook; the Catalogue only copies it on request"(page) {
     const topicId = await sql("select id from knowledge_topics where user_id='11111111-1111-4111-8111-111111111111' limit 1");
     check(Boolean(topicId), "test user has a Notebook topic");
     await sql(`insert into knowledge_records(id,user_id,topic_id,kind,title,body,category)
       values ('e0000000-0000-4000-8000-00000000b001','11111111-1111-4111-8111-111111111111','${topicId}',
-      'note','Roman Ideas',E'## Republic\\n\\nA mixed constitution.\\n\\n## Citizenship\\n\\nA civic status.','reference')`);
+      'note','Roman Ideas',E'# Republic\\n\\nA mixed constitution.\\n\\n# Citizenship\\n\\nA civic status.','reference')`);
+    const note = () => sql("select title || '|' || body || '|' || updated_at from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'");
+    const before = await note();
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar");
     await page.click('.hw-sections button:has-text("Catalogue")');
-    await page.locator(".kc-search input").waitFor();
-    await page.locator(".kc-search input").fill("Roman Ideas");
-    await page.locator('.kc-story:has-text("Roman Ideas")').waitFor();
-    check(await page.locator(".kc-story").count() >= 1, "Catalogue finds the saved article");
-    await page.locator('.kc-story:has-text("Roman Ideas")').click();
-    check(await page.locator(".kc-reading-body section").count() === 2, "Two headings become sections in a readable article");
-    check(await page.locator(".kc-reading-rail a").count() === 2, "Article navigation links to its headings");
-    await page.locator('.kc-reading-rail a:has-text("Citizenship")').click();
-    check((await page.locator(".kc-reading-head h1").innerText()) === "Roman Ideas", "article title remains visible");
-    check((await page.locator(".kc-reading-body").innerText()).includes("A civic status."), "chapter content is rendered");
-    await page.locator('.kc-reading-tools button:has-text("Edit article")').click();
-    await page.locator(".nb-title-input").waitFor();
-    await page.locator(".nb-title-input").fill("Roman Ideas Revised");
-    await page.locator('.nb-reference-chapter-action button:has-text("Add chapter")').click();
-    await page.locator('.nb-reference-chapter-action input[aria-label="New chapter title"]').fill("Checks and Balances");
-    await page.locator('.nb-reference-chapter-action button:has-text("Add")').click();
-    await page.locator('.nb-doc-actions button:has-text("Done")').click();
-    await page.waitForTimeout(650);
-    check(await sql("select title from knowledge_records where id='e0000000-0000-4000-8000-00000000b001'") === "Roman Ideas Revised",
-      "Catalogue edits save through the existing Notebook persistence path");
-    await page.locator('.nb-doc-actions button[aria-label="Close note"]').click();
-    await page.locator(".kc-reading-head h1").waitFor();
-    check((await page.locator(".kc-reading-head h1").innerText()) === "Roman Ideas Revised", "Closing the editor returns to the article");
-    check(await page.locator(".kc-reading-body section").count() === 3, "New named section is preserved in the article");
+    await page.locator(".ct-library").waitFor();
+    check(!(await page.locator(".ct-library").innerText()).includes("Roman Ideas"), "a Reference note does not appear in the Catalogue by itself");
+    check(await page.locator("button.ct-create").count() === 1, "the empty Catalogue offers Create Article");
+    await page.click("button.ct-create");
+    await page.click('.ct-choice:has-text("From Notebook")');
+    await page.fill('input[aria-label="Find a note"]', "Roman Ideas");
+    await page.locator('.ct-note-list button:has(strong:text-is("Roman Ideas"))').click();
+    await page.waitForSelector(".ct-studio .ct-page-slot", { timeout: 20000 });
+    await page.locator("input.ct-bar-title").fill("Roman Ideas, revised for print");
+    await page.waitForFunction(() => document.querySelector(".ct-save")?.textContent === "Saved", null, { timeout: 15000 });
+    check(await sql("select count(*) from catalogue_articles where source_note_id='e0000000-0000-4000-8000-00000000b001' and title='Roman Ideas, revised for print' and status='draft'") === "1",
+      "the article is a separate draft copy");
+    check(await note() === before, "editing the article leaves the Notebook note unchanged");
+    await page.locator(".ct-bar-back").click();
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.waitForTimeout(600);
+    check(await sql("select count(*) from knowledge_records where id='e0000000-0000-4000-8000-00000000b001' and deleted_at is null and category='reference'") === "1",
+      "the note is still a Reference note in the Notebook");
   },
 
   async "only one sidebar toggle is visible at a time"(page) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ArchiveRestore, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
@@ -50,6 +50,11 @@ import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "
 import { supabase } from "./lib/supabase";
 import { synchroniseHeuresis } from "./lib/sync";
 import { readSection, writeSection, type WorkspaceSection } from "./lib/workspaceMemory";
+
+// Catalogue publications are an independent store and a large editor: load on first use.
+const CatalogueSection = lazy(() => import("./components/catalogue/CatalogueSection"));
+/** Sections whose content does not depend on the Notebook having loaded. */
+const NOTEBOOK_INDEPENDENT: WorkspaceSection[] = ["overview", "study", "reading", "quotations", "reference"];
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 type SidebarMode = "full" | "rail" | "hidden";
@@ -553,7 +558,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }
 
 
-  const workspaceNotice = workspace.schema !== "v2" && section !== "overview" && section !== "study" && section !== "reading" && section !== "quotations" ? <div className="ws-schema-notice" role="status">
+  const workspaceNotice = workspace.schema !== "v2" && !NOTEBOOK_INDEPENDENT.includes(section) ? <div className="ws-schema-notice" role="status">
     <TriangleAlert size={16} />
     <span>{workspace.schema === "missing"
       ? <>The Notebook tables do not exist in this database yet. Apply the two Knowledge migrations in <code>supabase/migrations/</code> to start writing notes. Study is unaffected.</>
@@ -694,20 +699,21 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
         </aside>
         <main className={`desktop-content ${section === "study" ? "is-study" : "is-workspace"}`}>
           {workspaceNotice}
-          {section !== "overview" && section !== "study" && section !== "reading" && section !== "quotations" && workspace.error ? <div className="ws-error-panel" role="alert">
+          {!NOTEBOOK_INDEPENDENT.includes(section) && workspace.error ? <div className="ws-error-panel" role="alert">
             <strong>{getOfflineSyncState().online ? "The Notebook could not be loaded." : "This device has no offline copy of the Notebook yet."}</strong>
             <span>{workspace.error}</span>
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
-          {section !== "overview" && section !== "study" && section !== "reading" && section !== "quotations" && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
+          {!NOTEBOOK_INDEPENDENT.includes(section) && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
           {section === "overview" ? <OverviewView collections={collections} packs={packs} studyLoading={loading} studyError={error} onOpenTopic={(pack) => { setSection("study"); openPack(pack); }} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
           {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
           {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
-          {section === "reference" && !workspace.loading && !workspace.error
-            ? <NotebookView key="knowledge-catalogue" referenceOnly onExitReference={() => setSection("notebook")} /> : null}
+          {section === "reference" ? <Suspense fallback={<div className="ws-loading" role="status"><span className="ws-spinner" /> Opening the Catalogue…</div>}>
+            <CatalogueSection userId={session.user.id} />
+          </Suspense> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}

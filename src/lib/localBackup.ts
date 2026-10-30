@@ -12,7 +12,8 @@ import { getOfflineSyncState, NETWORK_ONLY_HEADER, snapshotOfflineWritesForBacku
 import { supabase } from "./supabase";
 
 const FORMAT = "heuresis-complete-local-v2";
-const MEDIA_BUCKETS = ["heuresis-card-media", "page-background-media"] as const;
+const MEDIA_BUCKETS = ["heuresis-card-media", "page-background-media", "heuresis-catalogue-media"] as const;
+const CATALOGUE_BUCKET = "heuresis-catalogue-media";
 const PAGE_SIZE = 800;
 const MAX_PAGES = 500;
 const MEDIA_CHUNK_SIZE = 256 * 1024;
@@ -28,6 +29,17 @@ export const BACKUP_TABLES = [
   "capital_reading_items", "capital_reading_quotes", "capital_reading_history",
   "page_backgrounds",
 ] as const;
+
+/**
+ * The Catalogue's publications (migration 20261030090000_catalogue_publications.sql).
+ * Until that migration is applied on the server these tables do not exist; the backup then
+ * records them as absent instead of failing, so the rest of the library is still saved.
+ */
+export const OPTIONAL_BACKUP_TABLES = ["catalogue_subjects", "catalogue_volumes", "catalogue_articles"] as const;
+
+function isMissingTable(error: { code?: string; message?: string }): boolean {
+  return error.code === "PGRST205" || error.code === "42P01" || /could not find the table|does not exist|schema cache/i.test(error.message ?? "");
+}
 
 type TableRow = Record<string, unknown>;
 export type LocalBackupStatus = {
@@ -53,7 +65,7 @@ export async function localBackupStatus(userId: string): Promise<LocalBackupStat
   return invoke<LocalBackupStatus>("local_backup_status", { userId, day: todayLocal() });
 }
 
-async function entireTable(table: string, userId: string): Promise<TableRow[]> {
+async function entireTable(table: string, userId: string, optional = false): Promise<TableRow[] | null> {
   if (!supabase) throw new Error("The database is not configured.");
   const rows: TableRow[] = [];
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -75,6 +87,7 @@ async function entireTable(table: string, userId: string): Promise<TableRow[]> {
     const { data, error } = await ordered
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
       .setHeader(NETWORK_ONLY_HEADER, "1");
+    if (error && optional && page === 0 && isMissingTable(error)) return null;
     if (error) throw new Error(`Cannot back up ${table}: ${error.message}`);
     rows.push(...(data ?? []) as TableRow[]);
     if ((data?.length ?? 0) < PAGE_SIZE) return rows;
@@ -82,7 +95,21 @@ async function entireTable(table: string, userId: string): Promise<TableRow[]> {
   throw new Error(`The ${table} table exceeded the safe page limit; no incomplete backup was published.`);
 }
 
-async function mediaPathsForAccount(userId: string, cardRows: TableRow[], backgroundRows: TableRow[]): Promise<string[]> {
+/** Image paths stored anywhere inside Catalogue rows (article pages, covers, volume covers). */
+function catalogueImagePaths(rows: TableRow[], userId: string): string[] {
+  const found: string[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 12 || !value || typeof value !== "object") return;
+    if (Array.isArray(value)) { for (const item of value) visit(item, depth + 1); return; }
+    const record = value as Record<string, unknown>;
+    if (typeof record.path === "string" && record.path.startsWith(`${userId}/`) && typeof record.mime === "string") found.push(record.path);
+    for (const item of Object.values(record)) visit(item, depth + 1);
+  };
+  for (const row of rows) visit(row, 0);
+  return found;
+}
+
+async function mediaPathsForAccount(userId: string, cardRows: TableRow[], backgroundRows: TableRow[], catalogueRows: TableRow[] | null): Promise<string[]> {
   if (!supabase) throw new Error("The database is not configured.");
   const result = new Set<string>();
   for (const row of cardRows) {
@@ -95,6 +122,7 @@ async function mediaPathsForAccount(userId: string, cardRows: TableRow[], backgr
     if (typeof row.storage_path === "string" && row.storage_path)
       result.add("page-background-media/" + row.storage_path);
   }
+  if (catalogueRows) for (const path of catalogueImagePaths(catalogueRows, userId)) result.add(`${CATALOGUE_BUCKET}/${path}`);
   let visited = 0;
   async function walk(bucket: string, prefix: string, depth: number): Promise<void> {
     if (depth > 7) throw new Error("Media folder depth exceeded backup limit.");
@@ -116,7 +144,8 @@ async function mediaPathsForAccount(userId: string, cardRows: TableRow[], backgr
     }
     throw new Error("Media listing exceeded safe pagination limit.");
   }
-  for (const bucket of MEDIA_BUCKETS) await walk(bucket, userId, 0);
+  // The Catalogue bucket is created by the same migration as its tables.
+  for (const bucket of MEDIA_BUCKETS) if (bucket !== CATALOGUE_BUCKET || catalogueRows) await walk(bucket, userId, 0);
   for (const item of result) {
     const [bucket, ...segments] = item.split("/");
     if (!(MEDIA_BUCKETS as readonly string[]).includes(bucket) || segments[0] !== userId)
@@ -169,11 +198,20 @@ export function ensureDailyLocalBackup(userId: string): Promise<BackupResult> {
     const tables: Record<string, TableRow[]> = {};
     // Read sequentially to keep memory/traffic predictable. Never silently skip
     // a table, archived record, Study relation or session history.
-    for (const table of BACKUP_TABLES) tables[table] = await entireTable(table, userId);
-    const mediaPaths = await mediaPathsForAccount(userId, tables.heuresis_cards, tables.page_backgrounds);
+    for (const table of BACKUP_TABLES) tables[table] = (await entireTable(table, userId))!;
+    const absentTables: string[] = [];
+    for (const table of OPTIONAL_BACKUP_TABLES) {
+      const rows = await entireTable(table, userId, true);
+      if (rows) tables[table] = rows;
+      else absentTables.push(table);
+    }
+    const catalogueRows = absentTables.length ? null
+      : [...tables.catalogue_volumes, ...tables.catalogue_articles];
+    const mediaPaths = await mediaPathsForAccount(userId, tables.heuresis_cards, tables.page_backgrounds, catalogueRows);
     const snapshot = {
       format: FORMAT, day, user_id: userId, created_at: new Date().toISOString(),
       tables, media_paths: mediaPaths,
+      ...(absentTables.length ? { absent_optional_tables: absentTables } : {}),
       offline_recovery: {
         format: "heuresis-account-offline-journal-v1",
         ...offlineAtStart,

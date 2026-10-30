@@ -10,7 +10,7 @@ on:
 jobs:
   regressions:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       PGBIN: /usr/lib/postgresql/16/bin
       PGHOST: /tmp
@@ -26,6 +26,8 @@ jobs:
         run: |
           npm install --ignore-scripts
           cd verification && npm install --ignore-scripts && npx playwright install --with-deps chromium
+      - name: PDF inspection tools (Catalogue export checks)
+        run: sudo apt-get install -y --no-install-recommends poppler-utils
       - name: PostgREST 12
         run: |
           curl -sSL -o /tmp/postgrest.tar.xz https://github.com/PostgREST/postgrest/releases/download/v12.2.3/postgrest-v12.2.3-linux-static-x64.tar.xz
@@ -43,13 +45,15 @@ jobs:
       - name: Regression scenarios
         working-directory: verification
         run: |
-          node tests/clarity.mjs "reference work"
+          node tests/clarity.mjs "reference note stays"
           node tests/clarity.mjs "Sort restores"
           node tests/regressions.mjs
           node tests/study-polish.mjs
           node tests/clarity.mjs
           node tests/review-v3.mjs
           node tests/android-tablet.mjs
+          node tests/catalogue.mjs
+          bash tests/catalogue-migration.sh
       - name: Logs
         if: failure()
         run: tail -n 60 verification/gateway.log verification/postgrest.log vite.log || true

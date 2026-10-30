@@ -58,6 +58,122 @@ async function readBody(req) {
   return Buffer.concat(chunks);
 }
 
+// ---------------------------------------------------------------------------
+// Minimal Supabase Storage stand-in (files on disk under ./storage), enough for
+// uploads, signed URLs, downloads, listing and removal. Each object must live in
+// the caller's own folder (<user id>/...), like the projects' storage policies.
+// ---------------------------------------------------------------------------
+import fs from "node:fs";
+import path from "node:path";
+const STORAGE_ROOT = path.resolve(new URL(".", import.meta.url).pathname, "storage");
+const BUCKETS = new Set(["heuresis-card-media", "heuresis-catalogue-media", "page-background-media"]);
+function objectFile(bucket, objectPath) {
+  const safe = objectPath.split("/").filter((part) => part && part !== "." && part !== "..");
+  return path.join(STORAGE_ROOT, bucket, ...safe);
+}
+function signToken(bucket, objectPath, exp) {
+  return crypto.createHmac("sha256", SECRET).update(`${bucket}/${objectPath}/${exp}`).digest("base64url") + "." + exp;
+}
+function multipartFile(buffer, contentType) {
+  const boundary = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType ?? "");
+  if (!boundary) return { bytes: buffer, type: contentType || "application/octet-stream" };
+  const marker = Buffer.from(`--${boundary[1] ?? boundary[2]}`);
+  let start = buffer.indexOf(marker);
+  while (start >= 0) {
+    const next = buffer.indexOf(marker, start + marker.length);
+    if (next < 0) break;
+    const part = buffer.subarray(start + marker.length + 2, next - 2);
+    const split = part.indexOf("\r\n\r\n");
+    const head = part.subarray(0, split).toString();
+    if (/filename=/i.test(head) || /name=""/.test(head)) {
+      const type = /content-type:\s*([^\r\n]+)/i.exec(head)?.[1]?.trim() ?? "application/octet-stream";
+      return { bytes: part.subarray(split + 4), type };
+    }
+    start = next;
+  }
+  return { bytes: Buffer.alloc(0), type: "application/octet-stream" };
+}
+async function storage(req, res, url) {
+  const route = url.pathname.replace(/^\/storage\/v1\//, "");
+  const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
+  const owner = claims?.sub;
+  // Signed download: no authorisation header, a valid token instead.
+  let match = /^object\/sign\/([^/]+)\/(.+)$/.exec(route);
+  if (req.method === "GET" && match) {
+    const [bucket, objectPath] = [match[1], decodeURIComponent(match[2])];
+    const token = url.searchParams.get("token") ?? "";
+    const exp = Number(token.split(".")[1]);
+    if (!exp || exp < Date.now() / 1000 || token !== signToken(bucket, objectPath, exp)) { json(res, 400, { error: "InvalidSignature", message: "Invalid signature" }); return; }
+    const file = objectFile(bucket, objectPath);
+    if (!fs.existsSync(file)) { json(res, 404, { error: "not_found", message: "Object not found" }); return; }
+    const meta = fs.existsSync(`${file}.meta.json`) ? JSON.parse(fs.readFileSync(`${file}.meta.json`, "utf8")) : {};
+    cors(res); res.writeHead(200, { "content-type": meta.type ?? "application/octet-stream", "cache-control": "no-store" }); res.end(fs.readFileSync(file)); return;
+  }
+  if (!owner) { json(res, 400, { error: "Unauthorized", message: "invalid JWT" }); return; }
+  const ownsPath = (objectPath) => objectPath.split("/")[0] === owner;
+  // Sign one object.
+  match = /^object\/sign\/([^/]+)\/(.+)$/.exec(route);
+  if (req.method === "POST" && match) {
+    const [bucket, objectPath] = [match[1], decodeURIComponent(match[2])];
+    const body = JSON.parse((await readBody(req)).toString() || "{}");
+    if (!ownsPath(objectPath) || !fs.existsSync(objectFile(bucket, objectPath))) { json(res, 400, { statusCode: "404", error: "not_found", message: "Object not found" }); return; }
+    const exp = Math.floor(Date.now() / 1000) + Number(body.expiresIn ?? 3600);
+    json(res, 200, { signedURL: `/object/sign/${bucket}/${objectPath}?token=${encodeURIComponent(signToken(bucket, objectPath, exp))}` }); return;
+  }
+  // Sign several.
+  match = /^object\/sign\/([^/]+)$/.exec(route);
+  if (req.method === "POST" && match) {
+    const bucket = match[1];
+    const body = JSON.parse((await readBody(req)).toString() || "{}");
+    const exp = Math.floor(Date.now() / 1000) + Number(body.expiresIn ?? 3600);
+    json(res, 200, (body.paths ?? []).map((objectPath) => ownsPath(objectPath) && fs.existsSync(objectFile(bucket, objectPath))
+      ? { error: null, path: objectPath, signedURL: `/object/sign/${bucket}/${objectPath}?token=${encodeURIComponent(signToken(bucket, objectPath, exp))}` }
+      : { error: "Either the object does not exist or you do not have access to it", path: objectPath, signedURL: null })); return;
+  }
+  match = /^object\/list\/([^/]+)$/.exec(route);
+  if (req.method === "POST" && match) {
+    const body = JSON.parse((await readBody(req)).toString() || "{}");
+    const prefix = String(body.prefix ?? "");
+    if (prefix && !ownsPath(prefix)) { json(res, 200, []); return; }
+    const dir = objectFile(match[1], prefix);
+    const items = fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => !entry.name.endsWith(".meta.json"))
+      .map((entry) => entry.isDirectory() ? { name: entry.name, id: null } : { name: entry.name, id: crypto.createHash("md5").update(entry.name).digest("hex") }) : [];
+    json(res, 200, items.slice(Number(body.offset ?? 0), Number(body.offset ?? 0) + Number(body.limit ?? 100))); return;
+  }
+  match = /^object\/([^/]+)$/.exec(route);
+  if (req.method === "DELETE" && match) {
+    const body = JSON.parse((await readBody(req)).toString() || "{}");
+    const removed = [];
+    for (const objectPath of body.prefixes ?? []) {
+      if (!ownsPath(objectPath)) continue;
+      const file = objectFile(match[1], objectPath);
+      if (fs.existsSync(file)) { fs.rmSync(file); fs.rmSync(`${file}.meta.json`, { force: true }); removed.push({ name: objectPath }); }
+    }
+    json(res, 200, removed); return;
+  }
+  match = /^object\/(?:authenticated\/)?([^/]+)\/(.+)$/.exec(route);
+  if (match) {
+    const [bucket, objectPath] = [match[1], decodeURIComponent(match[2])];
+    if (!BUCKETS.has(bucket)) { json(res, 400, { statusCode: "404", error: "Bucket not found", message: "Bucket not found" }); return; }
+    if (!ownsPath(objectPath)) { json(res, 400, { statusCode: "403", error: "Unauthorized", message: "new row violates row-level security policy" }); return; }
+    const file = objectFile(bucket, objectPath);
+    if (req.method === "POST" || req.method === "PUT") {
+      if (req.method === "POST" && fs.existsSync(file) && req.headers["x-upsert"] !== "true") { json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" }); return; }
+      const { bytes, type } = multipartFile(await readBody(req), req.headers["content-type"]);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, bytes);
+      fs.writeFileSync(`${file}.meta.json`, JSON.stringify({ type, size: bytes.length }));
+      json(res, 200, { Id: crypto.randomUUID(), Key: `${bucket}/${objectPath}` }); return;
+    }
+    if (req.method === "GET") {
+      if (!fs.existsSync(file)) { json(res, 400, { statusCode: "404", error: "not_found", message: "Object not found" }); return; }
+      const meta = fs.existsSync(`${file}.meta.json`) ? JSON.parse(fs.readFileSync(`${file}.meta.json`, "utf8")) : {};
+      cors(res); res.writeHead(200, { "content-type": meta.type ?? "application/octet-stream" }); res.end(fs.readFileSync(file)); return;
+    }
+  }
+  json(res, 200, []);
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -88,7 +204,7 @@ const server = http.createServer(async (req, res) => {
       json(res, 404, { msg: "not implemented in local gateway" }); return;
     }
 
-    if (url.pathname.startsWith("/storage/v1/")) { json(res, 200, []); return; }
+    if (url.pathname.startsWith("/storage/v1/")) { await storage(req, res, url); return; }
 
     if (url.pathname.startsWith("/rest/v1/")) {
       const isWrite = !["GET", "HEAD"].includes(req.method ?? "GET") && !url.pathname.includes("/rpc/");
