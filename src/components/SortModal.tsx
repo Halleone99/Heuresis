@@ -237,7 +237,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       if (key === "c" || key === "u" || key === "p") {
         event.preventDefault(); void learn(key === "c" ? 5 : key === "u" ? 3 : 1); return;
       }
-      if (key === "r") { event.preventDefault(); void keepReference(); return; }
       if (key === "d" || event.key === "Delete") { event.preventDefault(); void discard(); return; }
       if (key === "l" || key === "s") { event.preventDefault(); later(); return; }
       if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); }
