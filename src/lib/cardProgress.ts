@@ -54,8 +54,8 @@ export function reviewEligible(
   includeMastered = false,
   now = Date.now(),
 ): boolean {
-  if (includeMastered) return true;
   if (reviewedSuccessfullyToday(history, now)) return false;
+  if (includeMastered) return true;
   if (!progress.mastered) return true;
   const latest = history?.length ? Math.max(...history.map((event) => event.at)) : Date.parse(lastReviewed ?? "");
   return Number.isFinite(latest) && now - latest >= 180 * 86_400_000;
