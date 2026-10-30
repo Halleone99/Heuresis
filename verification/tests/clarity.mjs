@@ -88,7 +88,8 @@ const scenarios = {
     await page.locator(".review-controls").waitFor();
     const meta = await page.locator(".compact-study-meta").innerText();
     check(/\d+\s*available/.test(meta), `Review shows eligible cards (“${meta.replace(/\s+/g, " ")}”)`);
-    check(await page.locator(".study-start").isEnabled(), "Review can start from Adjust");
+    await page.waitForFunction(() => { const button = document.querySelector(".study-start"); return button && !button.disabled; });
+    check(await page.locator(".study-start").isEnabled(), "Review can start after session setup loads");
     await page.screenshot({ path: `${shots}/review-setup.png` });
   },
 
