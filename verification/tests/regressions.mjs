@@ -357,21 +357,20 @@ const scenarios = {
   },
 
   async "learning loop: capture → flashcard → sort → review"(page, context) {
-    await page.keyboard.press("Control+Shift+KeyN");
-    await page.waitForSelector(".qc-panel");
-    await page.click('.qc-language-choices button:has-text("Chinese")');
-    await page.fill(".qc-main-input", "再见 — goodbye");
-    await page.keyboard.press("Control+Enter");
-    await page.waitForTimeout(1200);
-    await openNote(page, "再见");
-    await page.click('button[aria-label="More actions"]');
-    await page.click('button[role=menuitem]:has-text("Make a flashcard")');
-    await page.waitForSelector("#fc-title");
-    await page.waitForTimeout(800);
-    await page.click('.ws-dialog button[type=submit]');
+    // Q Capture now files provisional notes in the Captures queue. Use the dedicated
+    // Study card composer to test the complete card-to-review learning loop.
+    await page.goto(`${BASE}?capture=1&pack=${HSK}`);
+    await page.locator(".capture-composer").waitFor({ timeout: 15000 });
+    const slots = page.locator(".capture-card-surface .capture-slot textarea");
+    await slots.nth(0).fill("再见");
+    await slots.nth(1).fill("zàijiàn");
+    await slots.nth(2).fill("goodbye");
+    await slots.nth(2).press("Enter");
     await page.waitForTimeout(1200);
     check(await sql("select p.title||'|'||(c.data->>'meaning') from heuresis_cards c join heuresis_packs p on p.id=c.pack_id where c.data->>'term'='再见'") === "HSK 2 — Time|goodbye",
       "the card is in the Chinese topic with its meaning");
+    await page.goto(BASE);
+    await page.locator(".heuresis-section-sidebar").waitFor();
     await page.click('.hw-sections button:has-text("Study")');
     await page.waitForTimeout(1200);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
