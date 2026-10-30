@@ -624,25 +624,41 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         </div>
       </div>
 
-      {selectionThemeTags.length ? <nav className="chinese-selection-themes" aria-label="Chinese vocabulary themes">
-        <span className="chinese-selection-themes-label">Themes</span>
-        <button type="button" className={`theme-choice ${tagFilter === "all" ? "selected" : ""}`} aria-pressed={tagFilter === "all"}
-          onClick={() => setTagFilter("all")}><span className="theme-dot" />All <small>{cards.length}</small></button>
-        {selectionThemeTags.map(({ tag, count }) => (
-          <button type="button" key={tag.id} className={`theme-choice ${tagFilter === tag.id ? "selected" : ""}`}
-            style={themeTagStyle(tag.name)} aria-pressed={tagFilter === tag.id}
-            onClick={() => setTagFilter(tagFilter === tag.id ? "all" : tag.id)}>
-            <span className="theme-dot" />{tag.name}<small>{count}</small>
-          </button>
-        ))}
-      </nav> : null}
+      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub" aria-label="Choose which cards to display">
+         <div className="topic-browse-heading">
+           <div>
+             <strong>{showCardList ? `${shown.length.toLocaleString()} of ${visibleTotal.toLocaleString()} cards` : "Browse by tag"}</strong>
+             <small>{showCardList ? "Use the filters above to narrow the list" : `${(visibleTotal - untaggedCount).toLocaleString()} tagged · ${untaggedCount.toLocaleString()} untagged`}</small>
+           </div>
+           <div className="topic-browse-actions">
+             {showCardList ? <button type="button" className="secondary-button" onClick={clearFilters}>Overview</button> : null}
+             {!allCardsExpanded || activeFilterCount > 0 ? <button type="button" className="secondary-button" onClick={() => { clearFilters(); setAllCardsExpanded(true); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
+           </div>
+         </div>
+         <div className="topic-browse-tags" role="group" aria-label="Filter by topic tag">
+           {tagFacets.slice(0, expandedTagList ? tagFacets.length : 10).map(({ tag, count }) => (
+             <button type="button" key={tag.id} className={`topic-tag-pill ${tagFilter === tag.id ? "selected" : ""} ${themeTagStyle(tag.name) ? "theme-tag" : ""}`}
+               style={themeTagStyle(tag.name)} aria-pressed={tagFilter === tag.id}
+               onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }}>
+               {tag.name} <small>{count}</small>
+             </button>
+           ))}
+           {untaggedCount > 0 ? <button type="button" className={`topic-tag-pill untagged ${tagFilter === "none" ? "selected" : ""}`} aria-pressed={tagFilter === "none"}
+             onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === "none" ? "all" : "none"); }}>Untagged <small>{untaggedCount}</small></button> : null}
+           {tagFacets.length > 10 ? <button type="button" className="topic-more-tags" aria-expanded={expandedTagList} onClick={() => setExpandedTagList((current) => !current)}>
+             {expandedTagList ? "Fewer tags" : `+${tagFacets.length - 10} more tags`}
+           </button> : null}
+           {!tagFacets.length ? <span className="topic-tags-unassigned">Add tags while sorting or editing cards to build your groups.</span> : null}
+         </div>
+       </section> : null}
 
-      {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
+       {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
       {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state" role="alert"><strong>Could not load this topic.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
-      {!loading && !error ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
+      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose a tag, learning stage or search to see individual cards.</span></div> : null}
+       {!loading && !error && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATE <ArrowUpDown size={11} /></button>
