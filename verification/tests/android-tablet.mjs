@@ -200,7 +200,7 @@ const scenarios = {
         await page.waitForTimeout(300);
       }
     }
-    tapped(await fingerTap(page, '.retention-actions button:has-text("Connections")', { label: "Connections" }), "the card's connections open from Review");
+    tapped(await fingerTap(page, '.cosmos-secondary-actions button:has-text("Connections")', { label: "Connections" }), "the card's connections open from Review");
     await page.locator(".connections-panel").waitFor({ timeout: 10000 });
     check(await reachableNow(page, ".connections-close"), "the connections tree's close button is on screen and not covered");
     tapped(await fingerTap(page, ".connections-close", { label: "Close connections" }), "the connections tree closes");
@@ -242,8 +242,11 @@ const scenarios = {
     await openTopicByTouch(page);
     tapped(await fingerTap(page, ".review-command", { label: "Review" }), "Review");
     await startReviewByTouch(page);
-    await page.locator(".cosmos-method select").selectOption("type");
-    const input = page.locator(".cosmos-card input, .cosmos-card textarea").first();
+    tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Type")', { label: "Type" }), "Type is selectable by touch");
+    check(await page.locator('.cosmos-recall-methods button:has-text("Type")').getAttribute("aria-pressed") === "true", "Type becomes the answering method");
+    tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Think")', { label: "Think" }), "Think can be selected instead");
+    tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Type")', { label: "Type again" }), "Type can be reselected");
+    const input = page.locator(".cosmos-inline-typing");
     check(await input.count() === 1, "a typed-answer field appears");
     tapped(await fingerTap(page, input, { label: "Answer field" }), "the answer field takes a tap");
     const full = page.viewportSize();
@@ -255,8 +258,11 @@ const scenarios = {
     await page.locator(".cosmos-results").waitFor({ timeout: 5000 });
     await page.setViewportSize(full);
     await page.waitForTimeout(300);
-    tapped(await fingerTap(page, ".cosmos-results button.primary", { label: "suggested result" }), "the suggested result can be tapped");
-    await page.locator(".cosmos-method select").selectOption("think");
+    check(await page.locator(".cosmos-results button.is-suggested").count() === 1, "typed answer has a suggested rating");
+    tapped(await fingerTap(page, ".cosmos-results button.is-suggested", { label: "suggested result" }), "the suggested result can be tapped");
+    if (await page.locator('.cosmos-recall-methods button:has-text("Think")').count()) {
+      tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Think")', { label: "Think" }), "the next card can use Think");
+    } else check(await page.locator(".cosmos-summary").count() === 1, "a one-card typed review finishes cleanly");
   },
   async "landscape: Edit card by touch"(page) {
     await openTopicByTouch(page);
