@@ -290,15 +290,20 @@ const scenarios = {
 
     const popup = await openPopup(context, "source=recommended&count=20&order=pack");
     const before = await gradeCount();
+    // Daily eligibility can legitimately produce fewer than the requested 20 cards.
+    const available = Number((await popup.locator(".cosmos-count").innerText()).match(/\/\s*(\d+)/)?.[1] ?? 0);
+    check(available > 0, "the offline review has at least one eligible card");
+    const keys = ["3", "1", "2"].slice(0, Math.min(3, available));
     await context.setOffline(true);
-    for (const key of ["3", "1", "2"]) await revealAndGrade(popup, key);
-    const nextCard = await popup.locator(".cosmos-card").count() === 1 && (await popup.locator(".cosmos-count").innerText()).startsWith("4 /");
+    for (const key of keys) await revealAndGrade(popup, key);
+    const nextCard = await popup.locator(".cosmos-card").count() === 1 && (await popup.locator(".cosmos-count").innerText()).startsWith(`${keys.length + 1} /`);
     const sessionFinished = await popup.locator(".cosmos-summary").count() === 1;
-    check(nextCard || sessionFinished, "Review continues offline, including when the chosen session ends after three cards");
+    check(nextCard || sessionFinished, "Review continues offline, including when the eligible session ends early");
     await page.waitForTimeout(1000);
     check(await gradeCount() === before, "offline results wait on the device");
     await context.setOffline(false);
-    check(await waitFor(async () => await gradeCount() - before === 3, 20000), "after reconnecting all three results reach the server");
+    check(await waitFor(async () => await gradeCount() - before === keys.length, 20000),
+      "after reconnecting every offline result reaches the server");
     check(Number(await sql(`select count(*) from heuresis_card_events where event_type in ${GRADES} and template_id is null`)) === Number(await sql(`select count(*) from heuresis_card_events where event_type in ${GRADES} and template_id is null and created_at < now() - interval '10 minutes'`)),
       "with their directions");
     await popup.close();
@@ -391,10 +396,15 @@ const scenarios = {
     await popup.keyboard.press("3");
     await popup.waitForTimeout(400);
     check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
-    await popup.evaluate(() => document.activeElement?.blur?.());
-    await popup.keyboard.press(" ");
-    await popup.locator(".cosmos-results").waitFor();
-    check(await popup.locator(".cosmos-details").count() === 1, "chosen context returns after the next reveal");
+    if (await popup.locator(".cosmos-card").count() === 1) {
+      await popup.evaluate(() => document.activeElement?.blur?.());
+      await popup.keyboard.press(" ");
+      await popup.locator(".cosmos-results").waitFor();
+      check(await popup.locator(".cosmos-details").count() === 1, "chosen context returns after the next reveal");
+    } else {
+      check(await popup.locator(".cosmos-summary").count() === 1,
+        "when the last eligible card ends the session, its context does not leak");
+    }
     await popup.close();
     popup = await openPopup(context, "source=recommended&count=20&order=pack");
     check(await popup.locator(".cosmos-recall-methods button:has-text('Say')").getAttribute("aria-pressed") === "true",
