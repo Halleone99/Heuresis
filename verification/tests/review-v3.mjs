@@ -401,7 +401,7 @@ for (const [name, run] of Object.entries(scenarios)) {
     check(!unexpected.length, `no page errors${unexpected.length ? `: ${unexpected.join(" | ")}` : ""}`);
   } catch (error) {
     failures += 1;
-    console.log(`  ✗ ${name}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    console.log(`  ✗ ${name}: ${error instanceof Error ? error.stack ?? error.message : error}`);
     await page.screenshot({ path: `${shots}/failure-${name.split(" ")[0]}.png` }).catch(() => undefined);
     process.exitCode = 1;
   } finally {
