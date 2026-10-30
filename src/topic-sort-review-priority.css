@@ -1,0 +1,241 @@
+/* Sort and Review are one primary workflow, not unrelated toolbar buttons. */
+.topic-command-bar {
+  margin-top: 12px !important;
+}
+
+.topic-learning-actions {
+  flex-wrap: wrap;
+}
+
+.topic-study-actions {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 13%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ws-raised) 70%, transparent);
+}
+
+.topic-command-bar .topic-study-actions button {
+  min-height: 40px !important;
+  height: 40px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  font-size: 12px !important;
+  font-weight: 680 !important;
+}
+
+.topic-command-bar .topic-study-actions .sort-command,
+.topic-command-bar .topic-study-actions .review-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 120px !important;
+  padding: 0 16px !important;
+}
+
+.topic-study-actions .review-split {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.topic-command-bar .topic-study-actions .review-command {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.topic-command-bar .topic-study-actions .review-adjust {
+  min-width: 34px;
+  padding: 0 10px !important;
+  margin-left: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-left: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent) !important;
+  font-size: 13px !important;
+}
+
+/* Pending sorting gets the strongest emphasis; when cleared, Review takes over. */
+.topic-command-bar .topic-study-actions[data-priority="sort"] .sort-command:not(:disabled),
+.topic-command-bar .topic-study-actions[data-priority="review"] .review-command:not(:disabled) {
+  background: var(--ws-primary) !important;
+  color: var(--ws-on-primary) !important;
+}
+
+.topic-command-bar .topic-study-actions[data-priority="sort"] .review-command:not(:disabled),
+.topic-command-bar .topic-study-actions[data-priority="sort"] .review-adjust:not(:disabled) {
+  background: color-mix(in srgb, var(--ws-surface) 66%, transparent) !important;
+  color: var(--ws-text) !important;
+}
+
+.topic-command-bar .topic-study-actions[data-priority="review"] .sort-command {
+  background: transparent !important;
+  color: var(--ws-muted) !important;
+}
+
+.topic-command-bar .topic-study-actions button:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: none !important;
+}
+
+.topic-command-bar .topic-study-actions .sort-command b,
+.topic-command-bar .topic-study-actions .review-command b {
+  min-width: 23px !important;
+  height: 22px !important;
+  padding: 0 6px !important;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px !important;
+  background: color-mix(in srgb, currentColor 12%, transparent) !important;
+  color: inherit !important;
+  font-size: 11px !important;
+  font-weight: 720;
+}
+
+/* The stage counts are filters, so they belong in a slim contextual row. */
+.topic-workflow-overview.topic-workflow-compact {
+  display: flex !important;
+  align-items: center;
+  gap: 12px !important;
+  min-height: 46px !important;
+  margin-top: 10px !important;
+  padding: 5px 12px !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+  background: color-mix(in srgb, var(--ws-raised) 42%, transparent) !important;
+}
+
+.topic-workflow-compact .workflow-overview-label {
+  display: inline-flex !important;
+  flex: none;
+  align-items: baseline;
+  gap: 6px !important;
+  padding: 0 12px 0 0 !important;
+  border-right: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent);
+}
+
+.topic-workflow-compact .workflow-overview-label > span {
+  color: var(--ws-muted) !important;
+  font-size: 10px !important;
+  font-weight: 650;
+  letter-spacing: 0 !important;
+  text-transform: none;
+}
+
+.topic-workflow-compact .workflow-overview-label > small {
+  color: var(--ws-text) !important;
+  white-space: nowrap;
+  font-size: 11px !important;
+}
+
+.topic-workflow-compact .workflow-overview-stages {
+  display: flex !important;
+  flex: none;
+  align-items: center;
+  gap: 4px !important;
+}
+
+.topic-workflow-compact .workflow-overview-stages > button {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px !important;
+  width: auto;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+}
+
+.topic-workflow-compact .workflow-stage-dot {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.topic-workflow-compact .workflow-overview-stages > button > strong {
+  min-width: 0;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+.topic-workflow-compact .workflow-stage-copy > b {
+  font-size: 11px !important;
+  font-weight: 590 !important;
+  white-space: nowrap;
+}
+
+.topic-workflow-compact .workflow-state-line {
+  display: flex !important;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 !important;
+  border-top: 0 !important;
+}
+
+.topic-workflow-compact .workflow-state-line > span {
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.topic-workflow-compact .workflow-state-line > button {
+  min-height: 28px !important;
+  padding: 0 7px !important;
+  font-size: 10px !important;
+  white-space: nowrap;
+}
+
+/* Do not stretch a search input to the full width of a large desktop screen. */
+.compact-filter-toolbar .modern-topic-search {
+  flex: 1 1 320px;
+  max-width: 720px;
+}
+
+.compact-filter-toolbar .compact-filter-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 1120px) {
+  .topic-workflow-overview.topic-workflow-compact {
+    flex-wrap: wrap;
+    gap: 6px 10px !important;
+  }
+  .topic-workflow-compact .workflow-state-line {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-left: 2px !important;
+  }
+}
+
+@media (max-width: 650px) {
+  .topic-command-bar .topic-study-actions .sort-command,
+  .topic-command-bar .topic-study-actions .review-command {
+    min-width: 94px !important;
+    padding: 0 9px !important;
+  }
+  .topic-workflow-compact .workflow-overview-label {
+    width: 100%;
+    border-right: 0;
+  }
+  .topic-workflow-compact .workflow-overview-stages {
+    flex-wrap: wrap;
+  }
+  .compact-filter-toolbar .modern-topic-search {
+    max-width: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .topic-command-bar .topic-study-actions button {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+  .topic-workflow-compact .workflow-overview-stages > button {
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+}
