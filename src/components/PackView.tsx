@@ -491,52 +491,17 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
       </header>
 
-      <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
-        <div className="workflow-overview-label">
-          <span>Learning stages</span>
-          <small>{statusFilters.length || stateFilter ? "Filtered · click again for all" : `${plural(visibleTotal, "card")} · click to filter`}</small>
-        </div>
-        <div className="workflow-overview-stages">
-          <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
-            <span className="workflow-stage-dot" />
-            <strong>{unsortedCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Unsorted</b><small>To sort</small></span>
-          </button>
-          <span className="workflow-stage-arrow" aria-hidden="true">→</span>
-          <button className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" onClick={() => chooseStage("learning")}>
-            <span className="workflow-stage-dot" />
-            <strong>{learningCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Learning</b><small>In Review</small></span>
-          </button>
-          <span className="workflow-stage-arrow is-quiet" aria-hidden="true">·</span>
-          <button className={statusFilters.includes("reference") ? "active" : ""} data-stage="reference" onClick={() => chooseStage("reference")}>
-            <span className="workflow-stage-dot" />
-            <strong>{referenceCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Reference</b><small>To look up, never reviewed</small></span>
-          </button>
-        </div>
-        {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
-          <span>Of {learningCards.length} learning cards{stateTemplates.length > 1 ? " (weakest direction)" : ""}:</span>
-          {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
-            {state !== "not-tried" ? <i className="knowledge-dot" data-state={state} aria-hidden="true" /> : null} {stateCounts[state]} {state === "not-tried" ? "new" : STATE_LABEL[state].toLowerCase()}</button>)}
-        </div> : null}
-      </section>
-
-      {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
-        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Missed again and again.</span><em>REVIEW</em></button>
-        <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
-        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now quiet.</span><em>REFRESH</em></button>
-      </div> : null}
-
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
-          <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <span className="review-split">
-            <button className="primary-button review-command" disabled={!learningCards.length}
-              title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review</button>
-            <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
-              title="Choose directions, cards, session size and order">▾</button>
-          </span>
+          <div className="topic-study-actions" role="group" aria-label="Sort and Review" data-priority={unsortedCards.length ? "sort" : "review"}>
+            <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
+            <span className="review-split">
+              <button className="primary-button review-command" disabled={!learningCards.length}
+                title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review <b>{learningCards.length}</b></button>
+              <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
+                title="Choose directions, cards, session size and order">▾</button>
+            </span>
+          </div>
           {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
             const selected = shown.filter((card) => workflowStatus(card) === "learning");
             openTargeted("Review filtered lesson", selected);
@@ -554,6 +519,42 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           </details>
         </div>
       </div>
+      <section className="topic-workflow-overview topic-workflow-compact" aria-label="Card workflow and status filter">
+        <div className="workflow-overview-label">
+          <span>Cards</span>
+          <small>{visibleTotal.toLocaleString()} total</small>
+        </div>
+        <div className="workflow-overview-stages">
+          <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
+            <span className="workflow-stage-dot" />
+            <strong>{unsortedCards.length.toLocaleString()}</strong>
+            <span className="workflow-stage-copy"><b>To sort</b></span>
+          </button>
+          <button className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" onClick={() => chooseStage("learning")}>
+            <span className="workflow-stage-dot" />
+            <strong>{learningCards.length.toLocaleString()}</strong>
+            <span className="workflow-stage-copy"><b>Learning</b></span>
+          </button>
+          <button className={statusFilters.includes("reference") ? "active" : ""} data-stage="reference" onClick={() => chooseStage("reference")}>
+            <span className="workflow-stage-dot" />
+            <strong>{referenceCards.length.toLocaleString()}</strong>
+            <span className="workflow-stage-copy"><b>Reference</b></span>
+          </button>
+        </div>
+        {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
+          <span>Learning:</span>
+          {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
+            {state !== "not-tried" ? <i className="knowledge-dot" data-state={state} aria-hidden="true" /> : null} {stateCounts[state]} {state === "not-tried" ? "new" : STATE_LABEL[state].toLowerCase()}</button>)}
+        </div> : null}
+      </section>
+
+
+      {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
+        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Missed again and again.</span><em>REVIEW</em></button>
+        <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
+        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now quiet.</span><em>REFRESH</em></button>
+      </div> : null}
+
       {reviewNotice ? <div className="topic-selection-hint" role="alert">{reviewNotice}</div> : null}
 
       <div className="modern-topic-toolbar compact-filter-toolbar">

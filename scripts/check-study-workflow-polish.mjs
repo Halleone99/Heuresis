@@ -29,7 +29,8 @@ assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount short
 assert.match(study, /className="study-count-all"/, "One quick way to review all");
 
 assert.match(pack, /disabled=\{!learningCards\.length\}/, "Do not open Review before a card is sorted into Learning");
-assert.match(pack, /onClick=\{\(\) => void startReview\(\)\}><Brain size=\{15\} \/> Review<\/button>/, "Review is one click: a recommended session");
+assert.match(pack, /onClick=\{\(\) => void startReview\(\)\}><Brain size=\{15\} \/> Review <b>\{learningCards\.length\}<\/b><\/button>/, "Review is one click and shows its count");
+assert.match(pack, /className="topic-study-actions" role="group" aria-label="Sort and Review"/, "Sort and Review share one primary action group");
 assert.match(pack, /className="secondary-button review-adjust"[^>]*onClick=\{\(\) => setStudyOpen\(true\)\}/s, "Every manual choice stays one step away under Adjust");
 assert.match(pack, /className="topic-more-menu"/, "Secondary actions stay in the More menu");
 assert.match(pack, /Import cards/, "Import remains reachable");
