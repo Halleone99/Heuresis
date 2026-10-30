@@ -1,5 +1,5 @@
 /**
- * Personal importance, shown as three levels. The stored interest_rank keeps its
+ * Intended use of knowledge, shown as three levels. The stored interest_rank keeps its
  * 1–5 range: existing values are never rewritten. New choices store 5 / 3 / 1, and
  * older 4s and 2s are shown as Core and Peripheral.
  */
@@ -9,14 +9,14 @@ export const IMPORTANCE_ORDER: readonly Importance[] = ["core", "useful", "perip
 
 export const IMPORTANCE_LABEL: Record<Importance, string> = {
   core: "Core",
-  useful: "Useful",
-  peripheral: "Peripheral",
+  useful: "Active",
+  peripheral: "Passive",
 };
 
 export const IMPORTANCE_HINT: Record<Importance, string> = {
-  core: "Central to what you want to know",
-  useful: "Worth knowing",
-  peripheral: "Nice to have",
+  core: "Essential knowledge to recall effortlessly",
+  useful: "Knowledge to learn and use actively",
+  peripheral: "Knowledge to recognise without necessarily using",
 };
 
 /** The value written when a level is chosen. */
@@ -29,7 +29,7 @@ export function importanceOf(rank: number | null | undefined): Importance | null
   return "peripheral";
 }
 
-/** Keyboard digits keep working: 1–2 Peripheral, 3 Useful, 4–5 Core. */
+/** Keyboard digits keep working: 1–2 Passive, 3 Active, 4–5 Core. */
 export function importanceForDigit(digit: number): Importance | null {
   if (digit === 1 || digit === 2) return "peripheral";
   if (digit === 3) return "useful";
