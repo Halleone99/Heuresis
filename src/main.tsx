@@ -63,9 +63,9 @@ import "./notebook-shell-refresh.css";
 import "./quick-capture-refresh.css";
 // Android APK only: every rule is scoped to html[data-platform="android"] (see markAndroidRuntime).
 import "./android-tablet.css";
+import "./chinese-selection-themes.css";
 import "./topic-tag-first.css";
 import "./theme/chrome.css";
-import "./chinese-selection-themes.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
