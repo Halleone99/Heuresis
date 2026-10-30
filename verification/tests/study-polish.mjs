@@ -87,7 +87,7 @@ async function tabletNavigation() {
     await page.locator('.mobile-workspace-nav button:has-text("Overview")').tap();
     await page.locator('.oh-track[role="progressbar"]').waitFor({ timeout: 15000 });
     check(await page.locator('.oh-track[role="progressbar"]').count() === 1, "Review coverage is accessible directly on tablet Overview");
-    check(await page.locator('.mobile-workspace-nav button:has-text("Quotations")').count() === 1 && await page.locator('.mobile-workspace-nav button:has-text("Reference")').count() === 1, "Reading-related destinations remain accessible from touch navigation");
+    check(await page.locator('.mobile-workspace-nav button:has-text("Quotations")').count() === 1 && await page.locator('.mobile-workspace-nav button:has-text("Catalogue")').count() === 1, "Reading and Catalogue remain accessible from touch navigation");
     check(!(await page.locator(".desktop-nav-group").isVisible()), "Old Study bottom bar is not stacked over it");
     const touchSize = await page.locator(".mobile-workspace-nav button").first().boundingBox();
     check(Boolean(touchSize && touchSize.height >= 44), "Bottom targets are finger-sized");
