@@ -491,12 +491,6 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
       </header>
 
-      {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
-        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Missed again and again.</span><em>REVIEW</em></button>
-        <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
-        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now quiet.</span><em>REFRESH</em></button>
-      </div> : null}
-
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
           <div className="topic-study-actions" role="group" aria-label="Sort and Review" data-priority={unsortedCards.length ? "sort" : "review"}>
@@ -554,6 +548,12 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         </div> : null}
       </section>
 
+
+      {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
+        <button data-tone="cinnabar" disabled={!missingCards.length} onClick={() => openTargeted("Keeps missing", missingCards)}><strong>{missingCards.length.toLocaleString()}</strong><b>Keep missing</b><span>Missed again and again.</span><em>REVIEW</em></button>
+        <button data-tone="amber" disabled={!productionCards.length || !directions.production} onClick={() => openTargeted("Weak production", productionCards, undefined, directions.production?.id)}><strong>{productionCards.length.toLocaleString()}</strong><b>Weak production</b><span>Recognition is stronger.</span><em>DRILL</em></button>
+        <button data-tone="sage" disabled={!staleCards.length} onClick={() => openTargeted("Not seen recently", staleCards, 30)}><strong>{staleCards.length.toLocaleString()}</strong><b>30d+ quiet</b><span>Previously reviewed, now quiet.</span><em>REFRESH</em></button>
+      </div> : null}
 
       {reviewNotice ? <div className="topic-selection-hint" role="alert">{reviewNotice}</div> : null}
 
