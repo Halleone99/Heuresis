@@ -275,14 +275,14 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
           <span className="sort-setup-search"><Search size={16} aria-hidden="true" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Term, meaning or tag"
             onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); beginSort(); } }} /></span>
         </label>
-        {!manualSelection ? <label className="sort-setup-field"><span>Cards in this batch</span>
-          <input type="number" min={1} max={Math.max(1, candidates.length)} value={Math.min(count, Math.max(1, candidates.length))}
+        {!manualSelection ? <div className="sort-setup-field"><label htmlFor="sort-batch-count">Cards in this batch</label>
+          <input id="sort-batch-count" type="number" min={1} max={Math.max(1, candidates.length)} value={Math.min(count, Math.max(1, candidates.length))}
             onChange={(event) => setCount(Math.max(1, Math.min(10000, Number(event.target.value) || 1)))} />
           <div className="sort-setup-sizes" role="group" aria-label="Batch size">
             {[5, 10].filter((size) => size < candidates.length).map((size) => <button key={size} type="button" className={count === size ? "selected" : ""} onClick={() => setCount(size)}>{size} cards</button>)}
             <button type="button" className={count >= candidates.length ? "selected" : ""} onClick={() => setCount(Math.max(1, candidates.length))}>All {candidates.length}</button>
           </div>
-        </label> : <div className="sort-setup-field"><span>Manually selected</span><strong className="sort-manual-count">{pickedCandidates.length} cards</strong><small>Only checked cards from the current filters will enter this batch.</small></div>}
+        </div> : <div className="sort-setup-field"><span>Manually selected</span><strong className="sort-manual-count">{pickedCandidates.length} cards</strong><small>Only checked cards from the current filters will enter this batch.</small></div>}
       </div>
       {scopeTags.length ? <div className="sort-setup-tag-filter">
         <span>Filter by tags <small>optional · matches any selected tag</small></span>
