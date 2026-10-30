@@ -311,8 +311,10 @@ const scenarios = {
     await page.click('button[aria-label="More actions"]');
     await page.click('button[role=menuitem]:has-text("Move to")');
     await page.fill(".ws-picker-search input", "Blocks of meaning");
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(800);
+    // Choose the actual destination rather than pressing Enter before the filtered
+    // picker has committed its highlighted row.
+    await page.getByRole("option", { name: /Blocks of meaning/ }).first().click();
+    await page.locator('.ws-toast button:has-text("Undo")').waitFor({ timeout: 7000 });
     check(await sql(`select t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id where r.id='${NOTE_A2}'`) === "Blocks of meaning", "the note moved");
     await page.click('.hw-sections button:has-text("Overview")');
     await page.click('.ws-toast button:has-text("Undo")');
