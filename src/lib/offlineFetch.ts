@@ -235,8 +235,8 @@ async function saveResponse(key: string, method: string, url: string, response: 
   if (!response.ok) return;
   // Clone before the first await. The caller consumes the original response while
   // recovery-store reads run; cloning afterwards can throw and silently lose the cache.
-  const responseCopy = response.clone();
   try {
+    const responseCopy = response.clone();
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, name) => { responseHeaders[name] = value; });
     // Preserve the FIRST non-empty earlier response separately before a newer
