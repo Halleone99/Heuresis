@@ -48,3 +48,53 @@
 @media(prefers-reduced-motion:reduce) {
   .sort-setup button { transition: none; }
 }
+
+
+/* Discover starts by choosing a queue, with optional precise card selection. */
+.sort-setup-sizes { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.sort-setup-sizes button,
+.sort-setup-pick-header > button,
+.sort-setup-pick-actions button {
+  min-height:32px; padding:6px 10px; border:1px solid var(--ws-line);
+  background:var(--ws-surface); border-radius:8px; color:var(--ws-text);
+  cursor:pointer; font:600 11px Inter,sans-serif;
+}
+.sort-setup-sizes button.selected {
+  border-color:var(--ws-accent); background:var(--ws-accent-soft); color:var(--ws-accent);
+}
+.sort-setup-pick-header {
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+  padding-top:12px; border-top:1px solid var(--ws-line);
+}
+.sort-setup-pick-header > div { display:grid; gap:4px; }
+.sort-setup-pick-header strong { color:var(--ws-text); font:650 12px Inter,sans-serif; }
+.sort-setup-pick-header small,
+.sort-setup-field > small { color:var(--ws-muted); font:11px/1.5 Inter,sans-serif; }
+.sort-manual-count { font:500 25px 'Libre Caslon Display',Georgia,serif; color:var(--ws-ink); }
+.sort-setup-card-picker {
+  display:grid; gap:8px; padding:10px; border:1px solid var(--ws-line);
+  background:var(--ws-raised); border-radius:11px;
+}
+.sort-setup-pick-actions { display:flex; gap:6px; justify-content:flex-end; }
+.sort-setup-card-list {
+  max-height:235px; min-height:0; overflow-y:auto;
+  display:grid; align-content:start; gap:4px;
+}
+.sort-setup-card-option {
+  display:flex; align-items:center; gap:10px; min-height:41px; padding:7px 9px;
+  background:var(--ws-surface); border:1px solid var(--ws-line);
+  border-radius:8px; color:var(--ws-text); cursor:pointer;
+}
+.sort-setup-card-option:has(input:checked) {
+  border-color:var(--ws-accent); background:var(--ws-accent-soft);
+}
+.sort-setup-card-option input { width:16px; height:16px; flex:none; accent-color:var(--ws-accent); }
+.sort-setup-card-option > span { min-width:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
+.sort-setup-card-option b { font-size:12px; font-weight:650; overflow-wrap:anywhere; }
+.sort-setup-card-option small { color:var(--ws-muted); font-size:11px; }
+.sort-setup-empty { margin:5px; color:var(--ws-muted); font-size:12px; }
+.sort-setup-bottom { position:sticky; bottom:-1px; z-index:2; background:var(--ws-surface-2); padding-bottom:7px; }
+@media (max-width:680px) {
+  .sort-setup { padding:18px !important; gap:15px !important; }
+  .sort-setup-card-list { max-height:160px; }
+}
