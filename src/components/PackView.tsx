@@ -521,8 +521,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       </div>
       <section className="topic-workflow-overview topic-workflow-compact" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
-          <span>Cards</span>
-          <small>{visibleTotal.toLocaleString()} total</small>
+          <span>Learning stages</span>
+          <small>{visibleTotal.toLocaleString()} cards</small>
         </div>
         <div className="workflow-overview-stages">
           <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
