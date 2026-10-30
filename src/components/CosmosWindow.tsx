@@ -868,7 +868,6 @@ export default function CosmosWindow() {
         {summary ? <div className="cosmos-summary-lines">{summary.map((line) => <p key={line}>{line}</p>)}</div> : <p>No cards were answered.</p>}
         <div className="cosmos-summary-actions">
           {retryableThisRound.length ? <button className="primary" disabled={busy} onClick={() => void retryMissed()}>{busy ? "Opening…" : `Retry ${plural(retryableThisRound.length, "missed or partial card")}`}</button> : null}
-          {moreAvailable ? <button className={retryableThisRound.length ? "" : "primary"} disabled={busy} onClick={() => void continueWithMore()}>{MORE_SIZE} more</button> : null}
           <button disabled={busy} onClick={() => void closeSession().then(() => closeDesktopWindow())}>Done</button>
         </div>
       </div>;
