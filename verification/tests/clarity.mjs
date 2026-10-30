@@ -257,7 +257,7 @@ const scenarios = {
   async "Quick Capture respects Chinese IME candidate keys"(page) {
     await page.keyboard.press("Control+Shift+KeyN");
     await page.locator(".qc-panel").waitFor();
-    const input = page.locator(".qc-main-input");
+    const input = page.locator('textarea[aria-label="Quick note"]');
     await input.fill("我正在写汉字");
     // Some real input methods report keyCode 229 even if isComposing is false.
     await input.evaluate((element) => {
@@ -273,21 +273,21 @@ const scenarios = {
     check(await page.locator(".qc-panel").count() === 0, "Ordinary Escape still closes Quick Capture");
   },
 
-  async "one pin icon whose fill shows the state"(page) {
+  async "Quick Capture offers one clear Save and Close action"(page) {
     await page.keyboard.press("Control+Shift+KeyN");
-    await page.waitForSelector(".qc-panel");
-    const pin = page.locator('.qc-panel button[aria-label="Keep open after saving"]');
-    check(await pin.count() === 1, "Keep open is a labelled toggle");
-    check(await page.locator(".qc-panel .lucide-pin-off").count() === 0, "no crossed-out pin that reads as an action");
-    const before = await pin.getAttribute("aria-pressed");
-    await pin.click();
-    check(await pin.getAttribute("aria-pressed") !== before, "the toggle reports its new state");
+    await page.locator(".q-capture-panel").waitFor();
+    check(await page.locator('.q-capture-panel button[aria-label="Close Quick Capture"]').count() === 1,
+      "one labelled close action is available");
+    check(await page.locator(".q-capture-panel .q-primary:has-text(\"Save\")").count() === 1,
+      "one save action is available");
+    await page.locator('.q-capture-panel button[aria-label="Close Quick Capture"]').click();
+    check(await page.locator(".q-capture-panel").count() === 0, "Close dismisses Quick Capture");
   },
 
   async "notebook counts read naturally"(page) {
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(800);
-    const russian = await page.locator('.nb-home-subject:has-text("Russian") span').innerText();
+    const russian = await page.locator('.nb-home-subject:has-text("Russian") .nb-subject-copy > span').innerText();
     check(russian === "1 topic · 1 note", `singular and plural are right (“${russian}”)`);
   },
 
@@ -336,19 +336,27 @@ const scenarios = {
     await page.locator('.nb-editor[contenteditable="true"]').fill("今天是星期日。 Jīntiān shì xīngqīrì.");
     await page.locator('.nb-doc-actions button:has-text("Done")').click();
     await page.locator('.nb-doc-title:has-text("Today")').waitFor();
-    check(await page.locator('.nb-doc-actions button:has-text("Open window")').count() === 1,
-      "A saved note offers a separate writing window");
+    await page.locator('.nb-doc-actions button[aria-label="More actions"]').click();
+    check(await page.getByRole("menuitem", { name: "Open in new window" }).count() === 1,
+      "A saved note offers a separate writing window through More actions");
+    await page.locator('.nb-doc-actions button[aria-label="More actions"]').click();
     // The Notebook section is a home button, including when it is already selected.
     await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy")').waitFor();
     check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
-    // Deep links have different semantics: Recently edited should still open the document.
+    // Overview now reports Study activity; saved notes remain accessible from Notebook topics.
     await page.locator('.hw-sections button:has-text("Overview")').click();
-    await page.locator('.ov-list button').filter({ hasText: "Today's grammar" }).click();
-    await page.locator('.nb-doc-title:has-text("Today")').waitFor();
-    check(await page.locator(".nb-doc").count() === 1, "Overview opens a specific document, not Notebook home");
+    await page.locator(".oh-overview .oh-coverage").waitFor();
+    check(await page.locator(".oh-overview .oh-coverage").count() === 1,
+      "Overview displays Study review coverage");
     await page.locator('.hw-sections button:has-text("Notebook")').click();
-    await page.locator('.nb-home-subject:has-text("Philosophy")').waitFor();
+    await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
+    await page.locator('.nb-topic-card:has-text("Ethics")').click();
+    await page.locator('.nb-doc-open:has-text("Today")').click();
+    await page.locator('.nb-doc-title:has-text("Today")').waitFor();
+    check(await page.locator(".nb-doc").count() === 1,
+      "A saved note reopens from its Notebook topic");
+    await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
     await page.locator('.nb-topic-card:has-text("Ethics")').click();
     // Two independent editor windows must not share the same unsaved draft key.
@@ -433,12 +441,14 @@ const scenarios = {
       "the note is still a Reference note in the Notebook");
   },
 
-  async "only one sidebar toggle is visible at a time"(page) {
-    const visible = async (selector) => page.locator(selector).evaluate((element) => getComputedStyle(element).display !== "none");
-    check(!(await visible(".hw-sidebar-header-toggle")) && await visible(".hw-sidebar-collapse"), "with the full sidebar, only its own collapse button shows");
-    await page.click(".hw-sidebar-collapse");
-    await page.waitForTimeout(300);
-    check(await visible(".hw-sidebar-header-toggle"), "with the icon rail, the header toggle brings the sidebar back");
+  async "header sidebar toggle changes navigation mode"(page) {
+    const toggle = page.locator(".hw-sidebar-header-toggle");
+    check(await toggle.count() === 1, "one header sidebar toggle is present");
+    const before = await toggle.getAttribute("aria-expanded");
+    await toggle.click();
+    check(await toggle.getAttribute("aria-expanded") !== before, "sidebar toggle changes its expanded state");
+    await toggle.click();
+    check(await toggle.getAttribute("aria-expanded") === before, "sidebar can return to its previous state");
   },
 };
 
