@@ -387,7 +387,7 @@ export default function CosmosWindow() {
           }
           if (!relatedReview && config.tagIds.length) pool = pool.filter((entry) => config.tagIds.every((id) => entry.tags.some((tag) => tag.id === id)));
           if (!relatedReview && config.reviewFlags.length) pool = pool.filter((entry) => config.reviewFlags.every((flag) =>
-            flag === "favourite" ? entry.favourite : flag === "important" ? entry.tags.some((tag) => tag.name.toLowerCase() === "important") : flag === "missed" ? entry.stats.again_count >= 2 : true));
+            flag === "favourite" ? entry.favourite : flag === "important" ? (entry.data["_review_important"] === "true" || entry.tags.some((tag) => tag.name.toLowerCase() === "important")) : flag === "missed" ? entry.stats.again_count >= 2 : true));
           if (!relatedReview && config.query) {
             const q = config.query.toLocaleLowerCase();
             pool = pool.filter((entry) => [
