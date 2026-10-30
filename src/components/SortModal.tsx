@@ -230,7 +230,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
 
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
-  const decided = learned + references + discarded;
+  const decided = learned + discarded;
 
   return <div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="Sort cards">
     <header className="sort-topbar">
