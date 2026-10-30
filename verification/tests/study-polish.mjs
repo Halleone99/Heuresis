@@ -27,7 +27,9 @@ async function desktopStudy() {
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-command-bar").waitFor();
-    await page.locator(".modern-topic-table").waitFor(); // Wait for cards before inspecting enabled actions.
+    await page.locator(".topic-browse-hub").waitFor();
+    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    await page.locator(".modern-topic-table").waitFor(); // The tag-first topic only renders rows after Show all.
     check(await page.locator(".topic-learning-actions > button").count() === 4 && await page.locator(".topic-learning-actions > .review-split").count() === 0,
       "Topic has four clear actions: Sort, Review, Browse and New card");
     check(await page.locator(".desktop-header-actions > .desktop-primary").count() === 0, "No redundant New card in the header of an open topic");
