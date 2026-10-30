@@ -130,7 +130,7 @@ async function tabletNavigation() {
     await page.locator(".tablet-capture-fab").tap();
     await page.locator(".qc-panel:visible").waitFor();
     check(await page.locator(".qc-panel").isVisible(), "Movable Capture shortcut opens real Capture");
-    await page.locator('button[aria-label="Close quick capture"]').tap();
+    await page.locator('button[aria-label="Close Quick Capture"]').tap();
     check(await page.locator(".qc-panel").count() === 0, "Capture closes without trapping tablet navigation");
     check(errors.length === 0, "No tablet page errors");
   } finally { await browser.close(); }
