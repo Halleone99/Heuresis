@@ -4,10 +4,11 @@
 //   node tests/regressions.mjs offline    (scenarios whose name contains "offline")
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { check, launch, signIn, sql } from "./lib.mjs";
+import { BASE, check, launch, signIn, sql } from "./lib.mjs";
 
 const here = fileURLToPath(new URL("..", import.meta.url));
 const only = process.argv[2] ?? "";
+const HSK = "a0000000-0000-4000-8000-000000000001";
 const NOTE_A2 = "e0000000-0000-4000-8000-0000000000a2"; // 以前 / 以后 (Chinese › Grammar › Time expressions)
 
 function restore() {
