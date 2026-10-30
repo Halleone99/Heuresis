@@ -39,6 +39,9 @@ async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
   await page.waitForTimeout(800);
   await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  // Wait for the asynchronous topic data: the browse actions do not exist until cards load.
+  // Checking Show all before that point leaves the table collapsed and times out on rows.
+  await page.locator(".topic-browse-hub").waitFor();
   await showAllIfAvailable(page);
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(500);
