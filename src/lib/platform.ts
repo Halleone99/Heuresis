@@ -23,9 +23,13 @@ export function openInCurrentApp(params: URLSearchParams) {
 }
 
 export function returnToHeuresisApp() {
-  if (window.history.length > 1) {
-    window.history.back();
+  // Review navigates the only Android WebView, so going Back alone may reload
+  // Heuresis at its default landing page instead of restoring the open topic.
+  const packId = new URLSearchParams(window.location.search).get("pack");
+  if (packId) {
+    window.location.replace(`index.html?resumePack=${encodeURIComponent(packId)}`);
     return;
   }
-  window.location.assign("index.html");
+  if (window.history.length > 1) window.history.back();
+  else window.location.replace("index.html");
 }
