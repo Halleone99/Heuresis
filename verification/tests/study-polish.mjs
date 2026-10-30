@@ -27,9 +27,11 @@ async function desktopStudy() {
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-command-bar").waitFor();
-    await page.locator(".modern-topic-table").waitFor(); // Wait for cards before inspecting enabled actions.
-    check(await page.locator(".topic-learning-actions > button").count() === 3 && await page.locator(".topic-learning-actions > .review-split > button").count() === 2,
-      "Topic has four main actions: Sort, Review (with Adjust beside it), Browse and New card");
+    await page.locator(".topic-browse-hub").waitFor();
+    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    await page.locator(".modern-topic-table").waitFor(); // The tag-first topic only renders rows after Show all.
+    check(await page.locator(".topic-learning-actions > button").count() === 4 && await page.locator(".topic-learning-actions > .review-split").count() === 0,
+      "Topic has four clear actions: Sort, Review, Browse and New card");
     check(await page.locator(".desktop-header-actions > .desktop-primary").count() === 0, "No redundant New card in the header of an open topic");
     await page.locator(".topic-more-menu > summary").click();
     check(await page.locator(".topic-more-popover button").count() === 2, "Import and Connections live inside one More menu");
@@ -38,18 +40,13 @@ async function desktopStudy() {
     const review = page.getByRole("button", { name: "Review", exact: true });
     check(await review.isDisabled() === (learning === 0), "Review cannot open until a card is in Learning");
     if (learning) {
-      // Review itself starts at once; every choice lives under Adjust.
-      await page.locator(".review-adjust").click();
+      await page.locator(".review-command").click();
       await page.locator(".compact-study-launcher").waitFor();
-      await page.locator(".review-controls").waitFor(); // The Study templates load asynchronously.
-      check(await page.locator('[role="group"][aria-label="Review card order"]').count() === 0, "A recommended session sets its own order (no misleading order switch)");
-      await page.locator(".compact-cards-select select").selectOption("all");
-      check(await page.locator(".compact-study-heading .eyebrow").count() === 0, "Review heading is not repeated");
-      check(await page.locator('[role="group"][aria-label="Review directions"] button').count() === 2, "One accessible direction switch");
-      check(await page.getByRole("button", { name: "Both directions" }).count() === 1, "Directions have an understandable two-way label");
-      check(await page.getByRole("button", { name: "One direction" }).count() === 1, "Directions have an understandable one-way label");
-      check(await page.locator('[role="group"][aria-label="Review card order"] button').count() === 2, "One accessible order switch");
-      check(await page.locator(".compact-count-shortcuts").count() === 0, "No duplicate 10/20/50 amount buttons");
+      await page.locator(".review-controls").waitFor();
+      check(await page.locator('[role="group"][aria-label="Number of cards"] button').count() === 3, "Exactly 5, 10 and 20 session-size choices");
+      check(await page.locator('[role="group"][aria-label="Review card order"] button').count() === 3, "Exactly three order choices");
+      check(await page.locator(".review-filter-chips").count() === 2, "Content and review filters may be combined");
+      check(await page.locator(".review-include-mastered input").count() === 1, "Mastered cards can be included on demand");
       check(await page.locator(".study-start").count() === 1, "One start action");
       await page.keyboard.press("Escape");
       check(await page.locator(".compact-study-launcher").count() === 0, "Escape dismisses Review");
@@ -59,7 +56,7 @@ async function desktopStudy() {
       await sortAction.click();
       await page.locator(".sort-modal").waitFor();
       check(await page.locator(".sort-card").count() === 1, "Sort opens straight into the queue");
-      await page.locator(".sort-filter-toggle").click();
+      await page.locator(".sort-filter-open").click();
       check(await page.locator('[role="group"][aria-label="Sort card order"] button').count() === 2, "Sort reuses the order control (inside Filter)");
       check(await page.locator('[role="group"][aria-label="Sort card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
       await page.keyboard.press("Escape");
@@ -86,12 +83,11 @@ async function tabletNavigation() {
     await page.fill("input[type=password]", "heuresis");
     await page.click("button[type=submit]");
     await page.locator(".mobile-workspace-nav:visible").waitFor({ timeout: 15000 });
-    check(await page.locator(".mobile-workspace-nav button").count() === 7, "Seven main sections share one scrollable bottom bar; Progress is available from Overview");
+    check(await page.locator(".mobile-workspace-nav button").count() === 8, "Eight main sections include a pinned Captures destination");
     await page.locator('.mobile-workspace-nav button:has-text("Overview")').tap();
-    await page.locator('.ov-quicklinks button:has-text("View progress")').tap();
-    await page.locator('.pg-page h1:has-text("Progress")').waitFor({ timeout: 15000 });
-    check(await page.locator(".pg-page h1").innerText() === "Progress", "Detailed Progress remains accessible from Overview");
-    check(await page.locator('.mobile-workspace-nav button:has-text("Quotations")').count() === 1 && await page.locator('.mobile-workspace-nav button:has-text("Reference")').count() === 1, "Reading-related destinations remain accessible from touch navigation");
+    await page.locator('.oh-track[role="progressbar"]').waitFor({ timeout: 15000 });
+    check(await page.locator('.oh-track[role="progressbar"]').count() === 1, "Review coverage is accessible directly on tablet Overview");
+    check(await page.locator('.mobile-workspace-nav button:has-text("Quotations")').count() === 1 && await page.locator('.mobile-workspace-nav button:has-text("Catalogue")').count() === 1, "Reading and Catalogue remain accessible from touch navigation");
     check(!(await page.locator(".desktop-nav-group").isVisible()), "Old Study bottom bar is not stacked over it");
     const touchSize = await page.locator(".mobile-workspace-nav button").first().boundingBox();
     check(Boolean(touchSize && touchSize.height >= 44), "Bottom targets are finger-sized");
@@ -133,7 +129,7 @@ async function tabletNavigation() {
     await page.locator(".tablet-capture-fab").tap();
     await page.locator(".qc-panel:visible").waitFor();
     check(await page.locator(".qc-panel").isVisible(), "Movable Capture shortcut opens real Capture");
-    await page.locator('button[aria-label="Close quick capture"]').tap();
+    await page.locator('button[aria-label="Close Quick Capture"]').tap();
     check(await page.locator(".qc-panel").count() === 0, "Capture closes without trapping tablet navigation");
     check(errors.length === 0, "No tablet page errors");
   } finally { await browser.close(); }

@@ -19,7 +19,7 @@ import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import { openCosmosWindow } from "../lib/cosmosWindow";
 import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, importanceOf, ranksFor, type Importance } from "../lib/importance";
-import { assessState, directionEvidence, STATE_ATTENTION, STATE_LABEL, STATE_PROGRESSION, summaryState, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
+import { assessState, directionEvidence, summaryState, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { defaultDirections, directionPairs, legacyTemplateId } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { readReviewPrefs, rememberedTemplateIds } from "../lib/reviewPrefs";
@@ -50,6 +50,8 @@ type Props = {
 type StatusFilter = "unsorted" | "learning" | "reference";
 type InterestFilter = "all" | "none" | Importance;
 type DirectionState = { templateId: string; label: string; state: KnowledgeState; agedFrom: KnowledgeState | null };
+type ProgressStage = "new" | "review" | "known" | "mastered";
+const PROGRESS_STAGES: ProgressStage[] = ["new", "review", "known", "mastered"];
 type DetailFilter = "again" | "production" | "stale";
 type SortField = "status" | "term" | "interest" | "reviews" | "lastSeen";
 type SortDirection = "asc" | "desc";
@@ -103,6 +105,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((pack.cardType?.field_schema ?? []).map((field) => [field.key, fieldText(card.data, field.key)])));
   const [note, setNote] = useState(card.note ?? "");
   const [favourite, setFavourite] = useState(card.favourite);
+  const [reviewImportant, setReviewImportant] = useState(card.data["_review_important"] === "true");
   const [interest, setInterest] = useState<number | null>(card.interest_rank);
   const [tagIds, setTagIds] = useState<string[]>(card.tags.map((tag) => tag.id));
   const [saving, setSaving] = useState(false);
@@ -120,6 +123,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
     setSaving(true); setMessage("");
     try {
       await updateCard(pack, card.id, values, { note, favourite, interest_rank: interest, tagIds, expectedUpdatedAt: card.updated_at });
+      await patchCardData(card.id, { "_review_important": reviewImportant ? "true" : null });
       onSaved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save card.");
@@ -147,7 +151,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
             <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
           ))}
           <label className="field-row"><span>Note</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-          <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><label className="interest-control">Importance <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{IMPORTANCE_ORDER.map((level) => <option key={level} value={IMPORTANCE_RANK[level]}>{IMPORTANCE_LABEL[level]}</option>)}{interest != null && !IMPORTANCE_ORDER.some((level) => IMPORTANCE_RANK[level] === interest) ? <option value={interest}>{IMPORTANCE_LABEL[importanceOf(interest) ?? "useful"]} (kept as {interest} / 5)</option> : null}</select></label>
+          <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><button type="button" className={`toggle-pill ${reviewImportant ? "selected" : ""}`} onClick={() => setReviewImportant((value) => !value)} aria-pressed={reviewImportant}>Important (review)</button><label className="interest-control">Importance <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{IMPORTANCE_ORDER.map((level) => <option key={level} value={IMPORTANCE_RANK[level]}>{IMPORTANCE_LABEL[level]}</option>)}{interest != null && !IMPORTANCE_ORDER.some((level) => IMPORTANCE_RANK[level] === interest) ? <option value={interest}>{IMPORTANCE_LABEL[importanceOf(interest) ?? "useful"]} (kept as {interest} / 5)</option> : null}</select></label>
             <button type="button" className="toggle-pill" disabled={saving} onClick={() => { setSaving(true); void onRetention(card.retention === "reference" ? "learning" : "reference").catch((error) => setMessage(error instanceof Error ? error.message : "Could not change this card.")).finally(() => setSaving(false)); }}
               title={card.retention === "reference" ? "Bring it back into Learning (it will be reviewed)" : "Keep it to look up only; it leaves Review"}>
               <BookOpen size={14} /> {card.retention === "reference" ? "Move to Learning" : "Keep as reference"}</button></div>
@@ -173,7 +177,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
-  const [stateFilter, setStateFilter] = useState<KnowledgeState | null>(null);
+  const [stateFilter, setStateFilter] = useState<ProgressStage | null>(null);
   const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
   const [tagFilter, setTagFilter] = useState("all");
@@ -288,13 +292,19 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
   const learningCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "learning"), [cards]);
+  const stageOf = (card: CardWithStats): ProgressStage => {
+    const progress = cardBars.get(card.id);
+    return progress?.mastered ? "mastered" : progress?.bars === 4 ? "known" : reviewGradeCount(card) ? "review" : "new";
+  };
   const stateCounts = useMemo(() => {
-    const counts = Object.fromEntries(STATE_PROGRESSION.map((state) => [state, 0])) as Record<KnowledgeState, number>;
-    for (const card of learningCards) { const state = cardSummary(card); if (state) counts[state] += 1; }
+    const counts: Record<ProgressStage, number> = { new: 0, review: 0, known: 0, mastered: 0 };
+    for (const card of learningCards) {
+      const progress = cardBars.get(card.id);
+      const stage = progress?.mastered ? "mastered" : progress?.bars === 4 ? "known" : reviewGradeCount(card) ? "review" : "new";
+      counts[stage] += 1;
+    }
     return counts;
-    // cardSummary reads cardStates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardStates, learningCards]);
+  }, [cardBars, learningCards]);
   const favouriteCards = useMemo(() => cards.filter((card) => card.favourite), [cards]);
   // Offer only tags used by this topic; the card editor retains the global tag catalogue.
   const tagFacets = useMemo(() => {
@@ -340,7 +350,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     const filtered = source.filter((card) => {
       const status = workflowStatus(card);
       if (statusFilters.length && !statusFilters.includes(status)) return false;
-      if (stateFilter && cardSummary(card) !== stateFilter) return false;
+      if (stateFilter && stageOf(card) !== stateFilter) return false;
 
       if (favouriteOnly && !card.favourite) return false;
       if (interestFilter === "none" && card.interest_rank != null) return false;
@@ -409,24 +419,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     onChanged();
   }
 
-  /** One click: a recommended session with the remembered directions and size (Adjust changes them). */
-  async function startReview() {
-    // A double click must not open two Review windows (two sessions).
-    if (reviewStarting.current) return;
-    reviewStarting.current = true;
-    setReviewNotice("");
-    const prefs = readReviewPrefs(pack.id);
-    const templateIds = rememberedTemplateIds(prefs, templates, directionPairs(templates));
-    try {
-      await openCosmosWindow({ mode: "review", packId: pack.id, source: "recommended", order: "pack", count: prefs.size, templateIds });
-      reviewOpened.current = true;
-    } catch (startError) {
-      setReviewNotice(startError instanceof Error ? startError.message : "Could not open Review.");
-    } finally {
-      // The second click of a double click arrives after the window has opened.
-      window.setTimeout(() => { reviewStarting.current = false; }, 800);
-    }
-  }
+  /** Review always opens the user's simple selection screen. */
+  function startReview() { setStudyOpen(true); }
 
   async function openTargeted(_title: string, selected: CardWithStats[], limit?: number, templateId?: string) {
     const next = limit ? selected.slice(0, limit) : selected;
@@ -471,7 +465,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setStatusFilters(statusFilters.length === 1 && statusFilters[0] === stage ? [] : [stage]);
   }
 
-  function chooseState(state: KnowledgeState) {
+  function chooseState(state: ProgressStage) {
     setAllCardsExpanded(false);
     if (stateFilter === state) { setStateFilter(null); return; }
     setStatusFilters(["learning"]);
@@ -499,7 +493,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
-  const learningBreakdown = STATE_PROGRESSION.filter((state) => stateCounts[state]);
+  const learningBreakdown = PROGRESS_STAGES.filter((state) => stateCounts[state]);
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
       <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
@@ -534,9 +528,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           </button>
         </div>
         {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
-          <span>Of {learningCards.length} learning cards{stateTemplates.length > 1 ? " (weakest direction)" : ""}:</span>
+          <span>Of {learningCards.length} sorted cards:</span>
           {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
-            {state !== "not-tried" ? <i className="knowledge-dot" data-state={state} aria-hidden="true" /> : null} {stateCounts[state]} {state === "not-tried" ? "new" : STATE_LABEL[state].toLowerCase()}</button>)}
+            {stateCounts[state]} {state === "new" ? "new" : state === "review" ? "review" : state === "known" ? "known" : "mastered"}</button>)}
         </div> : null}
       </section>
 
@@ -549,12 +543,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
           <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <span className="review-split">
-            <button className="primary-button review-command" disabled={!learningCards.length}
-              title={learningCards.length ? "Start a recommended session" : "Sort cards into Learning before reviewing"} onClick={() => void startReview()}><Brain size={15} /> Review</button>
-            <button className="secondary-button review-adjust" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
-              title="Choose directions, cards, session size and order">▾</button>
-          </span>
+          <button className="primary-button review-command" disabled={!learningCards.length}
+            title="Choose cards, tags and review order" onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
           {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
             const selected = shown.filter((card) => workflowStatus(card) === "learning");
             openTargeted("Review filtered lesson", selected);

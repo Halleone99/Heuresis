@@ -2,7 +2,7 @@ import { isAndroidRuntime, openInCurrentApp } from "./platform";
 
 export type CosmosMode = "review" | "sort";
 export type CosmosSource = "recommended" | "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
-export type CosmosOrder = "pack" | "random";
+export type CosmosOrder = "pack" | "random" | "weakest" | "oldest";
 
 export type CosmosLaunch = {
   mode: CosmosMode;
@@ -14,6 +14,8 @@ export type CosmosLaunch = {
   count?: number | "all";
   tagId?: string;
   tagIds?: string[];
+  reviewFlags?: string[];
+  includeMastered?: boolean;
   query?: string;
   /** Exact card selection for filtered and targeted reviews. */
   cardIds?: string[];
@@ -56,6 +58,8 @@ function buildParams(options: CosmosLaunch) {
   else if (options.templateId) params.set("template", options.templateId);
   const tagIds = Array.from(new Set([...(options.tagIds ?? []), ...(options.tagId ? [options.tagId] : [])].filter(Boolean)));
   tagIds.forEach((tagId) => params.append("tag", tagId));
+  (options.reviewFlags ?? []).forEach((flag) => params.append("flag", flag));
+  if (options.includeMastered) params.set("mastered", "1");
   if (options.query?.trim()) params.set("q", options.query.trim());
   if (options.cardIds) {
     const ids = Array.from(new Set(options.cardIds.filter(Boolean)));

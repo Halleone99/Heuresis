@@ -84,11 +84,20 @@ const scenarios = {
     check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
     check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
     await page.keyboard.press("Escape");
-    await page.locator(".review-adjust").click();
+    await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
+    // Eligibility can change when historical grades arrive: mastered cards are excluded
+    // unless requested. Assert against the *loaded* pool, not its transient initial count.
+    await page.locator('.study-state:has-text("Loading cards and review history")').waitFor({ state: "hidden" });
     const meta = await page.locator(".compact-study-meta").innerText();
-    check(/5\s*learning/.test(meta), `Adjust counts the five Learning cards (“${meta.replace(/\s+/g, " ")}”)`);
-    check(await page.locator(".study-start").isEnabled(), "Review can start from Adjust");
+    check(/\d+\s*available/.test(meta), `Review shows eligible cards (“${meta.replace(/\s+/g, " ")}”)`);
+    const available = Number(meta.match(/(\d+)\s*available/)?.[1] ?? 0);
+    const start = page.locator(".study-start");
+    const error = await page.locator(".study-error").allInnerTexts();
+    const directionMissing = await page.locator('.study-state:has-text("No review direction")').count();
+    check(error.length === 0 && !directionMissing, `Review setup loads a direction without errors (errors: ${error.join("; ") || "none"}; missing direction: ${directionMissing})`);
+    check((await start.isEnabled()) === (available > 0),
+      `Review starts only with eligible cards (available: ${available}; enabled: ${await start.isEnabled()})`);
     await page.screenshot({ path: `${shots}/review-setup.png` });
   },
 
@@ -108,9 +117,9 @@ const scenarios = {
 
   async "selected review direction stays readable while hovered"(page) {
     await openTopic(page);
-    await page.locator(".review-adjust").click();
+    await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
-    const selected = page.locator('.direction-mode-toggle button[aria-pressed="true"]');
+    const selected = page.locator('.study-order-toggle button[aria-pressed="true"]');
     await selected.hover();
     await page.waitForTimeout(300);
     const colours = await selected.evaluate((element) => { const style = getComputedStyle(element); return { color: style.color, background: style.backgroundColor }; });
@@ -161,21 +170,18 @@ const scenarios = {
     check(true, "Sort opens straight into the queue (no setup step)");
     const decision = page.locator(".sort-panel");
     check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
-    check(await decision.getByRole("button", { name: "Importance Core" }).count() === 1, "Core importance is available");
-    await decision.getByRole("button", { name: "Other actions" }).click();
-    check(await decision.getByRole("button", { name: "Keep as reference" }).count() === 1, "Reference is available without adding a second panel");
-    check(await decision.getByRole("button", { name: "Discard to Trash" }).count() === 1, "Discard is recoverable");
-    check(await decision.getByRole("button", { name: "Decide later" }).count() === 1, "Later is available");
-    await decision.getByRole("button", { name: "Other actions" }).click();
-    check(await page.locator(".sort-tags").count() === 0 && await page.locator(".sort-tags-control .sort-side-heading button").count() === 1, "tags are behind one secondary control");
+    check(await decision.getByRole("button", { name: "Learn as Core" }).count() === 1, "Core classification is available");
+    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is no longer a Sort action");
+    check(await decision.getByRole("button", { name: /Sort Later/ }).count() === 1, "Sort Later is available");
+    check(await decision.getByRole("button", { name: /Discard/ }).count() === 1, "Discard to Trash remains recoverable");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
-    await page.keyboard.press("r");
-    await page.waitForTimeout(900);
-    check(await sql(`select retention from heuresis_cards where data->>'term'='${first}'`) === "reference", `R keeps the first card (${first}) as reference`);
+    await page.keyboard.press("l");
+    await page.waitForTimeout(350);
+    check(await sql(`select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='${first}'`) === "t", "Sort Later leaves the first card unsorted");
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("u");
     await page.waitForTimeout(900);
-    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", `U sends the second card (${second}) to Learning as Useful (stored as 3)`);
+    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", "Active stores rank 3 and marks the card sorted");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
@@ -259,7 +265,7 @@ const scenarios = {
   async "Quick Capture respects Chinese IME candidate keys"(page) {
     await page.keyboard.press("Control+Shift+KeyN");
     await page.locator(".qc-panel").waitFor();
-    const input = page.locator(".qc-main-input");
+    const input = page.locator('textarea[aria-label="Quick note"]');
     await input.fill("我正在写汉字");
     // Some real input methods report keyCode 229 even if isComposing is false.
     await input.evaluate((element) => {
@@ -275,21 +281,21 @@ const scenarios = {
     check(await page.locator(".qc-panel").count() === 0, "Ordinary Escape still closes Quick Capture");
   },
 
-  async "one pin icon whose fill shows the state"(page) {
+  async "Quick Capture offers one clear Save and Close action"(page) {
     await page.keyboard.press("Control+Shift+KeyN");
-    await page.waitForSelector(".qc-panel");
-    const pin = page.locator('.qc-panel button[aria-label="Keep open after saving"]');
-    check(await pin.count() === 1, "Keep open is a labelled toggle");
-    check(await page.locator(".qc-panel .lucide-pin-off").count() === 0, "no crossed-out pin that reads as an action");
-    const before = await pin.getAttribute("aria-pressed");
-    await pin.click();
-    check(await pin.getAttribute("aria-pressed") !== before, "the toggle reports its new state");
+    await page.locator(".q-capture-panel").waitFor();
+    check(await page.locator('.q-capture-panel button[aria-label="Close Quick Capture"]').count() === 1,
+      "one labelled close action is available");
+    check(await page.locator(".q-capture-panel .q-primary:has-text(\"Save\")").count() === 1,
+      "one save action is available");
+    await page.locator('.q-capture-panel button[aria-label="Close Quick Capture"]').click();
+    check(await page.locator(".q-capture-panel").count() === 0, "Close dismisses Quick Capture");
   },
 
   async "notebook counts read naturally"(page) {
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(800);
-    const russian = await page.locator('.nb-home-subject:has-text("Russian") span').innerText();
+    const russian = await page.locator('.nb-home-subject:has-text("Russian") .nb-subject-copy > span').innerText();
     check(russian === "1 topic · 1 note", `singular and plural are right (“${russian}”)`);
   },
 
@@ -338,19 +344,27 @@ const scenarios = {
     await page.locator('.nb-editor[contenteditable="true"]').fill("今天是星期日。 Jīntiān shì xīngqīrì.");
     await page.locator('.nb-doc-actions button:has-text("Done")').click();
     await page.locator('.nb-doc-title:has-text("Today")').waitFor();
-    check(await page.locator('.nb-doc-actions button:has-text("Open window")').count() === 1,
-      "A saved note offers a separate writing window");
+    await page.locator('.nb-doc-actions button[aria-label="More actions"]').click();
+    check(await page.getByRole("menuitem", { name: "Open in new window" }).count() === 1,
+      "A saved note offers a separate writing window through More actions");
+    await page.locator('.nb-doc-actions button[aria-label="More actions"]').click();
     // The Notebook section is a home button, including when it is already selected.
     await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy")').waitFor();
     check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
-    // Deep links have different semantics: Recently edited should still open the document.
+    // Overview now reports Study activity; saved notes remain accessible from Notebook topics.
     await page.locator('.hw-sections button:has-text("Overview")').click();
-    await page.locator('.ov-list button').filter({ hasText: "Today's grammar" }).click();
-    await page.locator('.nb-doc-title:has-text("Today")').waitFor();
-    check(await page.locator(".nb-doc").count() === 1, "Overview opens a specific document, not Notebook home");
+    await page.locator(".oh-overview .oh-coverage").waitFor();
+    check(await page.locator(".oh-overview .oh-coverage").count() === 1,
+      "Overview displays Study review coverage");
     await page.locator('.hw-sections button:has-text("Notebook")').click();
-    await page.locator('.nb-home-subject:has-text("Philosophy")').waitFor();
+    await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
+    await page.locator('.nb-topic-card:has-text("Ethics")').click();
+    await page.locator('.nb-doc-open:has-text("Today")').click();
+    await page.locator('.nb-doc-title:has-text("Today")').waitFor();
+    check(await page.locator(".nb-doc").count() === 1,
+      "A saved note reopens from its Notebook topic");
+    await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
     await page.locator('.nb-topic-card:has-text("Ethics")').click();
     // Two independent editor windows must not share the same unsaved draft key.
@@ -382,11 +396,11 @@ const scenarios = {
     console.log("NB77: save cover");
     await page.locator('.nb-cover-dialog button:has-text("Save")').click();
     await page.locator(".nb-cover-dialog").waitFor({ state: "hidden" });
-    const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
-    check(colour === "rgb(53, 75, 104)", "a colour choice changes the subject card");
+    const colour = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).getPropertyValue("--nb-subject-accent").trim());
+    check(colour === "#354b68", "a colour choice changes the subject card accent");
     await page.reload();
     await page.waitForSelector('.nb-home-subject:has-text("German")');
-    const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).backgroundColor);
+    const retained = await page.locator('.nb-home-subject:has-text("German")').evaluate(el => getComputedStyle(el).getPropertyValue("--nb-subject-accent").trim());
     check(retained === colour, "subject colour survives reopening");
     // Cover images should survive reload without any database migration.
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').dblclick();
@@ -435,12 +449,14 @@ const scenarios = {
       "the note is still a Reference note in the Notebook");
   },
 
-  async "only one sidebar toggle is visible at a time"(page) {
-    const visible = async (selector) => page.locator(selector).evaluate((element) => getComputedStyle(element).display !== "none");
-    check(!(await visible(".hw-sidebar-header-toggle")) && await visible(".hw-sidebar-collapse"), "with the full sidebar, only its own collapse button shows");
-    await page.click(".hw-sidebar-collapse");
-    await page.waitForTimeout(300);
-    check(await visible(".hw-sidebar-header-toggle"), "with the icon rail, the header toggle brings the sidebar back");
+  async "sidebar shortcut changes navigation mode"(page) {
+    check(await page.locator(".hw-sidebar-header-toggle").count() === 1, "one header sidebar toggle exists");
+    const desktop = page.locator(".heuresis-desktop");
+    const before = await desktop.getAttribute("data-sidebar");
+    await page.keyboard.press("Control+Backslash");
+    check(await desktop.getAttribute("data-sidebar") !== before, "sidebar shortcut changes navigation mode");
+    await page.keyboard.press("Control+Backslash");
+    check(await desktop.getAttribute("data-sidebar") === before, "sidebar can return to its previous mode");
   },
 };
 
@@ -474,7 +490,7 @@ for (const [name, run] of Object.entries(scenarios)) {
     check(!unexpected.length, `no page errors${unexpected.length ? `: ${unexpected.join(" | ")}` : ""}`);
   } catch (error) {
     failures += 1;
-    console.log(`  ✗ ${name}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    console.log(`  ✗ ${name}: ${error instanceof Error ? error.stack ?? error.message : error}`);
     process.exitCode = 1;
   } finally {
     await browser.close();

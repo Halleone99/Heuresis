@@ -4,10 +4,11 @@
 //   node tests/regressions.mjs offline    (scenarios whose name contains "offline")
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { check, launch, signIn, sql } from "./lib.mjs";
+import { BASE, check, launch, signIn, sql } from "./lib.mjs";
 
 const here = fileURLToPath(new URL("..", import.meta.url));
 const only = process.argv[2] ?? "";
+const HSK = "a0000000-0000-4000-8000-000000000001";
 const NOTE_A2 = "e0000000-0000-4000-8000-0000000000a2"; // 以前 / 以后 (Chinese › Grammar › Time expressions)
 
 function restore() {
@@ -148,17 +149,18 @@ const scenarios = {
     await editor.locator("textarea").nth(0).fill("Wrong assumption");
     await editor.locator("textarea").nth(1).fill("Corrected conclusion");
     await editor.locator("button.ml-destination").click();
-    await page.locator(".ws-picker-search input").fill("German Grammar");
-    await page.locator('.ws-picker-list button:has-text("Grammar")').first().click();
+    await page.locator(".ws-picker-list button").first().waitFor();
+    await page.locator(".ws-picker-search input").fill("B1.2");
+    await page.locator('.ws-picker-list button:has-text("German")').filter({ hasText: "B1.2" }).first().click();
     await editor.locator('button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Corrected conclusion")');
     const destination = await sql("select s.name || ' › ' || t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id join knowledge_subjects s on s.id=t.subject_id where r.attempt='Wrong assumption'");
-    check(destination === "German › Grammar", "Saving requires a real destination and never creates Unsorted");
+    check(destination === "German › B1.2", "Saving requires a real destination and never creates Unsorted");
 
     await page.locator('.ml-simple-item:has-text("Corrected conclusion") [aria-label="Edit mistake"]').click();
     await page.locator(".ml-simple-edit input[maxlength='200']").fill("Cause and effect");
     await page.locator(".ml-simple-edit summary").click();
-    await page.locator(".ml-edit-notes textarea").fill("Compare correlation and causation");
+    await page.locator('.ml-edit-notes [contenteditable="true"]').fill("Compare correlation and causation");
     await page.locator('.ml-simple-edit button:has-text("Save")').click();
     await page.waitForSelector('.ml-simple-item:has-text("Cause and effect")');
     check(await page.locator('.ml-simple-item:has-text("Compare correlation")').count() === 1,
@@ -166,7 +168,7 @@ const scenarios = {
 
     await page.locator('.ml-crumbs button:has-text("Mistake Log")').click();
     await page.locator('.nb-home-subject:has-text("German") .nb-subject-open').click();
-    const grammarTheme = page.locator('.ml-theme-tile:has-text("Grammar")').first();
+    const grammarTheme = page.locator('.ml-theme-tile:has-text("B1.2")').first();
     await grammarTheme.locator(".ml-theme-pick").click();
     check(await page.locator('.ml-study-selection:has-text("1 theme selected")').count() === 1,
       "A whole theme can be selected for targeted practice without opening corrections");
@@ -215,7 +217,8 @@ const scenarios = {
 
     await page.keyboard.press("Control+Shift+KeyM");
     await page.waitForSelector(".qc-panel");
-    check(await page.locator(".qc-panel .qc-field textarea").count() === 2, "Quick Capture also uses two mistake fields");
+    await page.locator('.q-capture-types button:has-text("Mistake")').click();
+    check(await page.locator(".q-capture-editor textarea").count() === 2, "Quick Capture also uses two mistake fields");
     check(await page.locator(".qc-panel .qc-categories").count() === 0, "Quick Capture no longer demands a mistake type");
   },
 
@@ -246,17 +249,16 @@ const scenarios = {
     await page.keyboard.press("Control+Shift+KeyN");
     await page.waitForSelector(".qc-panel");
     check(await page.locator(".qc-first-run").count() === 0, "no “Where should your notes live?” prompt while languages are loading");
-    await page.waitForSelector(".qc-language-choices button", { timeout: 20000 }).catch(() => undefined);
-    check(await page.locator(".qc-language-choices button").count() === 3, "the three languages appear once loaded");
+    check(await page.locator(".q-capture-editor textarea").count() === 1 && await page.locator(".qc-language-choices").count() === 0,
+      "Q Capture accepts a note without demanding a subject while Notebook data loads");
   },
 
-  async "progress keeps one colour per language"(page) {
+  async "overview shows review coverage and daily activity"(page) {
     await page.click('.hw-sections button:has-text("Overview")');
-    await page.click('.ov-quicklinks button:has-text("View progress")');
-    await page.waitForTimeout(1200);
-    const swatches = await page.locator(".pg-language-legend span").evaluateAll((spans) => spans.map((span) => [span.textContent.trim(), span.querySelector("i")?.getAttribute("style") ?? ""]));
-    const chinese = new Set(swatches.filter(([name]) => name === "Chinese").map(([, style]) => style));
-    check(chinese.size === 1 && [...chinese][0].includes("--c-cinnabar"), "Chinese has the same colour in every chart");
+    await page.locator('.oh-track[role="progressbar"]').waitFor();
+    check(await page.locator(".oh-metric").count() === 3, "Overview shows card totals, additions and reviews");
+    await page.locator(".oh-days .oh-cell").first().waitFor({ timeout: 15000 });
+    check(await page.locator(".oh-days .oh-cell").count() >= 180, "Overview shows the last 26 weeks of daily review activity");
   },
 
   async "tablet portrait: the Notebook drawer neither peeks out nor opens displaced"(page) {
@@ -309,8 +311,10 @@ const scenarios = {
     await page.click('button[aria-label="More actions"]');
     await page.click('button[role=menuitem]:has-text("Move to")');
     await page.fill(".ws-picker-search input", "Blocks of meaning");
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(800);
+    // Choose the actual destination rather than pressing Enter before the filtered
+    // picker has committed its highlighted row.
+    await page.getByRole("option", { name: /Blocks of meaning/ }).first().click();
+    await page.locator('.ws-toast button:has-text("Undo")').waitFor({ timeout: 7000 });
     check(await sql(`select t.name from knowledge_records r join knowledge_topics t on t.id=r.topic_id where r.id='${NOTE_A2}'`) === "Blocks of meaning", "the note moved");
     await page.click('.hw-sections button:has-text("Overview")');
     await page.click('.ws-toast button:has-text("Undo")');
@@ -336,19 +340,21 @@ const scenarios = {
 
   async "server unreachable: the device copy is shown and captures are not called stored"(page, context) {
     await page.click('.hw-sections button:has-text("Notebook")');
-    await page.waitForTimeout(1200);
+    // Seed the device copy from a fully loaded Notebook before cutting the connection.
+    await page.locator('.nb-home-subject:has-text("Chinese")').waitFor({ timeout: 15000 });
     await context.route("http://localhost:54321/**", (route) => route.abort("connectionrefused"));
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar", { timeout: 20000 });
-    await page.waitForTimeout(9000);
-    check(/Chinese/.test(await page.locator("main").innerText()), "the Notebook opens from the device copy");
+    await page.click('.hw-sections button:has-text("Notebook")');
+    await page.locator('.nb-home-subject:has-text("Chinese")').waitFor({ timeout: 15000 }).catch(() => undefined);
+    const offlineMain = await page.locator("main").innerText();
+    check(/Chinese/.test(offlineMain), `the Notebook opens from the device copy (${offlineMain.slice(0, 250)})`);
     await page.keyboard.press("Control+Shift+KeyN");
-    await page.click('.qc-language-choices button:has-text("German")');
-    await page.fill(".qc-main-input", "Server down capture");
+    await page.locator(".q-capture-editor textarea").fill("Server down capture");
     await page.keyboard.press("Control+Enter");
     await page.waitForTimeout(1500);
     const toast = (await page.locator(".ws-toast").allInnerTexts()).join(" ");
-    check(/on this device/.test(toast), `the capture is reported as kept on this device (“${toast.split("\n")[0]}”)`);
+    check(/on this device|waiting to sync/i.test(toast), `the capture is reported as kept on this device (“${toast.split("\n")[0]}”)`);
     await context.unroute("http://localhost:54321/**");
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await page.waitForTimeout(5000);
@@ -356,21 +362,20 @@ const scenarios = {
   },
 
   async "learning loop: capture → flashcard → sort → review"(page, context) {
-    await page.keyboard.press("Control+Shift+KeyN");
-    await page.waitForSelector(".qc-panel");
-    await page.click('.qc-language-choices button:has-text("Chinese")');
-    await page.fill(".qc-main-input", "再见 — goodbye");
-    await page.keyboard.press("Control+Enter");
-    await page.waitForTimeout(1200);
-    await openNote(page, "再见");
-    await page.click('button[aria-label="More actions"]');
-    await page.click('button[role=menuitem]:has-text("Make a flashcard")');
-    await page.waitForSelector("#fc-title");
-    await page.waitForTimeout(800);
-    await page.click('.ws-dialog button[type=submit]');
+    // Q Capture now files provisional notes in the Captures queue. Use the dedicated
+    // Study card composer to test the complete card-to-review learning loop.
+    await page.goto(`${BASE}?capture=1&pack=${HSK}`);
+    await page.locator(".capture-composer").waitFor({ timeout: 15000 });
+    const slots = page.locator(".capture-card-surface .capture-slot textarea");
+    await slots.nth(0).fill("再见");
+    await slots.nth(1).fill("zàijiàn");
+    await slots.nth(2).fill("goodbye");
+    await slots.nth(2).press("Enter");
     await page.waitForTimeout(1200);
     check(await sql("select p.title||'|'||(c.data->>'meaning') from heuresis_cards c join heuresis_packs p on p.id=c.pack_id where c.data->>'term'='再见'") === "HSK 2 — Time|goodbye",
       "the card is in the Chinese topic with its meaning");
+    await page.goto(BASE);
+    await page.locator(".heuresis-section-sidebar").waitFor();
     await page.click('.hw-sections button:has-text("Study")');
     await page.waitForTimeout(1200);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
@@ -378,24 +383,27 @@ const scenarios = {
     await page.click("button.sort-command");
     // Sort opens straight into the queue; narrowing it is behind Filter.
     await page.waitForSelector(".sort-card");
-    await page.click(".sort-filter-toggle");
+    await page.click(".sort-filter-open");
     await page.fill(".sort-setup-search input", "再见");
     check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
     await page.waitForTimeout(400);
     const disclosure = page.locator('.sort-enrich-heading:has-text("Examples")');
     await disclosure.focus();
+    const initiallyExpanded = await disclosure.getAttribute("aria-expanded");
     await page.keyboard.press("Enter");
-    check(await disclosure.getAttribute("aria-expanded") === "true", "Sort opens the editable Examples dimension with keyboard Enter");
+    check(await disclosure.getAttribute("aria-expanded") !== initiallyExpanded, "Enter toggles the editable Examples dimension");
     await page.keyboard.press("Space");
-    check(await disclosure.getAttribute("aria-expanded") === "false", "Sort closes the Examples dimension with keyboard Space");
-    await page.keyboard.press("4");
+    check(await disclosure.getAttribute("aria-expanded") === initiallyExpanded, "Space toggles the Examples dimension back");
+    await page.keyboard.press("c");
     await page.waitForTimeout(1200);
-    // Digit 4 is Core, stored on the existing 1–5 scale as 5.
+    // Core is stored on the existing 1–5 scale as 5.
     check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "5|true", "sorting stores importance (Core) and completion");
     // Review is one click from the end of a Sort pass.
-    const popupOpened = context.waitForEvent("page");
     await page.click('.sort-finished-actions button:has-text("Review now")');
+    await page.locator(".review-controls").waitFor();
+    const popupOpened = context.waitForEvent("page");
+    await page.locator(".study-start").click();
     const popup = await popupOpened;
     await popup.waitForSelector(".cosmos-count", { timeout: 15000 });
     await popup.keyboard.press(" ");
@@ -421,7 +429,7 @@ for (const [name, run] of Object.entries(scenarios)) {
     check(!unexpected.length, `no page errors${unexpected.length ? `: ${unexpected.join(" | ")}` : ""}`);
   } catch (error) {
     failures += 1;
-    console.log(`  ✗ ${name}: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    console.log(`  ✗ ${name}: ${error instanceof Error ? error.stack ?? error.message : error}`);
     process.exitCode = 1;
   } finally {
     await browser.close();

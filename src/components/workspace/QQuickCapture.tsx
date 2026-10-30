@@ -158,6 +158,9 @@ export function QQuickCapture({ floating = false, onRequestClose }: {
     role="dialog" aria-label="Quick Capture"
     onKeyDown={(event) => {
       event.stopPropagation();
+      // IME candidate confirmation may report keyCode 229 even when isComposing is false.
+      // Do not close or save a capture while Chinese/Japanese/Korean text is being composed.
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       if (event.key === "Escape") { event.preventDefault(); close(); }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void save(); }
     }}>

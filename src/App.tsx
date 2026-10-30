@@ -308,9 +308,19 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   useEffect(() => {
     if (restoredStudy.current || loading || error) return;
     restoredStudy.current = true;
-    const saved = workspace.memory.study;
-    if (saved.view === "pack" && saved.packId && packs.some((pack) => pack.id === saved.packId)) { setActivePackId(saved.packId); setView("pack"); }
-    else if (saved.view === "catalogue" || saved.view === "related") setView(saved.view);
+    const resumePackId = new URLSearchParams(window.location.search).get("resumePack");
+    if (resumePackId && packs.some((pack) => pack.id === resumePackId)) {
+      setActivePackId(resumePackId);
+      setView("pack");
+      setSection("study");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("resumePack");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    } else {
+      const saved = workspace.memory.study;
+      if (saved.view === "pack" && saved.packId && packs.some((pack) => pack.id === saved.packId)) { setActivePackId(saved.packId); setView("pack"); }
+      else if (saved.view === "catalogue" || saved.view === "related") setView(saved.view);
+    }
   }, [error, loading, packs, workspace.memory.study]);
   useEffect(() => {
     if (!restoredStudy.current) return;

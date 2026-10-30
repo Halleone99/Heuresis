@@ -1,3 +1,5 @@
+/* Keep Sort above the tablet navigation and Capture handle. */
+.sort-backdrop { z-index: 2000; }
 
 /* Sort: three calm working surfaces — knowledge / flashcard / decision. */
 .sort-backdrop .sort-modal { width:min(1530px,98vw) !important; height:min(865px,96dvh) !important; border-radius:18px; }

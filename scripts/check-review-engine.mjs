@@ -28,9 +28,9 @@ function card(id, { interest = null, byTemplate = {}, lastSeenDays = null } = {}
 const ev = (cardId, templateId, grade, daysAgo) => ({ cardId, templateId, grade, at: NOW - daysAgo * DAY });
 
 // --- Result labels and importance -------------------------------------------------
-assert.deepEqual(results.RESULT_ORDER.map((grade) => results.RESULT_LABEL[grade]), ["Missed", "Partial", "Recalled", "Secure"]);
+assert.deepEqual(results.RESULT_ORDER.map((grade) => results.RESULT_LABEL[grade]), ["Missed", "Partial", "Known", "Easy"]);
 assert.equal(results.isSuccess("easy"), true, "Secure is a successful result");
-assert.equal(results.resultCountsText({ again_count: 1, hard_count: 0, good_count: 2, easy_count: 1 }), "1 missed · 2 recalled · 1 secure");
+assert.equal(results.resultCountsText({ again_count: 1, hard_count: 0, good_count: 2, easy_count: 1 }), "1 missed · 2 known · 1 easy");
 assert.deepEqual([1, 2, 3, 4, 5, null].map(importance.importanceOf), ["peripheral", "peripheral", "useful", "core", "core", null], "existing 1–5 values map to three levels");
 assert.deepEqual(importance.IMPORTANCE_RANK, { core: 5, useful: 3, peripheral: 1 });
 
