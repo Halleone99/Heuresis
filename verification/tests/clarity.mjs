@@ -29,6 +29,7 @@ async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
   await page.waitForTimeout(800);
   await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  await page.locator('.topic-browse-actions button:has-text("Show all")').click();
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(400);
 }
@@ -47,6 +48,19 @@ function contrast(a, b) {
 const rgb = (value) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
 
 const scenarios = {
+  async "topic starts with tag groups rather than every card"(page) {
+    await page.click('.hw-sections button:has-text("Study")');
+    await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator(".topic-browse-hub").waitFor();
+    check(await page.locator(".modern-topic-row").count() === 0, "opening a topic does not render every card");
+    check(await page.locator(".topic-browse-tags").count() === 1, "topic tags are shown instead");
+    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    await page.locator(".modern-topic-row").first().waitFor();
+    check(await page.locator(".modern-topic-row").count() >= 5, "Show all explicitly expands the full table");
+    await page.locator('.topic-browse-actions button:has-text("Overview")').click();
+    check(await page.locator(".modern-topic-row").count() === 0, "Overview hides the table again");
+  },
+
   async "study stages agree in Library, topic, Sort, Browse and Review"(page) {
     await addUnsortedCards();
     await page.click('.hw-sections button:has-text("Study")');
@@ -54,6 +68,7 @@ const scenarios = {
     const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
     check(/2 UNSORTED/i.test(libraryRow), `Library counts the two unsorted cards (“${libraryRow}”)`);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-row").first().waitFor();
     await page.waitForTimeout(400);
     const [unsorted, learning, reference] = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];

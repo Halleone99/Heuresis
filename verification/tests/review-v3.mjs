@@ -34,6 +34,7 @@ async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
   await page.waitForTimeout(800);
   await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  await page.locator('.topic-browse-actions button:has-text("Show all")').click();
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(500);
 }
@@ -364,6 +365,7 @@ const scenarios = {
     await page.waitForTimeout(400);
     check(await page.locator(".modern-topic-row").count() === 1 && await page.locator(`.modern-topic-row.is-reference:has-text("${reference}")`).count() === 1, "the Reference filter shows the reference card");
     await page.click('[data-stage="reference"]');
+    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.waitForTimeout(300);
     const newRow = page.locator(`.modern-topic-row:has-text("${useful}")`);
     check((await newRow.locator(".knowledge-states").innerText()).match(/Not tried/g)?.length === 2, "a new Learning card is Not tried in both directions");

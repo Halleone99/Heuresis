@@ -45,6 +45,9 @@ jobs:
       - name: Regression scenarios
         working-directory: verification
         run: |
+          node tests/clarity.mjs "topic starts with tag groups"
+          node tests/clarity.mjs "study stages agree"
+          node tests/clarity.mjs "search opens a Study card directly"
           node tests/clarity.mjs "reference note stays"
           node tests/clarity.mjs "Sort restores"
           node tests/regressions.mjs
