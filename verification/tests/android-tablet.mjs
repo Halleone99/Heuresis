@@ -260,6 +260,8 @@ const scenarios = {
     await page.waitForTimeout(300);
     check(await page.locator(".cosmos-results button.is-suggested").count() === 1, "typed answer has a suggested rating");
     tapped(await fingerTap(page, ".cosmos-results button.is-suggested", { label: "suggested result" }), "the suggested result can be tapped");
+    // Saving the grade is asynchronous; wait for the next question or the summary.
+    await page.waitForFunction(() => Boolean(document.querySelector(".cosmos-summary, .cosmos-recall-methods")), null, { timeout: 10000 });
     if (await page.locator('.cosmos-recall-methods button:has-text("Think")').count()) {
       tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Think")', { label: "Think" }), "the next card can use Think");
     } else check(await page.locator(".cosmos-summary").count() === 1, "a one-card typed review finishes cleanly");
