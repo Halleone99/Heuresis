@@ -17,7 +17,7 @@ type SpecialFlag = "favourite" | "important" | "missed";
 
 function flagged(card: CardWithStats, flag: SpecialFlag) {
   if (flag === "favourite") return card.favourite;
-  if (flag === "important") return card.tags.some((tag) => tag.name.toLowerCase() === "important");
+  if (flag === "important") return (card.data["_review_important"] === "true" || card.tags.some((tag) => tag.name.toLowerCase() === "important"));
   return card.stats.again_count >= 2;
 }
 
