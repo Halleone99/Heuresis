@@ -37,6 +37,7 @@ assert.equal(read().mastered, true, "Next-day success masters Known");
 assert.equal(reviewEligible(read(), events, null, false, start + 3 * DAY), false, "Freshly Mastered cards stay out of normal review");
 assert.equal(reviewEligible(read(), events, null, false, start + 183 * DAY), true, "180 days makes a Mastered card eligible");
 assert.equal(reviewEligible(read(), events, null, true, start + 3 * DAY), true, "Explicit inclusion overrides automatic exclusions");
+assert.equal(reviewEligible(read(), events, null, true, start + 2 * DAY), false, "Include Mastered does not bypass the same-day success lock");
 add(183, "again");
 assert.equal(read().bars, 3, "A mastered miss removes a bar");
 assert.equal(read().mastered, false, "A mastered miss removes mastery");
