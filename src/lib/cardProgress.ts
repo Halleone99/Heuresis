@@ -98,6 +98,7 @@ export function cardBarProgress(
       } else if (bars < dailyPeak) {
         bars += 1;
       }
+      dailyPeak = Math.max(dailyPeak, bars);
     }
   }
   return { bars, mastered, estimated: false };
