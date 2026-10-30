@@ -38,7 +38,7 @@ function shuffled<T>(items: T[]) {
 
 /**
  * Sort enriches each card and then triages it with four outcomes:
- *   Learn (Core / Useful / Peripheral) · Reference · Discard (recoverable) · Later.
+ *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * It opens straight into the queue; Filter narrows it when needed.
  */
 export default function SortModal({ pack, cards, tags, startCardId = null, onClose, onChanged, onReview }: Props) {
@@ -343,8 +343,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         {message ? <div className="sort-error" role="alert">{message}</div> : null}
         <div className="sort-panel-actions">
           <div className="sort-quiet-actions">
-            <button type="button" disabled={busy || enrichmentBlocked} onClick={later}><SkipForward size={14}/> Later <small>L</small></button>
-            <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void keepReference()}><BookOpen size={14}/> Reference <small>R</small></button>
+            <button type="button" disabled={busy || enrichmentBlocked} onClick={later}><SkipForward size={14}/> Sort Later <small>L</small></button>
             <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void discard()}><Trash2 size={14}/> Discard <small>D</small></button>
           </div>
           {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "learn" ? "added to learning" : "kept as reference"}</span>
