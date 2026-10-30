@@ -42,6 +42,7 @@ import { mistakeDifference } from "../lib/mistakeDiff";
 import { assessState, directionEvidence, STATE_LABEL, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
+import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
@@ -63,7 +64,7 @@ type WorkspaceTextBlock = { id: string; type: "text"; text: string; dim: Dimensi
 type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: string; dim: DimensionId };
 type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
 type Source = "recommended" | "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
-type Order = "pack" | "random";
+type Order = "pack" | "random" | "weakest" | "oldest";
 /** One step of a session: a card in one direction, with the reasons it was chosen. */
 type QueueItem = { cardId: string; templateId: string | null; reasons: string[]; state: KnowledgeState | null };
 type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null };
@@ -79,6 +80,8 @@ type Config = {
   order: Order;
   count: number | "all";
   tagIds: string[];
+  reviewFlags: string[];
+  includeMastered: boolean;
   query: string;
   selectionToken: string;
 };
@@ -125,9 +128,11 @@ function parseConfig(): Config {
     templateId: params.get("template") ?? "",
     templateIds,
     source: source === "recommended" || source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
-    order: params.get("order") === "random" ? "random" : "pack",
+    order: params.get("order") === "random" || params.get("order") === "weakest" || params.get("order") === "oldest" ? params.get("order") as Order : "pack",
     count: rawCount === "all" || !Number.isFinite(numeric) || numeric <= 0 ? "all" : Math.floor(numeric),
     tagIds: params.getAll("tag").filter(Boolean),
+    reviewFlags: params.getAll("flag").filter(Boolean),
+    includeMastered: params.get("mastered") === "1",
     query: params.get("q")?.trim() ?? "",
     selectionToken: params.get("selection") ?? "",
   };
@@ -381,7 +386,9 @@ export default function CosmosWindow() {
             pool = pool.filter((entry) => positions.has(entry.id))
               .sort((a, b) => (positions.get(a.id) ?? 0) - (positions.get(b.id) ?? 0));
           }
-          if (!relatedReview && config.tagIds.length) pool = pool.filter((entry) => entry.tags.some((tag) => config.tagIds.includes(tag.id)));
+          if (!relatedReview && config.tagIds.length) pool = pool.filter((entry) => config.tagIds.every((id) => entry.tags.some((tag) => tag.id === id)));
+          if (!relatedReview && config.reviewFlags.length) pool = pool.filter((entry) => config.reviewFlags.every((flag) =>
+            flag === "favourite" ? entry.favourite : flag === "important" ? entry.tags.some((tag) => tag.name.toLowerCase() === "important") : flag === "missed" ? entry.stats.again_count >= 2 : true));
           if (!relatedReview && config.query) {
             const q = config.query.toLocaleLowerCase();
             pool = pool.filter((entry) => [
@@ -390,11 +397,39 @@ export default function CosmosWindow() {
               ...Object.values(entry.data).flatMap((value) => Array.isArray(value) ? value : [value]).filter((value): value is string => typeof value === "string"),
             ].join(" ").toLocaleLowerCase().includes(q));
           }
+          if (!relatedReview && config.mode === "review" && !selection.length) {
+            pool = pool.filter((entry) => {
+              const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
+              const oldState = assessState(directionEvidence(entry, null, grades)).state;
+              return reviewEligible(cardBarProgress(entry, grades, oldState), grades, entry.stats.last_encountered_at, config.includeMastered);
+            });
+          }
           if (config.order === "random") pool = shuffle(pool);
+          else if (config.order === "weakest") pool.sort((a, b) => {
+            const progress = (entry: CardWithStats) => {
+              const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
+              return cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state);
+            };
+            const left = progress(a); const right = progress(b);
+            return (left.bars + (left.mastered ? 1 : 0)) - (right.bars + (right.mastered ? 1 : 0));
+          });
+          else if (config.order === "oldest") pool.sort((a, b) => {
+            const lastGrade = (id: string, fallback: string | null) => {
+              const times = history?.filter((event) => event.cardId === id).map((event) => event.at) ?? [];
+              return times.length ? Math.max(...times) : Date.parse(fallback ?? "") || 0;
+            };
+            return lastGrade(a.id, a.stats.last_encountered_at) - lastGrade(b.id, b.stats.last_encountered_at);
+          });
           // Manual sessions alternate the chosen directions, as before.
           const all = pool.map((entry, position) => ({
             cardId: entry.id,
-            templateId: config.mode === "review" && activeTemplates.length ? activeTemplates[position % activeTemplates.length].id : null,
+            templateId: config.mode === "review" && activeTemplates.length ? (() => {
+              const grades = history?.filter((grade) => grade.cardId === entry.id).sort((a, b) => b.at - a.at) ?? [];
+              const last = grades[0]?.templateId;
+              const previous = activeTemplates.findIndex((choice) => choice.id === last);
+              const idx = previous >= 0 ? (previous + 1) % activeTemplates.length : (reviewGradeCount(entry) % activeTemplates.length);
+              return activeTemplates[idx].id;
+            })() : null,
             reasons: [], state: null,
           } satisfies QueueItem));
           const limit = config.count === "all" ? all.length : Math.min(config.count, all.length);
