@@ -1,0 +1,138 @@
+/* Topic pages: purposeful browsing before any full card table. */
+.topic-browse-hub {
+  margin: 14px 0 9px;
+  padding: 15px 17px;
+  border: 1px solid var(--ws-line, rgba(140, 140, 140, .2));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--ws-surface) 87%, transparent);
+}
+.topic-browse-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.topic-browse-heading > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.topic-browse-heading strong {
+  color: var(--ws-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.topic-browse-heading small {
+  color: var(--ws-muted);
+  font-size: 10px;
+}
+.topic-browse-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.topic-browse-actions .secondary-button {
+  min-height: 31px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.topic-browse-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.topic-browse-tags button {
+  cursor: pointer;
+  font: inherit;
+}
+.topic-tag-pill,
+.topic-more-tags {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 5px 11px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ws-raised) 52%, transparent);
+  color: var(--ws-text);
+  font-size: 11px !important;
+  font-weight: 550 !important;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.topic-tag-pill small {
+  color: var(--ws-muted);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.topic-tag-pill:hover,
+.topic-more-tags:hover {
+  border-color: var(--ws-accent);
+  background: var(--ws-accent-soft);
+}
+.topic-tag-pill.selected {
+  border-color: var(--ws-accent);
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent);
+}
+.topic-tag-pill.theme-tag {
+  --theme-accent: #748077;
+  border-color: color-mix(in srgb, var(--theme-accent) 30%, var(--ws-line));
+  background: color-mix(in srgb, var(--theme-accent) 10%, var(--ws-surface));
+}
+.topic-tag-pill.theme-tag.selected {
+  border-color: var(--theme-accent);
+  background: color-mix(in srgb, var(--theme-accent) 22%, var(--ws-surface));
+  color: var(--ws-text);
+}
+.topic-tag-pill.untagged {
+  border-style: dashed;
+}
+.topic-more-tags {
+  border-style: none;
+  background: transparent;
+  color: var(--ws-muted);
+}
+.topic-tags-unassigned {
+  color: var(--ws-muted);
+  font-size: 11px;
+}
+.topic-browse-idle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 66px;
+  padding: 14px 17px;
+  margin: 5px 0 16px;
+  border: 1px dashed var(--ws-line-strong);
+  border-radius: 12px;
+  color: var(--ws-muted);
+  font-size: 11px;
+}
+.topic-browse-idle svg {
+  flex-shrink: 0;
+  opacity: .65;
+}
+.tag-menu-popover .other-tag-list button small {
+  margin-left: auto;
+  padding-left: 8px;
+  opacity: .7;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 680px) {
+  .topic-browse-hub { padding: 12px; }
+  .topic-browse-heading { align-items: flex-start; }
+  .topic-browse-actions { min-width: 112px; }
+  .topic-browse-actions .secondary-button { width: 100%; justify-content: center; }
+  .topic-tag-pill { min-height: 37px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topic-tag-pill, .topic-more-tags { transition: none; }
+}
