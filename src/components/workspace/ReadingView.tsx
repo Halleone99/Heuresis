@@ -107,11 +107,12 @@ export function ReadingView({ userId }: { userId: string }) {
         </button>)}
     </nav>
     {area === "library" ? <>
-    <div className="lit-reading-overview"><div className="lit-summary">
-      <div><BookOpen size={19}/><strong>{finishedBooks.length}</strong><span>total read</span></div>
-      <div><CalendarDays size={19}/><strong>{finishedThisYear}</strong><span>read in {currentYear}</span></div>
-    </div>
-    <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> Add book</button>
+    <div className="lit-reading-overview">
+      <div className="lit-reading-stats" role="group" aria-label="Reading statistics">
+        <span><BookOpen size={15} aria-hidden="true"/><strong>{finishedBooks.length}</strong> total read</span>
+        <span><CalendarDays size={15} aria-hidden="true"/><strong>{finishedThisYear}</strong> read in {currentYear}</span>
+      </div>
+      <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> Add book</button>
     </div>
     <div className="lit-toolbar">
       <div className="lit-tabs" role="tablist" aria-label="Reading shelves">
