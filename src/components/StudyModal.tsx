@@ -1,4 +1,4 @@
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight, ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type CardWithStats, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
@@ -27,7 +27,7 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
   const [history, setHistory] = useState<GradeEvent[] | null>(null);
-  const [size, setSize] = useState<5 | 10 | 20>(remembered.size === 5 ? 5 : remembered.size === 10 ? 10 : 20);
+  const [sizeInput, setSizeInput] = useState(String(remembered.size));
   const [order, setOrder] = useState<"random" | "weakest" | "oldest">(
     remembered.order === "random" ? "random" : remembered.order === "oldest" ? "oldest" : "weakest");
   const [tagIds, setTagIds] = useState<string[]>([]);
@@ -85,17 +85,23 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     const legacyState = assessState(directionEvidence(card, null, events)).state;
     return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds);
   }), [cards, eventsByCard, flags, history, includeMastered, tagIds, pairedIds, selectedTemplateIds]);
+  const requestedSize = Number(sizeInput);
+  const validSize = /^\d+$/.test(sizeInput) && Number.isSafeInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 500;
+  const sessionCount = validSize ? Math.min(requestedSize, eligible.length) : 0;
+  const activeFilterCount = tagIds.length + flags.length + Number(includeMastered);
+  const clearFilters = () => { setTagIds([]); setFlags([]); setIncludeMastered(false); };
+
   const toggleTag = (id: string) => setTagIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   const toggleFlag = (flag: SpecialFlag) => setFlags((current) => current.includes(flag) ? current.filter((value) => value !== flag) : [...current, flag]);
 
   async function startReview() {
-    if (!selectedTemplateIds.length || !eligible.length || busy) return;
+    if (!selectedTemplateIds.length || !eligible.length || !validSize || busy) return;
     setBusy(true); setError("");
-    writeReviewPrefs(pack.id, { ...remembered, source: "all", size, order });
+    writeReviewPrefs(pack.id, { ...remembered, source: "all", size: requestedSize, order });
     try {
       await openCosmosWindow({
         mode: "review", packId: pack.id, templateIds: selectedTemplateIds,
-        source: "all", order: order as CosmosOrder, count: Math.min(size, eligible.length),
+        source: "all", order: order as CosmosOrder, count: sessionCount,
         tagIds, reviewFlags: flags, includeMastered,
       });
       onComplete();
@@ -116,30 +122,43 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
         {loading ? <div className="study-state" role="status">Loading cards and review history…</div> : null}
         {!loading && !selectedTemplateIds.length ? <div className="study-state">No review direction is configured for this topic.</div> : null}
         <div className="compact-study-controls review-controls">
-          <section className="compact-field"><span>Session size</span>
-            <SegmentedChoice label="Number of cards" value={String(size)} onChange={(v) => setSize(Number(v) as 5 | 10 | 20)}
-              options={[{value:"5",label:"5"},{value:"10",label:"10"},{value:"20",label:"20"}]}/>
-          </section>
-          <section className="compact-order-panel"><span>Selection</span>
-            <SegmentedChoice label="Review card order" className="study-order-toggle" value={order} onChange={(v)=>setOrder(v as "random" | "weakest" | "oldest")}
-              options={[{value:"random",label:"Random"},{value:"weakest",label:"Weakest first"},{value:"oldest",label:"Longest unseen"}]}/>
-          </section>
-          <section className="compact-field"><span>Content tags · optional</span>
-            <div className="review-filter-chips">{tags.map((tag) => <button type="button" key={tag.id} aria-pressed={tagIds.includes(tag.id)}
-              className={tagIds.includes(tag.id) ? "selected" : ""} onClick={() => toggleTag(tag.id)}>{tag.name}</button>)}
-              {!tags.length ? <small>No tags in this topic.</small> : null}
-            </div>
-          </section>
-          <section className="compact-field"><span>Review tags · optional</span>
-            <div className="review-filter-chips">{([["favourite","Favourite"],["important","Important"],["missed","Frequently missed"]] as const).map(([id,label])=>
-              <button type="button" key={id} aria-pressed={flags.includes(id)} className={flags.includes(id) ? "selected" : ""}
-                onClick={()=>toggleFlag(id)}>{label}</button>)}</div>
-            <label className="review-include-mastered"><input type="checkbox" checked={includeMastered} onChange={(e)=>setIncludeMastered(e.target.checked)}/> Include Mastered cards</label>
-          </section>
+          <div className="review-count-field">
+            <label htmlFor="review-session-size">Session size</label>
+            <input id="review-session-size" type="number" inputMode="numeric" min={1} max={500} step={1}
+              value={sizeInput} aria-invalid={!validSize}
+              onChange={(event) => setSizeInput(event.target.value)}
+              onBlur={() => { if (!validSize) setSizeInput(String(Math.max(1, Math.min(500, Math.floor(Number(sizeInput) || remembered.size))))); }}
+              aria-describedby="review-size-hint" />
+            <small id="review-size-hint">{validSize && requestedSize > eligible.length && eligible.length > 0
+              ? `Only ${eligible.length} cards available` : "1–500 cards"}</small>
+          </div>
+          <div className="review-order-field">
+            <span>Order</span>
+            <SegmentedChoice label="Review card order" className="study-order-toggle review-order-options"
+              value={order} onChange={(value) => setOrder(value as "random" | "weakest" | "oldest")}
+              options={[{ value: "weakest", label: "Weakest first" }, { value: "oldest", label: "Longest unseen" }, { value: "random", label: "Random" }]} />
+          </div>
         </div>
+        <details className="review-filters">
+          <summary><span>Filters</span><small>{activeFilterCount ? `${activeFilterCount} selected` : "Optional"}</small><ChevronDown size={16} aria-hidden="true" /></summary>
+          <div className="review-filters-body">
+            <div className="review-filter-heading"><span>Content tags</span>{activeFilterCount > 0 ? <button type="button" onClick={clearFilters}>Clear filters</button> : null}</div>
+            <div className="review-filter-chips">{tags.map((tag) => <button type="button" key={tag.id}
+              aria-pressed={tagIds.includes(tag.id)} className={tagIds.includes(tag.id) ? "selected" : ""}
+              onClick={() => toggleTag(tag.id)}>{tag.name}</button>)}
+              {!tags.length ? <small>No content tags</small> : null}
+            </div>
+            <div className="review-filter-heading"><span>Review tags</span></div>
+            <div className="review-filter-chips">{([["favourite","Favourite"],["important","Important"],["missed","Frequently missed"]] as const).map(([id,label]) =>
+              <button type="button" key={id} aria-pressed={flags.includes(id)}
+                className={flags.includes(id) ? "selected" : ""} onClick={() => toggleFlag(id)}>{label}</button>)}</div>
+            <label className="review-include-mastered"><input type="checkbox" checked={includeMastered}
+              onChange={(event) => setIncludeMastered(event.target.checked)}/> Include mastered cards</label>
+          </div>
+        </details>
         {error ? <div className="study-error" role="alert">{error}</div> : null}
-        <div className="compact-study-footer"><button type="button" className="study-start" disabled={loading || !selectedTemplateIds.length || !eligible.length || busy}
-          onClick={() => void startReview()}>{busy ? "Opening…" : "Start review · " + Math.min(size,eligible.length) + " cards"} <ArrowRight size={16}/></button></div>
+        <div className="compact-study-footer"><button type="button" className="study-start" disabled={loading || !selectedTemplateIds.length || !eligible.length || !validSize || busy}
+          onClick={() => void startReview()}>{busy ? "Opening…" : "Start review · " + sessionCount + (sessionCount === 1 ? " card" : " cards")} <ArrowRight size={16}/></button></div>
       </div>
     </section>
   </div>;
