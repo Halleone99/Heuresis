@@ -1,15 +1,17 @@
 import { useMemo, useState } from "react";
-import { BookOpen, BookPlus, ChevronRight, LibraryBig, Plus, Quote, Search, X } from "lucide-react";
+import { BookOpen, BookPlus, CalendarDays, ChevronRight, Plus, Quote, Search, Users, X } from "lucide-react";
 import { ReadingJournal } from "./ReadingJournal";
+import { QuotationsView } from "./QuotationsView";
 import {
   bookDomain, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
 } from "../../lib/readingBridge";
 
+type ReadingArea = "library" | "authors" | "quotations";
 type Tab = "current" | "next" | "catalogue" | "archive";
 const TABS: Array<{ id: Tab; title: string }> = [
   { id: "current", title: "Reading now" }, { id: "next", title: "Up next" },
-  { id: "catalogue", title: "Catalogue" }, { id: "archive", title: "Archive" },
+  { id: "catalogue", title: "Full library" }, { id: "archive", title: "Archive" },
 ];
 const EMPTY: BookDraft = { title: "", author: "", status: "To read", importance: 2 };
 const STATUSES: ReadingStatus[] = ["To read", "Reading", "Read", "Abandoned"];
@@ -24,8 +26,11 @@ function BookCover({ book, index }: { book: ReadingBook; index: number }) {
   </div>;
 }
 
-export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOpenQuotations: (bookId: string) => void }) {
+export function ReadingView({ userId }: { userId: string }) {
   const api = useReadingLibrary(userId);
+  const [area, setArea] = useState<ReadingArea>("library");
+  const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
+  const [authorQuery, setAuthorQuery] = useState("");
   const [tab, setTab] = useState<Tab>("current");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,6 +47,28 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
     catalogue: api.books.length,
     archive: api.books.filter((book) => book.status === "Read" || book.status === "Abandoned").length,
   };
+  const currentYear = new Date().getFullYear();
+  const finishedBooks = api.books.filter((book) => book.status === "Read");
+  const finishedThisYear = finishedBooks.filter((book) => book.finishDate.slice(0, 4) === String(currentYear)).length;
+  const authors = useMemo(() => {
+    const byName = new Map<string, { name: string; books: ReadingBook[] }>();
+    for (const book of api.books) {
+      const name = book.author.trim();
+      if (!name) continue;
+      const key = name.toLocaleLowerCase();
+      const group = byName.get(key) ?? { name, books: [] };
+      group.books.push(book); byName.set(key, group);
+    }
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [api.books]);
+  const visibleAuthors = authors.filter((author) => author.name.toLocaleLowerCase().includes(authorQuery.trim().toLocaleLowerCase()));
+  function selectArea(next: ReadingArea) {
+    setArea(next); setSelectedId(null); setForm(null); setProblem("");
+    if (next === "quotations") setQuoteSourceBookId(null);
+  }
+  function openQuotations(bookId: string) {
+    setQuoteSourceBookId(bookId); setSelectedId(null); setArea("quotations");
+  }
   const filtered = useMemo(() => api.books.filter((book) => {
     if (tab === "current" && book.status !== "Reading") return false;
     if (tab === "next" && !(book.status === "To read" && bookShelf(book) === "next")) return false;
@@ -77,16 +104,29 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
     }));
   }
 
-  return <div className="lit-page">
+  return <div className="lit-page lit-reading-page">
     <header className="lit-page-head">
       <div><span className="lit-eyebrow">PERSONAL LIBRARY</span><h1>Reading</h1>
         <p>Your collection of books, reflections and passages — shared with Personal OS.</p></div>
-      <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> Add book</button>
     </header>
-    <div className="lit-summary">
-      <div><BookOpen size={17}/><strong>{counts.current}</strong><span>reading now</span></div>
-      <div><LibraryBig size={17}/><strong>{api.books.length}</strong><span>in your collection</span></div>
-      <div><Quote size={17}/><strong>{api.quotes.length}</strong><span>saved quotations</span></div>
+    <nav className="lit-reading-sections" aria-label="Reading sections">
+      {([
+        { id: "library", label: "Your library", hint: "Your collection", Icon: BookOpen },
+        { id: "authors", label: "Authors", hint: "Explore authors", Icon: Users },
+        { id: "quotations", label: "Quotations", hint: "Passages worth keeping", Icon: Quote },
+      ] as const).map(({ id, label, hint, Icon }) =>
+        <button type="button" key={id} className={area === id ? "is-active" : ""}
+          aria-current={area === id ? "page" : undefined} onClick={() => selectArea(id)}>
+          <Icon size={24} strokeWidth={1.6} aria-hidden="true"/>
+          <span><strong>{label}</strong><small>{hint}</small></span>
+        </button>)}
+    </nav>
+    {area === "library" ? <>
+    <div className="lit-reading-overview"><div className="lit-summary">
+      <div><BookOpen size={19}/><strong>{finishedBooks.length}</strong><span>total read</span></div>
+      <div><CalendarDays size={19}/><strong>{finishedThisYear}</strong><span>read in {currentYear}</span></div>
+    </div>
+    <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> Add book</button>
     </div>
     <div className="lit-toolbar">
       <div className="lit-tabs" role="tablist" aria-label="Reading shelves">
@@ -113,6 +153,25 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
           </button>;
         })}
       </div>}
+    </> : area === "authors" ? <section className="lit-reading-authors" aria-label="Authors in your library">
+      <div className="lit-toolbar">
+        <div className="lit-reading-authors-title"><h2>Authors</h2><p>Browse the writers in your library.</p></div>
+        <label className="lit-search"><Search size={15}/><input placeholder="Find an author…" value={authorQuery} onChange={(event) => setAuthorQuery(event.target.value)} aria-label="Find an author"/></label>
+      </div>
+      {api.loading ? <p className="lit-feedback" role="status">Opening your authors…</p>
+        : api.error ? <div className="lit-feedback is-error" role="alert">{api.error} <button onClick={() => void api.reload()}>Retry</button></div>
+        : visibleAuthors.length === 0 ? <div className="lit-empty"><Users size={30}/><h2>No matching authors</h2><p>Authors appear here when they are linked to a book in your library.</p></div>
+        : <div className="lit-reading-author-grid">{visibleAuthors.map((author) =>
+          <button key={author.name} type="button" className="lit-reading-author-card"
+            onClick={() => { setTab("catalogue"); setQuery(author.name); setArea("library"); }}>
+            <span className="lit-author-monogram" aria-hidden="true">{initials(author.name)}</span>
+            <span className="lit-reading-author-info"><strong>{author.name}</strong>
+              <small>{author.books.length} {author.books.length === 1 ? "book" : "books"} · {author.books.filter((book) => book.status === "Read").length} read</small>
+            </span><ChevronRight size={17} aria-hidden="true"/>
+          </button>)}</div>}
+    </section> : <div className="lit-reading-quotes">
+      <QuotationsView userId={userId} sourceBookId={quoteSourceBookId} onOpenReading={() => selectArea("library")} embedded/>
+    </div>}
     {problem && !selected && !form ? <p className="lit-feedback is-error" role="alert">{problem}</p> : null}
     {selected ? <div className="lit-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedId(null); }}>
       <section className="lit-dialog lit-book-dialog" role="dialog" aria-modal="true" aria-label={selected.title} onKeyDown={(event) => { if (event.key === "Escape") setSelectedId(null); }}>
@@ -139,7 +198,7 @@ export function ReadingView({ userId, onOpenQuotations }: { userId: string; onOp
           }}>Save progress</button></div>
         <div className="lit-form-actions">
           <button className="lit-button" onClick={() => { setForm({ title: selected.title, author: selected.author, status: selected.status, importance: selected.importance }); setEditId(selected.id); setSelectedId(null); }}>Edit book</button>
-          <button className="lit-button" onClick={() => { onOpenQuotations(selected.id); setSelectedId(null); }}><Quote size={14}/> Open all quotations</button>
+          <button className="lit-button" onClick={() => openQuotations(selected.id)}><Quote size={14}/> Open all quotations</button>
         </div>
         {problem ? <p className="lit-feedback is-error" role="alert">{problem}</p> : null}
       </section></div> : null}

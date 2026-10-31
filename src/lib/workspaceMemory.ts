@@ -67,6 +67,7 @@ function write(key: string, value: unknown) {
 export function readSection(): WorkspaceSection {
   try {
     const stored = localStorage.getItem(SECTION_KEY);
+    if (stored === "quotations") return "reading"; // legacy Quotations destination is now inside Reading
     return stored === "study" || stored === "notebook" || stored === "mistakes" || stored === "overview" || stored === "reading" || stored === "quotations" || stored === "reference" || stored === "queue" ? stored : "overview";
   } catch { return "overview"; }
 }

@@ -32,8 +32,8 @@ function quoteCount(count: number) {
   return count + (count === 1 ? " quotation" : " quotations");
 }
 
-export function QuotationsView({ userId, sourceBookId, onOpenReading }: {
-  userId: string; sourceBookId: string | null; onOpenReading: () => void;
+export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded = false }: {
+  userId: string; sourceBookId: string | null; onOpenReading: () => void; embedded?: boolean;
 }) {
   const api = useReadingLibrary(userId);
   const [query, setQuery] = useState("");
@@ -220,7 +220,7 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading }: {
             })}
           </div>}
       </>}
-    <p className="lit-footnote">Shared with your Personal OS reading collection. <button onClick={onOpenReading}>Open Reading</button></p>
+    {!embedded ? <p className="lit-footnote">Shared with your Personal OS reading collection. <button onClick={onOpenReading}>Open Reading</button></p> : null}
     {form ? <div className="lit-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setForm(null); }}>
       <form className="lit-dialog" role="dialog" aria-modal="true" aria-label={editId ? "Edit quotation" : "Add quotation"} onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <header><h2>{editId ? "Edit quotation" : "Save a quotation"}</h2><button type="button" className="lit-icon" onClick={() => setForm(null)} aria-label="Close"><X size={18}/></button></header>

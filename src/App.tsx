@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  ArchiveRestore, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Quote, Link2, LogOut, Maximize2,
+  ArchiveRestore, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Link2, LogOut, Maximize2,
   Feather, HardDriveDownload, NotebookPen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
@@ -22,7 +22,6 @@ import { DetachedNoteWorkspace } from "./components/workspace/DetachedNoteWorksp
 import { NotebookSidebarTree } from "./components/workspace/NotebookSidebarTree";
 import { OverviewView } from "./components/workspace/OverviewView";
 import { ReadingView } from "./components/workspace/ReadingView";
-import { QuotationsView } from "./components/workspace/QuotationsView";
 import { QQuickCapture } from "./components/workspace/QQuickCapture";
 import { QQueuePage } from "./components/workspace/QQueuePage";
 import TabletCaptureFab from "./components/TabletCaptureFab";
@@ -54,7 +53,7 @@ import { readSection, writeSection, type WorkspaceSection } from "./lib/workspac
 // Catalogue publications are an independent store and a large editor: load on first use.
 const CatalogueSection = lazy(() => import("./components/catalogue/CatalogueSection"));
 /** Sections whose content does not depend on the Notebook having loaded. */
-const NOTEBOOK_INDEPENDENT: WorkspaceSection[] = ["overview", "study", "reading", "quotations", "reference"];
+const NOTEBOOK_INDEPENDENT: WorkspaceSection[] = ["overview", "study", "reading", "reference"];
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 type SidebarMode = "full" | "rail" | "hidden";
@@ -83,9 +82,8 @@ const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; 
   { id: "notebook", label: "Notebook", icon: NotebookPen, key: "3" },
   { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
   { id: "reading", label: "Reading", icon: BookOpen, key: "5" },
-  { id: "quotations", label: "Quotations", icon: Quote, key: "6" },
-  { id: "reference", label: "Catalogue", icon: LibraryBig, key: "7" },
-  { id: "queue", label: "Captures", icon: Feather, key: "8" },
+  { id: "reference", label: "Catalogue", icon: LibraryBig, key: "6" },
+  { id: "queue", label: "Captures", icon: Feather, key: "7" },
 ];
 
 /** A modal flow (a dialog, Review launcher, Sort, Settings…) owns the keyboard. */
@@ -174,7 +172,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [cardQuery, setCardQuery] = useState("");
   const [view, setView] = useState<View>("library");
-  const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
   const [archivedPacks, setArchivedPacks] = useState<PackWithType[]>([]);
@@ -424,7 +421,6 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   /** Section buttons always open their section's landing page; deep links use openPack instead. */
   function navigateSection(target: WorkspaceSection) {
     if (target === "study") openLibrary();
-    if (target === "quotations") setQuoteSourceBookId(null);
     workspace.goTo(target);
   }
 
@@ -719,8 +715,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
-          {section === "reading" ? <ReadingView userId={session.user.id} onOpenQuotations={(bookId) => { setQuoteSourceBookId(bookId); setSection("quotations"); }} /> : null}
-          {section === "quotations" ? <QuotationsView userId={session.user.id} sourceBookId={quoteSourceBookId} onOpenReading={() => setSection("reading")} /> : null}
+          {section === "reading" ? <ReadingView userId={session.user.id} /> : null}
           {section === "reference" ? <Suspense fallback={<div className="ws-loading" role="status"><span className="ws-spinner" /> Opening the Catalogue…</div>}>
             <CatalogueSection userId={session.user.id} />
           </Suspense> : null}
@@ -778,7 +773,7 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
     [`${MOD_KEY} K  or  /`, "Search notes, Study cards and run commands"],
     [`${MOD_KEY} \\`, "Toggle full sidebar and icon rail"],
     [`${MOD_KEY} ⇧ \\`, "Focus mode: hide or restore the sidebar"],
-    ["Alt 1 – 7", "Overview · Study · Notebook · Mistake Log · Reading · Quotations · Catalogue"],
+    ["Alt 1 – 7", "Overview · Study · Notebook · Mistake Log · Reading · Catalogue · Captures"],
     ["E", "Edit the open note"],
     ["Alt ←", "Back in the Notebook"],
     [`${MOD_KEY} B · I · ⇧H`, "Bold · italic · highlight while editing"],
