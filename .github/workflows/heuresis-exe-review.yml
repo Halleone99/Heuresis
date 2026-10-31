@@ -1,0 +1,33 @@
+name: Build Heuresis EXE (Review redesign)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/heuresis-exe-review.yml"
+  workflow_dispatch:
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install JavaScript dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Generate Windows app icons
+        run: npm run tauri icon src-tauri/heuresis-icon.svg
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build Windows NSIS installer
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles nsis
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Heuresis-Review-Windows-x64-EXE
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error
