@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { removeEntryFromNotes, saveEntryToNotes, type JournalDraft } from "./readingJournal";
+import { notesWithFinishedYear, parseFinishedDate } from "./readingCompletion";
 
 /** Same rows as Personal OS Reading. There is no second book or quotation store. */
 export type ReadingStatus = "To read" | "Reading" | "Read" | "Abandoned";
@@ -24,6 +25,8 @@ type QuoteRow = {
 };
 export type BookDraft = {
   title: string; author: string; status: ReadingStatus; importance: number;
+  /** Optional historical completion year or exact date; empty means unknown. */
+  finishDate?: string;
 };
 export type QuoteDraft = {
   text: string; readingId: string | null; attribution: string; page: string;
@@ -133,26 +136,60 @@ export function useReadingLibrary(userId: string) {
   }, [reload]);
 
   const addBook = async (draft: BookDraft) => {
+    const completion = draft.status === "Read" ? parseFinishedDate(draft.finishDate ?? "") : { exactDate: null, yearOnly: null };
     const { data, error: writeError } = await client().from("capital_reading_items").insert({
       user_id: userId, title: required(draft.title, "Title"), author: draft.author.trim() || null,
       type: "Book", status: draft.status, importance: draft.importance,
       start_date: draft.status === "Reading" ? localToday() : null,
+      finish_date: completion.exactDate,
+      notes: notesWithFinishedYear("", completion.yearOnly),
     }).select("*").single();
     if (writeError) throw writeError;
     const book = bookFromRow(data as BookRow);
     setBooks((current) => [book, ...current]);
     return book;
   };
-  const updateBook = async (id: string, patch: Partial<BookDraft> & { notes?: string; finishDate?: string; startDate?: string }) => {
+  const updateBook = async (id: string, patch: Partial<BookDraft> & { notes?: string; startDate?: string }) => {
+    const completionChanged = patch.finishDate !== undefined || (patch.status !== undefined && patch.status !== "Read");
+    const completion = completionChanged
+      ? parseFinishedDate(patch.status && patch.status !== "Read" ? "" : (patch.finishDate ?? ""))
+      : null;
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (patch.title !== undefined) update.title = required(patch.title, "Title");
     if (patch.author !== undefined) update.author = patch.author.trim() || null;
     if (patch.status !== undefined) update.status = patch.status;
     if (patch.importance !== undefined) update.importance = patch.importance;
     if (patch.notes !== undefined) update.notes = patch.notes;
-    if (patch.finishDate !== undefined) update.finish_date = patch.finishDate || null;
     if (patch.startDate !== undefined) update.start_date = patch.startDate || null;
-    const { data, error: writeError } = await client().from("capital_reading_items").update(update)
+
+    const db = client();
+    // Completion metadata lives inside the same book row. Check updated_at when
+    // modifying it so new journal notes from another device are never overwritten.
+    if (completion) {
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const { data: latest, error: readError } = await db.from("capital_reading_items")
+          .select("notes,updated_at").eq("user_id", userId).eq("id", id).single();
+        if (readError) throw readError;
+        const row = latest as { notes: string | null; updated_at: string | null };
+        const change = {
+          ...update,
+          finish_date: completion.exactDate,
+          notes: notesWithFinishedYear(row.notes ?? "", completion.yearOnly),
+        };
+        let write = db.from("capital_reading_items").update(change).eq("user_id", userId).eq("id", id);
+        write = row.updated_at ? write.eq("updated_at", row.updated_at) : write.is("updated_at", null);
+        const { data, error: writeError } = await write.select("*").maybeSingle();
+        if (writeError) throw writeError;
+        if (data) {
+          const book = bookFromRow(data as BookRow);
+          setBooks((current) => current.map((item) => item.id === id ? book : item));
+          return book;
+        }
+      }
+      throw new Error("This book changed elsewhere. Please try saving its completion date again.");
+    }
+
+    const { data, error: writeError } = await db.from("capital_reading_items").update(update)
       .eq("user_id", userId).eq("id", id).select("*").single();
     if (writeError) throw writeError;
     const book = bookFromRow(data as BookRow);
