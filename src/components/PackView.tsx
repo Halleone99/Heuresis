@@ -585,24 +585,42 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             Favourites <small>{favouriteCards.length}</small>
           </button>
 
-          <details className="filter-menu">
-            <summary className={interestFilter !== "all" ? "active" : ""}><span>{interestFilter === "all" ? "Importance" : interestFilter === "none" ? "No importance" : IMPORTANCE_LABEL[interestFilter]}</span><ChevronDown size={14} /></summary>
-            <div className="filter-menu-popover interest-menu-popover">
-              <p>Importance</p>
-              <div className="importance-filter-list">
-                {IMPORTANCE_ORDER.map((level) => <button key={level} className={interestFilter === level ? "selected" : ""} data-level={level} onClick={() => setInterestFilter(interestFilter === level ? "all" : level)}>{IMPORTANCE_LABEL[level]}</button>)}
-                <button className={interestFilter === "none" ? "selected" : ""} onClick={() => setInterestFilter(interestFilter === "none" ? "all" : "none")}>Not set</button>
-              </div>
-              {interestFilter !== "all" ? <button className="menu-reset" onClick={() => setInterestFilter("all")}>Any importance</button> : null}
-            </div>
-          </details>
-
-          <details className="filter-menu tag-filter-menu">
-            <summary className={tagFilter !== "all" ? "active" : ""}><span>{selectedTag ? selectedTag.name : tagFilter === "none" ? "No tags" : "Tags"}</span><ChevronDown size={14} /></summary>
-            <div className="filter-menu-popover tag-menu-popover">
-              {lessonTags.length ? <section><p>Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }} title={`${tagCountById.get(tag.id) ?? 0} cards`}>{lesson}</button>; })}</div></section> : null}
-              {otherTags.length ? <section><p>Other tags</p><div className="other-tag-list">{otherTags.map((tag) => <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }}>{tag.name} <small>{tagCountById.get(tag.id) ?? 0}</small></button>)}</div></section> : null}
-              <div className="tag-menu-footer"><button className={tagFilter === "none" ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === "none" ? "all" : "none"); }}>Untagged ({untaggedCount})</button>{tagFilter !== "all" ? <button onClick={() => setTagFilter("all")}>Any tag</button> : null}</div>
+          <details className="filter-menu topic-filter-picker">
+            <summary className={activeFilterCount ? "active" : ""}><SlidersHorizontal size={15} /><span>Filters</span>{activeFilterCount ? <b>{activeFilterCount}</b> : null}<ChevronDown size={14} /></summary>
+            <div className="filter-menu-popover topic-filter-panel">
+              <div className="topic-filter-panel-head"><strong>Filter cards</strong><span>Selections combine across sections</span></div>
+              <section className="topic-filter-section" aria-label="Filter by tags">
+                <div className="topic-filter-section-title"><strong>Tags</strong><small>Choose several · match any</small></div>
+                <label className="topic-filter-tag-search"><Search size={14} /><input value={tagSearch} onChange={(event) => setTagSearch(event.target.value)} placeholder="Find a tag…" aria-label="Search available tags" /></label>
+                <div className="topic-filter-tag-list">
+                  {lessonTags.filter(tagMatchesSearch).length ? <p className="topic-filter-group-title">Lessons</p> : null}
+                  {lessonTags.filter(tagMatchesSearch).map((tag) => <label key={tag.id} className="topic-filter-check"><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={() => toggleTag(tag.id)} /><span>{tag.name}</span><small>{tagCountById.get(tag.id) ?? 0}</small></label>)}
+                  {otherTags.filter(tagMatchesSearch).length ? <p className="topic-filter-group-title">Other tags</p> : null}
+                  {otherTags.filter(tagMatchesSearch).map((tag) => <label key={tag.id} className="topic-filter-check" style={themeTagStyle(tag.name)}><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={() => toggleTag(tag.id)} /><span>{tag.name}</span><small>{tagCountById.get(tag.id) ?? 0}</small></label>)}
+                  {!tagFacets.some(({tag}) => tagMatchesSearch(tag)) ? <p className="topic-filter-no-tags">No matching tags</p> : null}
+                  {!tagSearch.trim() ? <label className="topic-filter-check"><input type="checkbox" checked={includeUntagged} onChange={(event) => { setAllCardsExpanded(false); setIncludeUntagged(event.target.checked); }} /><span>Untagged <small>{untaggedCount}</small></span></label> : null}
+                </div>
+                {tagSelectionActive ? <button className="topic-filter-section-reset" onClick={() => { setSelectedTagIds([]); setIncludeUntagged(false); }}>Clear tags</button> : null}
+              </section>
+              <section className="topic-filter-section" aria-label="Filter by importance">
+                <div className="topic-filter-section-title"><strong>Importance</strong><small>How actively to use the knowledge</small></div>
+                <div className="topic-filter-options">
+                  <button className={interestFilter === "all" ? "selected" : ""} aria-pressed={interestFilter === "all"} onClick={() => setInterestFilter("all")}>Any</button>
+                  {IMPORTANCE_ORDER.map((level) => <button key={level} className={interestFilter === level ? "selected" : ""} aria-pressed={interestFilter === level} onClick={() => { setAllCardsExpanded(false); setInterestFilter(level); }}>{IMPORTANCE_LABEL[level]}</button>)}
+                  <button className={interestFilter === "none" ? "selected" : ""} aria-pressed={interestFilter === "none"} onClick={() => { setAllCardsExpanded(false); setInterestFilter("none"); }}>Not set</button>
+                </div>
+              </section>
+              <section className="topic-filter-section" aria-label="Filter by review state">
+                <div className="topic-filter-section-title"><strong>Card state</strong><small>Separate from importance</small></div>
+                <div className="topic-filter-options topic-filter-states">
+                  <button className={!statusFilters.length && !stateFilter ? "selected" : ""} aria-pressed={!statusFilters.length && !stateFilter} onClick={() => { setAllCardsExpanded(false); setStatusFilters([]); setStateFilter(null); }}>Any</button>
+                  <button className={statusFilters.includes("unsorted") ? "selected" : ""} aria-pressed={statusFilters.includes("unsorted")} onClick={() => chooseStage("unsorted")}>To classify</button>
+                  <button className={statusFilters.includes("reference") ? "selected" : ""} aria-pressed={statusFilters.includes("reference")} onClick={() => chooseStage("reference")}>Reference</button>
+                  {PROGRESS_STAGES.map((stage) => <button key={stage} className={stateFilter === stage ? "selected" : ""} aria-pressed={stateFilter === stage} onClick={() => chooseState(stage)}>
+                    {stage === "new" ? "Never reviewed" : stage === "review" ? "Reviewed" : stage === "known" ? "Familiar" : "Mastered"}</button>)}
+                </div>
+              </section>
+              <div className="topic-filter-panel-footer"><button onClick={clearFilters}>Clear all filters</button><span>{shown.length} matching cards</span></div>
             </div>
           </details>
 
@@ -619,33 +637,18 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         </div>
       </div>
 
-      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub" aria-label="Choose which cards to display">
-         <div className="topic-browse-heading">
-           <div>
-             <strong>{showCardList ? `${shown.length.toLocaleString()} of ${visibleTotal.toLocaleString()} cards` : "Browse by tag"}</strong>
-             <small>{showCardList ? "Use the filters above to narrow the list" : `${(visibleTotal - untaggedCount).toLocaleString()} tagged · ${untaggedCount.toLocaleString()} untagged`}</small>
-           </div>
-           <div className="topic-browse-actions">
-             {showCardList ? <button type="button" className="secondary-button" onClick={clearFilters}>Overview</button> : null}
-             {!allCardsExpanded || activeFilterCount > 0 ? <button type="button" className="secondary-button" onClick={() => { clearFilters(); setAllCardsExpanded(true); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
-           </div>
-         </div>
-         <div className="topic-browse-tags" role="group" aria-label="Filter by topic tag">
-           {tagFacets.slice(0, expandedTagList ? tagFacets.length : 10).map(({ tag, count }) => (
-             <button type="button" key={tag.id} className={`topic-tag-pill ${tagFilter === tag.id ? "selected" : ""} ${themeTagStyle(tag.name) ? "theme-tag" : ""}`}
-               style={themeTagStyle(tag.name)} aria-pressed={tagFilter === tag.id}
-               onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }}>
-               {tag.name} <small>{count}</small>
-             </button>
-           ))}
-           {untaggedCount > 0 ? <button type="button" className={`topic-tag-pill untagged ${tagFilter === "none" ? "selected" : ""}`} aria-pressed={tagFilter === "none"}
-             onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === "none" ? "all" : "none"); }}>Untagged <small>{untaggedCount}</small></button> : null}
-           {tagFacets.length > 10 ? <button type="button" className="topic-more-tags" aria-expanded={expandedTagList} onClick={() => setExpandedTagList((current) => !current)}>
-             {expandedTagList ? "Fewer tags" : `+${tagFacets.length - 10} more tags`}
-           </button> : null}
-           {!tagFacets.length ? <span className="topic-tags-unassigned">Add tags while sorting or editing cards to build your groups.</span> : null}
-         </div>
-       </section> : null}
+      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub topic-browse-compact" aria-label="Card list selection">
+          <div className="topic-browse-heading">
+            <div>
+              <strong>{showCardList ? shown.length.toLocaleString() + " of " + visibleTotal.toLocaleString() + " cards" : "Card browser"}</strong>
+              <small>{showCardList ? "Results reflect your selected filters" : "Use Filters above to choose tags, importance or review state; or open the complete list."}</small>
+            </div>
+            <div className="topic-browse-actions">
+              {showCardList && activeFilterCount > 0 ? <button type="button" className="secondary-button" onClick={clearFilters}>Overview</button> : null}
+              {!allCardsExpanded || activeFilterCount > 0 ? <button type="button" className="secondary-button" onClick={() => { clearFilters(); setAllCardsExpanded(true); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
+            </div>
+          </div>
+        </section> : null}
 
        {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
