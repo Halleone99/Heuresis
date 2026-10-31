@@ -507,38 +507,48 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
       <header className="modern-topic-head">
         <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(visibleTotal, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
-        <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
+        <div className="modern-topic-head-actions">
+          <details className="topic-more-menu topic-settings-menu">
+            <summary className="secondary-button"><Settings2 size={15} /> Settings <ChevronDown size={13} /></summary>
+            <div className="topic-more-popover">
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onSettings(); }}><Settings2 size={15} /> Topic settings</button>
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setRelatedOpen(true); }}><Link2 size={15} /> Connections</button>
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setImportOpen(true); }}><FileUp size={15} /> Import cards</button>
+            </div>
+          </details>
+        </div>
       </header>
 
       <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
-          <span>Learning stages</span>
-          <small>{statusFilters.length || stateFilter ? "Filtered · click again for overview" : `${plural(visibleTotal, "card")} · choose a stage`}</small>
+          <span>Card journey</span>
+          <small>{statusFilters.length || stateFilter ? "Filtered · click again for overview" : "Choose a group to view its cards"}</small>
         </div>
         <div className="workflow-overview-stages">
           <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
             <span className="workflow-stage-dot" />
             <strong>{unsortedCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Unsorted</b><small>To sort</small></span>
+            <span className="workflow-stage-copy"><b>To classify</b><small>Not yet placed in Review</small></span>
           </button>
           <span className="workflow-stage-arrow" aria-hidden="true">→</span>
           <button className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" onClick={() => chooseStage("learning")}>
             <span className="workflow-stage-dot" />
             <strong>{learningCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Learning</b><small>In Review</small></span>
+            <span className="workflow-stage-copy"><b>In Review</b><small>Core · Active · Passive</small></span>
           </button>
           <span className="workflow-stage-arrow is-quiet" aria-hidden="true">·</span>
           <button className={statusFilters.includes("reference") ? "active" : ""} data-stage="reference" onClick={() => chooseStage("reference")}>
             <span className="workflow-stage-dot" />
             <strong>{referenceCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Reference</b><small>To look up, never reviewed</small></span>
+            <span className="workflow-stage-copy"><b>Reference</b><small>Lookup only · not reviewed</small></span>
           </button>
         </div>
-        {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
-          <span>Of {learningCards.length} sorted cards:</span>
-          {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
-            {stateCounts[state]} {state === "new" ? "new" : state === "review" ? "review" : state === "known" ? "known" : "mastered"}</button>)}
-        </div> : null}
+        <div className="workflow-state-line" role="group" aria-label="Review progress">
+          <span>Review progress · {learningCards.length} cards</span>
+          {PROGRESS_STAGES.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}
+            title={state === "new" ? "In Review but never practised" : state === "review" ? "Practised at least once; still learning" : state === "known" ? "Strong progress, but not yet mastered" : "Mastered according to review evidence"}>
+            <strong>{stateCounts[state]}</strong> {state === "new" ? "Never reviewed" : state === "review" ? "Reviewed" : state === "known" ? "Familiar" : "Mastered"}</button>)}
+        </div>
       </section>
 
       {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
@@ -549,24 +559,18 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
-          <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <button className="primary-button review-command" disabled={!learningCards.length}
-            title="Choose cards, tags and review order" onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
-          {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
+          <div className="topic-session-control" role="group" aria-label="Card sessions: New or Review">
+            <button className="new-session-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}
+              title="Classify new cards as Core, Active or Passive"><Plus size={15} /> New <small>{unsortedCards.length}</small></button>
+            <button className="review-command" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
+              title="Practise cards you have already classified"><Brain size={15} /> Review</button>
+          </div>
+          {tagSelectionActive && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
             const selected = shown.filter((card) => workflowStatus(card) === "learning");
-            openTargeted("Review filtered lesson", selected);
+            openTargeted("Review filtered cards", selected);
           }}><Brain size={15} /> Review these {shown.filter((card) => workflowStatus(card) === "learning").length}</button> : null}
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
-          <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
-        </div>
-        <div className="topic-utility-actions">
-          <details className="topic-more-menu">
-            <summary className="secondary-button"><MoreHorizontal size={15} /> More <ChevronDown size={13} /></summary>
-            <div className="topic-more-popover">
-              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setRelatedOpen(true); }}><Link2 size={15} /> Connections</button>
-              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setImportOpen(true); }}><FileUp size={15} /> Import cards</button>
-            </div>
-          </details>
+          <button className="secondary-button" onClick={onCapture}><Plus size={15} /> Add</button>
         </div>
       </div>
       {reviewNotice ? <div className="topic-selection-hint" role="alert">{reviewNotice}</div> : null}
@@ -648,7 +652,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
       {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state" role="alert"><strong>Could not load this topic.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
-      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose a tag, learning stage or search to see individual cards.</span></div> : null}
+      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose Filters above or Show all to see individual cards.</span></div> : null}
        {!loading && !error && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
@@ -664,7 +668,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           const visibleTags = card.tags.slice(0, 3);
           const status = workflowStatus(card);
           const progress = cardBars.get(card.id) ?? { bars: 0, mastered: false, estimated: false };
-          const progressLabel = status === "unsorted" ? "To sort" : status === "reference" ? "Reference" : progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : reviewCount ? "Review" : "New";
+          const progressLabel = status === "unsorted" ? "To classify" : status === "reference" ? "Reference" : progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : reviewCount ? "Review" : "New";
           const selected = selectedCardId === card.id;
           return <div
             className={`modern-topic-row excel-topic-row ticker-topic-row ${selected ? "selected" : ""} ${status === "reference" ? "is-reference" : ""}`}
@@ -716,7 +720,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             </div>
           </div>;
         })}
-        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length || referenceCards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length || referenceCards.length ? "Change the filters or search." : "Use New card to add your first flashcard."}</span></div> : null}
+        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length || referenceCards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length || referenceCards.length ? "Change the filters or search." : "Use + Add to create your first flashcard."}</span></div> : null}
       </div> : null}
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} onRetention={(retention) => changeRetention(editing, retention)} /> : null}
