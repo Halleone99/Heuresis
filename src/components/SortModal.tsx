@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, Check, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
+import { ArrowRight, Brain, Check, Pencil, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
@@ -82,6 +82,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
+  const [editingCard, setEditingCard] = useState(false);
+  const [cardDraft, setCardDraft] = useState<Record<string, string>>({});
+  const [cardEditError, setCardEditError] = useState("");
   const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -93,6 +96,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
+  // The centre editor changes only the visible flashcard fields. Rich details remain in the left rail.
+  const editFields = (pack.cardType?.field_schema ?? []).filter((field) =>
+    [term?.key, reading?.key, meaning?.key].includes(field.key));
   const remaining = Math.max(0, queue.length - index);
   const lessonTags = useMemo(() => tags.filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tags]);
   const otherTags = useMemo(() => tags.filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => a.name.localeCompare(b.name)), [tags]);
@@ -101,11 +107,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   useEffect(() => {
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
+    setEditingCard(false); setCardEditError("");
     setMessage("");
   }, [card?.id]);
 
   async function toggleTag(tagId: string) {
-    if (!card || busy || enrichmentBlocked) return;
+    if (!card || busy || enrichmentBlocked || editingCard) return;
     const next = tagIds.includes(tagId) ? tagIds.filter((id) => id !== tagId) : [...tagIds, tagId];
     setTagIds(next); setBusy(true); setMessage("");
     try { await setSortTags(card.id, next); onChanged(); }
@@ -113,12 +120,36 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     finally { setBusy(false); }
   }
 
+  function beginCardEdit() {
+    if (!card || busy || enrichmentBlocked) return;
+    setCardDraft(Object.fromEntries(editFields.map((field) => [field.key, fieldText(card.data, field.key)])));
+    setCardEditError("");
+    setEditingCard(true);
+  }
+
+  async function saveCardEdit() {
+    if (!card || !editingCard || busy || enrichmentBlocked) return;
+    const missing = editFields.find((field) => field.required && !cardDraft[field.key]?.trim());
+    if (missing) { setCardEditError(`${missing.label} is required.`); return; }
+    setBusy(true); setCardEditError("");
+    try {
+      const patch = Object.fromEntries(editFields.map((field) => [field.key, (cardDraft[field.key] ?? "").trim()]));
+      const savedData = await patchCardData(card.id, patch);
+      // A sorting pass holds its own queue; refresh it immediately as well as the topic list.
+      setQueue((current) => current.map((item) => item.id === card.id ? { ...item, data: savedData } : item));
+      setEditingCard(false);
+      onChanged();
+    } catch (error) {
+      setCardEditError(error instanceof Error ? error.message : "Could not save the card.");
+    } finally { setBusy(false); }
+  }
+
   async function saveQuickNote() {
     if (card && noteDraft.trim() !== (card.note ?? "").trim()) await saveCardNote(card.id, noteDraft);
   }
 
   async function closeSort() {
-    if (busy || enrichmentBlocked) return;
+    if (busy || enrichmentBlocked || editingCard) return;
     if (card && noteDraft.trim() !== (card.note ?? "").trim()) {
       setBusy(true); setMessage("");
       try { await saveQuickNote(); onChanged(); onClose(); }
@@ -128,7 +159,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   }
 
   async function learn(rank: number) {
-    if (!card || busy || enrichmentBlocked) return;
+    if (!card || busy || enrichmentBlocked || editingCard) return;
     setBusy(true); setMessage("");
     try {
       // The three visible priorities retain the existing numeric database representation.
@@ -143,7 +174,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   }
 
   async function discard() {
-    if (!card || busy || enrichmentBlocked) return;
+    if (!card || busy || enrichmentBlocked || editingCard) return;
     setBusy(true); setMessage("");
     try {
       await saveQuickNote();
@@ -183,7 +214,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
   }
 
   async function later() {
-    if (busy || enrichmentBlocked || !card) return;
+    if (busy || enrichmentBlocked || editingCard || !card) return;
     setBusy(true); setMessage("");
     try {
       await saveQuickNote();
@@ -208,13 +239,14 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       // Escape works from the filter's search field too (it closes the filter first),
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
+        if (editingCard && !busy) { event.preventDefault(); setEditingCard(false); setCardEditError(""); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen) setFiltersOpen(false); else void closeSort(); }
         return;
       }
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog')) return;
       if (filtersOpen && event.key === "Enter" && target === dialogRef.current) { event.preventDefault(); beginSort(); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { if (lastRemoval) { event.preventDefault(); void undo(); } return; }
-      if (event.ctrlKey || event.metaKey || event.altKey || !card || busy || enrichmentBlocked || filtersOpen) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || !card || busy || enrichmentBlocked || editingCard || filtersOpen) return;
       const key = event.key.toLowerCase();
       // Retain older Sort keyboard actions for existing users, without
       // crowding the new interface with shortcut labels.
@@ -229,7 +261,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
+  const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked || editingCard} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
 
@@ -240,8 +272,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       <div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div>
       <span>{filtersOpen ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
       <div className="sort-topbar-actions">
-        <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Filter"}</button>
-        <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void closeSort()} aria-label="Close sort"><X size={18} /></button>
+        <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Filter"}</button>
+        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close sort"><X size={18} /></button>
       </div>
     </header>
     {filtersOpen && unsorted.length ? <div className="sort-setup">
@@ -283,15 +315,35 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
       <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
       <p>{[learned ? `${learned} to learn` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
-      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
-      <div className="sort-finished-actions">{onReview && learned ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className={onReview && learned ? "is-quiet" : ""} disabled={busy || enrichmentBlocked} onClick={onClose}>Return to topic</button></div>
+      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
+      <div className="sort-finished-actions">{onReview && learned ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className={onReview && learned ? "is-quiet" : ""} disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
     </div> : null}
     {!filtersOpen && card ? <div className="sort-body">
       <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} onBlockedChange={setEnrichmentBlocked} />
       <div className="sort-card" data-card-id={card.id} aria-label="Complete flashcard">
-        <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>
-        {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
-        {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
+        {editingCard ? <form className="sort-card-editor" onSubmit={(event) => { event.preventDefault(); void saveCardEdit(); }}>
+          <h3>Edit card</h3>
+          <p>Correct the card before deciding its importance.</p>
+          {editFields.map((field) => <label key={field.key}>
+            <span>{field.label}{field.required ? " *" : ""}</span>
+            {field.role === "meaning" ? <textarea rows={3} autoFocus={field.key === editFields[0]?.key}
+              value={cardDraft[field.key] ?? ""} onChange={(event) => setCardDraft((draft) => ({ ...draft, [field.key]: event.target.value }))} />
+              : <input autoFocus={field.key === editFields[0]?.key} value={cardDraft[field.key] ?? ""}
+                onChange={(event) => setCardDraft((draft) => ({ ...draft, [field.key]: event.target.value }))} />}
+          </label>)}
+          {cardEditError ? <p className="sort-card-editor-error" role="alert">{cardEditError}</p> : null}
+          <div className="sort-card-editor-actions">
+            <button type="button" disabled={busy} onClick={() => { setEditingCard(false); setCardEditError(""); }}>Cancel</button>
+            <button type="submit" className="primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+          </div>
+        </form> : <>
+          <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>
+          {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
+          {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
+          <button type="button" className="sort-card-edit-trigger" disabled={busy || enrichmentBlocked || editingCard} onClick={beginCardEdit}>
+            <Pencil size={14} /> Edit card
+          </button>
+        </>}
       </div>
       <div className="sort-panel">
         <div className="sort-interest-panel" role="group" aria-label="Learning importance">
@@ -300,18 +352,18 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
             const rank = IMPORTANCE_RANK[level];
             return <button key={level} type="button"
               aria-label={"Learn as " + IMPORTANCE_LABEL[level]}
-              disabled={busy || enrichmentBlocked}
+              disabled={busy || enrichmentBlocked || editingCard}
               onClick={() => void learn(rank)}>{IMPORTANCE_LABEL[level]}</button>;
           })}</div>
           <span className="sort-rating-caption">Choose one to save and continue · C / U / P</span>
         </div>
         <div className="sort-tags-control">
           <div className="sort-side-heading"><h3><Tag size={15}/> Tags</h3>
-            <button type="button" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked}
+            <button type="button" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked || editingCard}
               onClick={() => setTagsOpen((value) => !value)}>+ Add tag</button></div>
           {selectedTagNames.length ? <div className="sort-selected-tags">
             {tags.filter((tag) => tagIds.includes(tag.id)).map((tag) =>
-              <button type="button" key={tag.id} disabled={busy || enrichmentBlocked} onClick={() => void toggleTag(tag.id)}
+              <button type="button" key={tag.id} disabled={busy || enrichmentBlocked || editingCard} onClick={() => void toggleTag(tag.id)}
                 title={"Remove " + tag.name}>{tag.name} <X size={12}/></button>)}
           </div> : <span className="sort-tags-empty">No tags on this card</span>}
           {tagsOpen ? <div className="sort-tags">
@@ -322,17 +374,18 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         </div>
         <div className="sort-note-panel">
           <h3>Quick note</h3>
-          <textarea rows={5} aria-label="Quick note" value={noteDraft} placeholder="A useful example or something to remember…"
-            disabled={busy || enrichmentBlocked} onChange={(event) => setNoteDraft(event.target.value)} />
+          <textarea rows={3} aria-label="Quick note" value={noteDraft} placeholder="A useful example or something to remember…"
+            disabled={busy || enrichmentBlocked || editingCard} onChange={(event) => setNoteDraft(event.target.value)} />
         </div>
         {message ? <div className="sort-error" role="alert">{message}</div> : null}
         <div className="sort-panel-actions">
+          <h3 className="sort-action-heading">Other actions</h3>
           <div className="sort-quiet-actions">
-            <button type="button" disabled={busy || enrichmentBlocked} onClick={later}><SkipForward size={14}/> Sort Later <small>L</small></button>
-            <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void discard()}><Trash2 size={14}/> Discard <small>D</small></button>
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={later}><SkipForward size={14}/> Sort Later <small>L</small></button>
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}><Trash2 size={14}/> Discard <small>D</small></button>
           </div>
           {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {fieldText(lastRemoval.card.data, term?.key) || "Card"} · {lastRemoval.kind === "discard" ? "discarded" : "added to learning"}</span>
-            <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void undo()}><Undo2 size={13}/> Undo</button></div> : null}
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13}/> Undo</button></div> : null}
         </div>
       </div>
     </div> : null}
