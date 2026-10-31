@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, Check, Pencil, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
+import { ArrowRight, Brain, Check, ChevronDown, Pencil, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
@@ -40,7 +40,7 @@ function shuffled<T>(items: T[]) {
 /**
  * Sort enriches each card and then triages it with three classifications and two secondary actions:
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
- * It opens straight into the queue; Filter narrows it when needed.
+ * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
 export default function SortModal({ pack, cards, tags, startCardId = null, onClose, onChanged, onReview }: Props) {
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
@@ -52,11 +52,22 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     const selected = ordered.find((item) => item.id === startCardId);
     return selected ? [selected, ...ordered.filter((item) => item.id !== startCardId)] : ordered;
   });
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // The topic's New button must show setup before any sorting decision can be made.
+  // Direct links to a particular card can still open that card immediately.
+  const [filtersOpen, setFiltersOpen] = useState(!startCardId);
+  const [sessionStarted, setSessionStarted] = useState(Boolean(startCardId));
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [count, setCount] = useState(Math.max(1, unsorted.length));
-  const scopeTags = useMemo(() => tags.filter((tag) => !tag.is_badge), [tags]);
+  const [tagSearch, setTagSearch] = useState("");
+  // Keep the draft as text: clearing and retyping a number must work normally.
+  const [count, setCount] = useState(() => String(Math.min(20, Math.max(1, unsorted.length))));
+  const requestedCount = Number(count);
+  const validCount = /^\d+$/.test(count.trim()) && Number.isSafeInteger(requestedCount) && requestedCount > 0;
+  const scopeTags = useMemo(() => {
+    const usedIds = new Set(unsorted.flatMap((item) => item.tags.map((tag) => tag.id)));
+    return tags.filter((tag) => !tag.is_badge && usedIds.has(tag.id)).sort((a, b) => a.name.localeCompare(b.name));
+  }, [tags, unsorted]);
+  const matchingScopeTags = useMemo(() => scopeTags.filter((tag) => tag.name.toLocaleLowerCase().includes(tagSearch.trim().toLocaleLowerCase())), [scopeTags, tagSearch]);
   const candidates = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
     return unsorted.filter((item) => {
@@ -68,13 +79,16 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
     });
   }, [query, selectedTags, unsorted]);
 
-  /** Applies the filter panel: a narrower queue, in the chosen order. */
+  const selectedCount = validCount ? Math.min(requestedCount, candidates.length) : 0;
+
+  /** Uses the selected tags and typed quantity to construct the actual sorting queue. */
   function beginSort() {
-    if (!candidates.length) return;
+    if (!candidates.length || !validCount) return;
     const selection = randomOrder ? shuffled(candidates) : [...candidates];
     try { localStorage.setItem(ORDER_KEY, randomOrder ? "random" : "topic"); } catch { /* preference only */ }
-    setQueue(selection.slice(0, Math.min(count, selection.length)));
+    setQueue(selection.slice(0, selectedCount));
     setIndex(0);
+    setSessionStarted(true);
     setFiltersOpen(false);
   }
 
@@ -240,7 +254,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
         if (editingCard && !busy) { event.preventDefault(); setEditingCard(false); setCardEditError(""); return; }
-        if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen) setFiltersOpen(false); else void closeSort(); }
+        if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
       }
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog')) return;
@@ -272,42 +286,52 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
       <div><span className="eyebrow">NEW CARDS</span><strong>{pack.title}</strong></div>
       <span>{filtersOpen ? `${unsorted.length} to classify` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
       <div className="sort-topbar-actions">
-        <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Filter"}</button>
+        {sessionStarted ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
         <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close New cards"><X size={18} /></button>
       </div>
     </header>
     {filtersOpen && unsorted.length ? <div className="sort-setup">
       <h2>Choose new cards</h2>
-      <p>Work through new cards by default, or choose a smaller set using search or tags.</p>
+      <p>Select which unsorted cards to classify. Choose your tags and the number of cards for this pass.</p>
       <div className="sort-setup-grid">
         <label className="sort-setup-field"><span>Search new cards</span>
           <span className="sort-setup-search"><Search size={16} aria-hidden="true" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Term, meaning or tag"
             onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); beginSort(); } }} /></span>
         </label>
         <label className="sort-setup-field"><span>Cards in this pass</span>
-          <input type="number" min={1} max={Math.max(1, candidates.length)} value={Math.min(count, Math.max(1, candidates.length))}
-            onChange={(event) => setCount(Math.max(1, Math.min(10000, Number(event.target.value) || 1)))} />
-          <button type="button" className="sort-setup-all" onClick={() => setCount(Math.max(1, candidates.length))}>All {candidates.length} matching</button>
+          <input type="number" inputMode="numeric" min={1} step={1} value={count}
+            aria-invalid={!validCount} aria-describedby="sort-count-help"
+            onChange={(event) => setCount(event.target.value)} />
+          <button type="button" className="sort-setup-all" disabled={!candidates.length} onClick={() => setCount(String(candidates.length))}>All {candidates.length} matching</button>
+          <small id="sort-count-help">{!validCount ? "Enter a whole number greater than zero." : requestedCount > candidates.length ? `Only ${candidates.length} matching cards are available.` : "You can type any positive whole number."}</small>
         </label>
       </div>
-      {scopeTags.length ? <div className="sort-setup-tag-filter">
-        <span>Filter by tags <small>optional · matches any selected tag</small></span>
-        <div>
-          <button type="button" className={!selectedTags.length ? "selected" : ""} onClick={() => setSelectedTags([])}>Any tag</button>
-          {scopeTags.map((tag) => <button type="button" key={tag.id} className={selectedTags.includes(tag.id) ? "selected" : ""}
-            aria-pressed={selectedTags.includes(tag.id)}
-            onClick={() => setSelectedTags((current) => current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id])}>{tag.name}</button>)}
-        </div>
-      </div> : null}
+      <div className="sort-setup-tag-filter">
+        <span>Tags <small>optional · matches any selected tag</small></span>
+        {scopeTags.length ? <details className="sort-setup-tag-picker">
+          <summary><span>{selectedTags.length ? `${selectedTags.length} ${selectedTags.length === 1 ? "tag" : "tags"} selected` : "All tags"}</span><ChevronDown size={15} aria-hidden="true" /></summary>
+          <div className="sort-setup-tag-menu">
+            <input type="search" aria-label="Search tags" value={tagSearch} onChange={(event) => setTagSearch(event.target.value)} placeholder="Find a tag…" />
+            <div className="sort-setup-tag-list">
+              {matchingScopeTags.map((tag) => <label key={tag.id}>
+                <input type="checkbox" checked={selectedTags.includes(tag.id)} onChange={(event) => setSelectedTags((current) => event.target.checked ? [...current, tag.id] : current.filter((id) => id !== tag.id))} />
+                <span>{tag.name}</span>
+              </label>)}
+              {!matchingScopeTags.length ? <p>No matching tags.</p> : null}
+            </div>
+            <button type="button" className="sort-setup-clear-tags" disabled={!selectedTags.length} onClick={() => setSelectedTags([])}>Clear tag selection</button>
+          </div>
+        </details> : <small>No tags on unsorted cards — all cards will be included.</small>}
+      </div>
       <div className="sort-setup-order"><span>Card order</span>
         <SegmentedChoice label="New card order" value={randomOrder ? "random" : "topic"}
           onChange={(choice) => setRandomOrder(choice === "random")}
           options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={14} /> }]} />
       </div>
       <div className="sort-setup-bottom">
-        <span>{candidates.length} matching new · {candidates.length ? Math.min(count, candidates.length) : 0} selected</span>
-        <button type="button" className="sort-setup-start" disabled={!candidates.length} onClick={beginSort}>
-          Open {Math.min(count, candidates.length)} {Math.min(count, candidates.length) === 1 ? "card" : "cards"} <ArrowRight size={16}/></button>
+        <span role="status">{candidates.length} matching new · {selectedCount} selected</span>
+        <button type="button" className="sort-setup-start" disabled={!selectedCount} onClick={beginSort}>
+          Start sorting · {selectedCount} {selectedCount === 1 ? "card" : "cards"} <ArrowRight size={16}/></button>
       </div>
     </div> : null}
     {!filtersOpen && !unsorted.length && !queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">NO NEW CARDS</p><h2>All cards have been classified.</h2><p>New cards arrive here when you capture them.</p>
