@@ -151,6 +151,24 @@
 .lit-reading-stats svg { color:var(--ws-accent,#9f7e3d); flex:none; opacity:.85; }
 .lit-reading-stats strong { color:var(--lit-text); font:400 21px/1 var(--ws-display,Georgia,serif); }
 .lit-reading-overview>.lit-button { flex:none; margin-left:auto; }
+/* Finished is a compact reading-history list, not a second gallery or data store. */
+.lit-finished-list { border-top:1px solid var(--lit-line); margin-top:1px; }
+.lit-finished-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(90px,130px) 74px 105px; gap:12px; align-items:center; min-height:66px; padding:10px 8px; border-bottom:1px solid var(--lit-line); }
+.lit-finished-row:hover { background:var(--ws-accent-soft,rgba(140,105,44,.045)); }
+.lit-finished-book { display:grid; min-width:0; gap:5px; padding:1px 0; border:0; text-align:left; background:none; color:var(--lit-text); cursor:pointer; }
+.lit-finished-book strong { font:400 20px/1.2 var(--ws-display,Georgia,serif); overflow-wrap:anywhere; }
+.lit-finished-book:hover strong { color:var(--ws-accent,#9f7e3d); }
+.lit-finished-book small { color:var(--lit-muted); font:11px/1.3 var(--ws-sans,system-ui); }
+.lit-finished-date { color:var(--lit-muted); font-size:11px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.lit-finished-action { display:inline-flex; align-items:center; gap:6px; justify-content:center; padding:8px 6px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--lit-muted); cursor:pointer; white-space:nowrap; font-size:11px; }
+.lit-finished-action:hover { color:var(--lit-text); border-color:var(--lit-line); background:var(--lit-paper); }
+.lit-finished-detail { font-size:11px; color:var(--lit-muted); margin:-5px 0 10px; line-height:1.5; }
+@media(max-width:610px) {
+  .lit-finished-row { grid-template-columns:minmax(0,1fr) auto auto; gap:4px 8px; }
+  .lit-finished-book { grid-column:1 / -1; padding-bottom:3px; }
+  .lit-finished-date { margin-right:auto; }
+  .lit-finished-action { padding:7px 5px; }
+}
 .lit-reading-quotes>.lit-quotation-page { max-width:none; padding:6px 0 0; }
 .lit-reading-quotes .lit-quotation-page-head { margin-bottom:30px; }
 .lit-reading-authors-title h2 { font:normal 31px/1.2 var(--ws-display,Georgia,serif); margin:0 0 5px; }
