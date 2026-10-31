@@ -533,6 +533,9 @@ export default function CosmosWindow() {
     if (speakReviewText(spoken.text, reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role))) {
       lastAutoAudioRef.current = marker;
       void markLearning(["hear"]);
+    } else {
+      setMethodState("think");
+      setNotice("Audio is unavailable on this device. Switched to Think.");
     }
   }, [method, mode, revealed, card?.id, pack?.id, template?.id, index]);
 
@@ -1026,9 +1029,10 @@ export default function CosmosWindow() {
       {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
         <span>Answer by</span>
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
-          .filter(([value]) => value !== "hear" || canListen)
           .map(([value,label]) =>
-          <button key={value} type="button" aria-pressed={method === value} onClick={() => setMethod(value)}>{label} · {methodCounts[value]}×</button>)}
+          <button key={value} type="button" aria-pressed={method === value} disabled={value === "hear" && !canListen}
+            title={value === "hear" && !canListen ? "No spoken prompt available for this card" : undefined}
+            onClick={() => setMethod(value)}>{label} · {methodCounts[value]}×</button>)}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
         placeholder="Type your answer here…" aria-label="Your typed answer" rows={2}
