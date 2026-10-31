@@ -309,3 +309,193 @@
 }
 .study-count-all[aria-pressed="true"] { background: var(--ws-accent-soft); color: var(--ws-accent-strong); border-color: var(--ws-accent-line); }
 @media (pointer: coarse) { .study-count-all { min-height: 44px; } }
+
+
+/* Review setup v2 — compact settings, with optional filters kept out of the way. */
+.review-launcher.compact-study-launcher {
+  width: min(740px, calc(100vw - 32px)) !important;
+  min-height: 0 !important;
+}
+.review-launcher .compact-study-screen {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 27px 30px 26px !important;
+}
+.review-launcher .compact-study-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding-bottom: 19px;
+}
+.review-launcher .compact-study-heading h2 {
+  font-size: clamp(28px, 3vw, 35px) !important;
+}
+.review-launcher .compact-study-meta span {
+  min-height: 31px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+.review-launcher .compact-study-meta b { font-size: 12px; }
+.review-launcher .compact-study-controls.review-controls {
+  margin-top: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.review-count-field,
+.review-order-field { display: flex; min-width: 0; flex-direction: column; gap: 9px; }
+.review-count-field > label,
+.review-order-field > span,
+.review-filter-heading > span {
+  color: var(--ws-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .025em;
+}
+.review-count-field input {
+  display: block;
+  width: 100%;
+  height: 45px;
+  padding: 0 12px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 10px;
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  outline: none;
+}
+.review-count-field input:focus-visible {
+  border-color: var(--ws-accent);
+  box-shadow: 0 0 0 3px var(--ws-accent-soft);
+}
+.review-count-field input[aria-invalid="true"] { border-color: var(--c-cinnabar); }
+.review-count-field > small { color: var(--ws-muted); font-size: 10px; }
+.review-order-field .review-order-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.review-order-field .review-order-options button {
+  min-width: 0;
+  height: 45px;
+  padding: 0 8px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 10px;
+  background: var(--ws-surface);
+  color: var(--ws-text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  transition: background .15s ease, border-color .15s ease;
+}
+.review-order-field .review-order-options button:hover:not(.selected) {
+  background: var(--ws-raised);
+  border-color: var(--ws-faint);
+}
+.review-order-field .review-order-options button.selected,
+.review-order-field .review-order-options button.selected:hover {
+  background: var(--ws-text);
+  border-color: var(--ws-text);
+  color: var(--ws-on-primary);
+}
+.review-launcher .review-filters {
+  margin-top: 20px;
+  border-top: 1px solid var(--ws-line);
+  border-bottom: 1px solid var(--ws-line);
+}
+.review-launcher .review-filters > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 47px;
+  padding: 0 3px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--ws-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.review-launcher .review-filters > summary::-webkit-details-marker { display: none; }
+.review-launcher .review-filters > summary small {
+  margin-left: auto;
+  color: var(--ws-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.review-launcher .review-filters > summary svg { flex: none; color: var(--ws-muted); transition: transform .15s; }
+.review-launcher .review-filters[open] > summary svg { transform: rotate(180deg); }
+.review-launcher .review-filters > summary:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.review-launcher .review-filters-body {
+  padding: 4px 3px 20px;
+}
+.review-launcher .review-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 5px 0 8px;
+}
+.review-launcher .review-filter-heading:not(:first-child) { margin-top: 19px; }
+.review-launcher .review-filter-heading button {
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--ws-muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.review-launcher .review-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  max-height: 115px;
+  margin: 0;
+  overflow-y: auto;
+}
+.review-launcher .review-filter-chips > button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 9px;
+  background: var(--ws-surface);
+  color: var(--ws-text);
+  font-size: 11px;
+  font-weight: 550;
+}
+.review-launcher .review-filter-chips > button:hover:not(.selected) { background: var(--ws-raised); }
+.review-launcher .review-filter-chips > button.selected,
+.review-launcher .review-filter-chips > button[aria-pressed="true"] {
+  background: var(--ws-text);
+  border-color: var(--ws-text);
+  color: var(--ws-on-primary);
+}
+.review-launcher .review-include-mastered {
+  margin-top: 18px;
+  font-size: 11px;
+}
+.review-launcher .review-include-mastered input { width: 16px; height: 16px; }
+.review-launcher .compact-study-footer { margin-top: 20px; }
+.review-launcher .compact-study-footer .study-start {
+  min-height: 44px;
+  padding-inline: 18px !important;
+  font-size: 12px;
+}
+@media (max-width: 650px) {
+  .review-launcher .compact-study-screen { padding: 20px 18px 22px !important; }
+  .review-launcher .compact-study-controls.review-controls { grid-template-columns: 1fr; gap: 19px; }
+  .review-launcher .compact-study-heading { gap: 8px; }
+  .review-launcher .review-order-field .review-order-options button { padding-inline: 6px; }
+}
+@media (max-width: 390px) {
+  .review-launcher .review-order-field .review-order-options { grid-template-columns: 1fr; }
+  .review-launcher .review-order-field .review-order-options button { height: 39px; }
+}
