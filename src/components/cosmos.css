@@ -422,3 +422,18 @@
 .cosmos-secondary-actions { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:16px; margin:5px 0; }
 .cosmos-secondary-actions .cosmos-extra-toggle { margin:0; min-height:34px; padding:6px 9px; border-radius:7px; }
 .cosmos-secondary-actions .cosmos-extra-toggle:focus-visible { outline:2px solid var(--live); outline-offset:2px; }
+
+/* Review methods: Hear is mutually exclusive with the other four methods.
+   Speaking after listening is an independently confirmed action. */
+.cosmos-recall-methods .cosmos-audio-switch { margin-left:0; }
+.cosmos-said-button {
+  min-height:35px; margin-top:16px; padding:8px 16px;
+  border:1px solid var(--line-2); border-radius:999px;
+  color:var(--ink-2); background:transparent; cursor:pointer;
+  font:13px var(--sans); transition:background .12s ease,border-color .12s ease;
+}
+.cosmos-said-button[aria-pressed="true"] {
+  background:color-mix(in srgb,var(--c-sage) 18%,var(--paper));
+  border-color:var(--c-sage); color:var(--c-sage); font-weight:600;
+}
+.cosmos-said-button:focus-visible { outline:2px solid var(--c-sage); outline-offset:3px; }
