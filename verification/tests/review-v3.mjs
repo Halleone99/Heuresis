@@ -101,7 +101,7 @@ const scenarios = {
     check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${second}'`) === "1", "Passive is stored as rank 1");
     await page.click('.sort-finished-actions button:has-text("Review now")');
     await page.locator(".review-controls").waitFor();
-    await page.getByRole("group", { name: "Number of cards" }).getByRole("button", { name: "5" }).click();
+    await page.locator("#review-session-size").fill("5");
     const popupOpened = context.waitForEvent("page");
     await page.locator(".study-start").click();
     const popup = await popupOpened;
@@ -317,7 +317,7 @@ const scenarios = {
     await openTopic(page);
     await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
-    await page.getByRole("group", { name: "Number of cards" }).getByRole("button", { name: "5" }).click();
+    await page.locator("#review-session-size").fill("5");
     await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).click();
     let opened = context.waitForEvent("page");
     await page.click(".study-start");
@@ -330,7 +330,7 @@ const scenarios = {
     await popup.close();
     await page.locator(".review-command").click();
     await page.locator(".review-controls").waitFor();
-    check(await page.getByRole("group", { name: "Number of cards" }).getByRole("button", { name: "5" }).getAttribute("aria-pressed") === "true",
+    check(await page.locator("#review-session-size").inputValue() === "5",
       "Five-card choice is remembered");
     check(await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).getAttribute("aria-pressed") === "true",
       "Random order is remembered");
