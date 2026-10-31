@@ -89,6 +89,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("c");
@@ -144,6 +145,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     const discarded = () => sql(`select (data->>'_discarded_at') is not null from heuresis_cards where data->>'term'='${first}'`);
@@ -192,6 +194,7 @@ const scenarios = {
     check(await waitFor(async () => await page.locator(`.modern-topic-row:has-text("${first}")`).count() === 1), "the restored card is back in the topic");
 
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     for (let guard = 0; guard < 3 && (await page.locator(".sort-card > strong").innerText()).trim() !== first; guard += 1) { await page.keyboard.press("l"); await page.waitForTimeout(300); }
     await page.keyboard.press("d");
@@ -267,6 +270,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await context.setOffline(true);
@@ -337,6 +341,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     const later = (await page.locator(".sort-card > strong").innerText()).trim();
     const previousCardId = await page.locator(".sort-card").getAttribute("data-card-id");
