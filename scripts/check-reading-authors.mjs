@@ -16,6 +16,15 @@ assert.match(reading, /<ReadingAuthors userId=\{userId\} books=\{api\.books\} qu
 assert.match(reading, /<QuotationsView userId=\{userId\}/);
 assert.match(reading, /onOpenBook=\{openBook\}/);
 assert.match(reading, /onAddBook=\{\(author\) =>/);
+
+// The author-page Add book action must link a selected existing book, not insert a duplicate.
+assert.match(reading, /onLinkBook=\{async \(bookId, author\) => \{ await api\.updateBook\(bookId, \{ author \}\); \}\}/);
+assert.match(authors, /onClick=\{openBookPicker\}/);
+assert.match(authors, /const alreadyLinked = new Set\(chosen\.books\.map\(book => book\.id\)\)/);
+assert.match(authors, /await onLinkBook\(selectedBook\.id, chosen\.name\)/);
+assert.match(authors, /Create new book/);
+assert.doesNotMatch(authors, /onClick=\{\(\) => onAddBook\(chosen\.name\)\}/);
+
 assert.doesNotMatch(app, /id: "quotations", label:/);
 assert.match(quotes, /useReadingLibrary\(userId\)/);
 
