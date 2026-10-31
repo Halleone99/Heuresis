@@ -14,7 +14,12 @@ export function completedInYear(book: FinishedDateSource, year: number): boolean
   return completedOn(book).slice(0, 4) === String(year);
 }
 
-export function parseFinishedDate(value: string, today = new Date().toLocaleDateString("en-CA")): {
+function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+export function parseFinishedDate(value: string, today = localToday()): {
   exactDate: string | null; yearOnly: string | null;
 } {
   const date = value.trim();
