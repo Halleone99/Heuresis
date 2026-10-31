@@ -827,6 +827,8 @@ export default function CosmosWindow() {
       if (event.isComposing || event.keyCode === 229) return;
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
+      // Space/Enter on a focused button must activate that button, not reveal the card.
+      if (target?.closest("button,[role=button]") && (event.key === " " || event.key === "Enter")) return;
       if (event.key === "Escape" && !typing) {
         event.preventDefault();
         if (whyOpen) { setWhyOpen(false); return; }
