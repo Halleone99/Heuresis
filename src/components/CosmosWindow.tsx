@@ -297,6 +297,10 @@ export default function CosmosWindow() {
   const blocks = parseBlocks(card);
 
   const setMethod = (next: ReviewMethod) => {
+    if (method !== next) {
+      setSaidAnswer(false);
+      if (method === "hear") stopReviewAudio();
+    }
     setMethodState(next);
     writeReviewMethod(next);
   };
@@ -535,6 +539,7 @@ export default function CosmosWindow() {
       void markLearning(["hear"]);
     } else {
       setMethodState("think");
+      writeReviewMethod("think");
       setNotice("Audio is unavailable on this device. Switched to Think.");
     }
   }, [method, mode, revealed, card?.id, pack?.id, template?.id, index]);
