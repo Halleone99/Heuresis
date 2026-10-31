@@ -12,7 +12,8 @@ const mistakes = read("src/components/workspace/MistakeLog.tsx");
 
 assert.match(choice, /aria-pressed=\{value === item\.value\}/, "Shared single-choice controls expose selection");
 assert.match(choice, /role="group" aria-label=\{label\}/, "Shared controls have an accessible label");
-assert.match(study, /<SegmentedChoice label="Number of cards"/, "Five, ten or twenty cards selected before review");
+assert.match(study, /id="review-session-size" type="number"/, "Review session size is directly editable");
+assert.match(study, /setSizeInput\(event\.target\.value\)/, "Review quantity accepts typing");
 assert.match(study, /<SegmentedChoice label="Review card order"/);
 assert.match(sort, /<SegmentedChoice label="New card order"/);
 assert.match(study, /aria-label="Review setup"/);
@@ -26,9 +27,7 @@ assert.match(sort, /Start sorting · \{selectedCount\}/, "New session names the 
 assert.doesNotMatch(sort, /ONE SORT WORKFLOW/, "Sort no longer exposes workflow implementation notes");
 assert.match(sort, /<SortEnrichmentPanel/, "Sort exposes editable card details without hiding the flashcard");
 assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
-assert.match(study, /value:"5",label:"5"/, "Five-card sessions");
-assert.match(study, /value:"10",label:"10"/, "Ten-card sessions");
-assert.match(study, /value:"20",label:"20"/, "Twenty-card sessions");
+assert.match(study, /requestedSize >= 1 && requestedSize <= 500/, "Review size validates positive amounts up to 500");
 
 assert.match(pack, /disabled=\{!learningCards\.length\}/, "Do not open Review before a card is sorted into Learning");
 assert.match(pack, /onClick=\{\(\) => setStudyOpen\(true\)\}[\s\S]{0,180}<Brain size=\{15\} \/> Review<\/button>/, "Review opens the selection screen");
