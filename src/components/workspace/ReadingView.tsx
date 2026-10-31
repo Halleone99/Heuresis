@@ -9,13 +9,14 @@ import {
 } from "../../lib/readingBridge";
 
 type ReadingArea = "library" | "authors" | "quotations";
-type Tab = "current" | "next" | "catalogue" | "archive";
+type Tab = "current" | "next" | "catalogue" | "finished";
 const TABS: Array<{ id: Tab; title: string }> = [
   { id: "current", title: "Reading now" }, { id: "next", title: "Up next" },
-  { id: "catalogue", title: "Full library" }, { id: "archive", title: "Archive" },
+  { id: "catalogue", title: "Full library" }, { id: "finished", title: "Finished" },
 ];
 const EMPTY: BookDraft = { title: "", author: "", status: "To read", importance: 2 };
 const STATUSES: ReadingStatus[] = ["To read", "Reading", "Read", "Abandoned"];
+const statusLabel = (status: ReadingStatus) => status === "Read" ? "Finished" : status === "To read" ? "Want to read" : status;
 function BookCover({ book, index }: { book: ReadingBook; index: number }) {
   return <div className="lit-book-cover" data-colour={index % 6} aria-hidden="true">
     <span className="lit-cover-emblem">✦</span>
@@ -42,7 +43,7 @@ export function ReadingView({ userId }: { userId: string }) {
     current: api.books.filter((book) => book.status === "Reading").length,
     next: api.books.filter((book) => book.status === "To read" && bookShelf(book) === "next").length,
     catalogue: api.books.length,
-    archive: api.books.filter((book) => book.status === "Read" || book.status === "Abandoned").length,
+    finished: api.books.filter((book) => book.status === "Read").length,
   };
   const currentYear = new Date().getFullYear();
   const finishedBooks = api.books.filter((book) => book.status === "Read");
@@ -57,7 +58,7 @@ export function ReadingView({ userId }: { userId: string }) {
   const filtered = useMemo(() => api.books.filter((book) => {
     if (tab === "current" && book.status !== "Reading") return false;
     if (tab === "next" && !(book.status === "To read" && bookShelf(book) === "next")) return false;
-    if (tab === "archive" && book.status !== "Read" && book.status !== "Abandoned") return false;
+    if (tab === "finished" && book.status !== "Read") return false;
     return [book.title, book.author, bookDomain(book)].join(" ").toLowerCase().includes(query.trim().toLowerCase());
   }).sort((a, b) => a.title.localeCompare(b.title)), [api.books, tab, query]);
 
@@ -154,7 +155,7 @@ export function ReadingView({ userId }: { userId: string }) {
           <span className="lit-mini-label">{bookDomain(selected) || "Personal collection"} · Priority {selected.importance}</span></div></div>
         <label className="lit-field">Shelf status
           <select value={selected.status} disabled={busy} onChange={(event) => updateStatus(selected, event.target.value as ReadingStatus)}>
-            {STATUSES.map((status) => <option key={status}>{status}</option>)}
+            {STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
           </select>
         </label>
         {selected.status === "To read" ? <button className="lit-button" disabled={busy}
@@ -182,7 +183,7 @@ export function ReadingView({ userId }: { userId: string }) {
         <label className="lit-field">Author<input value={form.author} onChange={(event) => setForm({ ...form, author: event.target.value })}/></label>
         <div className="lit-form-row">
           <label className="lit-field">Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as ReadingStatus })}>
-            {STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
+            {STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
           <label className="lit-field">Priority<select value={form.importance} onChange={(event) => setForm({ ...form, importance: Number(event.target.value) })}>
             {[1, 2, 3, 4].map((importance) => <option key={importance} value={importance}>P{importance}</option>)}</select></label>
         </div>
