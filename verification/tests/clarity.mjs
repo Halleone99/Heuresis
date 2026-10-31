@@ -53,7 +53,7 @@ const scenarios = {
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();
     check(await page.locator(".modern-topic-row").count() === 0, "opening a topic does not render every card");
-    check(await page.locator(".topic-browse-tags").count() === 1, "topic tags are shown instead");
+    check(await page.locator(".topic-filter-picker").count() === 1, "a compact searchable tag and state selector is available instead");
     await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-row").first().waitFor();
     check(await page.locator(".modern-topic-row").count() >= 5, "Show all explicitly expands the full table");
@@ -172,7 +172,7 @@ const scenarios = {
     check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
     check(await decision.getByRole("button", { name: "Learn as Core" }).count() === 1, "Core classification is available");
     check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is no longer a Sort action");
-    check(await decision.getByRole("button", { name: /Sort Later/ }).count() === 1, "Sort Later is available");
+    check(await decision.getByRole("button", { name: /^Later/ }).count() === 1, "Sort Later is available");
     check(await decision.getByRole("button", { name: /Discard/ }).count() === 1, "Discard to Trash remains recoverable");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("l");

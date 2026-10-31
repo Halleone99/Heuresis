@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, MoreHorizontal, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   DISCARDED_AT_KEY,
@@ -180,9 +180,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [stateFilter, setStateFilter] = useState<ProgressStage | null>(null);
   const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
-  const [tagFilter, setTagFilter] = useState("all");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [includeUntagged, setIncludeUntagged] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
   const [allCardsExpanded, setAllCardsExpanded] = useState(false);
-  const [expandedTagList, setExpandedTagList] = useState(false);
   const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -223,9 +224,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setStateFilter(null);
     setFavouriteOnly(false);
     setInterestFilter("all");
-    setTagFilter("all");
+    setSelectedTagIds([]);
+    setIncludeUntagged(false);
+    setTagSearch("");
     setAllCardsExpanded(false);
-    setExpandedTagList(false);
     setDetailFilters([]);
     setSortField("status");
     setSortDirection("asc");
@@ -330,7 +332,12 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const lessonTags = useMemo(() => tagFacets.map(({ tag }) => tag).filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tagFacets]);
   const otherTags = useMemo(() => tagFacets.map(({ tag }) => tag).filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)), [tagFacets]);
   const untaggedCount = useMemo(() => [...cards, ...referenceCards].filter((card) => !card.tags.length).length, [cards, referenceCards]);
-  const selectedTag = tagFilter !== "all" && tagFilter !== "none" ? tags.find((tag) => tag.id === tagFilter) ?? null : null;
+  const tagSelectionActive = selectedTagIds.length > 0 || includeUntagged;
+  const tagMatchesSearch = (tag: HeuresisTag) => tag.name.toLocaleLowerCase().includes(tagSearch.trim().toLocaleLowerCase());
+  function toggleTag(tagId: string) {
+    setAllCardsExpanded(false);
+    setSelectedTagIds((current) => current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]);
+  }
 
   const visibleTotal = loadedPackId === pack.id ? cards.length + referenceCards.length : pack.card_count;
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
@@ -356,8 +363,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       if (interestFilter === "none" && card.interest_rank != null) return false;
       if (interestFilter !== "all" && interestFilter !== "none" && !ranksFor(interestFilter).includes(card.interest_rank ?? -1)) return false;
 
-      if (tagFilter === "none" && card.tags.length) return false;
-      if (tagFilter !== "all" && tagFilter !== "none" && !card.tags.some((tag) => tag.id === tagFilter)) return false;
+      if (tagSelectionActive && !(includeUntagged && card.tags.length === 0) && !card.tags.some((tag) => selectedTagIds.includes(tag.id))) return false;
 
       if (detailFilters.length) {
         const matchesSignal = detailFilters.some((detail) => {
@@ -386,7 +392,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     });
     // statusRank and cardSummary read cardStates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, cardStates, cardBars, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
+  }, [cards, cardStates, cardBars, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagSelectionActive, includeUntagged, selectedTagIds, term?.key]);
 
   // Show the card chosen in Search: clear anything that could hide it, select it, scroll to it.
   useEffect(() => {
@@ -395,7 +401,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     const isReference = referenceCards.some((card) => card.id === focusCardId);
     if (isReference || cards.some((card) => card.id === focusCardId)) {
       setAllCardsExpanded(true);
-      setQuery(""); setStatusFilters(isReference ? ["reference"] : []); setStateFilter(null); setFavouriteOnly(false); setInterestFilter("all"); setTagFilter("all"); setDetailFilters([]);
+      setQuery(""); setStatusFilters(isReference ? ["reference"] : []); setStateFilter(null); setFavouriteOnly(false); setInterestFilter("all"); setSelectedTagIds([]); setIncludeUntagged(false); setDetailFilters([]);
       setSelectedCardId(focusCardId);
       setFocusNotice("");
       window.requestAnimationFrame(() => {
@@ -409,7 +415,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     onFocusCardShown?.();
   }, [cards, focusCardId, loadedPackId, loading, onFocusCardShown, pack.id, referenceCards]);
 
-  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
+  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagSelectionActive ? 1 : 0) + (query.trim() ? 1 : 0);
   const showCardList = allCardsExpanded || activeFilterCount > 0;
   const selectedCard = selectedCardId ? [...cards, ...referenceCards].find((card) => card.id === selectedCardId) ?? null : null;
 
@@ -479,7 +485,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setStateFilter(null);
     setFavouriteOnly(false);
     setInterestFilter("all");
-    setTagFilter("all");
+    setSelectedTagIds([]);
+    setIncludeUntagged(false);
+    setTagSearch("");
     setDetailFilters([]);
   }
 
@@ -493,45 +501,54 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
-  const learningBreakdown = PROGRESS_STAGES.filter((state) => stateCounts[state]);
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
       <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
 
       <header className="modern-topic-head">
         <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(visibleTotal, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
-        <div className="modern-topic-head-actions"><button className="secondary-button" onClick={onSettings}><Settings2 size={15} /> Settings</button></div>
+        <div className="modern-topic-head-actions">
+          <details className="topic-more-menu topic-settings-menu">
+            <summary className="secondary-button"><Settings2 size={15} /> Settings <ChevronDown size={13} /></summary>
+            <div className="topic-more-popover">
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); onSettings(); }}><Settings2 size={15} /> Topic settings</button>
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setRelatedOpen(true); }}><Link2 size={15} /> Connections</button>
+              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setImportOpen(true); }}><FileUp size={15} /> Import cards</button>
+            </div>
+          </details>
+        </div>
       </header>
 
       <section className="topic-workflow-overview" aria-label="Card workflow and status filter">
         <div className="workflow-overview-label">
-          <span>Learning stages</span>
-          <small>{statusFilters.length || stateFilter ? "Filtered · click again for overview" : `${plural(visibleTotal, "card")} · choose a stage`}</small>
+          <span>Card journey</span>
+          <small>{statusFilters.length || stateFilter ? "Filtered · click again for overview" : "Choose a group to view its cards"}</small>
         </div>
         <div className="workflow-overview-stages">
           <button className={statusFilters.includes("unsorted") ? "active" : ""} data-stage="unsorted" onClick={() => chooseStage("unsorted")}>
             <span className="workflow-stage-dot" />
             <strong>{unsortedCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Unsorted</b><small>To sort</small></span>
+            <span className="workflow-stage-copy"><b>To classify</b><small>Not yet placed in Review</small></span>
           </button>
           <span className="workflow-stage-arrow" aria-hidden="true">→</span>
           <button className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" onClick={() => chooseStage("learning")}>
             <span className="workflow-stage-dot" />
             <strong>{learningCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Learning</b><small>In Review</small></span>
+            <span className="workflow-stage-copy"><b>In Review</b><small>Core · Active · Passive</small></span>
           </button>
           <span className="workflow-stage-arrow is-quiet" aria-hidden="true">·</span>
           <button className={statusFilters.includes("reference") ? "active" : ""} data-stage="reference" onClick={() => chooseStage("reference")}>
             <span className="workflow-stage-dot" />
             <strong>{referenceCards.length.toLocaleString()}</strong>
-            <span className="workflow-stage-copy"><b>Reference</b><small>To look up, never reviewed</small></span>
+            <span className="workflow-stage-copy"><b>Reference</b><small>Lookup only · not reviewed</small></span>
           </button>
         </div>
-        {learningBreakdown.length ? <div className="workflow-state-line" role="group" aria-label="Learning cards by knowledge state">
-          <span>Of {learningCards.length} sorted cards:</span>
-          {learningBreakdown.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}>
-            {stateCounts[state]} {state === "new" ? "new" : state === "review" ? "review" : state === "known" ? "known" : "mastered"}</button>)}
-        </div> : null}
+        <div className="workflow-state-line" role="group" aria-label="Review progress">
+          <span>Review progress · {learningCards.length} cards</span>
+          {PROGRESS_STAGES.map((state) => <button key={state} type="button" data-state={state} aria-pressed={stateFilter === state} onClick={() => chooseState(state)}
+            title={state === "new" ? "In Review but never practised" : state === "review" ? "Practised at least once; still learning" : state === "known" ? "Strong progress, but not yet mastered" : "Mastered according to review evidence"}>
+            <strong>{stateCounts[state]}</strong> {state === "new" ? "Never reviewed" : state === "review" ? "Reviewed" : state === "known" ? "Familiar" : "Mastered"}</button>)}
+        </div>
       </section>
 
       {richDiagnostics ? <div className="intelligent-question-band topic-question-band compact-question-band">
@@ -542,24 +559,18 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
       <div className="topic-command-bar">
         <div className="topic-learning-actions">
-          <button className="sort-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}><SlidersHorizontal size={15} /> Sort <b>{unsortedCards.length}</b></button>
-          <button className="primary-button review-command" disabled={!learningCards.length}
-            title="Choose cards, tags and review order" onClick={() => setStudyOpen(true)}><Brain size={15} /> Review</button>
-          {tagFilter !== "all" && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
+          <div className="topic-session-control" role="group" aria-label="Card sessions: New or Review">
+            <button className="sort-command new-session-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}
+              title="Classify new cards as Core, Active or Passive"><BookOpen size={15} /> New <small>{unsortedCards.length}</small></button>
+            <button className="review-command" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
+              title="Practise cards you have already classified"><Brain size={15} /> Review</button>
+          </div>
+          {tagSelectionActive && shown.some((card) => workflowStatus(card) === "learning") ? <button className="secondary-button" onClick={() => {
             const selected = shown.filter((card) => workflowStatus(card) === "learning");
-            openTargeted("Review filtered lesson", selected);
+            openTargeted("Review filtered cards", selected);
           }}><Brain size={15} /> Review these {shown.filter((card) => workflowStatus(card) === "learning").length}</button> : null}
           <button className="secondary-button" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
-          <button className="secondary-button" onClick={onCapture}><Plus size={15} /> New card</button>
-        </div>
-        <div className="topic-utility-actions">
-          <details className="topic-more-menu">
-            <summary className="secondary-button"><MoreHorizontal size={15} /> More <ChevronDown size={13} /></summary>
-            <div className="topic-more-popover">
-              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setRelatedOpen(true); }}><Link2 size={15} /> Connections</button>
-              <button type="button" onClick={(event) => { event.currentTarget.closest("details")?.removeAttribute("open"); setImportOpen(true); }}><FileUp size={15} /> Import cards</button>
-            </div>
-          </details>
+          <button className="secondary-button" onClick={onCapture}><Plus size={15} /> Add</button>
         </div>
       </div>
       {reviewNotice ? <div className="topic-selection-hint" role="alert">{reviewNotice}</div> : null}
@@ -574,24 +585,42 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             Favourites <small>{favouriteCards.length}</small>
           </button>
 
-          <details className="filter-menu">
-            <summary className={interestFilter !== "all" ? "active" : ""}><span>{interestFilter === "all" ? "Importance" : interestFilter === "none" ? "No importance" : IMPORTANCE_LABEL[interestFilter]}</span><ChevronDown size={14} /></summary>
-            <div className="filter-menu-popover interest-menu-popover">
-              <p>Importance</p>
-              <div className="importance-filter-list">
-                {IMPORTANCE_ORDER.map((level) => <button key={level} className={interestFilter === level ? "selected" : ""} data-level={level} onClick={() => setInterestFilter(interestFilter === level ? "all" : level)}>{IMPORTANCE_LABEL[level]}</button>)}
-                <button className={interestFilter === "none" ? "selected" : ""} onClick={() => setInterestFilter(interestFilter === "none" ? "all" : "none")}>Not set</button>
-              </div>
-              {interestFilter !== "all" ? <button className="menu-reset" onClick={() => setInterestFilter("all")}>Any importance</button> : null}
-            </div>
-          </details>
-
-          <details className="filter-menu tag-filter-menu">
-            <summary className={tagFilter !== "all" ? "active" : ""}><span>{selectedTag ? selectedTag.name : tagFilter === "none" ? "No tags" : "Tags"}</span><ChevronDown size={14} /></summary>
-            <div className="filter-menu-popover tag-menu-popover">
-              {lessonTags.length ? <section><p>Lessons</p><div className="lesson-tag-grid">{lessonTags.map((tag) => { const lesson = tag.name.match(/\d+/)?.[0] ?? tag.name; return <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }} title={`${tagCountById.get(tag.id) ?? 0} cards`}>{lesson}</button>; })}</div></section> : null}
-              {otherTags.length ? <section><p>Other tags</p><div className="other-tag-list">{otherTags.map((tag) => <button key={tag.id} className={tagFilter === tag.id ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }}>{tag.name} <small>{tagCountById.get(tag.id) ?? 0}</small></button>)}</div></section> : null}
-              <div className="tag-menu-footer"><button className={tagFilter === "none" ? "selected" : ""} onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === "none" ? "all" : "none"); }}>Untagged ({untaggedCount})</button>{tagFilter !== "all" ? <button onClick={() => setTagFilter("all")}>Any tag</button> : null}</div>
+          <details className="filter-menu topic-filter-picker">
+            <summary className={activeFilterCount ? "active" : ""}><SlidersHorizontal size={15} /><span>Filters</span>{activeFilterCount ? <b>{activeFilterCount}</b> : null}<ChevronDown size={14} /></summary>
+            <div className="filter-menu-popover topic-filter-panel">
+              <div className="topic-filter-panel-head"><strong>Filter cards</strong><span>Selections combine across sections</span></div>
+              <section className="topic-filter-section" aria-label="Filter by tags">
+                <div className="topic-filter-section-title"><strong>Tags</strong><small>Choose several · match any</small></div>
+                <label className="topic-filter-tag-search"><Search size={14} /><input value={tagSearch} onChange={(event) => setTagSearch(event.target.value)} placeholder="Find a tag…" aria-label="Search available tags" /></label>
+                <div className="topic-filter-tag-list">
+                  {lessonTags.filter(tagMatchesSearch).length ? <p className="topic-filter-group-title">Lessons</p> : null}
+                  {lessonTags.filter(tagMatchesSearch).map((tag) => <label key={tag.id} className="topic-filter-check"><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={() => toggleTag(tag.id)} /><span>{tag.name}</span><small>{tagCountById.get(tag.id) ?? 0}</small></label>)}
+                  {otherTags.filter(tagMatchesSearch).length ? <p className="topic-filter-group-title">Other tags</p> : null}
+                  {otherTags.filter(tagMatchesSearch).map((tag) => <label key={tag.id} className="topic-filter-check" style={themeTagStyle(tag.name)}><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={() => toggleTag(tag.id)} /><span>{tag.name}</span><small>{tagCountById.get(tag.id) ?? 0}</small></label>)}
+                  {!tagFacets.some(({tag}) => tagMatchesSearch(tag)) ? <p className="topic-filter-no-tags">No matching tags</p> : null}
+                  {!tagSearch.trim() ? <label className="topic-filter-check"><input type="checkbox" checked={includeUntagged} onChange={(event) => { setAllCardsExpanded(false); setIncludeUntagged(event.target.checked); }} /><span>Untagged <small>{untaggedCount}</small></span></label> : null}
+                </div>
+                {tagSelectionActive ? <button className="topic-filter-section-reset" onClick={() => { setSelectedTagIds([]); setIncludeUntagged(false); }}>Clear tags</button> : null}
+              </section>
+              <section className="topic-filter-section" aria-label="Filter by importance">
+                <div className="topic-filter-section-title"><strong>Importance</strong><small>How actively to use the knowledge</small></div>
+                <div className="topic-filter-options">
+                  <button className={interestFilter === "all" ? "selected" : ""} aria-pressed={interestFilter === "all"} onClick={() => setInterestFilter("all")}>Any</button>
+                  {IMPORTANCE_ORDER.map((level) => <button key={level} className={interestFilter === level ? "selected" : ""} aria-pressed={interestFilter === level} onClick={() => { setAllCardsExpanded(false); setInterestFilter(level); }}>{IMPORTANCE_LABEL[level]}</button>)}
+                  <button className={interestFilter === "none" ? "selected" : ""} aria-pressed={interestFilter === "none"} onClick={() => { setAllCardsExpanded(false); setInterestFilter("none"); }}>Not set</button>
+                </div>
+              </section>
+              <section className="topic-filter-section" aria-label="Filter by review state">
+                <div className="topic-filter-section-title"><strong>Card state</strong><small>Separate from importance</small></div>
+                <div className="topic-filter-options topic-filter-states">
+                  <button className={!statusFilters.length && !stateFilter ? "selected" : ""} aria-pressed={!statusFilters.length && !stateFilter} onClick={() => { setAllCardsExpanded(false); setStatusFilters([]); setStateFilter(null); }}>Any</button>
+                  <button className={statusFilters.includes("unsorted") ? "selected" : ""} aria-pressed={statusFilters.includes("unsorted")} onClick={() => chooseStage("unsorted")}>To classify</button>
+                  <button className={statusFilters.includes("reference") ? "selected" : ""} aria-pressed={statusFilters.includes("reference")} onClick={() => chooseStage("reference")}>Reference</button>
+                  {PROGRESS_STAGES.map((stage) => <button key={stage} className={stateFilter === stage ? "selected" : ""} aria-pressed={stateFilter === stage} onClick={() => chooseState(stage)}>
+                    {stage === "new" ? "Never reviewed" : stage === "review" ? "Reviewed" : stage === "known" ? "Familiar" : "Mastered"}</button>)}
+                </div>
+              </section>
+              <div className="topic-filter-panel-footer"><button onClick={clearFilters}>Clear all filters</button><span>{shown.length} matching cards</span></div>
             </div>
           </details>
 
@@ -608,40 +637,25 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         </div>
       </div>
 
-      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub" aria-label="Choose which cards to display">
-         <div className="topic-browse-heading">
-           <div>
-             <strong>{showCardList ? `${shown.length.toLocaleString()} of ${visibleTotal.toLocaleString()} cards` : "Browse by tag"}</strong>
-             <small>{showCardList ? "Use the filters above to narrow the list" : `${(visibleTotal - untaggedCount).toLocaleString()} tagged · ${untaggedCount.toLocaleString()} untagged`}</small>
-           </div>
-           <div className="topic-browse-actions">
-             {showCardList ? <button type="button" className="secondary-button" onClick={clearFilters}>Overview</button> : null}
-             {!allCardsExpanded || activeFilterCount > 0 ? <button type="button" className="secondary-button" onClick={() => { clearFilters(); setAllCardsExpanded(true); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
-           </div>
-         </div>
-         <div className="topic-browse-tags" role="group" aria-label="Filter by topic tag">
-           {tagFacets.slice(0, expandedTagList ? tagFacets.length : 10).map(({ tag, count }) => (
-             <button type="button" key={tag.id} className={`topic-tag-pill ${tagFilter === tag.id ? "selected" : ""} ${themeTagStyle(tag.name) ? "theme-tag" : ""}`}
-               style={themeTagStyle(tag.name)} aria-pressed={tagFilter === tag.id}
-               onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === tag.id ? "all" : tag.id); }}>
-               {tag.name} <small>{count}</small>
-             </button>
-           ))}
-           {untaggedCount > 0 ? <button type="button" className={`topic-tag-pill untagged ${tagFilter === "none" ? "selected" : ""}`} aria-pressed={tagFilter === "none"}
-             onClick={() => { setAllCardsExpanded(false); setTagFilter(tagFilter === "none" ? "all" : "none"); }}>Untagged <small>{untaggedCount}</small></button> : null}
-           {tagFacets.length > 10 ? <button type="button" className="topic-more-tags" aria-expanded={expandedTagList} onClick={() => setExpandedTagList((current) => !current)}>
-             {expandedTagList ? "Fewer tags" : `+${tagFacets.length - 10} more tags`}
-           </button> : null}
-           {!tagFacets.length ? <span className="topic-tags-unassigned">Add tags while sorting or editing cards to build your groups.</span> : null}
-         </div>
-       </section> : null}
+      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub topic-browse-compact" aria-label="Card list selection">
+          <div className="topic-browse-heading">
+            <div>
+              <strong>{showCardList ? shown.length.toLocaleString() + " of " + visibleTotal.toLocaleString() + " cards" : "Card browser"}</strong>
+              <small>{showCardList ? "Results reflect your selected filters" : "Use Filters above to choose tags, importance or review state; or open the complete list."}</small>
+            </div>
+            <div className="topic-browse-actions">
+              {showCardList ? <button type="button" className="secondary-button" onClick={clearFilters}>Overview</button> : null}
+              {!allCardsExpanded || activeFilterCount > 0 ? <button type="button" className="secondary-button" onClick={() => { clearFilters(); setAllCardsExpanded(true); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
+            </div>
+          </div>
+        </section> : null}
 
        {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
       {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
       {!loading && error ? <div className="content-state error-state" role="alert"><strong>Could not load this topic.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
-      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose a tag, learning stage or search to see individual cards.</span></div> : null}
+      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose Filters above or Show all to see individual cards.</span></div> : null}
        {!loading && !error && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
@@ -657,7 +671,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
           const visibleTags = card.tags.slice(0, 3);
           const status = workflowStatus(card);
           const progress = cardBars.get(card.id) ?? { bars: 0, mastered: false, estimated: false };
-          const progressLabel = status === "unsorted" ? "To sort" : status === "reference" ? "Reference" : progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : reviewCount ? "Review" : "New";
+          const progressLabel = status === "unsorted" ? "To classify" : status === "reference" ? "Reference" : progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : reviewCount ? "Review" : "New";
           const selected = selectedCardId === card.id;
           return <div
             className={`modern-topic-row excel-topic-row ticker-topic-row ${selected ? "selected" : ""} ${status === "reference" ? "is-reference" : ""}`}
@@ -709,7 +723,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             </div>
           </div>;
         })}
-        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length || referenceCards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length || referenceCards.length ? "Change the filters or search." : "Use New card to add your first flashcard."}</span></div> : null}
+        {!shown.length ? <div className="pack-empty"><BookOpen size={20} /><strong>{cards.length || referenceCards.length ? "No matching cards." : "No cards yet."}</strong><span>{cards.length || referenceCards.length ? "Change the filters or search." : "Use + Add to create your first flashcard."}</span></div> : null}
       </div> : null}
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} onRetention={(retention) => changeRetention(editing, retention)} /> : null}

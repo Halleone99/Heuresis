@@ -18,5 +18,10 @@ assert.match(pack, /const otherTags = useMemo\(\(\) => tagFacets/, "Other tag ch
 assert.match(pack, /Untagged <small>\{untaggedCount\}/, "Unassigned cards are visible as a group");
 assert.match(pack, /setQuery\(""\);\s*setStatusFilters\(\[\]\)/, "Overview clears search and filters");
 assert.match(main, /import "\.\/topic-tag-first\.css";/, "The focused browser stylesheet is loaded");
-assert.match(css, /\.topic-browse-hub/, "The tag explorer has a styled layout");
+assert.match(css, /\.topic-browse-hub/, "The compact card browser has a styled layout");
+assert.match(pack, /selectedTagIds\.includes\(tag\.id\)/, "Multiple tags can be ticked independently");
+assert.match(pack, /tagSelectionActive/, "Tag selections narrow card results");
+assert.match(pack, /tagSearch/, "Tag choices are searchable at scale");
+assert.match(pack, /aria-label="Filter by importance"/, "Importance is available alongside tags");
+assert.match(pack, /aria-label="Filter by review state"/, "Card state is available alongside tags");
 console.log("Tag-first topic browsing checks passed.");

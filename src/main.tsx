@@ -65,6 +65,7 @@ import "./quick-capture-refresh.css";
 import "./android-tablet.css";
 import "./chinese-selection-themes.css";
 import "./topic-tag-first.css";
+import "./topic-card-controls.css";
 import "./theme/chrome.css";
 
 // Secondary windows load their own code only when opened, so the main window

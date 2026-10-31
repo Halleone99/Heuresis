@@ -19,7 +19,7 @@ assert.match(library, /onOpenCaptureInbox\(activeCollection\)/, "Drafts remain a
 
 assert.match(topic, /pack \? "Edit topic" : "Create topic"/, "Topic dialog uses explicit headings");
 assert.doesNotMatch(topic, /bounded learning space|Rename or reorganise/, "No technical or vague headings");
-assert.match(pack, /Learning stages/, "Stage filter title states what it shows");
+assert.match(pack, /Card journey/, "Card placement and review progress are labelled plainly");
 assert.doesNotMatch(pack, /Card workflow · filter by stage/, "No technical stage heading");
 
 console.log("Final UI clarity: single search, topic open, clear labels and preserved destinations passed.");

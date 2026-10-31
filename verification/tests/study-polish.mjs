@@ -30,11 +30,11 @@ async function desktopStudy() {
     await page.locator(".topic-browse-hub").waitFor();
     await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-table").waitFor(); // The tag-first topic only renders rows after Show all.
-    check(await page.locator(".topic-learning-actions > button").count() === 4 && await page.locator(".topic-learning-actions > .review-split").count() === 0,
-      "Topic has four clear actions: Sort, Review, Browse and New card");
+    check(await page.locator(".topic-session-control > button").count() === 2 && await page.locator(".topic-learning-actions > button").count() === 2,
+      "Topic groups New and Review, with Browse and Add separate");
     check(await page.locator(".desktop-header-actions > .desktop-primary").count() === 0, "No redundant New card in the header of an open topic");
     await page.locator(".topic-more-menu > summary").click();
-    check(await page.locator(".topic-more-popover button").count() === 2, "Import and Connections live inside one More menu");
+    check(await page.locator(".topic-more-popover button").count() === 3, "Settings, Import and Connections share one menu");
     await page.locator(".topic-more-menu > summary").click();
     const learning = Number(await page.locator('[data-stage="learning"] strong').innerText());
     const review = page.getByRole("button", { name: "Review", exact: true });
@@ -57,8 +57,8 @@ async function desktopStudy() {
       await page.locator(".sort-modal").waitFor();
       check(await page.locator(".sort-card").count() === 1, "Sort opens straight into the queue");
       await page.locator(".sort-filter-open").click();
-      check(await page.locator('[role="group"][aria-label="Sort card order"] button').count() === 2, "Sort reuses the order control (inside Filter)");
-      check(await page.locator('[role="group"][aria-label="Sort card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
+      check(await page.locator('[role="group"][aria-label="New card order"] button').count() === 2, "Sort reuses the order control (inside Filter)");
+      check(await page.locator('[role="group"][aria-label="New card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
       await page.keyboard.press("Escape");
       check(await page.locator(".sort-modal").count() === 1 && await page.locator(".sort-card").count() === 1, "Escape in the filter search closes Filter first");
       await page.keyboard.press("Escape");

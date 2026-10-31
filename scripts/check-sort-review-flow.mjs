@@ -20,7 +20,7 @@ assert.match(review, /mode: "review"/, "Review session must still launch");
 assert.match(sort, /completeCardSort\(/, "Keep interest scoring");
 assert.match(sort, /setSortTags\(/, "Keep per-card tag editing");
 assert.doesNotMatch(sort, /setCardRetention\(card\.id, "reference"\)|keepReference\(/, "Sorting has no redundant Reference action");
-assert.match(sort, /Sort Later/, "Sorting retains a later decision");
+assert.match(sort, /<SkipForward size=\{14\}\/> Later/, "New cards retains a later decision");
 assert.match(sort, /Discard/, "Sorting retains recoverable Discard");
 assert.match(sort, /function beginSort\(/, "One sort setup must select its queue");
 assert.match(sort, /const candidates = useMemo\(/, "Sort setup must retain search/tag filtering");
@@ -44,4 +44,7 @@ assert.match(enrichment, /removeRelatedRelation/, "Sort must still unlink vocabu
 assert.match(enrichmentCss, /grid-template-columns/, "Sort needs a three-column desktop layout");
 assert.match(enrichmentCss, /max-width: 600px/, "Sort must adapt to phones");
 
-console.log("One Sort / Review and topic-filter checks passed.");
+assert.match(pack, /aria-label="Card sessions: New or Review"/, "New and Review share one control");
+assert.match(pack, /<Plus size=\{15\} \/> Add/, "Creating a card is labelled Add");
+assert.match(pack, /topic-filter-picker/, "All card filters share one panel");
+console.log("New / Review and topic-filter checks passed.");
