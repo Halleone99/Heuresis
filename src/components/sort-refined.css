@@ -70,9 +70,9 @@
 .sort-modal .sort-selected-tags button { display:flex; align-items:center; gap:7px; min-height:28px; padding:4px 9px; border:1px solid var(--ws-accent-line); border-radius:7px; background:var(--ws-accent-soft); color:var(--ws-accent); font:500 11px var(--ws-sans); cursor:pointer; }
 .sort-modal .sort-tags-empty { display:block; color:var(--ws-muted); font-size:11px; margin-top:11px; }
 .sort-modal .sort-tags { margin-top:12px; display:grid; gap:8px; }
-.sort-modal .sort-note-panel textarea { display:block; width:100%; min-height:80px; margin-top:12px; padding:12px; resize:vertical; border:1px solid var(--ws-line-strong); border-radius:9px; background:var(--ws-surface-2); color:var(--ws-text); font:400 13px/1.55 var(--ws-sans); }
+.sort-modal .sort-note-panel textarea { display:block; width:100%; min-height:72px; margin-top:12px; padding:12px; resize:vertical; border:1px solid var(--ws-line-strong); border-radius:9px; background:var(--ws-surface-2); color:var(--ws-text); font:400 13px/1.55 var(--ws-sans); }
 .sort-modal .sort-note-panel textarea:focus { outline:2px solid var(--ws-accent-soft); border-color:var(--ws-accent); }
-.sort-modal .sort-panel-actions { margin-top:auto; padding:20px 18px; display:grid; gap:9px; }
+.sort-modal .sort-panel-actions { margin-top:0; padding:16px 18px 20px; display:grid; gap:10px; }
 .sort-modal .sort-save-next { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:47px; border:1px solid var(--ws-accent); border-radius:9px; background:var(--ws-accent); color:var(--ws-on-primary); cursor:pointer; font:600 13px var(--ws-sans); }
 .sort-modal .sort-save-next:hover:not(:disabled) { filter:brightness(1.06); }
 .sort-modal .sort-save-next:disabled { opacity:.45; cursor:not-allowed; }
@@ -113,9 +113,49 @@
 
 /* Three real choices, one-click. Secondary outcomes remain visible but quiet. */
 .sort-modal .sort-rating button { line-height:1.2; overflow-wrap:anywhere; }
-.sort-modal .sort-quiet-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.sort-modal .sort-quiet-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
 .sort-modal .sort-quiet-actions button { display:flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:6px 5px; color:var(--ws-muted); border:1px solid var(--ws-line); border-radius:7px; background:transparent; cursor:pointer; font:11px var(--ws-sans); }
 .sort-modal .sort-quiet-actions button:hover:not(:disabled) { border-color:var(--ws-text); color:var(--ws-text); }
 .sort-modal .sort-quiet-actions button small { opacity:.6; }
 .sort-modal .sort-filter-open { display:inline-flex; align-items:center; gap:6px; margin-right:8px; font:12px var(--ws-sans); color:var(--ws-text); }
 @media(max-width:440px) { .sort-modal .sort-quiet-actions button { flex-direction:column; } }
+
+/* Correct the central card without navigating away from the current sorting pass. */
+.sort-modal .sort-card { cursor:default; }
+.sort-modal .sort-card-edit-trigger {
+  margin-top:30px; display:inline-flex; gap:8px; align-items:center; justify-content:center;
+  padding:9px 15px; min-height:38px; border:1px solid var(--ws-line-strong);
+  border-radius:9px; background:var(--ws-surface-2); color:var(--ws-text);
+  font:500 12px var(--ws-sans); cursor:pointer;
+}
+.sort-modal .sort-card-edit-trigger:hover:not(:disabled) { color:var(--ws-ink); border-color:var(--ws-accent); background:var(--ws-raised); }
+.sort-modal .sort-card-edit-trigger:focus-visible { outline:2px solid var(--ws-accent); outline-offset:3px; }
+.sort-modal .sort-card-editor { width:min(390px,100%); max-height:100%; overflow-y:auto; padding:6px 3px; text-align:left; display:grid; gap:14px; }
+.sort-modal .sort-card-editor h3 { margin:0; font:650 18px var(--ws-sans); color:var(--ws-ink); }
+.sort-modal .sort-card-editor > p { margin:-8px 0 2px; font:12px/1.5 var(--ws-sans); color:var(--ws-muted); }
+.sort-modal .sort-card-editor label { display:grid; gap:6px; color:var(--ws-text); font:600 12px var(--ws-sans); }
+.sort-modal .sort-card-editor :is(input,textarea) { width:100%; min-width:0; box-sizing:border-box; padding:11px 12px; resize:vertical; border:1px solid var(--ws-line-strong); border-radius:8px; background:var(--ws-surface-2); color:var(--ws-ink); font:14px/1.5 var(--ws-sans); }
+.sort-modal .sort-card-editor :is(input,textarea):focus { outline:2px solid var(--ws-accent-soft); border-color:var(--ws-accent); }
+.sort-modal .sort-card-editor .sort-card-editor-error { margin:0; color:var(--c-cinnabar); font-size:12px; }
+.sort-modal .sort-card-editor-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:3px; }
+.sort-modal .sort-card-editor-actions button { min-height:42px; padding:10px; border:1px solid var(--ws-line-strong); border-radius:8px; background:var(--ws-surface-2); color:var(--ws-text); cursor:pointer; font:600 12px var(--ws-sans); }
+.sort-modal .sort-card-editor-actions button.primary { border-color:var(--ws-accent); background:var(--ws-accent); color:var(--ws-on-primary); }
+.sort-modal .sort-card-editor-actions button:disabled { opacity:.5; cursor:not-allowed; }
+
+/* Keep secondary controls together, directly below optional tags and notes. */
+.sort-modal .sort-action-heading { font-size:12px; color:var(--ws-muted); }
+.sort-modal .sort-quiet-actions button { min-height:43px; padding:9px; font-size:12px; line-height:1.2; }
+.sort-modal .sort-quiet-actions button small { margin:0 0 0 4px; font-size:10px; }
+.sort-modal .sort-quiet-actions button:last-child:hover:not(:disabled) { color:var(--c-cinnabar); border-color:var(--c-cinnabar); }
+.sort-modal .sort-undo { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:11px 12px; border:1px solid var(--ws-line); border-radius:9px; font:11px/1.4 var(--ws-sans); color:var(--ws-muted); }
+.sort-modal .sort-undo span { flex:1 1 145px; min-width:0; overflow-wrap:anywhere; }
+.sort-modal .sort-undo button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:34px; padding:6px 10px; border:1px solid var(--ws-line-strong); border-radius:7px; background:var(--ws-surface); color:var(--ws-text); cursor:pointer; font:600 11px var(--ws-sans); }
+.sort-modal .sort-undo button:hover:not(:disabled) { border-color:var(--ws-accent); }
+@media(max-width:1000px) {
+ .sort-modal .sort-panel-actions { padding:14px 12px 18px; }
+ .sort-modal .sort-quiet-actions { gap:6px; }
+ .sort-modal .sort-quiet-actions button { font-size:11px; }
+}
+@media(max-width:440px) {
+ .sort-modal .sort-quiet-actions button { flex-direction:row; }
+}
