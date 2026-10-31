@@ -340,7 +340,7 @@ const scenarios = {
     await page.locator(".sort-card").waitFor();
     const later = (await page.locator(".sort-card > strong").innerText()).trim();
     const previousCardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    await page.locator('.sort-quiet-actions button:has-text("Sort Later")').click();
+    await page.locator('.sort-quiet-actions button:has-text("Later")').click();
     await page.waitForFunction((previous) => document.querySelector(".sort-card")?.getAttribute("data-card-id") !== previous, previousCardId);
     const active = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.locator(".sort-rating button:has-text('Active')").click();
@@ -352,7 +352,7 @@ const scenarios = {
     check(await row.locator(".card-progress-bars > span").count() === 4, "Each card shows exactly four progress bars");
     check((await row.locator(".card-progress > small").innerText()) === "New", "A sorted card with no graded reviews is New");
     const pending = page.locator(`.modern-topic-row:has-text("${later}")`);
-    check((await pending.locator(".card-progress > small").innerText()) === "To sort", "Sort Later keeps the first card in the queue");
+    check((await pending.locator(".card-progress > small").innerText()) === "To classify", "Later keeps the first card in the queue");
     check(await row.locator(".modern-learning-cell").count() === 1 && await row.locator(".modern-recall-cell").count() === 1,
       "Review count and Last Seen stay separate");
   },
