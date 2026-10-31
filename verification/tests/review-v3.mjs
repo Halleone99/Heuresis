@@ -365,9 +365,9 @@ const scenarios = {
     await popup.locator('.cosmos-recall-methods button:has-text("Say")').click();
     const said = async () => Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'"));
     const before = await said();
-    await popup.locator(".cosmos-say-check input").check();
+    await popup.locator(".cosmos-said-button").click();
     await revealAndGrade(popup, "1");
-    await popup.locator(".cosmos-say-check input").check();
+    await popup.locator(".cosmos-said-button").click();
     await revealAndGrade(popup, "3");
     await popup.locator(".cosmos-summary").waitFor();
     check(await waitFor(async () => await said() === before + 2), "saying the answer aloud is recorded once per card");
@@ -383,9 +383,10 @@ const scenarios = {
   async "review window: answering method and details drawer"(page, context) {
     let popup = await openPopup(context, "source=recommended&count=20&order=pack");
     await popup.locator('.cosmos-recall-methods button:has-text("Say")').click();
-    check(await popup.locator(".cosmos-say-check input").count() === 1, "Say can be selected directly on the card");
+    check(await popup.locator(".cosmos-said-button").count() === 1, "Say exposes its spoken-answer confirmation");
     const said = Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'"));
     // Selecting Say alone must not count as practice.
+    await popup.evaluate(() => document.activeElement?.blur?.());
     await popup.keyboard.press(" ");
     await popup.locator(".cosmos-results").waitFor();
     check(Number(await sql("select count(*) from heuresis_card_events where event_type = 'exercise_say'")) === said,
