@@ -119,7 +119,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
   };
 
   useEffect(() => {
-    if (!editing || !name.trim() || choice.kind !== "keep") { setCandidates([]); setLookupError(""); return; }
+    if (!editing || !name.trim() || (choice.kind !== "keep" && choice.kind !== "remote")) { setCandidates([]); setLookupError(""); return; }
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void findPortraits(name, controller.signal).then(result => {
@@ -267,7 +267,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
               }}/>
               <button type="button" className="lit-button" onClick={() => fileRef.current?.click()}><ImagePlus size={15}/> Upload picture</button>
               <button type="button" className="lit-button" onClick={() => { if (choice.kind === "upload") URL.revokeObjectURL(choice.preview); setChoice({kind:"remove"}); }}>Remove</button>
-              {choice.kind === "keep" && candidates.length ? <div className="ra-candidates">{candidates.map(candidate =>
+              {candidates.length ? <div className="ra-candidates">{candidates.map(candidate =>
                 <button key={candidate.url} type="button" title={candidate.title} aria-label={"Use Wikipedia portrait " + candidate.title} onClick={() => setChoice({kind:"remote",url:candidate.url})}><img src={candidate.url} alt={candidate.title}/></button>)}</div> : null}
               {choice.kind === "keep" && lookupError ? <small>{lookupError}</small> : null}
               {choice.kind === "keep" && !lookupError && !candidates.length ? <small>Wikipedia portraits are suggested when available.</small> : null}
