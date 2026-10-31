@@ -13,7 +13,8 @@ export function reviewMethodCounts(card: CardWithStats, legacy?: LearningCounts)
     say: legacy?.say ?? 0,
     type: legacy?.type ?? 0,
     handwrite: legacy?.handwrite ?? 0,
-    hear: legacy?.hear ?? 0,
+    // Listening actions predate Hear as a review method; do not count those as completed reviews.
+    hear: 0,
   };
   const raw = card.data[REVIEW_METHOD_COUNTS_KEY];
   if (typeof raw !== "string") return baseline;
