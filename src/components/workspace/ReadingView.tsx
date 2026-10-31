@@ -139,7 +139,7 @@ export function ReadingView({ userId }: { userId: string }) {
     {api.loading ? <p className="lit-feedback" role="status">Opening your reading collection…</p>
       : api.error ? <div className="lit-feedback is-error" role="alert">{api.error} <button onClick={() => void api.reload()}>Retry</button></div>
       : filtered.length === 0 ? <div className="lit-empty"><BookOpen size={30}/><h2>{query ? "No matching books" : tab === "current" ? "No books in progress" : "This shelf is empty"}</h2>
-          <p>{query ? "Try a different title or author." : "Choose Catalogue to see your existing books, or add a new one."}</p></div>
+          <p>{query ? "Try a different title or author." : "Choose Full library to see your existing books, or add a new one."}</p></div>
       : <div className="lit-book-grid">
         {filtered.map((book, index) => {
           const progress = bookProgress(book);
