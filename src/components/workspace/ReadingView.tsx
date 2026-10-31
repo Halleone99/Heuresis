@@ -3,6 +3,7 @@ import { BookOpen, BookPlus, CalendarDays, ChevronRight, Plus, Quote, Search, Us
 import { ReadingJournal } from "./ReadingJournal";
 import { QuotationsView } from "./QuotationsView";
 import { ReadingAuthors } from "./ReadingAuthors";
+import { completedInYear, completedOn, sortFinished } from "../../lib/readingCompletion";
 import {
   bookDomain, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
@@ -12,7 +13,7 @@ type ReadingArea = "library" | "authors" | "quotations";
 type Tab = "current" | "next" | "catalogue" | "finished";
 const TABS: Array<{ id: Tab; title: string }> = [
   { id: "current", title: "Reading now" }, { id: "next", title: "Up next" },
-  { id: "catalogue", title: "Full library" }, { id: "finished", title: "Finished" },
+  { id: "catalogue", title: "Library" }, { id: "finished", title: "Finished" },
 ];
 const EMPTY: BookDraft = { title: "", author: "", status: "To read", importance: 2 };
 const STATUSES: ReadingStatus[] = ["To read", "Reading", "Read", "Abandoned"];
@@ -42,12 +43,12 @@ export function ReadingView({ userId }: { userId: string }) {
   const counts: Record<Tab, number> = {
     current: api.books.filter((book) => book.status === "Reading").length,
     next: api.books.filter((book) => book.status === "To read" && bookShelf(book) === "next").length,
-    catalogue: api.books.length,
+    catalogue: api.books.filter((book) => book.status !== "Read").length,
     finished: api.books.filter((book) => book.status === "Read").length,
   };
   const currentYear = new Date().getFullYear();
   const finishedBooks = api.books.filter((book) => book.status === "Read");
-  const finishedThisYear = finishedBooks.filter((book) => book.finishDate.slice(0, 4) === String(currentYear)).length;
+  const finishedThisYear = finishedBooks.filter((book) => completedInYear(book, currentYear)).length;
   function selectArea(next: ReadingArea) {
     setArea(next); setSelectedId(null); setForm(null); setProblem("");
     if (next === "quotations") setQuoteSourceBookId(null);
@@ -58,9 +59,10 @@ export function ReadingView({ userId }: { userId: string }) {
   const filtered = useMemo(() => api.books.filter((book) => {
     if (tab === "current" && book.status !== "Reading") return false;
     if (tab === "next" && !(book.status === "To read" && bookShelf(book) === "next")) return false;
+    if (tab === "catalogue" && book.status === "Read") return false;
     if (tab === "finished" && book.status !== "Read") return false;
     return [book.title, book.author, bookDomain(book)].join(" ").toLowerCase().includes(query.trim().toLowerCase());
-  }).sort((a, b) => a.title.localeCompare(b.title)), [api.books, tab, query]);
+  }).sort((a, b) => tab === "finished" ? sortFinished(a, b) || a.title.localeCompare(b.title) : a.title.localeCompare(b.title)), [api.books, tab, query]);
 
   async function execute(operation: () => Promise<unknown>, after?: () => void) {
     if (busy) return;
@@ -86,7 +88,6 @@ export function ReadingView({ userId }: { userId: string }) {
     void execute(() => api.updateBook(book.id, {
       status,
       ...(!book.startDate && status === "Reading" ? { startDate: [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, "0"), String(new Date().getDate()).padStart(2, "0")].join("-") } : {}),
-      ...(status === "Read" ? { finishDate: new Date().toLocaleDateString("en-CA") } : {}),
     }));
   }
 
@@ -113,7 +114,7 @@ export function ReadingView({ userId }: { userId: string }) {
         <span><BookOpen size={15} aria-hidden="true"/><strong>{finishedBooks.length}</strong> total read</span>
         <span><CalendarDays size={15} aria-hidden="true"/><strong>{finishedThisYear}</strong> read in {currentYear}</span>
       </div>
-      <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> Add book</button>
+      <button className="lit-button is-primary" onClick={() => { setForm({ ...EMPTY, status: tab === "finished" ? "Read" : "To read" }); setEditId(null); setProblem(""); }}><BookPlus size={16}/> {tab === "finished" ? "Add finished book" : "Add book"}</button>
     </div>
     <div className="lit-toolbar">
       <div className="lit-tabs" role="tablist" aria-label="Reading shelves">
@@ -126,8 +127,22 @@ export function ReadingView({ userId }: { userId: string }) {
     {api.loading ? <p className="lit-feedback" role="status">Opening your reading collection…</p>
       : api.error ? <div className="lit-feedback is-error" role="alert">{api.error} <button onClick={() => void api.reload()}>Retry</button></div>
       : filtered.length === 0 ? <div className="lit-empty"><BookOpen size={30}/><h2>{query ? "No matching books" : tab === "current" ? "No books in progress" : "This shelf is empty"}</h2>
-          <p>{query ? "Try a different title or author." : "Choose Full library to see your existing books, or add a new one."}</p></div>
-      : <div className="lit-book-grid">
+          <p>{query ? "Try a different title or author." : tab === "finished" ? "Add a completed book to preserve its essential notes and quotations." : "Choose Library to see your books, or add a new one."}</p></div>
+      : tab === "finished" ? <div className="lit-finished-list" role="list" aria-label="Finished books">
+        {filtered.map((book) => {
+          const count = api.quotes.filter((quote) => quote.readingId === book.id).length;
+          return <div className="lit-finished-row" role="listitem" key={book.id}>
+            <button type="button" className="lit-finished-book" onClick={() => openBook(book)} aria-label={"Open " + book.title + " notes"}>
+              <strong>{book.title}</strong><small>{book.author || "Author not recorded"}</small>
+            </button>
+            <span className="lit-finished-date" title="Completion date">{completedOn(book) || "Date unknown"}</span>
+            <button type="button" className="lit-finished-action" onClick={() => openBook(book)}>Notes</button>
+            <button type="button" className="lit-finished-action" onClick={() => openQuotations(book.id)}>
+              <Quote size={14} aria-hidden="true"/>{count} {count === 1 ? "quote" : "quotes"}
+            </button>
+          </div>;
+        })}
+      </div> : <div className="lit-book-grid">
         {filtered.map((book, index) => {
           const progress = bookProgress(book);
           return <button key={book.id} className="lit-book-card" onClick={() => openBook(book)}>
@@ -158,6 +173,7 @@ export function ReadingView({ userId }: { userId: string }) {
             {STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
           </select>
         </label>
+        {selected.status === "Read" ? <p className="lit-finished-detail">Finished: {completedOn(selected) || "Date unknown"} · Use Edit book to correct the completion year or date.</p> : null}
         {selected.status === "To read" ? <button className="lit-button" disabled={busy}
           onClick={() => void execute(() => api.updateBook(selected.id, { notes: notesWithShelf(selected, bookShelf(selected) === "next" ? "library" : "next") }))}>
           {bookShelf(selected) === "next" ? "Remove from Next" : "Add to Next"}
@@ -171,7 +187,7 @@ export function ReadingView({ userId }: { userId: string }) {
             void execute(() => api.setProgress(selected, Number(match[1]), Number(match[2])));
           }}>Save progress</button></div>
         <div className="lit-form-actions">
-          <button className="lit-button" onClick={() => { setForm({ title: selected.title, author: selected.author, status: selected.status, importance: selected.importance }); setEditId(selected.id); setSelectedId(null); }}>Edit book</button>
+          <button className="lit-button" onClick={() => { setForm({ title: selected.title, author: selected.author, status: selected.status, importance: selected.importance, finishDate: completedOn(selected) }); setEditId(selected.id); setSelectedId(null); }}>Edit book</button>
           <button className="lit-button" onClick={() => openQuotations(selected.id)}><Quote size={14}/> Open all quotations</button>
         </div>
         {problem ? <p className="lit-feedback is-error" role="alert">{problem}</p> : null}
@@ -187,6 +203,11 @@ export function ReadingView({ userId }: { userId: string }) {
           <label className="lit-field">Priority<select value={form.importance} onChange={(event) => setForm({ ...form, importance: Number(event.target.value) })}>
             {[1, 2, 3, 4].map((importance) => <option key={importance} value={importance}>P{importance}</option>)}</select></label>
         </div>
+        {form.status === "Read" ? <label className="lit-field">Date finished (optional)
+          <input value={form.finishDate ?? ""} maxLength={10} inputMode="numeric" placeholder="YYYY or YYYY-MM-DD"
+            onChange={(event) => setForm({ ...form, finishDate: event.target.value })}/>
+          <small>Enter a year, an exact date, or leave blank if unknown. Historical books will not be counted as finished this year without a matching year.</small>
+        </label> : null}
         {problem ? <p className="lit-feedback is-error" role="alert">{problem}</p> : null}
         <div className="lit-form-actions"><button type="button" className="lit-button" onClick={() => setForm(null)}>Cancel</button>
           <button disabled={busy || !form.title.trim()} className="lit-button is-primary" type="submit"><Plus size={15}/>{busy ? "Saving…" : editId ? "Save changes" : "Add book"}</button></div>
