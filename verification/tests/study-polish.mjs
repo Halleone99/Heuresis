@@ -43,7 +43,7 @@ async function desktopStudy() {
       await page.locator(".review-command").click();
       await page.locator(".compact-study-launcher").waitFor();
       await page.locator(".review-controls").waitFor();
-      check(await page.locator('[role="group"][aria-label="Number of cards"] button').count() === 3, "Exactly 5, 10 and 20 session-size choices");
+      check(await page.locator("#review-session-size").count() === 1, "Review uses one editable session-size field");
       check(await page.locator('[role="group"][aria-label="Review card order"] button').count() === 3, "Exactly three order choices");
       check(await page.locator(".review-filter-chips").count() === 2, "Content and review filters may be combined");
       check(await page.locator(".review-include-mastered input").count() === 1, "Mastered cards can be included on demand");
