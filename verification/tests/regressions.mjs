@@ -385,7 +385,7 @@ const scenarios = {
     await page.waitForSelector(".sort-card");
     await page.click(".sort-filter-open");
     await page.fill(".sort-setup-search input", "再见");
-    check(await page.locator(".sort-setup-start").innerText() === "Sort 1 card", "Sort button tells the user exactly how many cards are prepared");
+    check(await page.locator(".sort-setup-start").innerText() === "Open 1 card", "New card queue button tells the user exactly how many cards are prepared");
     await page.click(".sort-setup-start");
     await page.waitForTimeout(400);
     const disclosure = page.locator('.sort-enrich-heading:has-text("Examples")');
