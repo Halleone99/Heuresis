@@ -6,13 +6,13 @@ export type ProofreadingSuggestion = {
   reason: string;
 };
 
-export async function checkCaptureText(text: string, language: string, context: "note" | "mistake"): Promise<ProofreadingSuggestion[]> {
+export async function checkCaptureText(text: string, language: string, context: "note" | "mistake" | "exercise", target = ""): Promise<ProofreadingSuggestion[]> {
   if (!text.trim()) throw new Error("Write something first.");
   if (text.length > 4000) throw new Error("AI can check up to 4,000 characters at once. Select a shorter passage.");
   if (!navigator.onLine) throw new Error("AI checking requires an internet connection. Your note is still saved locally.");
   if (!supabase) throw new Error("Sign in to Heuresis before checking.");
   const { data, error } = await supabase.functions.invoke("heuresis-proofread", {
-    body: { text, language: language || "Unknown", context },
+    body: { text, language: language || "Unknown", context, target: target.slice(0, 120) },
   });
   if (error) {
     const response = "context" in error ? error.context : null;
