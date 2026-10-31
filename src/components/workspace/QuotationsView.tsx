@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowUpRight, BookOpen, Pencil, Plus, Quote, Search, Trash2, X } from "lucide-react";
-import { useReadingLibrary, type QuoteDraft, type SavedQuote } from "../../lib/readingBridge";
+import { ArrowLeft, ArrowUpRight, BookOpen, Pencil, Plus, Quote, Search, Trash2, Users, X } from "lucide-react";
+import { useReadingLibrary, type QuoteDraft, type ReadingBook, type SavedQuote } from "../../lib/readingBridge";
 
 import "./quotation-collections.css";
 
@@ -9,7 +9,7 @@ type QuoteCollection = {
   key: string;
   title: string;
   subtitle: string;
-  kind: "book" | "other";
+  kind: "book" | "other" | "author";
   sourceAttribution: string;
   readingId: string | null;
   quotes: SavedQuote[];
@@ -28,6 +28,19 @@ function sourceParts(source: string) {
   return comma > 0 ? { title: source.slice(comma + 2).trim(), author: source.slice(0, comma).trim() }
     : { title: source || "Unattributed", author: source ? "Other source" : "Without attribution" };
 }
+/** Resolve author from an actual linked book first, then from legacy "Author, Work" attributions. */
+function quoteAuthor(quote: SavedQuote, books: Map<string, ReadingBook>) {
+  const linked = quote.readingId ? books.get(quote.readingId) : null;
+  if (linked?.author.trim()) return linked.author.trim();
+  const source = citedSource(quote.attribution);
+  return source.includes(", ") ? sourceParts(source).author : source || "Unknown author";
+}
+function workTitle(quote: SavedQuote, books: Map<string, ReadingBook>) {
+  const linked = quote.readingId ? books.get(quote.readingId) : null;
+  if (linked) return linked.title;
+  const source = citedSource(quote.attribution);
+  return source.includes(", ") ? sourceParts(source).title : "Other source";
+}
 function quoteCount(count: number) {
   return count + (count === 1 ? " quotation" : " quotations");
 }
@@ -37,11 +50,12 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
 }) {
   const api = useReadingLibrary(userId);
   const [query, setQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"author" | "book">("book");
   const [selectedKey, setSelectedKey] = useState<string | null>(sourceBookId ? "book:" + sourceBookId : null);
   const [lastCollection, setLastCollection] = useState<QuoteCollection | null>(null);
   const [form, setForm] = useState<QuoteDraft | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
-  useEffect(() => { setSelectedKey(sourceBookId ? "book:" + sourceBookId : null); }, [sourceBookId]);
+  useEffect(() => { if (sourceBookId) setViewMode("book"); setSelectedKey(sourceBookId ? "book:" + sourceBookId : null); }, [sourceBookId]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SavedQuote | null>(null);
@@ -70,9 +84,27 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
     }
     return [...bySource.values()].sort((a, b) => a.title.localeCompare(b.title));
   }, [api.quotes, bookById]);
+  const authorCollections = useMemo(() => {
+    const grouped = new Map<string, QuoteCollection>();
+    for (const quote of api.quotes) {
+      const author = quoteAuthor(quote, bookById);
+      const key = "author:" + author.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+      if (!grouped.has(key)) grouped.set(key, {
+        key, title: author, subtitle: "", kind: "author",
+        sourceAttribution: author, readingId: null, quotes: [],
+      });
+      grouped.get(key)!.quotes.push(quote);
+    }
+    return [...grouped.values()].map((group) => {
+      const sourceCount = new Set(group.quotes.map((quote) =>
+        quote.readingId ? "book:" + quote.readingId : "source:" + citedSource(quote.attribution).toLocaleLowerCase())).size;
+      return { ...group, subtitle: sourceCount + (sourceCount === 1 ? " source" : " sources") };
+    }).sort((a, b) => a.title.localeCompare(b.title));
+  }, [api.quotes, bookById]);
+  const activeCollections = viewMode === "author" ? authorCollections : collections;
   const selected = useMemo(() => {
     if (!selectedKey) return null;
-    const found = collections.find((item) => item.key === selectedKey);
+    const found = activeCollections.find((item) => item.key === selectedKey);
     if (found) return found;
     if (lastCollection?.key === selectedKey) return { ...lastCollection, quotes: [] };
     if (selectedKey.startsWith("book:")) {
@@ -81,11 +113,11 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
       if (book) return { key: selectedKey, title: book.title, subtitle: book.author, kind: "book" as const, readingId: id, sourceAttribution: "", quotes: [] };
     }
     return null;
-  }, [selectedKey, collections, lastCollection, bookById]);
+  }, [selectedKey, activeCollections, lastCollection, bookById]);
   const normalisedQuery = query.trim().toLocaleLowerCase();
   const matchesQuote = (quote: SavedQuote) => [quote.text, quote.attribution, quote.page]
     .join(" ").toLocaleLowerCase().includes(normalisedQuery);
-  const visibleCollections = collections.filter((collection) =>
+  const visibleCollections = activeCollections.filter((collection) =>
     !normalisedQuery || [collection.title, collection.subtitle].join(" ").toLocaleLowerCase().includes(normalisedQuery)
       || collection.quotes.some(matchesQuote));
   const visibleQuotes = selected ? selected.quotes.filter(matchesQuote) : [];
@@ -95,13 +127,17 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
     setQuery("");
   }
   function goHome() { setSelectedKey(null); setQuery(""); }
+  function changeView(next: "author" | "book") {
+    if (next === viewMode) return;
+    setViewMode(next); setSelectedKey(null); setLastCollection(null); setQuery("");
+  }
 
   function newQuote() {
     setEditId(null);
     setForm({
       ...EMPTY,
       readingId: selected?.readingId ?? null,
-      attribution: selected?.kind === "other" ? selected.sourceAttribution : "",
+      attribution: selected?.kind === "other" || selected?.kind === "author" ? selected.sourceAttribution : "",
     });
     setError("");
   }
@@ -143,7 +179,7 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
       </div>
     </header>
     {selectedKey ? <nav className="lit-quote-breadcrumb" aria-label="Quotation navigation">
-      <button type="button" onClick={goHome}><ArrowLeft size={15}/> All sources</button>
+      <button type="button" onClick={goHome}><ArrowLeft size={15}/> {viewMode === "author" ? "All authors" : "All sources"}</button>
       <span aria-hidden="true">/</span>
       <strong>{selected?.title || "Source"}</strong>
     </nav> : null}
@@ -151,7 +187,7 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
       : api.error ? <div className="lit-feedback is-error" role="alert">{api.error} <button onClick={() => void api.reload()}>Retry</button></div>
       : selected ? <>
         <div className="lit-quote-source-heading">
-          <div className="lit-quote-source-meta">{selected.kind === "book" ? "FROM YOUR LIBRARY" : "OTHER SOURCES"} <span>·</span> {quoteCount(selected.quotes.length)}</div>
+          <div className="lit-quote-source-meta">{selected.kind === "author" ? "BY AUTHOR" : selected.kind === "book" ? "FROM YOUR LIBRARY" : "OTHER SOURCES"} <span>·</span> {quoteCount(selected.quotes.length)}</div>
           <h2>{selected.title}</h2>
           <p>{selected.subtitle || "Source not recorded"}</p>
         </div>
@@ -161,6 +197,7 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
         </div>
         {visibleQuotes.length ? <div className="lit-quote-reading-list">{visibleQuotes.map((quote, index) => {
           const note = citationNote(quote.attribution);
+          const authorView = selected.kind === "author";
           return <article className="lit-quote-reading-entry" key={quote.id}>
             <div className="lit-quote-entry-number">{String(index + 1).padStart(2, "0")}</div>
             <div className="lit-quote-entry-body">
@@ -168,9 +205,9 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
               <blockquote>{quote.text}</blockquote>
               <footer>
                 <div className="lit-quote-citation">
-                  <strong>{selected.subtitle !== "Other source" && selected.subtitle !== "Without attribution"
+                  <strong>{authorView ? selected.title : selected.subtitle !== "Other source" && selected.subtitle !== "Without attribution"
                     ? selected.subtitle : selected.title}</strong>
-                  <span>{selected.title}{quote.page ? " · " + quote.page : ""}</span>
+                  <span>{authorView ? workTitle(quote, bookById) : selected.title}{quote.page ? " · " + quote.page : ""}</span>
                   {note ? <p>{note}</p> : null}
                 </div>
                 <div className="lit-quote-actions">
@@ -186,9 +223,16 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
         </div>}
       </> : <>
         <div className="lit-quote-opening-heading">
-          <div><h2>Choose a source</h2><p>Your quotations, collected together rather than scattered across cards.</p></div>
-          <label className="lit-search"><Search size={15}/><input aria-label="Search quotations and sources"
-            placeholder="Find a passage or source…" value={query} onChange={(event) => setQuery(event.target.value)}/></label>
+          <div><h2>{viewMode === "author" ? "Choose an author" : "Choose a source"}</h2>
+            <p>{viewMode === "author" ? "All passages by each author, across books and other sources." : "Your quotations, collected together rather than scattered across cards."}</p></div>
+          <div className="lit-quote-opening-controls">
+            <div className="lit-quote-grouping" role="group" aria-label="Group quotations by">
+              <button type="button" className={viewMode === "author" ? "is-active" : ""} aria-pressed={viewMode === "author"} onClick={() => changeView("author")}>Author</button>
+              <button type="button" className={viewMode === "book" ? "is-active" : ""} aria-pressed={viewMode === "book"} onClick={() => changeView("book")}>Book</button>
+            </div>
+            <label className="lit-search"><Search size={15}/><input aria-label="Search quotations and sources"
+              placeholder={viewMode === "author" ? "Find an author or passage…" : "Find a passage or source…"} value={query} onChange={(event) => setQuery(event.target.value)}/></label>
+          </div>
         </div>
         {api.quotes.length === 0 ? <div className="lit-empty"><Quote size={27}/><h2>No quotations yet</h2>
           <p>Save a passage from a book, or record words from another source.</p>
@@ -196,21 +240,22 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
           : visibleCollections.length === 0 ? <div className="lit-empty"><Search size={25}/><h2>No matching sources</h2>
               <p>Try searching for a different author, book or passage.</p></div>
           : <div className="lit-quote-collection-groups">
-            {(["book", "other"] as const).map((kind) => {
+            {(viewMode === "author" ? ["author"] as const : ["book", "other"] as const).map((kind) => {
               const sources = visibleCollections.filter((item) => item.kind === kind);
               if (!sources.length) return null;
               return <section className="lit-quote-collection-section" key={kind}>
                 <div className="lit-quote-section-heading">
-                  <h3>{kind === "book" ? "From your library" : "Other sources"}</h3>
-                  <span>{sources.length} {sources.length === 1 ? "source" : "sources"}</span>
+                  <h3>{kind === "author" ? "Authors" : kind === "book" ? "From your library" : "Other sources"}</h3>
+                  <span>{sources.length} {kind === "author" ? (sources.length === 1 ? "author" : "authors") : (sources.length === 1 ? "source" : "sources")}</span>
                 </div>
                 <div className="lit-quote-collections-grid">{sources.map((collection, index) =>
                   <button type="button" key={collection.key} className="lit-quote-collection-card"
                     onClick={() => openCollection(collection)} aria-label={collection.title + ", " + quoteCount(collection.quotes.length)}>
                     {collection.kind === "book" ? <BookOpen className="lit-quote-collection-watermark" strokeWidth={1} aria-hidden="true"/>
+                      : collection.kind === "author" ? <Users className="lit-quote-collection-watermark" strokeWidth={1} aria-hidden="true"/>
                       : <Quote className="lit-quote-collection-watermark" strokeWidth={1} aria-hidden="true"/>}
                     <span className="lit-quote-collection-top"><span>{String(index + 1).padStart(2, "0")}</span>
-                      <span className="lit-quote-collection-icon">{kind === "book" ? <BookOpen size={17} strokeWidth={1.4}/> : <Quote size={17} strokeWidth={1.4}/>}</span></span>
+                      <span className="lit-quote-collection-icon">{kind === "book" ? <BookOpen size={17} strokeWidth={1.4}/> : kind === "author" ? <Users size={17} strokeWidth={1.4}/> : <Quote size={17} strokeWidth={1.4}/>}</span></span>
                     <span className="lit-quote-collection-title">{collection.title}</span>
                     <span className="lit-quote-collection-author">{collection.subtitle}</span>
                     <span className="lit-quote-collection-foot"><span><i aria-hidden="true"/> {quoteCount(collection.quotes.length)}</span><ArrowUpRight size={17} strokeWidth={1.5}/></span>
