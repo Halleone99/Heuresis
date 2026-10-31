@@ -235,20 +235,20 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
-  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="Sort cards">
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="New cards">
     <header className="sort-topbar">
-      <div><span className="eyebrow">SORT CARDS</span><strong>{pack.title}</strong></div>
-      <span>{filtersOpen ? `${unsorted.length} unsorted` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
+      <div><span className="eyebrow">NEW CARDS</span><strong>{pack.title}</strong></div>
+      <span>{filtersOpen ? `${unsorted.length} to classify` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
       <div className="sort-topbar-actions">
         <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Filter"}</button>
-        <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void closeSort()} aria-label="Close sort"><X size={18} /></button>
+        <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void closeSort()} aria-label="Close New cards"><X size={18} /></button>
       </div>
     </header>
     {filtersOpen && unsorted.length ? <div className="sort-setup">
-      <h2>Filter the queue</h2>
-      <p>Sort everything by default, or narrow the queue to a search, tags or a number of cards.</p>
+      <h2>Choose new cards</h2>
+      <p>Work through new cards by default, or choose a smaller set using search or tags.</p>
       <div className="sort-setup-grid">
-        <label className="sort-setup-field"><span>Search unsorted cards</span>
+        <label className="sort-setup-field"><span>Search new cards</span>
           <span className="sort-setup-search"><Search size={16} aria-hidden="true" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Term, meaning or tag"
             onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); beginSort(); } }} /></span>
         </label>
@@ -268,17 +268,17 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         </div>
       </div> : null}
       <div className="sort-setup-order"><span>Card order</span>
-        <SegmentedChoice label="Sort card order" value={randomOrder ? "random" : "topic"}
+        <SegmentedChoice label="New card order" value={randomOrder ? "random" : "topic"}
           onChange={(choice) => setRandomOrder(choice === "random")}
           options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={14} /> }]} />
       </div>
       <div className="sort-setup-bottom">
-        <span>{candidates.length} matching unsorted · {candidates.length ? Math.min(count, candidates.length) : 0} selected</span>
+        <span>{candidates.length} matching new · {candidates.length ? Math.min(count, candidates.length) : 0} selected</span>
         <button type="button" className="sort-setup-start" disabled={!candidates.length} onClick={beginSort}>
-          Sort {Math.min(count, candidates.length)} {Math.min(count, candidates.length) === 1 ? "card" : "cards"} <ArrowRight size={16}/></button>
+          Open {Math.min(count, candidates.length)} {Math.min(count, candidates.length) === 1 ? "card" : "cards"} <ArrowRight size={16}/></button>
       </div>
     </div> : null}
-    {!filtersOpen && !unsorted.length && !queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">NOTHING TO SORT</p><h2>Every card here is sorted.</h2><p>New cards arrive here when you capture them.</p>
+    {!filtersOpen && !unsorted.length && !queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">NO NEW CARDS</p><h2>All cards have been classified.</h2><p>New cards arrive here when you capture them.</p>
       <div className="sort-finished-actions">{onReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review</button> : null}<button type="button" className="is-quiet" onClick={onClose}>Return to topic</button></div></div> : null}
     {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
       <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
@@ -328,7 +328,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
         {message ? <div className="sort-error" role="alert">{message}</div> : null}
         <div className="sort-panel-actions">
           <div className="sort-quiet-actions">
-            <button type="button" disabled={busy || enrichmentBlocked} onClick={later}><SkipForward size={14}/> Sort Later <small>L</small></button>
+            <button type="button" disabled={busy || enrichmentBlocked} onClick={later}><SkipForward size={14}/> Later <small>L</small></button>
             <button type="button" disabled={busy || enrichmentBlocked} onClick={() => void discard()}><Trash2 size={14}/> Discard <small>D</small></button>
           </div>
           {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {fieldText(lastRemoval.card.data, term?.key) || "Card"} · {lastRemoval.kind === "discard" ? "discarded" : "added to learning"}</span>
