@@ -123,7 +123,14 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void findPortraits(name, controller.signal).then(result => {
-        if (!controller.signal.aborted) { setCandidates(result); setLookupError(""); }
+        if (!controller.signal.aborted) {
+          setCandidates(result); setLookupError("");
+          // Use only a clearly matching Wikipedia title, never a partial-name guess.
+          // The user can replace it with an upload, another result or no portrait.
+          const exact = result.find(candidate => normalise(candidate.title) === normalise(name));
+          if (exact && (editing === "new" || (editing !== "new" && !editing.profile?.portrait_path && !editing.profile?.portrait_url)))
+            setChoice(current => current.kind === "keep" ? { kind: "remote", url: exact.url } : current);
+        }
       }).catch(() => {
         if (!controller.signal.aborted) { setCandidates([]); setLookupError("Wikipedia portraits are unavailable; upload your own if preferred."); }
       });
