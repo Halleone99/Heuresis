@@ -46,6 +46,7 @@ jobs:
       - run: node scripts/check-catalogue.mjs
       - run: node scripts/check-reading-journal.mjs
       - run: node scripts/check-reading-authors.mjs
+      - run: node scripts/check-reading-finished.mjs
       - run: node scripts/check-save-feedback.mjs
       - run: node scripts/check-rejected-capture-recovery.mjs
       - run: node scripts/check-chinese-reading.mjs
