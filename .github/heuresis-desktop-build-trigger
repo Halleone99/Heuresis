@@ -1,4 +1,6 @@
-Build latest Heuresis Windows Tauri installer from main, including the local backup feature.
-Source main: eb84756f6f8a76b29675490a62f88d90a3e818dd
-Requested 2026-10-21: automatic complete daily local snapshots in Windows Documents; all Heuresis Notebook, Study, Reading, quotations, review data and private card/background images; 7 daily + 4 weekly + 3 monthly retained versions.
-Verify frontend build, Windows Rust tests, actual backup creation and installer before release. A trigger is not evidence of build success.
+Build the latest Heuresis Windows ARM64 NSIS installer.
+Source commit: cb31d6c407fad215da78ab780abe766acb3fb7f2
+Requested: 2026-10-31
+Includes: Review screen simplified with typed session size, single-row order buttons and collapsible optional filters.
+Output: heuresis-windows-arm64 artifact, NSIS *.exe.
+Verify successful workflow run and downloadable installer before claiming the binary is ready.
