@@ -15,7 +15,9 @@ assert.match(flashcard, /chooseFlashcardDestination\(\{/, "Match the source lang
 assert.match(flashcard, /if \(choice\.pack\) \{ setPackId\(choice\.pack\.id\)/, "Preselect only a same-language topic");
 assert.match(flashcard, /await createCard\(pack, values/, "Flashcards must use the normal card persistence path");
 assert.match(launcher, /!loading && !selectedTemplateIds.length/, "Missing templates are reported clearly");
-assert.match(launcher, /<SegmentedChoice label="Number of cards"/, "Five, ten or twenty cards can be selected");
+assert.match(launcher, /<input id="review-session-size" type="number"/, "Session size is entered as an accessible number");
+assert.match(launcher, /Number.isSafeInteger\(requestedSize\)/, "Session size is validated before starting Review");
+assert.match(launcher, /count: sessionCount/, "Review uses the validated requested session size");
 assert.match(launcher, /directionPairs\(templates\)/, "The review uses reversible templates for automatic alternation");
 assert.match(launcher, /<SegmentedChoice label="Review card order"/, "Review order uses the common accessible toggle");
 assert.match(segmented, /aria-pressed=\{value === item\.value\}/, "Exclusive choices expose their selected state");
