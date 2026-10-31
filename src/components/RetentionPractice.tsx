@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CardWithStats, PackWithType } from "../lib/heuresis";
+import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "../lib/heuresis";
 import { checkCaptureText, type ProofreadingSuggestion } from "../lib/aiCheck";
 import { comparableCorrection, createEntry, createSubject, createTopic, loadKnowledge, recordRepeatedMistake } from "../lib/knowledgeWorkspace";
 import { signalWorkspaceChange } from "../lib/workspaceSignal";
@@ -16,7 +16,7 @@ type Props = {
 };
 
 /** An exercise is separate from the answer method: draft first, check after reveal. */
-export default function RetentionPractice({ pack, revealed, busy, onSaveSentence, onNotice }: Props) {
+export default function RetentionPractice({ card, pack, revealed, busy, onSaveSentence, onNotice }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [reviewed, setReviewed] = useState("");
@@ -50,7 +50,8 @@ export default function RetentionPractice({ pack, revealed, busy, onSaveSentence
     setSuggestions(null);
     try {
       // The existing authenticated proofreading endpoint is called only on request.
-      const result = await checkCaptureText(submitted, pack.title, "note");
+      const target = fieldText(card.data, fieldByRole(pack.cardType, "term")?.key);
+      const result = await checkCaptureText(submitted, pack.title, "exercise", target);
       setReviewed(submitted);
       setSuggestions(result);
     } catch (reason) {
