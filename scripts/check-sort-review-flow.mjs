@@ -23,6 +23,9 @@ assert.doesNotMatch(sort, /setCardRetention\(card\.id, "reference"\)|keepReferen
 assert.match(sort, /<SkipForward size=\{14\}\/> Later/, "New cards retains a later decision");
 assert.match(sort, /Discard/, "Sorting retains recoverable Discard");
 assert.match(sort, /function beginSort\(/, "One sort setup must select its queue");
+assert.match(sort, /useState\\(!startCardId\\)/, "New opens setup before showing unsorted cards");
+assert.match(sort, /selection\\.slice\\(0, selectedCount\\)/, "Chosen quantity limits the actual queue");
+assert.match(sort, /type="checkbox" checked=\\{selectedTags\\.includes\\(tag\\.id\\)\\}/, "Tags can be selected at setup");
 assert.match(sort, /const candidates = useMemo\(/, "Sort setup must retain search/tag filtering");
 assert.match(sort, /const \[randomOrder/, "Sort setup must retain card ordering");
 assert.match(sort, /const \[count/, "Sort setup must retain a batch-size choice");
