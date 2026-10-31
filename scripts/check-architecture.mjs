@@ -69,8 +69,13 @@ if (search.includes('.eq("role", "main")') || !search.includes('role: "main" | "
 
 // --- Heuresis is a knowledge library, not a productivity dashboard. ---
 const sectionIds = [...app.matchAll(/\{ id: "(overview|study|notebook|mistakes|reading|quotations|reference)", label:/g)].map((match) => match[1]);
-if (sectionIds.join(",") !== "overview,study,notebook,mistakes,reading,quotations,reference") {
-  throw new Error("Heuresis navigation should lead to knowledge, practice, reading and quotations, without Progress.");
+if (sectionIds.join(",") !== "overview,study,notebook,mistakes,reading,reference") {
+  throw new Error("Heuresis sidebar should keep Reading as the single entrance to books, authors and quotations.");
+}
+const reading = readFileSync(new URL("../src/components/workspace/ReadingView.tsx", import.meta.url), "utf8");
+if (!reading.includes('label: "Your library"') || !reading.includes('label: "Authors"') ||
+    !reading.includes('label: "Quotations"') || !reading.includes("<QuotationsView")) {
+  throw new Error("Reading must provide library, authors and quotations under one navigation.");
 }
 
 if (knowledge.includes('.from("knowledge_entries")') || /\.from\("knowledge_entries"\)\s*\.(insert|update|upsert|delete)/.test(personalOs)) {
