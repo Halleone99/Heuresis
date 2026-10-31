@@ -22,7 +22,7 @@ assert.match(study, /Start review ·/, "Only one clear final Review action");
 assert.match(study, /directionPairs\(templates\)/, "A reversible pair is used for automatic direction selection");
 assert.match(study, /includeMastered/, "Mastered cards are available when explicitly included");
 assert.match(study, /!busy && event\.currentTarget === event\.target/, "Review cannot be dismissed while the popup is opening");
-assert.match(sort, /Start sorting · \\{selectedCount\\}/, "New session names the actual filtered batch size");
+assert.match(sort, /Start sorting · \{selectedCount\}/, "New session names the actual filtered batch size");
 assert.doesNotMatch(sort, /ONE SORT WORKFLOW/, "Sort no longer exposes workflow implementation notes");
 assert.match(sort, /<SortEnrichmentPanel/, "Sort exposes editable card details without hiding the flashcard");
 assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
