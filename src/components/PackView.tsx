@@ -561,7 +561,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         <div className="topic-learning-actions">
           <div className="topic-session-control" role="group" aria-label="Card sessions: New or Review">
             <button className="sort-command new-session-command" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)}
-              title="Classify new cards as Core, Active or Passive"><Plus size={15} /> New <small>{unsortedCards.length}</small></button>
+              title="Classify new cards as Core, Active or Passive"><BookOpen size={15} /> New <small>{unsortedCards.length}</small></button>
             <button className="review-command" disabled={!learningCards.length} onClick={() => setStudyOpen(true)}
               title="Practise cards you have already classified"><Brain size={15} /> Review</button>
           </div>
