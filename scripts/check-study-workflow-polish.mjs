@@ -31,7 +31,7 @@ assert.match(study, /value:"10",label:"10"/, "Ten-card sessions");
 assert.match(study, /value:"20",label:"20"/, "Twenty-card sessions");
 
 assert.match(pack, /disabled=\{!learningCards\.length\}/, "Do not open Review before a card is sorted into Learning");
-assert.match(pack, /onClick=\{\(\) => setStudyOpen\(true\)\}><Brain size=\{15\} \/> Review<\/button>/, "Review opens the selection screen");
+assert.match(pack, /onClick=\{\(\) => setStudyOpen\(true\)\}[\s\S]{0,180}<Brain size=\{15\} \/> Review<\/button>/, "Review opens the selection screen");
 assert.doesNotMatch(pack, /className="secondary-button review-adjust"/, "No redundant Adjust action");
 assert.match(pack, /className="topic-more-menu topic-settings-menu"/, "Secondary actions share the Settings menu");
 assert.match(pack, /Import cards/, "Import remains reachable");
