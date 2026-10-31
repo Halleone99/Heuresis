@@ -58,14 +58,18 @@ async function uploadPortrait(userId: string, file: File): Promise<string> {
   return path;
 }
 
-export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }: {
+export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook, onLinkBook }: {
   userId: string; books: ReadingBook[]; quotes: SavedQuote[];
   onOpenBook: (book: ReadingBook) => void; onAddBook: (author: string) => void;
+  onLinkBook: (bookId: string, author: string) => Promise<void>;
 }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
+  const [linkingBook, setLinkingBook] = useState(false);
+  const [bookSearch, setBookSearch] = useState("");
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "Reading" | "Read" | "To read" | "Abandoned">("all");
   const [editing, setEditing] = useState<Group | "new" | null>(null);
@@ -199,6 +203,36 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
 
   const detailBooks = chosen?.books.filter(book => filter === "all" || book.status === filter)
     .sort((a, b) => a.title.localeCompare(b.title)) ?? [];
+  const candidateBooks = useMemo(() => {
+    if (!chosen) return [];
+    const alreadyLinked = new Set(chosen.books.map(book => book.id));
+    const query = normalise(bookSearch);
+    return books.filter(book => !alreadyLinked.has(book.id)
+      && (!query || normalise([book.title, book.author, book.status].join(" ")).includes(query)))
+      .sort((a, b) => {
+        const aMatches = normalise(a.author) === normalise(chosen.name) ? 0 : 1;
+        const bMatches = normalise(b.author) === normalise(chosen.name) ? 0 : 1;
+        return aMatches - bMatches || a.title.localeCompare(b.title);
+      });
+  }, [books, chosen, bookSearch]);
+  const selectedBook = books.find(book => book.id === selectedBookId) ?? null;
+  function openBookPicker() {
+    setLinkingBook(true); setBookSearch(""); setSelectedBookId(null); setError("");
+  }
+  function closeBookPicker() {
+    if (busy) return;
+    setLinkingBook(false); setBookSearch(""); setSelectedBookId(null); setError("");
+  }
+  async function attachBook() {
+    if (!chosen || !selectedBook || busy) return;
+    setBusy(true); setError("");
+    try {
+      // Reuse the existing shared book row. Do not insert a second book or discard its notes.
+      await onLinkBook(selectedBook.id, chosen.name);
+      setLinkingBook(false); setBookSearch(""); setSelectedBookId(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { setBusy(false); }
+  }
 
   return <section className="ra-root" aria-label="Authors">
     {chosen ? <>
@@ -210,7 +244,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
           {chosen.profile?.description ? <p className="ra-description">{chosen.profile.description}</p> : null}
           <p>{chosen.books.length} {chosen.books.length === 1 ? "book" : "books"} · {chosen.books.filter(b => b.status === "Read").length} finished · {chosen.books.filter(b => b.status === "Reading").length} in progress{authorQuotes(chosen) ? " · " + authorQuotes(chosen) + " linked quotations" : ""}</p>
           <div className="ra-actions">
-            <button type="button" className="lit-button is-primary" onClick={() => onAddBook(chosen.name)}><BookPlus size={15}/> Add book</button>
+            <button type="button" className="lit-button is-primary" onClick={openBookPicker}><BookPlus size={15}/> Add book</button>
             <button type="button" className="lit-button" onClick={() => edit(chosen)}><Pencil size={14}/> {chosen.profile ? "Edit author" : "Add author details"}</button>
           </div>
         </div>
@@ -250,6 +284,41 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
         {!search.trim() && !loadError ? <button type="button" className="ra-add-card" onClick={() => edit("new")}><Plus size={20}/><strong>Add author</strong><small>Add a writer without adding a book first.</small></button> : null}
       </div> : <p className="ra-empty">{search ? "No matching authors." : "No authors added yet. Use Add author to create your first profile; your existing books remain in Your library."}</p>}
     </>}
+    {linkingBook && chosen ? <div className="lit-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) closeBookPicker(); }}>
+      <section className="lit-dialog ra-link-dialog" role="dialog" aria-modal="true" aria-label={"Add a book to " + chosen.name}
+        onKeyDown={event => { if (event.key === "Escape") closeBookPicker(); }}>
+        <header><h2>Add book to {chosen.name}</h2><button type="button" className="lit-icon" aria-label="Close" disabled={busy} onClick={closeBookPicker}><X size={18}/></button></header>
+        <p className="ra-note">Choose an existing book from Your library. It stays in the same collection, with its notes, reading status and quotations.</p>
+        <label className="lit-search ra-link-search"><Search size={16}/><input autoFocus type="search"
+          value={bookSearch} onChange={event => { setBookSearch(event.target.value); setSelectedBookId(null); }}
+          placeholder="Search titles or authors…" aria-label="Find a book in your library"/></label>
+        <div className="ra-link-list" role="group" aria-label="Books available to link">
+          {candidateBooks.length ? candidateBooks.map(book =>
+            <button type="button" key={book.id} className={"ra-link-row" + (selectedBookId === book.id ? " is-selected" : "")}
+              aria-pressed={selectedBookId === book.id} disabled={busy} onClick={() => setSelectedBookId(book.id)}>
+              <BookOpen size={17} aria-hidden="true"/>
+              <span><strong>{book.title}</strong><small>{book.author || "Author not recorded"} · {dateStatus(book)}</small></span>
+              {selectedBookId === book.id ? <span className="ra-link-selected" aria-hidden="true">Selected</span> : null}
+            </button>) : <p className="ra-empty">{bookSearch.trim() ? "No matching books in your collection." : "No unlinked books available in Your library."}</p>}
+        </div>
+        {selectedBook && normalise(selectedBook.author) !== normalise(chosen.name) ? <p className="ra-link-warning">
+          {selectedBook.author ? "This will replace the book’s current author (" + selectedBook.author + ") with " + chosen.name + "."
+            : "This will set the book’s author to " + chosen.name + "."}
+        </p> : null}
+        {error ? <p className="lit-feedback is-error" role="alert">{error}</p> : null}
+        <div className="lit-form-actions ra-link-actions">
+          <button type="button" className="lit-button" disabled={busy} onClick={() => {
+            const author = chosen.name;
+            closeBookPicker();
+            onAddBook(author);
+          }}><Plus size={15}/> Create new book</button>
+          <button type="button" className="lit-button" disabled={busy} onClick={closeBookPicker}>Cancel</button>
+          <button type="button" className="lit-button is-primary" disabled={busy || !selectedBook} onClick={() => void attachBook()}>
+            <BookPlus size={15}/>{busy ? "Linking…" : "Add selected book"}
+          </button>
+        </div>
+      </section>
+    </div> : null}
     {editing ? <div className="lit-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}>
       <form className="lit-dialog ra-dialog" role="dialog" aria-modal="true" aria-label={editing === "new" ? "Add author" : "Edit author"} onSubmit={event => { event.preventDefault(); void save(); }}>
         <header><h2>{editing === "new" ? "Add author" : "Edit author"}</h2><button type="button" className="lit-icon" aria-label="Close" onClick={close} disabled={busy}><X size={18}/></button></header>
