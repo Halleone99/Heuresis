@@ -1,0 +1,59 @@
+/* Author galleries adapted from Claude's Reading mockups, without a second library. */
+.ra-root { color:var(--lit-text); }
+.ra-root button { font-family:var(--ws-sans,system-ui); }
+.ra-heading,.ra-section-bar { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; flex-wrap:wrap; margin:5px 0 21px; }
+.ra-heading h2,.ra-section-bar h3 { font:400 33px/1.15 var(--ws-display,Georgia,serif); margin:0 0 5px; }
+.ra-section-bar h3 { font-size:24px; }
+.ra-heading p { color:var(--lit-muted); font-size:12px; margin:0; }
+.ra-search { max-width:none; margin:0 0 21px; }
+.ra-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:17px; }
+.ra-author-card,.ra-add-card { display:flex; flex-direction:column; padding:6px; min-width:0; text-align:left; cursor:pointer; border:1px solid var(--lit-line); border-radius:13px; background:var(--lit-paper); color:var(--lit-text); }
+.ra-author-card:hover,.ra-add-card:hover { border-color:var(--ws-accent-line,var(--lit-line)); box-shadow:0 8px 25px rgba(0,0,0,.08); }
+.ra-portrait { display:grid; place-items:center; width:100%; height:auto; aspect-ratio:2.4 / 1; overflow:hidden; background:var(--ws-accent-soft,rgba(140,105,44,.12)); border-radius:9px; }
+.ra-portrait img { width:100%; height:100%; object-fit:cover; object-position:50% 25%; }
+.ra-monogram { display:grid; place-items:center; width:100%; height:100%; font:400 38px/1 var(--ws-display,Georgia,serif); color:var(--lit-muted); }
+.ra-card-body { display:flex; flex-direction:column; flex:1; padding:13px 7px 6px; gap:5px; }
+.ra-card-title { display:flex; align-items:center; justify-content:space-between; gap:10px; font:400 23px/1.17 "EB Garamond",var(--ws-serif,Georgia,serif); }
+.ra-card-title svg { flex:none; color:var(--lit-muted); }
+.ra-card-description { color:var(--lit-muted); font:12px/1.5 var(--ws-sans,system-ui); min-height:17px; }
+.ra-card-counts { border-top:1px solid var(--lit-line); margin-top:auto; padding-top:12px; color:var(--lit-muted); font-size:11px; }
+.ra-add-card { min-height:210px; align-items:center; justify-content:center; text-align:center; border-style:dashed; gap:9px; padding:22px; }
+.ra-add-card strong { font-size:14px; font-weight:600; }
+.ra-add-card small { font-size:11px; max-width:190px; color:var(--lit-muted); line-height:1.5; }
+.ra-back { display:inline-flex; align-items:center; gap:6px; border:0; background:none; color:var(--lit-muted); padding:7px 0; margin-bottom:18px; cursor:pointer; font-size:12px; }
+.ra-profile { display:grid; grid-template-columns:minmax(170px,220px) 1fr; gap:34px; padding-bottom:28px; border-bottom:1px solid var(--lit-line); margin-bottom:29px; align-items:end; }
+.ra-profile>.ra-portrait.is-large { aspect-ratio:4 / 5; border-radius:11px; box-shadow:0 12px 35px rgba(0,0,0,.09); }
+.ra-profile>.ra-portrait .ra-monogram { font-size:72px; }
+.ra-profile-copy { padding-bottom:7px; min-width:0; }
+.ra-profile-copy h2 { font:400 clamp(31px,4vw,50px)/1.1 var(--ws-display,Georgia,serif); margin:0 0 10px; overflow-wrap:anywhere; }
+.ra-profile-copy p { color:var(--lit-muted); font:12px/1.6 var(--ws-sans,system-ui); }
+.ra-profile-copy p.ra-description { font:italic 19px/1.35 "EB Garamond",var(--ws-serif,Georgia,serif); margin:0 0 11px; }
+.ra-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.ra-books { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:25px 18px; }
+.ra-book { display:flex; flex-direction:column; gap:7px; background:none; border:0; text-align:left; min-width:0; padding:0; cursor:pointer; color:var(--lit-text); }
+.ra-book-cover { display:flex; flex-direction:column; justify-content:center; align-items:center; align-self:stretch; aspect-ratio:2/3; border-radius:3px 8px 8px 3px; background:#574c43; box-shadow:inset 4px 0 7px rgba(0,0,0,.13),0 7px 15px rgba(0,0,0,.1); color:#f7eee0; padding:12px; text-align:center; gap:12px; }
+.ra-book-cover[data-tone="1"] { background:#2d4c50; } .ra-book-cover[data-tone="2"] { background:#725237; } .ra-book-cover[data-tone="3"] { background:#334c3c; } .ra-book-cover[data-tone="4"] { background:#39485e; }
+.ra-book:hover .ra-book-cover { transform:translateY(-2px); }
+.ra-book-cover>span { font:500 clamp(15px,1.5vw,20px)/1.22 "EB Garamond",Georgia,serif; overflow-wrap:anywhere; }
+.ra-book-cover>small { font:italic 11px "EB Garamond",Georgia,serif; }
+.ra-book-title { font:500 17px/1.2 "EB Garamond",Georgia,serif; }
+.ra-book>small { color:var(--lit-muted); font-size:11px; }
+.ra-filters { display:flex; flex-wrap:wrap; gap:3px; border:1px solid var(--lit-line); padding:4px; border-radius:9px; background:var(--lit-paper); }
+.ra-filters button { border:0; border-radius:6px; background:transparent; color:var(--lit-muted); padding:7px 9px; font-size:11px; cursor:pointer; }
+.ra-filters button.is-on { color:var(--lit-text); background:var(--ws-accent-soft,rgba(140,105,44,.12)); }
+.ra-filters span { opacity:.6; margin-left:5px; }
+.ra-empty { padding:24px 0; font-size:12px; color:var(--lit-muted); }
+.ra-picker { display:grid; gap:9px; }
+.ra-picker>label { font-size:11px; color:var(--lit-muted); font-weight:600; }
+.ra-picker-options { display:grid; grid-template-columns:115px 1fr; gap:14px; border-radius:9px; padding:12px; background:var(--ws-accent-soft,rgba(140,105,44,.06)); border:1px solid var(--lit-line); }
+.ra-picker-options>.ra-portrait,.ra-picker-options>img,.ra-picker-options>.ra-monogram { width:115px; height:130px; object-fit:cover; border-radius:7px; }
+.ra-picker-controls { display:flex; flex-wrap:wrap; align-content:start; align-items:start; gap:8px; }
+.ra-picker-controls>small { width:100%; font-size:11px; color:var(--lit-muted); line-height:1.5; }
+.ra-candidates { display:flex; gap:6px; flex-wrap:wrap; width:100%; }
+.ra-candidates button { width:45px; height:56px; padding:0; border:1px solid var(--lit-line); border-radius:6px; overflow:hidden; cursor:pointer; }
+.ra-candidates img { width:100%; height:100%; object-fit:cover; }
+.ra-note { font-size:11px !important; color:var(--lit-muted); }
+.ra-dialog .ra-danger { color:#ba6661; margin-right:auto; }
+@media(max-width:710px) { .ra-profile { grid-template-columns:1fr; gap:15px; } .ra-profile>.ra-portrait.is-large { width:160px; } .ra-books { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:460px) { .ra-grid { grid-template-columns:1fr; } .ra-picker-options { grid-template-columns:1fr; } .ra-heading { align-items:start; } }
+@media(prefers-reduced-motion:reduce) { .ra-book:hover .ra-book-cover { transform:none; } }

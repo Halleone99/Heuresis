@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { BookOpen, BookPlus, CalendarDays, ChevronRight, Plus, Quote, Search, Users, X } from "lucide-react";
 import { ReadingJournal } from "./ReadingJournal";
 import { QuotationsView } from "./QuotationsView";
+import { ReadingAuthors } from "./ReadingAuthors";
 import {
   bookDomain, bookProgress, bookShelf, notesWithShelf, useReadingLibrary,
   type BookDraft, type ReadingBook, type ReadingStatus,
@@ -15,9 +16,6 @@ const TABS: Array<{ id: Tab; title: string }> = [
 ];
 const EMPTY: BookDraft = { title: "", author: "", status: "To read", importance: 2 };
 const STATUSES: ReadingStatus[] = ["To read", "Reading", "Read", "Abandoned"];
-function initials(value: string) {
-  return value.split(/\s+/).filter(Boolean).slice(0, 4).map((word) => word[0]?.toUpperCase()).join("");
-}
 function BookCover({ book, index }: { book: ReadingBook; index: number }) {
   return <div className="lit-book-cover" data-colour={index % 6} aria-hidden="true">
     <span className="lit-cover-emblem">✦</span>
@@ -30,7 +28,6 @@ export function ReadingView({ userId }: { userId: string }) {
   const api = useReadingLibrary(userId);
   const [area, setArea] = useState<ReadingArea>("library");
   const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
-  const [authorQuery, setAuthorQuery] = useState("");
   const [tab, setTab] = useState<Tab>("current");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -50,18 +47,6 @@ export function ReadingView({ userId }: { userId: string }) {
   const currentYear = new Date().getFullYear();
   const finishedBooks = api.books.filter((book) => book.status === "Read");
   const finishedThisYear = finishedBooks.filter((book) => book.finishDate.slice(0, 4) === String(currentYear)).length;
-  const authors = useMemo(() => {
-    const byName = new Map<string, { name: string; books: ReadingBook[] }>();
-    for (const book of api.books) {
-      const name = book.author.trim();
-      if (!name) continue;
-      const key = name.toLocaleLowerCase();
-      const group = byName.get(key) ?? { name, books: [] };
-      group.books.push(book); byName.set(key, group);
-    }
-    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [api.books]);
-  const visibleAuthors = authors.filter((author) => author.name.toLocaleLowerCase().includes(authorQuery.trim().toLocaleLowerCase()));
   function selectArea(next: ReadingArea) {
     setArea(next); setSelectedId(null); setForm(null); setProblem("");
     if (next === "quotations") setQuoteSourceBookId(null);
@@ -153,23 +138,9 @@ export function ReadingView({ userId }: { userId: string }) {
           </button>;
         })}
       </div>}
-    </> : area === "authors" ? <section className="lit-reading-authors" aria-label="Authors in your library">
-      <div className="lit-toolbar">
-        <div className="lit-reading-authors-title"><h2>Authors</h2><p>Browse the writers in your library.</p></div>
-        <label className="lit-search"><Search size={15}/><input placeholder="Find an author…" value={authorQuery} onChange={(event) => setAuthorQuery(event.target.value)} aria-label="Find an author"/></label>
-      </div>
-      {api.loading ? <p className="lit-feedback" role="status">Opening your authors…</p>
-        : api.error ? <div className="lit-feedback is-error" role="alert">{api.error} <button onClick={() => void api.reload()}>Retry</button></div>
-        : visibleAuthors.length === 0 ? <div className="lit-empty"><Users size={30}/><h2>No matching authors</h2><p>Authors appear here when they are linked to a book in your library.</p></div>
-        : <div className="lit-reading-author-grid">{visibleAuthors.map((author) =>
-          <button key={author.name} type="button" className="lit-reading-author-card"
-            onClick={() => { setTab("catalogue"); setQuery(author.name); setArea("library"); }}>
-            <span className="lit-author-monogram" aria-hidden="true">{initials(author.name)}</span>
-            <span className="lit-reading-author-info"><strong>{author.name}</strong>
-              <small>{author.books.length} {author.books.length === 1 ? "book" : "books"} · {author.books.filter((book) => book.status === "Read").length} read</small>
-            </span><ChevronRight size={17} aria-hidden="true"/>
-          </button>)}</div>}
-    </section> : <div className="lit-reading-quotes">
+    </> : area === "authors" ? <ReadingAuthors userId={userId} books={api.books} quotes={api.quotes}
+      onOpenBook={openBook} onAddBook={(author) => { setEditId(null); setProblem(""); setForm({ ...EMPTY, author }); }}/>
+    : <div className="lit-reading-quotes">
       <QuotationsView userId={userId} sourceBookId={quoteSourceBookId} onOpenReading={() => selectArea("library")} embedded/>
     </div>}
     {problem && !selected && !form ? <p className="lit-feedback is-error" role="alert">{problem}</p> : null}
