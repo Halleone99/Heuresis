@@ -293,6 +293,7 @@ export default function CosmosWindow() {
     return templates.find((template) => template.id === entry.templateId) ?? sessionTemplates[0] ?? templates[0] ?? null;
   }, [sessionTemplates, templates]);
   const template = templateFor(item);
+  const progressDirectionIds = useMemo(() => defaultDirections(templates, legacyId).map((entry) => entry.id), [templates, legacyId]);
   const done = Boolean(queue.length && index >= queue.length);
   const dimensions = pack && isConceptualPack(pack) ? CONCEPT_DIMS : LANGUAGE_DIMS;
   const structuredWords = Boolean(pack && !isConceptualPack(pack));
@@ -360,11 +361,19 @@ export default function CosmosWindow() {
         const activeTemplates = requested.length
           ? requested
           : isRecommended ? defaultDirections(nextTemplates, setup.defaultTemplateId) : chosenTemplate ? [chosenTemplate] : [];
+        const progressPair = defaultDirections(nextTemplates, setup.defaultTemplateId).map((entry) => entry.id);
         if (config.mode === "review" && !activeTemplates.length) throw new Error("This topic has no review direction yet.");
 
         let nextQueue: QueueItem[] = [];
         let rest: QueueItem[] = [];
-        const ready = allCards.filter(cardHasCompletedSort);
+        const ready = allCards.filter(cardHasCompletedSort).filter((entry) => {
+          if (config.mode !== "review") return true;
+          const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
+          const oldState = assessState(directionEvidence(entry, null, grades)).state;
+          const progress = cardBarProgress(entry, grades, oldState, progressPair);
+          return reviewEligible(progress, grades, entry.stats.last_encountered_at,
+            config.includeMastered || Boolean(config.selectionToken), Date.now(), activeTemplates.map((template) => template.id));
+        });
         // A filtered or targeted review must never quietly fall back to every card.
         const selection = config.selectionToken ? readReviewSelection(config.packId, config.selectionToken) : [];
         if (config.selectionToken && !selection.length) throw new EmptySelection("This review selection has no cards.");
@@ -400,7 +409,8 @@ export default function CosmosWindow() {
             pool = pool.filter((entry) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
-              return reviewEligible(cardBarProgress(entry, grades, oldState), grades, entry.stats.last_encountered_at, config.includeMastered || selection.length > 0);
+              return reviewEligible(cardBarProgress(entry, grades, oldState, progressPair), grades, entry.stats.last_encountered_at,
+                config.includeMastered || selection.length > 0, Date.now(), activeTemplates.map((template) => template.id));
             });
           }
           if (config.order === "random") pool = shuffle(pool);
@@ -424,10 +434,14 @@ export default function CosmosWindow() {
             cardId: entry.id,
             templateId: config.mode === "review" && activeTemplates.length ? (() => {
               const grades = history?.filter((grade) => grade.cardId === entry.id).sort((a, b) => b.at - a.at) ?? [];
+              const oldState = assessState(directionEvidence(entry, null, grades)).state;
+              const pending = cardBarProgress(entry, grades, oldState, progressPair).pendingDirections ?? [];
+              const outstanding = activeTemplates.filter((choice) => !pending.includes(choice.id));
+              const possible = outstanding.length ? outstanding : activeTemplates;
               const last = grades[0]?.templateId;
-              const previous = activeTemplates.findIndex((choice) => choice.id === last);
-              const idx = previous >= 0 ? (previous + 1) % activeTemplates.length : (reviewGradeCount(entry) % activeTemplates.length);
-              return activeTemplates[idx].id;
+              const previous = possible.findIndex((choice) => choice.id === last);
+              const idx = previous >= 0 ? (previous + 1) % possible.length : (reviewGradeCount(entry) % possible.length);
+              return possible[idx].id;
             })() : null,
             reasons: [], state: null,
           } satisfies QueueItem));
@@ -701,9 +715,9 @@ export default function CosmosWindow() {
       const stateBefore = item.state ?? (events ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null);
       const previousGrades = events?.filter((event) => event.cardId === card.id) ?? null;
       const legacyState = assessState(directionEvidence(card, null, previousGrades)).state;
-      const before = cardBarProgress(card, previousGrades, legacyState);
+      const before = cardBarProgress(card, previousGrades, legacyState, progressDirectionIds);
       const graded = { cardId: card.id, templateId: template.id, grade, at: Date.now() };
-      const after = cardBarProgress(card, previousGrades ? [...previousGrades, graded] : null, legacyState);
+      const after = cardBarProgress(card, previousGrades ? [...previousGrades, graded] : null, legacyState, progressDirectionIds);
       setResults((current) => [...current, { cardId: card.id, templateId: template.id, grade, stateBefore,
         barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered }]);
       // Local evidence, so retries and the summary see this answer at once.
@@ -888,7 +902,7 @@ export default function CosmosWindow() {
   const context = relatedReview ? relatedContext.find((row) => row.target_card_id === card.id) ?? null : null;
   const currentBars = mode === "review" && !relatedReview
     ? cardBarProgress(card, events?.filter((entry) => entry.cardId === card.id) ?? null,
-      assessState(directionEvidence(card, null, events)).state) : null;
+      assessState(directionEvidence(card, null, events)).state, progressDirectionIds) : null;
 
   const fieldEntriesFor = (dimension: DimensionId) => (type?.field_schema ?? []).flatMap((field) => {
     if (fieldDimension(field) !== dimension) return [];

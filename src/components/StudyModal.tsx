@@ -72,18 +72,19 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     }
     return grouped;
   }, [history]);
+  const pairs = useMemo(() => directionPairs(templates), [templates]);
+  const activePair = pairs.find((pair) => pair.ids.includes(defaultTemplateId ?? "")) ?? pairs[0] ?? null;
+  const selectedTemplateIds = activePair ? [...activePair.ids] : [defaultTemplateId ?? templates[0]?.id].filter((value): value is string => Boolean(value));
+  const pairedIds = activePair ? [...activePair.ids] : [];
+
   const eligible = useMemo(() => cards.filter((card) => {
     if (!cardHasCompletedSort(card)) return false;
     if (tagIds.some((id) => !card.tags.some((tag) => tag.id === id))) return false;
     if (flags.some((flag) => !flagged(card, flag))) return false;
     const events = history ? eventsByCard.get(card.id) ?? [] : null;
     const legacyState = assessState(directionEvidence(card, null, events)).state;
-    return reviewEligible(cardBarProgress(card, events, legacyState), events, card.stats.last_encountered_at, includeMastered);
-  }), [cards, eventsByCard, flags, history, includeMastered, tagIds]);
-
-  const pairs = useMemo(() => directionPairs(templates), [templates]);
-  const activePair = pairs.find((pair) => pair.ids.includes(defaultTemplateId ?? "")) ?? pairs[0] ?? null;
-  const selectedTemplateIds = activePair ? [...activePair.ids] : [defaultTemplateId ?? templates[0]?.id].filter((value): value is string => Boolean(value));
+    return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds);
+  }), [cards, eventsByCard, flags, history, includeMastered, tagIds, pairedIds, selectedTemplateIds]);
   const toggleTag = (id: string) => setTagIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   const toggleFlag = (flag: SpecialFlag) => setFlags((current) => current.includes(flag) ? current.filter((value) => value !== flag) : [...current, flag]);
 

@@ -1,4 +1,5 @@
 import { fieldText, type CardWithStats } from "./heuresis";
+import { cardBarProgress } from "./cardProgress";
 import { importanceOf, IMPORTANCE_LABEL } from "./importance";
 import {
   assessState, daysSinceEvidence, directionEvidence, STATE_LABEL,
@@ -120,8 +121,11 @@ export function scoreCandidates(input: {
   const now = input.now ?? Date.now();
   const list: Candidate[] = [];
   for (const card of input.cards) {
+    const grades = input.events?.filter((event) => event.cardId === card.id) ?? null;
+    const pair = input.directions.length === 2 ? input.directions.map((direction) => direction.templateId) : [];
+    const pending = cardBarProgress(card, grades, null, pair, now).pendingDirections ?? [];
     for (const direction of input.directions) {
-      if (!hasFront(card, direction)) continue;
+      if (pending.includes(direction.templateId) || !hasFront(card, direction)) continue;
       const evidence = directionEvidence(card, direction.templateId, input.events, { includeUnattributed: direction.legacy });
       const { state, agedFrom } = assessState(evidence, now);
       const days = daysSinceEvidence(evidence, now);

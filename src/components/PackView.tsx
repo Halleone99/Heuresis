@@ -286,9 +286,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     return new Map([...cards, ...referenceCards].map((card) => {
       const previous = cardStates.get(card.id);
       const old = previous?.length ? summaryState(previous.map((entry) => entry.agedFrom ?? entry.state)) : null;
-      return [card.id, cardBarProgress(card, events ? gradesByCard.get(card.id) ?? [] : null, old)] as const;
+      return [card.id, cardBarProgress(card, events ? gradesByCard.get(card.id) ?? [] : null, old,
+        stateTemplates.map((template) => template.id))] as const;
     }));
-  }, [cards, referenceCards, cardStates, events]);
+  }, [cards, referenceCards, cardStates, events, stateTemplates]);
   const missingCards = useMemo(() => cards.filter(isKeepMissing).sort((a, b) => attentionScore(b, directions) - attentionScore(a, directions)), [cards, directions]);
   const productionCards = useMemo(() => cards.filter((card) => isWeakProduction(card, directions)).sort((a, b) => (productionPerformance(a, directions)?.score ?? 2) - (productionPerformance(b, directions)?.score ?? 2)), [cards, directions]);
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
