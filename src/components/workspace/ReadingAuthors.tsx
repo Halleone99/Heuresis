@@ -103,11 +103,14 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
       items.set(key, { key, name: profile.name, profile, books: [] });
       for (const alias of [profile.name, ...profile.aliases]) linked.set(normalise(alias), key);
     }
+    // Only deliberately saved author profiles appear in Authors.
+    // Existing book-author strings remain untouched in Your library.
     for (const book of books) {
       if (!book.author.trim()) continue;
-      const key = linked.get(normalise(book.author)) ?? "author:" + normalise(book.author);
-      const group = items.get(key) ?? { key, name: book.author.trim(), profile: null, books: [] };
-      group.books.push(book); items.set(key, group);
+      const key = linked.get(normalise(book.author));
+      if (!key) continue;
+      const group = items.get(key);
+      if (group) group.books.push(book);
     }
     return [...items.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [books, profiles]);
@@ -188,7 +191,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
     if (cause) setError(cause.message);
     else {
       setProfiles(previous => previous.filter(profile => profile.id !== group.profile?.id));
-      setSelected(group.books.length ? "author:" + normalise(group.books[0].author) : null);
+      setSelected(null);
       close();
     }
     setBusy(false);
@@ -245,7 +248,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook }:
           </span>
         </button>)}
         {!search.trim() && !loadError ? <button type="button" className="ra-add-card" onClick={() => edit("new")}><Plus size={20}/><strong>Add author</strong><small>Add a writer without adding a book first.</small></button> : null}
-      </div> : <p className="ra-empty">{search ? "No matching authors." : "Authors will appear here from your existing books. You can add a profile independently."}</p>}
+      </div> : <p className="ra-empty">{search ? "No matching authors." : "No authors added yet. Use Add author to create your first profile; your existing books remain in Your library."}</p>}
     </>}
     {editing ? <div className="lit-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}>
       <form className="lit-dialog ra-dialog" role="dialog" aria-modal="true" aria-label={editing === "new" ? "Add author" : "Edit author"} onSubmit={event => { event.preventDefault(); void save(); }}>

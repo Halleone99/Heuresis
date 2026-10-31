@@ -19,9 +19,12 @@ assert.match(reading, /onAddBook=\{\(author\) =>/);
 assert.doesNotMatch(app, /id: "quotations", label:/);
 assert.match(quotes, /useReadingLibrary\(userId\)/);
 
-// Authors are an index of the existing reading items, not a duplicate library.
+// Authors are explicitly saved profiles linked to the existing reading items, never a second library.
 assert.match(authors, /for \(const book of books\)/);
 assert.match(authors, /const key = linked\.get\(normalise\(book\.author\)\)/);
+assert.match(authors, /if \(!key\) continue;/);
+assert.doesNotMatch(authors, /\?\? "author:"/);
+assert.match(authors, /No authors added yet/);
 assert.match(authors, /const ids = new Set\(group\.books\.map\(book => book\.id\)\)/);
 assert.match(authors, /quote\.readingId && ids\.has\(quote\.readingId\)/);
 assert.match(authors, /const BUCKET = "heuresis-reading-media"/);
