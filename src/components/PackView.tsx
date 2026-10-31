@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, MoreHorizontal, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, SlidersHorizontal, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   DISCARDED_AT_KEY,
@@ -180,9 +180,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [stateFilter, setStateFilter] = useState<ProgressStage | null>(null);
   const [favouriteOnly, setFavouriteOnly] = useState(false);
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
-  const [tagFilter, setTagFilter] = useState("all");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [includeUntagged, setIncludeUntagged] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
   const [allCardsExpanded, setAllCardsExpanded] = useState(false);
-  const [expandedTagList, setExpandedTagList] = useState(false);
   const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -223,9 +224,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setStateFilter(null);
     setFavouriteOnly(false);
     setInterestFilter("all");
-    setTagFilter("all");
+    setSelectedTagIds([]);
+    setIncludeUntagged(false);
+    setTagSearch("");
     setAllCardsExpanded(false);
-    setExpandedTagList(false);
     setDetailFilters([]);
     setSortField("status");
     setSortDirection("asc");
@@ -330,7 +332,12 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const lessonTags = useMemo(() => tagFacets.map(({ tag }) => tag).filter((tag) => /^Lesson\s+\d+$/i.test(tag.name)).sort((a, b) => Number(a.name.match(/\d+/)?.[0] ?? 0) - Number(b.name.match(/\d+/)?.[0] ?? 0)), [tagFacets]);
   const otherTags = useMemo(() => tagFacets.map(({ tag }) => tag).filter((tag) => !/^Lesson\s+\d+$/i.test(tag.name)), [tagFacets]);
   const untaggedCount = useMemo(() => [...cards, ...referenceCards].filter((card) => !card.tags.length).length, [cards, referenceCards]);
-  const selectedTag = tagFilter !== "all" && tagFilter !== "none" ? tags.find((tag) => tag.id === tagFilter) ?? null : null;
+  const tagSelectionActive = selectedTagIds.length > 0 || includeUntagged;
+  const tagMatchesSearch = (tag: HeuresisTag) => tag.name.toLocaleLowerCase().includes(tagSearch.trim().toLocaleLowerCase());
+  function toggleTag(tagId: string) {
+    setAllCardsExpanded(false);
+    setSelectedTagIds((current) => current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId]);
+  }
 
   const visibleTotal = loadedPackId === pack.id ? cards.length + referenceCards.length : pack.card_count;
   const explored = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
@@ -356,8 +363,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       if (interestFilter === "none" && card.interest_rank != null) return false;
       if (interestFilter !== "all" && interestFilter !== "none" && !ranksFor(interestFilter).includes(card.interest_rank ?? -1)) return false;
 
-      if (tagFilter === "none" && card.tags.length) return false;
-      if (tagFilter !== "all" && tagFilter !== "none" && !card.tags.some((tag) => tag.id === tagFilter)) return false;
+      if (tagSelectionActive && !(includeUntagged && card.tags.length === 0) && !card.tags.some((tag) => selectedTagIds.includes(tag.id))) return false;
 
       if (detailFilters.length) {
         const matchesSignal = detailFilters.some((detail) => {
@@ -386,7 +392,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     });
     // statusRank and cardSummary read cardStates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards, cardStates, cardBars, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagFilter, term?.key]);
+  }, [cards, cardStates, cardBars, detailFilters, directions, favouriteOnly, interestFilter, query, referenceCards, sortDirection, sortField, stateFilter, statusFilters, tagSelectionActive, includeUntagged, selectedTagIds, term?.key]);
 
   // Show the card chosen in Search: clear anything that could hide it, select it, scroll to it.
   useEffect(() => {
@@ -395,7 +401,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     const isReference = referenceCards.some((card) => card.id === focusCardId);
     if (isReference || cards.some((card) => card.id === focusCardId)) {
       setAllCardsExpanded(true);
-      setQuery(""); setStatusFilters(isReference ? ["reference"] : []); setStateFilter(null); setFavouriteOnly(false); setInterestFilter("all"); setTagFilter("all"); setDetailFilters([]);
+      setQuery(""); setStatusFilters(isReference ? ["reference"] : []); setStateFilter(null); setFavouriteOnly(false); setInterestFilter("all"); setSelectedTagIds([]); setIncludeUntagged(false); setDetailFilters([]);
       setSelectedCardId(focusCardId);
       setFocusNotice("");
       window.requestAnimationFrame(() => {
@@ -409,7 +415,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     onFocusCardShown?.();
   }, [cards, focusCardId, loadedPackId, loading, onFocusCardShown, pack.id, referenceCards]);
 
-  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagFilter !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
+  const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagSelectionActive ? 1 : 0) + (query.trim() ? 1 : 0);
   const showCardList = allCardsExpanded || activeFilterCount > 0;
   const selectedCard = selectedCardId ? [...cards, ...referenceCards].find((card) => card.id === selectedCardId) ?? null : null;
 
@@ -479,7 +485,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     setStateFilter(null);
     setFavouriteOnly(false);
     setInterestFilter("all");
-    setTagFilter("all");
+    setSelectedTagIds([]);
+    setIncludeUntagged(false);
+    setTagSearch("");
     setDetailFilters([]);
   }
 
@@ -493,7 +501,6 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
   if (relatedOpen) return <RelatedView pack={pack} onBack={() => setRelatedOpen(false)} onChanged={() => void refreshAll()} />;
 
-  const learningBreakdown = PROGRESS_STAGES.filter((state) => stateCounts[state]);
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
       <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
