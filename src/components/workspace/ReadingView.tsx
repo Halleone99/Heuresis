@@ -140,7 +140,8 @@ export function ReadingView({ userId }: { userId: string }) {
         })}
       </div>}
     </> : area === "authors" ? <ReadingAuthors userId={userId} books={api.books} quotes={api.quotes}
-      onOpenBook={openBook} onAddBook={(author) => { setEditId(null); setProblem(""); setForm({ ...EMPTY, author }); }}/>
+      onOpenBook={openBook} onAddBook={(author) => { setEditId(null); setProblem(""); setForm({ ...EMPTY, author }); }}
+      onLinkBook={async (bookId, author) => { await api.updateBook(bookId, { author }); }}/>
     : <div className="lit-reading-quotes">
       <QuotationsView userId={userId} sourceBookId={quoteSourceBookId} onOpenReading={() => selectArea("library")} embedded/>
     </div>}
