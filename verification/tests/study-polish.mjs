@@ -55,12 +55,19 @@ async function desktopStudy() {
     if (await sortAction.isEnabled()) {
       await sortAction.click();
       await page.locator(".sort-modal").waitFor();
-      check(await page.locator(".sort-card").count() === 1, "Sort opens straight into the queue");
-      await page.locator(".sort-filter-open").click();
-      check(await page.locator('[role="group"][aria-label="New card order"] button').count() === 2, "Sort reuses the order control (inside Filter)");
+      check(await page.locator(".sort-setup").count() === 1 && await page.locator(".sort-card").count() === 0, "New opens the tag and card-count selector before sorting");
+      check(await page.locator(".sort-setup-tag-filter").count() === 1, "Tag selection is visible at setup");
+      check(await page.locator(".sort-setup-field input[type=number]").count() === 1, "The number of cards can be typed");
+      check(await page.locator('[role="group"][aria-label="New card order"] button').count() === 2, "Sort retains topic or random order");
       check(await page.locator('[role="group"][aria-label="New card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
+      await page.locator(".sort-setup-field input[type=number]").fill("1");
+      check(await page.locator(".sort-setup-start").innerText() === "Start sorting · 1 card", "Typed batch size updates the start action");
+      await page.locator(".sort-setup-start").click();
+      check(await page.locator(".sort-card").count() === 1, "Starting the selected pass opens a card");
+      check((await page.locator(".sort-topbar > span").innerText()).includes("1 / 1"), "The queue contains exactly the requested number of cards");
+      await page.locator(".sort-filter-open").click();
       await page.keyboard.press("Escape");
-      check(await page.locator(".sort-modal").count() === 1 && await page.locator(".sort-card").count() === 1, "Escape in the filter search closes Filter first");
+      check(await page.locator(".sort-card").count() === 1, "Escape from re-selection returns to the active pass");
       await page.keyboard.press("Escape");
       check(await page.locator(".sort-modal").count() === 0, "Escape dismisses Sort");
     } else {
