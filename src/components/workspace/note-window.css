@@ -57,3 +57,15 @@
   .nb-detached-root .nb-doc { max-width: none; min-height: auto; margin: 0; padding: 0; border: 0; box-shadow: none; }
   .nb-detached-root .nb-doc-head { padding-top: 0 !important; }
 }
+
+/* Detached reader: simpler header and lighter secondary navigation. */
+.nb-detached-root .nb-window-top { height: 38px; }
+.nb-detached-root .nb-doc { margin-top: 18px; border-color: color-mix(in srgb, var(--ws-line) 60%, transparent); box-shadow: 0 10px 28px rgba(0,0,0,.07); }
+.nb-detached-root .nb-doc-bar { padding-top: 9px; padding-bottom: 9px; }
+.nb-detached-root .nb-doc:not(.is-editing) .nb-doc-head { padding-top: 30px; }
+.nb-detached-root .nb-doc-foot { gap: 12px; margin-top: 30px; }
+.nb-detached-root .nb-pager { gap: 8px; }
+.nb-detached-root .nb-pager button { min-height: 42px; padding: 8px 11px; border-radius: 8px; }
+.nb-detached-root .nb-pager button small { font: 500 10px/1.2 var(--ws-sans); letter-spacing: 0; text-transform: none; }
+.nb-detached-root .nb-doc-dates { opacity: .68; }
+@media (max-width: 600px) { .nb-detached-root .nb-doc { margin-top: 0; box-shadow: none; } }
