@@ -90,6 +90,22 @@ export function bookMinutes(book: ReadingBook): number {
     return sum + (typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0 ? minutes : 0);
   }, 0);
 }
+/** Daily reading time already stored by Reading's logMinutes action.
+ * Pages completed on a particular day are not recorded in this schema. */
+export function bookReadingDays(book: ReadingBook): Array<{ date: string; minutes: number }> {
+  const rows = decodeMarker(book.notes, TIME);
+  if (!Array.isArray(rows)) return [];
+  const days: Array<{ date: string; minutes: number }> = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const record = row as { date?: unknown; minutes?: unknown };
+    if (typeof record.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(record.date)) continue;
+    if (typeof record.minutes !== "number" || !Number.isFinite(record.minutes) || record.minutes <= 0) continue;
+    days.push({ date: record.date, minutes: record.minutes });
+  }
+  return days;
+}
+
 export function bookProgress(book: ReadingBook): { page: number; pages: number } | null {
   const match = book.notes.match(PROGRESS);
   if (!match) return null;
