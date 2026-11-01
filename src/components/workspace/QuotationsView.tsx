@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowUpRight, BookOpen, Pencil, Plus, Quote, Search, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Pencil, Plus, Quote, Search, Trash2, X } from "lucide-react";
 import { useReadingLibrary, type QuoteDraft, type ReadingBook, type SavedQuote } from "../../lib/readingBridge";
 
 import "./quotation-collections.css";
@@ -165,24 +165,21 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
   }
 
   return <div className="lit-page lit-quotation-page">
-    <header className="lit-page-head lit-quotation-page-head">
-      <div>
-        <span className="lit-eyebrow">PASSAGES WORTH KEEPING</span>
-        <h1>Quotations</h1>
-        <p>Words worth returning to, arranged by their sources.</p>
-      </div>
+    {!embedded ? <header className="lit-page-head lit-quotation-page-head">
+      <div><h1>Quotations</h1></div>
       <div className="lit-quote-head-aside">
-        <div className="lit-quote-total" aria-label={quoteCount(api.quotes.length)}>
-          <strong>{api.quotes.length}</strong><span>PASSAGES PRESERVED</span>
-        </div>
-        <button className="lit-button is-primary" onClick={newQuote}><Plus size={16}/> Save a quotation</button>
+        <span className="lit-quote-total-inline">{api.quotes.length} {api.quotes.length === 1 ? "passage" : "passages"}</span>
+        <button className="lit-button is-primary" onClick={newQuote}><Plus size={16}/> Add quotation</button>
       </div>
-    </header>
-    {selectedKey ? <nav className="lit-quote-breadcrumb" aria-label="Quotation navigation">
-      <button type="button" onClick={goHome}><ArrowLeft size={15}/> {viewMode === "author" ? "All authors" : "All sources"}</button>
-      <span aria-hidden="true">/</span>
-      <strong>{selected?.title || "Source"}</strong>
-    </nav> : null}
+    </header> : null}
+    {selectedKey ? <div className="lit-quote-detail-topbar">
+      <nav className="lit-quote-breadcrumb" aria-label="Quotation navigation">
+        <button type="button" onClick={goHome}><ArrowLeft size={15}/> {viewMode === "author" ? "All authors" : "All sources"}</button>
+        <span aria-hidden="true">/</span>
+        <strong>{selected?.title || "Source"}</strong>
+      </nav>
+      <button type="button" className="lit-button is-primary" onClick={newQuote}><Plus size={16}/> Add quotation</button>
+    </div> : null}
     {api.loading ? <p className="lit-feedback" role="status">Opening your quotations…</p>
       : api.error ? <div className="lit-feedback is-error" role="alert">{api.error} <button onClick={() => void api.reload()}>Retry</button></div>
       : selected ? <>
@@ -222,48 +219,39 @@ export function QuotationsView({ userId, sourceBookId, onOpenReading, embedded =
           {!normalisedQuery ? <button className="lit-button" onClick={newQuote}>Add quotation</button> : null}
         </div>}
       </> : <>
-        <div className="lit-quote-opening-heading">
-          <div><h2>{viewMode === "author" ? "Choose an author" : "Choose a source"}</h2>
-            <p>{viewMode === "author" ? "All passages by each author, across books and other sources." : "Your quotations, collected together rather than scattered across cards."}</p></div>
-          <div className="lit-quote-opening-controls">
-            <div className="lit-quote-grouping" role="group" aria-label="Group quotations by">
-              <button type="button" className={viewMode === "author" ? "is-active" : ""} aria-pressed={viewMode === "author"} onClick={() => changeView("author")}>Author</button>
-              <button type="button" className={viewMode === "book" ? "is-active" : ""} aria-pressed={viewMode === "book"} onClick={() => changeView("book")}>Book</button>
-            </div>
-            <label className="lit-search"><Search size={15}/><input aria-label="Search quotations and sources"
-              placeholder={viewMode === "author" ? "Find an author or passage…" : "Find a passage or source…"} value={query} onChange={(event) => setQuery(event.target.value)}/></label>
+        <div className="lit-quote-opening-controls">
+          <label className="lit-search"><Search size={16}/><input aria-label="Search quotations and sources"
+            placeholder="Search passages, books or authors…" value={query} onChange={(event) => setQuery(event.target.value)}/></label>
+          <div className="lit-quote-grouping" role="group" aria-label="Group quotations by">
+            <button type="button" className={viewMode === "book" ? "is-active" : ""} aria-pressed={viewMode === "book"} onClick={() => changeView("book")}>Source</button>
+            <button type="button" className={viewMode === "author" ? "is-active" : ""} aria-pressed={viewMode === "author"} onClick={() => changeView("author")}>Author</button>
           </div>
+          <span className="lit-quote-total-inline">{api.quotes.length} {api.quotes.length === 1 ? "passage" : "passages"}</span>
+          <button type="button" className="lit-button is-primary" onClick={newQuote}><Plus size={16}/> Add quotation</button>
         </div>
         {api.quotes.length === 0 ? <div className="lit-empty"><Quote size={27}/><h2>No quotations yet</h2>
           <p>Save a passage from a book, or record words from another source.</p>
           <button className="lit-button" onClick={newQuote}>Add quotation</button></div>
           : visibleCollections.length === 0 ? <div className="lit-empty"><Search size={25}/><h2>No matching sources</h2>
               <p>Try searching for a different author, book or passage.</p></div>
-          : <div className="lit-quote-collection-groups">
-            {(viewMode === "author" ? ["author"] as const : ["book", "other"] as const).map((kind) => {
-              const sources = visibleCollections.filter((item) => item.kind === kind);
-              if (!sources.length) return null;
-              return <section className="lit-quote-collection-section" key={kind}>
-                <div className="lit-quote-section-heading">
-                  <h3>{kind === "author" ? "Authors" : kind === "book" ? "From your library" : "Other sources"}</h3>
-                  <span>{sources.length} {kind === "author" ? (sources.length === 1 ? "author" : "authors") : (sources.length === 1 ? "source" : "sources")}</span>
-                </div>
-                <div className="lit-quote-collections-grid">{sources.map((collection, index) =>
-                  <button type="button" key={collection.key} className="lit-quote-collection-card"
-                    onClick={() => openCollection(collection)} aria-label={collection.title + ", " + quoteCount(collection.quotes.length)}>
-                    {collection.kind === "book" ? <BookOpen className="lit-quote-collection-watermark" strokeWidth={1} aria-hidden="true"/>
-                      : collection.kind === "author" ? <Users className="lit-quote-collection-watermark" strokeWidth={1} aria-hidden="true"/>
-                      : <Quote className="lit-quote-collection-watermark" strokeWidth={1} aria-hidden="true"/>}
-                    <span className="lit-quote-collection-top"><span>{String(index + 1).padStart(2, "0")}</span>
-                      <span className="lit-quote-collection-icon">{kind === "book" ? <BookOpen size={17} strokeWidth={1.4}/> : kind === "author" ? <Users size={17} strokeWidth={1.4}/> : <Quote size={17} strokeWidth={1.4}/>}</span></span>
-                    <span className="lit-quote-collection-title">{collection.title}</span>
-                    <span className="lit-quote-collection-author">{collection.subtitle}</span>
-                    <span className="lit-quote-collection-foot"><span><i aria-hidden="true"/> {quoteCount(collection.quotes.length)}</span><ArrowUpRight size={17} strokeWidth={1.5}/></span>
-                  </button>
-                )}</div>
-              </section>;
-            })}
-          </div>}
+          : <section className="lit-quote-collection-groups" aria-label={viewMode === "author" ? "Quotation authors" : "Quotation sources"}>
+            <div className="lit-quote-section-heading">
+              <h2>{viewMode === "author" ? "Authors" : "Sources"} <span>({visibleCollections.length})</span></h2>
+            </div>
+            <div className="lit-quote-collections-grid">
+              {visibleCollections.map((collection) =>
+                <button type="button" key={collection.key} className="lit-quote-collection-card"
+                  onClick={() => openCollection(collection)} aria-label={collection.title + ", " + quoteCount(collection.quotes.length)}>
+                  <span className="lit-quote-collection-title">{collection.title}</span>
+                  <span className="lit-quote-collection-author">{collection.subtitle}</span>
+                  <span className="lit-quote-collection-foot">
+                    <span>{quoteCount(collection.quotes.length)}</span>
+                    <ArrowUpRight size={16} strokeWidth={1.6} aria-hidden="true"/>
+                  </span>
+                </button>
+              )}
+            </div>
+          </section>}
       </>}
     {!embedded ? <p className="lit-footnote">Shared with your Personal OS reading collection. <button onClick={onOpenReading}>Open Reading</button></p> : null}
     {form ? <div className="lit-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setForm(null); }}>
