@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Archive, BookOpen, Link2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, type Collection, type PackWithType } from "../lib/heuresis";
@@ -186,9 +186,10 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
 
   const selectedCards = selectedPacks.reduce((sum, pack) => sum + pack.card_count, 0);
   const selectedSeen = selectedPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-  const selectedPercent = selectedCards ? Math.round((selectedSeen / selectedCards) * 100) : 0;
+  const selectedPercent = selectedCards ? Math.min(100, Math.round((selectedSeen / selectedCards) * 100)) : 0;
   const selectedNewWords = selectedCollection ? relatedCounts[selectedCollection.id] ?? 0 : 0;
   const lastOpened = newestOpen(selectedPacks);
+  const resumePack = selectedPacks.find((pack) => pack.last_opened_at === lastOpened) ?? selectedPacks[0];
   const otherCollections = selectedCollection ? collections.filter((collection) => collection.id !== selectedCollection.id) : collections;
   const waitingTotal = Object.values(relatedCounts).reduce((sum, count) => sum + count, 0);
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
@@ -196,35 +197,97 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   return (
     <section className="library-page intelligent-library">
       <header className="intelligent-library-head">
-        <div><h1>Heuresis<span>.</span></h1><p>{totalCards.toLocaleString()} cards across {plural(collections.length, "collection")}.{waitingTotal ? ` ${waitingTotal.toLocaleString()} uncatalogued ${waitingTotal === 1 ? "discovery" : "discoveries"}.` : ""}</p></div>
-        <div className="library-summary-actions">{archivedCount ? <button className="text-button library-archive-link" onClick={onArchive}><Archive size={14} /> Archive · {archivedCount}</button> : null}</div>
+        <div className="library-head-copy">
+          <h1>Heuresis<span>.</span></h1>
+          <p className="library-home-subtitle">Your library of language, knowledge and discoveries.</p>
+          <div className="library-home-totals" aria-label="Library totals">
+            <span><BookOpen size={15} aria-hidden="true" /><strong>{totalCards.toLocaleString()}</strong> cards</span>
+            <span><Layers3 size={15} aria-hidden="true" /><strong>{collections.length.toLocaleString()}</strong> collections</span>
+            {waitingTotal > 0 ? <span><Sparkles size={15} aria-hidden="true" /><strong>{waitingTotal.toLocaleString()}</strong> uncatalogued discoveries</span> : null}
+          </div>
+        </div>
       </header>
 
       {selectedCollection ? <div className="library-desk">
-        <section className="library-resume" data-accent={selectedCollection.accent}>
-          <div className="library-resume-head">
-            <span className="library-resume-glyph">{collectionGlyph(selectedCollection)}</span>
-            <div><p className="eyebrow">{selectedIsLatest ? "PICK UP WHERE YOU LEFT OFF" : "SELECTED COLLECTION"}</p><button className="library-resume-title" onClick={() => openCollection(selectedCollection.id)}>{selectedCollection.title}</button>{selectedCollection.description ? <p>{selectedCollection.description}</p> : null}<div className="library-resume-figs"><span><b>{selectedCards.toLocaleString()}</b><small>cards</small></span><span><b>{selectedSeen.toLocaleString()}</b><small>explored</small></span><span><b>{selectedPercent}%</b><small>of the collection</small></span>{lastOpened ? <span><b>{formatSeen(lastOpened).replace("seen ", "")}</b><small>last opened</small></span> : null}</div></div>
+        <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
+          <div className="library-continue-heading">
+            <h2>Continue learning</h2>
+            <span>{selectedIsLatest ? "Recently opened" : "Selected collection"}</span>
           </div>
-          {selectedPacks.length ? <div className="library-resume-topics">{selectedPacks.map((pack) => {
-            const progress = pack.card_count ? Math.round((pack.encountered_cards / pack.card_count) * 100) : 0;
-            const unsorted = unsortedCounts[pack.id] ?? 0;
-            return <button key={pack.id} onClick={() => onOpen(pack)}><span><strong>{pack.title}</strong><small>{pack.card_count.toLocaleString()} CARDS{unsorted ? ` · ${unsorted.toLocaleString()} UNSORTED` : ""}</small></span><i><em style={{ width: `${progress}%` }} /></i><b>{unsorted ? "Sort next →" : "Review →"}</b></button>;
-          })}</div> : <button className="library-resume-empty" onClick={() => openCollection(selectedCollection.id)}>Add the first topic <ArrowRight size={14} /></button>}
-          {selectedNewWords ? <button className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}><strong>{selectedNewWords.toLocaleString()}</strong><span>uncatalogued discoveries.</span><b>Catalogue →</b></button> : null}
+          <div className="library-resume-head">
+            <span className="library-resume-glyph" aria-hidden="true">{collectionGlyph(selectedCollection)}</span>
+            <div className="library-resume-copy">
+              <p className="eyebrow">COLLECTION</p>
+              <button type="button" className="library-resume-title" onClick={() => openCollection(selectedCollection.id)}>{selectedCollection.title}</button>
+              {selectedCollection.description ? <p>{selectedCollection.description}</p> : null}
+              <div className="library-resume-figs">
+                <span><b>{selectedCards.toLocaleString()}</b><small>cards</small></span>
+                <span><b>{selectedSeen.toLocaleString()}</b><small>explored</small></span>
+                <span><b>{selectedPercent}%</b><small>explored</small></span>
+                {lastOpened ? <span><b>{formatSeen(lastOpened).replace("seen ", "")}</b><small>last opened</small></span> : null}
+              </div>
+            </div>
+          </div>
+
+          {selectedPacks.length ? <div className="library-resume-topics" aria-label="Collection topics">
+            {selectedPacks.map((pack) => {
+              const progress = pack.card_count ? Math.min(100, Math.round((pack.encountered_cards / pack.card_count) * 100)) : 0;
+              const unsorted = unsortedCounts[pack.id] ?? 0;
+              return <button type="button" key={pack.id} onClick={() => onOpen(pack)} title={"Open " + pack.title}>
+                <span className="library-topic-copy">
+                  <strong>{pack.title}</strong>
+                  <small>{plural(pack.card_count, "card")}{unsorted ? " · " + unsorted.toLocaleString() + " unsorted" : ""}</small>
+                </span>
+                <span className="library-topic-progress">
+                  <i aria-hidden="true"><em style={{ width: progress + "%" }} /></i>
+                  <b>{progress}%</b>
+                </span>
+                <ChevronRight size={16} className="library-topic-chevron" aria-hidden="true" />
+              </button>;
+            })}
+          </div> : <button type="button" className="library-resume-empty" onClick={() => openCollection(selectedCollection.id)}>Create your first topic <ArrowRight size={14} /></button>}
+
+          {selectedNewWords > 0 ? <button type="button" className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}>
+            <Sparkles size={16} aria-hidden="true" />
+            <strong>{selectedNewWords.toLocaleString()}</strong>
+            <span>uncatalogued {selectedNewWords === 1 ? "discovery" : "discoveries"}</span>
+            <ChevronRight size={17} aria-hidden="true" />
+          </button> : null}
+
+          <div className="library-resume-actions">
+            {resumePack ? <button type="button" className="library-resume-primary" onClick={() => onOpen(resumePack)}><Play size={15} fill="currentColor" aria-hidden="true" /> Continue topic</button>
+              : <button type="button" className="library-resume-primary" onClick={() => onNewTopic(selectedCollection.id)}><Plus size={15} aria-hidden="true" /> New topic</button>}
+            <button type="button" className="library-resume-secondary" onClick={() => openCollection(selectedCollection.id)}><BookOpen size={15} aria-hidden="true" /> All topics</button>
+          </div>
         </section>
 
-        <aside className="library-stack">
-          <div className="library-stack-head"><p className="eyebrow">COLLECTIONS</p><button className="library-stack-new" onClick={onNewCollection}><Plus size={13} /> New</button></div>
+        <aside className="library-stack" aria-label="Other collections">
+          <div className="library-stack-head">
+            <h2>Collections</h2>
+            <button type="button" className="library-stack-new" onClick={onNewCollection}><Plus size={14} aria-hidden="true" /> New</button>
+          </div>
           {otherCollections.map((collection) => {
             const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
             const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
             const seen = collectionPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-            const progress = cards ? Math.round((seen / cards) * 100) : 0;
-            return <button key={collection.id} className={collectionPacks.length ? "library-mini" : "library-mini off"} data-accent={collection.accent} onClick={() => selectCollection(collection.id)} title={`Show ${collection.title} here`}><span className="library-mini-glyph">{collectionGlyph(collection)}</span><span><strong>{collection.title}</strong><small>{collectionPacks.length ? `${cards.toLocaleString()} CARDS · ${plural(collectionPacks.length, "TOPIC")} · ${progress}%` : "NO TOPICS · ADD FIRST TOPIC"}</small></span>{collectionPacks.length ? <i><em style={{ width: `${progress}%` }} /></i> : null}</button>;
+            const progress = cards ? Math.min(100, Math.round((seen / cards) * 100)) : 0;
+            return <button type="button" key={collection.id} className={collectionPacks.length ? "library-mini" : "library-mini off"} data-accent={collection.accent} onClick={() => selectCollection(collection.id)} title={"Show " + collection.title + " on the Library page"}>
+              <span className="library-mini-glyph" aria-hidden="true">{collectionGlyph(collection)}</span>
+              <span className="library-mini-copy">
+                <strong>{collection.title}</strong>
+                <small>{collectionPacks.length ? plural(cards, "card") + " · " + plural(collectionPacks.length, "topic") + " · " + progress + "% explored" : "No topics yet"}</small>
+                {collectionPacks.length ? <i aria-hidden="true"><em style={{ width: progress + "%" }} /></i> : null}
+              </span>
+              <ChevronRight size={17} className="library-mini-chevron" aria-hidden="true" />
+            </button>;
           })}
+          {archivedCount > 0 ? <button type="button" className="library-stack-archive" onClick={onArchive}>
+            <Archive size={19} aria-hidden="true" />
+            <span><strong>Archive</strong><small>{plural(archivedCount, "archived topic")}</small></span>
+            <ChevronRight size={17} aria-hidden="true" />
+          </button> : null}
         </aside>
-      </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
+      </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
     </section>
   );
 }
