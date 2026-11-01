@@ -1,75 +1,122 @@
-/* Quotations: source-first navigation modelled on the Personal OS Discoveries entrance.
-   Scope to Quotations only; the rest of Reading and Reference remain unchanged. */
-.lit-quotation-page { max-width: 1200px; }
-.lit-quotation-page-head { align-items: flex-end; margin-bottom: 36px; }
-.lit-quote-head-aside { display:flex; gap:26px; align-items:flex-end; }
-.lit-quote-total { text-align:right; min-width:80px; }
-.lit-quote-total strong { display:block; font:400 28px/1 var(--ws-display,Georgia,serif); color:var(--lit-text); }
-.lit-quote-total span { display:block; margin-top:8px; font:600 9px/1.3 var(--ws-sans,system-ui); letter-spacing:.12em; color:var(--lit-muted); }
-.lit-quote-opening-heading { display:flex; justify-content:space-between; align-items:end; flex-wrap:wrap; gap:18px; margin:42px 0 25px; }
-.lit-quote-opening-heading h2 { margin:0; font:400 clamp(26px,3vw,32px)/1.2 var(--ws-display,Georgia,serif); letter-spacing:-.02em; }
-.lit-quote-opening-heading p { color:var(--lit-muted); margin:7px 0 0; font-size:12px; }
-.lit-quote-opening-controls { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:12px; }
-.lit-quote-opening-controls .lit-search { width:min(340px,100%); }
-.lit-quote-grouping { display:inline-flex; align-items:center; padding:4px; gap:2px; border:1px solid var(--lit-line); border-radius:9px; background:var(--lit-paper); }
-.lit-quote-grouping button { min-width:68px; padding:8px 13px; border:0; border-radius:6px; background:transparent; color:var(--lit-muted); font:600 11px/1.2 var(--ws-sans,system-ui); cursor:pointer; transition:background .15s,color .15s; }
+/* Reading quotations: a single title, compact controls and source-first navigation. */
+.lit-quotation-page { max-width:1200px; }
+.lit-quotation-page-head { align-items:center; margin-bottom:18px; }
+.lit-quote-head-aside { display:flex; align-items:center; gap:16px; }
+.lit-quote-total-inline { color:var(--lit-muted); font:500 11px/1.4 var(--ws-sans,system-ui); white-space:nowrap; }
+
+.lit-quote-opening-controls {
+  display:grid; grid-template-columns:minmax(220px,1fr) auto auto auto;
+  align-items:center; gap:12px; margin-bottom:24px;
+  padding-bottom:18px; border-bottom:1px solid var(--lit-line);
+}
+.lit-quote-opening-controls .lit-search { min-width:0; max-width:none; width:100%; box-sizing:border-box; }
+.lit-quote-opening-controls .lit-button { white-space:nowrap; }
+.lit-quote-grouping {
+  display:inline-flex; align-items:center; padding:3px; gap:2px;
+  border:1px solid var(--lit-line); border-radius:9px; background:var(--lit-paper);
+}
+.lit-quote-grouping button {
+  min-width:65px; padding:8px 11px; border:0; border-radius:6px;
+  background:transparent; color:var(--lit-muted); font:600 11px/1.2 var(--ws-sans,system-ui);
+  cursor:pointer; transition:background .15s,color .15s;
+}
 .lit-quote-grouping button:hover { color:var(--lit-text); }
 .lit-quote-grouping button.is-active { color:var(--lit-text); background:var(--ws-accent-soft,rgba(140,105,44,.12)); }
 .lit-quote-grouping button:focus-visible { outline:2px solid var(--ws-accent,#9f7e3d); outline-offset:2px; }
-.lit-quote-collection-groups { display:grid; gap:38px; }
-.lit-quote-section-heading { display:flex; align-items:baseline; justify-content:space-between; gap:16px; padding-bottom:11px; margin-bottom:13px; border-bottom:1px solid var(--lit-line); }
-.lit-quote-section-heading h3 { margin:0; font:400 17px/1.3 var(--ws-display,Georgia,serif); }
-.lit-quote-section-heading span { font-size:10px; color:var(--lit-muted); letter-spacing:.04em; }
-.lit-quote-collections-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
-.lit-quote-collection-card { position:relative; isolation:isolate; display:flex; flex-direction:column; overflow:hidden; min-height:181px; min-width:0; text-align:left; padding:19px 20px 16px; border:1px solid var(--lit-line); border-radius:11px; color:var(--lit-text); cursor:pointer; background:linear-gradient(135deg,var(--ws-raised,var(--lit-paper)),var(--lit-paper)); transition:border-color .18s, transform .18s, background .18s; }
-.lit-quote-collection-card:hover { transform:translateY(-2px); border-color:var(--ws-accent-line,var(--ws-accent,#9f7e3d)); }
-.lit-quote-collection-watermark { position:absolute; z-index:-1; right:-14px; bottom:-28px; width:126px; height:126px; opacity:.045; pointer-events:none; }
-.lit-quote-collection-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:17px; font:600 9px var(--ws-sans,system-ui); letter-spacing:.1em; color:var(--lit-muted); }
-.lit-quote-collection-icon { display:grid; place-items:center; width:31px; height:31px; border:1px solid var(--lit-line); border-radius:8px; color:var(--lit-muted); }
-.lit-quote-collection-title { display:block; font:400 clamp(21px,2.2vw,25px)/1.25 var(--ws-display,Georgia,serif); overflow-wrap:anywhere; }
-.lit-quote-collection-author { display:block; font:400 11px/1.5 var(--ws-sans,system-ui); margin-top:5px; color:var(--lit-muted); }
-.lit-quote-collection-foot { margin-top:auto; padding-top:19px; display:flex; justify-content:space-between; align-items:center; color:var(--lit-muted); font-size:10px; }
-.lit-quote-collection-foot>span { display:flex; align-items:center; gap:7px; }
-.lit-quote-collection-foot i { width:4px; height:4px; border-radius:50%; background:var(--ws-accent,#9f7e3d); }
-.lit-quote-breadcrumb { display:flex; align-items:center; gap:11px; color:var(--lit-muted); margin:0 0 25px; font-size:11px; }
-.lit-quote-breadcrumb button { display:inline-flex; align-items:center; gap:8px; border:0; padding:7px 0; background:transparent; font:inherit; color:var(--lit-muted); cursor:pointer; }
+
+.lit-quote-collection-groups { margin:0; }
+.lit-quote-section-heading { margin-bottom:14px; }
+.lit-quote-section-heading h2 {
+  margin:0; font:400 25px/1.2 var(--ws-display,Georgia,serif);
+  letter-spacing:-.015em;
+}
+.lit-quote-section-heading h2 span { color:var(--lit-muted); font:400 15px/1 var(--ws-sans,system-ui); }
+.lit-quote-collections-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:12px;
+}
+.lit-quote-collection-card {
+  display:flex; flex-direction:column; min-width:0; min-height:136px;
+  text-align:left; padding:19px 20px 15px; border:1px solid var(--lit-line);
+  border-radius:10px; color:var(--lit-text); background:var(--lit-paper);
+  cursor:pointer; transition:border-color .15s,background .15s;
+}
+.lit-quote-collection-card:hover {
+  border-color:var(--ws-accent-line,var(--lit-line));
+  background:var(--ws-raised,var(--lit-paper));
+}
+.lit-quote-collection-card:focus-visible { outline:2px solid var(--ws-accent,#987a43); outline-offset:2px; }
+.lit-quote-collection-title {
+  font:400 clamp(19px,2vw,23px)/1.24 var(--ws-display,Georgia,serif);
+  overflow-wrap:anywhere;
+}
+.lit-quote-collection-author { margin-top:5px; font:400 11px/1.4 var(--ws-sans,system-ui); color:var(--lit-muted); }
+.lit-quote-collection-foot {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin-top:auto; padding-top:17px; color:var(--lit-muted); font-size:11px;
+}
+.lit-quote-collection-foot svg { flex:none; }
+
+.lit-quote-detail-topbar {
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+  gap:12px; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid var(--lit-line);
+}
+.lit-quote-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:10px; color:var(--lit-muted); font-size:11px; }
+.lit-quote-breadcrumb button {
+  display:inline-flex; align-items:center; gap:7px; border:0; padding:7px 0;
+  background:transparent; font:inherit; color:var(--lit-muted); cursor:pointer;
+}
 .lit-quote-breadcrumb button:hover { color:var(--lit-text); }
 .lit-quote-breadcrumb strong { font-weight:500; color:var(--lit-text); }
-.lit-quote-source-heading { text-align:center; margin:18px auto 31px; max-width:850px; }
-.lit-quote-source-meta { font:600 10px/1.4 var(--ws-sans,system-ui); letter-spacing:.15em; color:var(--ws-accent,#9f7e3d); }
-.lit-quote-source-meta span { margin:0 8px; opacity:.55; }
-.lit-quote-source-heading h2 { font:400 clamp(36px,5vw,56px)/1.14 var(--ws-display,Georgia,serif); letter-spacing:-.035em; margin:14px 0 8px; }
-.lit-quote-source-heading p { color:var(--lit-muted); font-size:13px; margin:0; }
-.lit-quotation-search-row { display:flex; justify-content:center; margin:0 0 30px; }
-.lit-quotation-search-row .lit-search { max-width:340px; }
-.lit-quote-reading-list { width:min(100%,840px); margin:0 auto; }
-.lit-quote-reading-entry { display:grid; grid-template-columns:52px minmax(0,1fr); gap:18px; padding:32px 6px 37px; border-bottom:1px solid var(--lit-line); }
+.lit-quote-source-heading { text-align:left; margin:0 0 22px; max-width:850px; }
+.lit-quote-source-meta { font:600 10px/1.4 var(--ws-sans,system-ui); letter-spacing:.07em; color:var(--lit-muted); }
+.lit-quote-source-meta span { margin:0 7px; opacity:.55; }
+.lit-quote-source-heading h2 {
+  font:400 clamp(28px,3vw,38px)/1.15 var(--ws-display,Georgia,serif);
+  letter-spacing:-.025em; margin:8px 0 6px;
+}
+.lit-quote-source-heading p { color:var(--lit-muted); font-size:12px; margin:0; }
+.lit-quotation-search-row { display:flex; justify-content:flex-start; margin:0 0 18px; }
+.lit-quotation-search-row .lit-search { max-width:400px; }
+.lit-quote-reading-list { width:min(100%,850px); margin:0; }
+.lit-quote-reading-entry {
+  display:grid; grid-template-columns:28px minmax(0,1fr); gap:12px;
+  padding:25px 5px 30px; border-bottom:1px solid var(--lit-line);
+}
 .lit-quote-reading-entry:first-child { border-top:1px solid var(--lit-line); }
-.lit-quote-entry-number { font:500 10px/1.6 var(--ws-sans,system-ui); letter-spacing:.13em; color:var(--lit-muted); opacity:.65; padding-top:5px; }
+.lit-quote-entry-number { font:500 10px/1.6 var(--ws-sans,system-ui); color:var(--lit-muted); opacity:.7; padding-top:5px; }
 .lit-quote-entry-body { min-width:0; }
 .lit-quote-entry-mark { color:var(--ws-accent,#9f7e3d); opacity:.55; }
-.lit-quote-entry-body blockquote { margin:12px 0 28px; padding:0; border:0; font:400 clamp(24px,2.9vw,34px)/1.43 var(--ws-serif,Georgia,serif); letter-spacing:-.015em; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--lit-text); }
-.lit-quote-entry-body footer { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
+.lit-quote-entry-body blockquote {
+  margin:10px 0 22px; padding:0; border:0;
+  font:400 clamp(21px,2.3vw,29px)/1.43 var(--ws-serif,Georgia,serif);
+  white-space:pre-wrap; overflow-wrap:anywhere; color:var(--lit-text);
+}
+.lit-quote-entry-body footer { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
 .lit-quote-citation { display:grid; gap:5px; min-width:0; }
 .lit-quote-citation strong { color:var(--lit-text); font-size:12px; font-weight:600; }
 .lit-quote-citation span { color:var(--lit-muted); font-size:11px; }
 .lit-quote-citation p { font:italic 12px/1.6 var(--ws-serif,Georgia,serif); color:var(--lit-muted); margin:7px 0 0; max-width:65ch; }
 .lit-quote-entry-body .lit-quote-actions { flex:none; }
-.lit-quotation-page .lit-footnote { margin-top:35px; }
-@media (max-width:850px) { .lit-quote-collections-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:600px) {
- .lit-quotation-page-head { gap:16px; }
- .lit-quote-head-aside { width:100%; align-items:center; justify-content:space-between; }
- .lit-quote-total { text-align:left; }
- .lit-quote-opening-heading { margin-top:27px; }
- .lit-quote-opening-heading .lit-search { max-width:none; }
- .lit-quote-opening-controls { width:100%; justify-content:flex-start; }
- .lit-quote-opening-controls .lit-search { flex:1 1 200px; min-width:160px; width:auto; }
- .lit-quote-grouping { flex:none; }
- .lit-quote-collections-grid { grid-template-columns:1fr; }
- .lit-quote-collection-card { min-height:158px; }
- .lit-quote-reading-entry { grid-template-columns:25px minmax(0,1fr); gap:9px; padding:24px 0 28px; }
- .lit-quote-entry-body blockquote { font-size:25px; }
- .lit-quote-source-heading { margin:14px auto 27px; }
+.lit-quotation-page .lit-footnote { margin-top:30px; }
+
+@media (max-width:900px) {
+  .lit-quote-opening-controls { grid-template-columns:minmax(190px,1fr) auto auto; }
+  .lit-quote-opening-controls .lit-quote-total-inline { display:none; }
 }
-@media (prefers-reduced-motion:reduce) { .lit-quote-collection-card { transition:none; } }
+@media (max-width:620px) {
+  .lit-quote-opening-controls { grid-template-columns:1fr auto; gap:10px; }
+  .lit-quote-opening-controls .lit-search { grid-column:1 / -1; }
+  .lit-quote-opening-controls .lit-button { justify-self:end; }
+  .lit-quote-collections-grid { grid-template-columns:repeat(auto-fill,minmax(205px,1fr)); }
+  .lit-quote-detail-topbar { align-items:flex-start; }
+  .lit-quote-reading-entry { grid-template-columns:20px minmax(0,1fr); gap:8px; padding:20px 0 25px; }
+  .lit-quote-entry-body blockquote { font-size:22px; }
+}
+@media (max-width:450px) {
+  .lit-quote-collections-grid { grid-template-columns:1fr; }
+  .lit-quote-collection-card { min-height:120px; }
+  .lit-quote-detail-topbar .lit-button { width:100%; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .lit-quote-collection-card,.lit-quote-grouping button { transition:none; }
+}
