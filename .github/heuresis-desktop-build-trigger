@@ -1,6 +1,5 @@
 Build the latest Heuresis Windows ARM64 NSIS installer.
-Source commit: cb31d6c407fad215da78ab780abe766acb3fb7f2
-Requested: 2026-10-31
-Includes: Review screen simplified with typed session size, single-row order buttons and collapsible optional filters.
+Requested: 2026-11-01
+Source: main, including the compact unified Library Overview, stylesheet order correction, and notes-only statistics.
 Output: heuresis-windows-arm64 artifact, NSIS *.exe.
-Verify successful workflow run and downloadable installer before claiming the binary is ready.
+Do not treat this request as verification; inspect the workflow build result.
