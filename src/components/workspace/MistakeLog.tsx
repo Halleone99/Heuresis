@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronRight, GraduationCap, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, GraduationCap, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { comparableCorrection, friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
@@ -13,6 +13,21 @@ function DiffLine({ parts }: { parts: DifferencePart[] }) {
   return <>{parts.map((part, index) => <span key={index}
     className={part.kind === "wrong" ? "ml-diff-wrong" : part.kind === "corrected" ? "ml-diff-right"
       : part.kind === "gap" ? "ml-diff-gap" : undefined}>{part.text}</span>)}</>;
+}
+
+function MistakeDisplay({ parts, chinese }: { parts: DifferencePart[]; chinese: boolean }) {
+  if (!chinese) return <DiffLine parts={parts}/>;
+  const lines: DifferencePart[][] = [[]];
+  for (const part of parts) {
+    part.text.split(/\r?\n/u).forEach((text, index) => {
+      if (index > 0) lines.push([]);
+      if (text) lines[lines.length - 1].push({ ...part, text });
+    });
+  }
+  return <>{lines.map((line, index) => <span key={index}
+    className={"ml-display-line" + (line.some((part) => /[\u3400-\u9FFF]/u.test(part.text)) ? " is-han" : " is-pinyin")}>
+    <DiffLine parts={line}/>
+  </span>)}</>;
 }
 
 function ruleParts(title: string) {
@@ -283,9 +298,14 @@ export function MistakeLog() {
           : visibleMistakes.length + (visibleMistakes.length === 1 ? " mistake" : " mistakes")}</p></div>
       <div className="ws-page-actions">
         <button className="ws-button" type="button" disabled={!visibleMistakes.some((entry) => entry.correction.trim())}
-          onClick={() => startPractice(visibleMistakes)}><GraduationCap size={16}/> Practise {allPage ? "all" : title}</button>
-        {workspace.writable ? <button className="ws-button is-primary" type="button"
-          onClick={() => { setBrowsingAll(true); setAdding(true); setEditingId(null); }}><Plus size={16}/> Add mistake</button> : null}
+          aria-label={allPage ? "Practise all mistakes" : "Practise " + title}
+          onClick={() => startPractice(visibleMistakes)}><GraduationCap size={16}/>{allPage ? "Practise all" : "Practise"}</button>
+        {workspace.writable ? <button className={"ws-button" + (adding ? "" : " is-primary")} type="button"
+          aria-expanded={adding} aria-controls="ml-new-mistake"
+          onClick={() => {
+            setAdding((open) => !open);
+            if (!adding) { setBrowsingAll(true); setEditingId(null); }
+          }}>{adding ? <X size={16}/> : <Plus size={16}/>} {adding ? "Cancel" : "Add mistake"}</button> : null}
       </div>
     </header>
 
@@ -304,13 +324,19 @@ export function MistakeLog() {
       ? <button className="ml-not-filed" type="button" onClick={() => select(selectedSubjectId, null, true)}>
         Not filed · {currentUnfiledCount}<ChevronRight size={15}/></button> : null}
 
-    <label className="ml-search-label ml-chooser-search">
-      <span className="sr-only">Search mistakes</span>
-      <input className="ml-search-field" type="search" value={search}
-        onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
-        placeholder={allPage ? "Search all mistakes…" : "Search in " + title + "…"} />
-    </label>
-
+    <div className="ml-list-toolbar">
+      <label className="ml-search-label ml-chooser-search">
+        <Search size={16} aria-hidden="true"/>
+        <span className="sr-only">Search mistakes</span>
+        <input className="ml-search-field" type="search" value={search}
+          onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
+          placeholder={allPage ? "Search all mistakes…" : "Search in " + title + "…"} />
+      </label>
+      {workspace.writable && !allPage ? <button className="ws-button ml-select-trigger" type="button"
+        aria-pressed={selecting} onClick={() => { setSelecting((open) => !open); setSelectedIds([]); }}>
+        {selecting ? "Done selecting" : "Select mistakes"}
+      </button> : null}
+    </div>
     {allPage && !search.trim() && !browsingAll ? <div className="ml-hierarchy-grid">
       {subjectCards.map((subject) => {
         const entries = mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === subject.id);
@@ -347,25 +373,19 @@ export function MistakeLog() {
       </button>
     </div> : null}
 
-    {workspace.writable && !allPage ? <div className="ml-bulk-toolbar">
-      <button className="ws-button" type="button" aria-pressed={selecting}
-        onClick={() => { setSelecting((open) => !open); setSelectedIds([]); }}>
-        {selecting ? "Done selecting" : "Select mistakes"}
-      </button>
-      {selecting ? <>
-        <button className="ws-button" type="button" disabled={bulkBusy}
-          onClick={() => setSelectedIds(visibleMistakes.map((entry) => entry.id))}>Select all visible</button>
-        <span className="ws-muted">{selectedIds.length} selected</span>
-        <button className="ws-button" type="button" disabled={!selectedIds.length || bulkBusy}
-          onClick={() => setBulkPicker(true)}>Move to…</button>
-        <input type="text" maxLength={200} className="ml-bulk-rule-input" value={bulkRule}
-          placeholder="Set rule…" aria-label="Set rule on selected mistakes"
-          onChange={(event) => setBulkRule(event.target.value)}/>
-        <button className="ws-button" type="button" disabled={!selectedIds.length || !bulkRule.trim() || bulkBusy}
-          onClick={() => void applyRule()}>Apply rule</button>
-        <button className="ws-button ml-bulk-delete" type="button" disabled={!selectedIds.length || bulkBusy}
-          onClick={() => void deleteSelected()}>Move to Trash</button>
-      </> : null}
+    {workspace.writable && !allPage && selecting ? <div className="ml-bulk-toolbar ml-bulk-expanded" role="group" aria-label="Selected mistakes">
+      <span className="ws-muted">{selectedIds.length} selected</span>
+      <button className="ws-button" type="button" disabled={bulkBusy}
+        onClick={() => setSelectedIds(visibleMistakes.map((entry) => entry.id))}>Select all visible</button>
+      <button className="ws-button" type="button" disabled={!selectedIds.length || bulkBusy}
+        onClick={() => setBulkPicker(true)}>Move to…</button>
+      <input type="text" maxLength={200} className="ml-bulk-rule-input" value={bulkRule}
+        placeholder="Set rule…" aria-label="Set rule on selected mistakes"
+        onChange={(event) => setBulkRule(event.target.value)}/>
+      <button className="ws-button" type="button" disabled={!selectedIds.length || !bulkRule.trim() || bulkBusy}
+        onClick={() => void applyRule()}>Apply rule</button>
+      <button className="ws-button ml-bulk-delete" type="button" disabled={!selectedIds.length || bulkBusy}
+        onClick={() => void deleteSelected()}>Move to Trash</button>
     </div> : null}
     {bulkPicker ? <Portal><div className="ws-dialog-backdrop" role="presentation"
       onMouseDown={(event) => { if (event.target === event.currentTarget) setBulkPicker(false); }}>
@@ -373,12 +393,16 @@ export function MistakeLog() {
         onChange={(topicId) => void moveSelected(topicId)}/>
     </div></Portal> : null}
     {!themeChooser ? <section className="ml-hierarchy-content">
-      {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeQuickAdd key={selectedTopicId}
-        initialTopicId={selectedTopicId}/> : null}
-      {workspace.writable && selectedTopicId && !notFiledOnly ? <MistakeBulkAdd key={"bulk:" + selectedTopicId} topicId={selectedTopicId}/> : null}
-      {adding ? <MistakeEditor key={"new:" + (selectedTopicId ?? selectedSubjectId ?? "all")}
-        preferredSubjectId={selectedSubjectId} preferredTopicId={selectedTopicId}
-        onDone={() => setAdding(false)}/> : null}
+      {adding ? <div className="ml-add-panel" id="ml-new-mistake">
+        <MistakeEditor key={"new:" + (selectedTopicId ?? selectedSubjectId ?? "all")}
+          preferredSubjectId={selectedSubjectId} preferredTopicId={selectedTopicId}
+          onDone={() => { setAdding(false); setBrowsingAll(false); }}/>
+        {workspace.writable && selectedTopicId && !notFiledOnly ? <details className="ml-add-alternatives">
+          <summary>Other ways to add</summary>
+          <div className="ml-extra-entry"><MistakeQuickAdd key={selectedTopicId} initialTopicId={selectedTopicId}/>
+            <MistakeBulkAdd key={"bulk:" + selectedTopicId} topicId={selectedTopicId}/></div>
+        </details> : null}
+      </div> : null}
       <h2 className="ml-section-label">{search.trim() ? "Search results" : "Mistakes and corrections"}</h2>
       {!mistakes.length && !adding ? <EmptyState title="No mistakes recorded yet" icon={<Pencil size={22}/>}>
         Add a mistake and its correction. File it under any Notebook subject and topic.
@@ -542,23 +566,33 @@ function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit, sele
   const last = events.filter((event) => event.source !== "repeated")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const rule = ruleParts(entry.title);
+  const chinesePair = /[\u3400-\u9FFF]/u.test(entry.attempt + entry.correction);
   return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")
     + (ideaStyle ? " is-idea-style" : "")} data-mistake={entry.id}>
     {selecting ? <input className="ml-select-checkbox" type="checkbox" checked={selected} onChange={onSelect}
       aria-label={"Select mistake " + (entry.title || entry.attempt.slice(0, 40))}/> : null}
     <div className="ml-simple-body">
-      {entry.title && !hideRuleTitle ? <h2 className="ml-entry-title">{rule.rule}
-        {rule.detail ? <small> · {rule.detail}</small> : null}</h2> : null}
-      {hideRuleTitle && rule.detail ? <small className="ml-entry-detail">{rule.detail}</small> : null}
+      <div className="ml-entry-top">
+        <div className="ml-entry-heading">
+          {entry.title && !hideRuleTitle ? <h2 className="ml-entry-title">{rule.rule}
+            {rule.detail ? <small> · {rule.detail}</small> : null}</h2> : null}
+          {hideRuleTitle && rule.detail ? <small className="ml-entry-detail">{rule.detail}</small> : null}
+        </div>
+        {workspace.writable ? <div className="ml-simple-actions">
+          <button type="button" className="ws-icon-button" aria-label="Edit mistake" title="Edit mistake" onClick={onEdit}>
+            <Pencil size={15}/>
+          </button>
+        </div> : null}
+      </div>
       <div className="ml-simple-pair">
         <span className="ml-simple-symbol" title="Mistake" aria-label="Mistake">×</span>
         <p className="ml-simple-wrong">{entry.attempt
-          ? diff ? <DiffLine parts={diff.before}/> : entry.attempt : "Not recorded"}</p>
+          ? diff ? <MistakeDisplay parts={diff.before} chinese={chinesePair}/> : entry.attempt : "Not recorded"}</p>
       </div>
       <div className="ml-simple-pair">
         <span className="ml-simple-symbol is-right" title="Correction" aria-label="Correction">✓</span>
         <p className={"ml-simple-right" + (!entry.correction ? " is-missing" : "")}>
-          {entry.correction ? diff ? <DiffLine parts={diff.after}/> : entry.correction : "Add the correct version"}
+          {entry.correction ? diff ? <MistakeDisplay parts={diff.after} chinese={chinesePair}/> : entry.correction : "Add the correct version"}
         </p>
       </div>
       {entry.explanation ? <div className="ml-entry-context-wrap">
@@ -570,11 +604,6 @@ function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit, sele
         {entry.pinned ? " · Pinned" : ""}
       </small>
     </div>
-    {workspace.writable ? <div className="ml-simple-actions">
-      <button type="button" className="ws-icon-button" aria-label="Edit mistake" title="Edit" onClick={onEdit}>
-        <Pencil size={15}/>
-      </button>
-    </div> : null}
   </article>;
 }
 
