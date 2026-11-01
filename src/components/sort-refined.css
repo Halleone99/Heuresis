@@ -159,3 +159,305 @@
 @media(max-width:440px) {
  .sort-modal .sort-quiet-actions button { flex-direction:row; }
 }
+
+
+/* Compact New-card selection dialog. Keep the full sorting workspace unchanged. */
+.sort-backdrop .sort-modal.sort-modal--setup {
+  width: min(830px, calc(100vw - 32px)) !important;
+  height: auto !important;
+  max-height: calc(100dvh - 32px);
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 20px;
+}
+.sort-modal--setup .sort-topbar {
+  height: 74px;
+  padding: 0 40px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.sort-modal--setup .sort-topbar strong { font-size: 20px; }
+.sort-modal--setup .sort-topbar .eyebrow { color: var(--ws-muted); font-size: 9px; }
+.sort-modal--setup .sort-topbar > .sort-topbar-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  justify-self: end;
+}
+.sort-modal--setup .sort-topbar-actions > button[aria-label="Close New cards"] {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 36px;
+  padding: 0;
+}
+.sort-modal--setup .sort-setup-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 30px;
+  padding: 5px 16px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 100px;
+  background: var(--ws-raised);
+  color: var(--ws-muted);
+  font: 12px var(--ws-sans);
+  white-space: nowrap;
+}
+.sort-modal--setup .sort-setup-pending-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c-sage);
+}
+.sort-modal--setup .sort-setup {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.sort-modal--setup .sort-setup-intro { padding: 36px 42px 0; }
+.sort-modal--setup .sort-setup-intro h2 {
+  margin: 0 0 8px;
+  color: var(--ws-ink);
+  font: 400 clamp(27px, 4vw, 34px)/1.13 'Libre Caslon Display', Georgia, serif;
+}
+.sort-modal--setup .sort-setup-intro p {
+  margin: 0;
+  color: var(--ws-muted);
+  font: 13px/1.6 var(--ws-sans);
+}
+.sort-modal--setup .sort-setup-label {
+  display: block;
+  color: var(--ws-muted);
+  font: 600 10px/1.4 var(--ws-sans);
+  letter-spacing: .045em;
+}
+.sort-modal--setup .sort-setup-label small {
+  margin-left: 12px;
+  font: 400 11px var(--ws-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.sort-modal--setup .sort-setup-tag-filter {
+  display: grid;
+  gap: 9px;
+  margin: 32px 42px 0;
+}
+.sort-modal--setup .sort-setup-tag-picker { position: relative; width: 100%; }
+.sort-modal--setup .sort-setup-tag-picker > summary,
+.sort-modal--setup .sort-setup-tag-empty {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  width: 100%;
+  min-height: 62px;
+  padding: 11px 18px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 10px;
+  background: var(--ws-raised);
+  color: var(--ws-text);
+}
+.sort-modal--setup .sort-setup-tag-picker > summary:hover { border-color: var(--ws-accent); }
+.sort-modal--setup .sort-setup-tag-picker > summary > svg:first-child,
+.sort-modal--setup .sort-setup-tag-empty > svg { flex: none; color: var(--ws-accent); }
+.sort-modal--setup .sort-setup-tag-picker > summary > svg:last-child { flex: none; margin-left: auto; color: var(--ws-muted); }
+.sort-modal--setup .sort-setup-tag-summary,
+.sort-modal--setup .sort-setup-tag-empty > span { display: grid; gap: 2px; min-width: 0; }
+.sort-modal--setup .sort-setup-tag-summary strong,
+.sort-modal--setup .sort-setup-tag-empty strong { font: 600 13px/1.25 var(--ws-sans); color: var(--ws-text); }
+.sort-modal--setup .sort-setup-tag-summary small,
+.sort-modal--setup .sort-setup-tag-empty small { font: 11px/1.3 var(--ws-sans); color: var(--ws-muted); }
+.sort-modal--setup .sort-setup-tag-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  margin-top: 5px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .22);
+}
+.sort-modal--setup .sort-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 34px;
+  margin: 32px 42px 0;
+}
+.sort-modal--setup .sort-setup-quantity,
+.sort-modal--setup .sort-setup-order { display: grid; gap: 9px; min-width: 0; }
+.sort-modal--setup .sort-setup-quantity-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 62px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 9px;
+  background: var(--ws-raised);
+  overflow: hidden;
+}
+.sort-modal--setup .sort-setup-quantity-control:focus-within {
+  border-color: var(--ws-accent);
+  outline: 2px solid var(--ws-accent-soft);
+}
+.sort-modal--setup .sort-setup-quantity-control > input {
+  min-width: 0;
+  width: 84px;
+  height: 60px;
+  flex: none;
+  padding: 0 12px 0 18px;
+  border: 0;
+  border-right: 1px solid var(--ws-line-strong);
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ws-ink);
+  font: 400 30px 'Libre Caslon Display', Georgia, serif;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.sort-modal--setup .sort-setup-quantity-control > input::-webkit-outer-spin-button,
+.sort-modal--setup .sort-setup-quantity-control > input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sort-modal--setup .sort-setup-quantity-control > input:focus,
+.sort-modal--setup .sort-setup-quantity-control > input:focus-visible { outline: none; box-shadow: none; }
+.sort-modal--setup .sort-setup-quantity-control > input[aria-invalid="true"] { color: var(--c-cinnabar); }
+.sort-modal--setup .sort-setup-count-info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 12px 0 16px;
+  color: var(--ws-muted);
+  font: 11px/1.25 var(--ws-sans);
+}
+.sort-modal--setup .sort-setup-count-info small { font-size: 10px; }
+.sort-modal--setup .sort-setup-quantity-control > .sort-setup-all {
+  flex: none;
+  margin: 0 15px 0 auto;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ws-accent);
+  font: 600 11px var(--ws-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sort-modal--setup .sort-setup-count-help { color: var(--c-cinnabar); font: 11px/1.4 var(--ws-sans); }
+.sort-modal--setup .sort-setup-order > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  min-height: 62px;
+  padding: 3px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 9px;
+  background: var(--ws-raised);
+}
+.sort-modal--setup .sort-setup-order button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 9px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ws-muted);
+  font: 600 12px var(--ws-sans);
+  cursor: pointer;
+}
+.sort-modal--setup .sort-setup-order button.selected {
+  background: color-mix(in srgb, var(--c-sage) 40%, var(--ws-raised));
+  border-color: var(--ws-accent-line);
+  color: var(--ws-ink);
+}
+.sort-modal--setup .sort-setup-order button:hover:not(.selected) { color: var(--ws-text); background: var(--ws-surface); }
+.sort-modal--setup .sort-setup-search-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 32px 42px 0;
+  padding: 18px 16px 20px;
+  border-top: 1px solid var(--ws-line);
+  color: var(--ws-muted);
+}
+.sort-modal--setup .sort-setup-search-row > svg { flex: none; }
+.sort-modal--setup .sort-setup-search-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ws-text);
+  font: 13px var(--ws-sans);
+}
+.sort-modal--setup .sort-setup-search-row input:focus,
+.sort-modal--setup .sort-setup-search-row input:focus-visible { outline: none; box-shadow: none; }
+.sort-modal--setup .sort-setup-search-row:focus-within { box-shadow: inset 0 2px var(--ws-accent); }
+.sort-modal--setup .sort-setup-search-row > span { font: 11px var(--ws-sans); }
+.sort-modal--setup .sort-setup-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  min-height: 80px;
+  margin: 0;
+  padding: 14px 42px;
+  border-top: 1px solid var(--ws-line);
+  background: var(--ws-surface);
+}
+.sort-modal--setup .sort-setup-selection { display: grid; gap: 4px; }
+.sort-modal--setup .sort-setup-selection strong { color: var(--ws-text); font: 600 12px var(--ws-sans); }
+.sort-modal--setup .sort-setup-selection small { color: var(--ws-muted); font: 10px var(--ws-sans); }
+.sort-modal--setup .sort-setup-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 38px;
+  min-width: 202px;
+  min-height: 46px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--ws-primary);
+  color: var(--ws-on-primary);
+  font: 600 12px var(--ws-sans);
+  cursor: pointer;
+}
+.sort-modal--setup .sort-setup-start:hover:not(:disabled) { filter: brightness(1.06); }
+.sort-modal--setup .sort-setup-start:disabled { opacity: .4; cursor: not-allowed; }
+.sort-modal--setup .sort-setup-quantity-control > .sort-setup-all:focus-visible,
+.sort-modal--setup .sort-setup-order button:focus-visible,
+.sort-modal--setup .sort-setup-tag-picker > summary:focus-visible,
+.sort-modal--setup .sort-setup-start:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 2px;
+}
+@media(max-width: 680px) {
+  .sort-modal--setup .sort-topbar { height: 68px; padding: 0 22px; }
+  .sort-modal--setup .sort-setup-intro { padding: 25px 23px 0; }
+  .sort-modal--setup .sort-setup-tag-filter { margin: 24px 23px 0; }
+  .sort-modal--setup .sort-setup-grid { grid-template-columns: 1fr; gap: 22px; margin: 24px 23px 0; }
+  .sort-modal--setup .sort-setup-search-row { margin: 24px 23px 0; }
+  .sort-modal--setup .sort-setup-bottom { padding: 15px 23px; }
+  .sort-modal--setup .sort-setup-pending { font-size: 10px; padding: 5px 9px; }
+  .sort-modal--setup .sort-topbar > .sort-topbar-actions { gap: 8px; }
+  .sort-modal--setup .sort-setup-tag-menu { position: static; box-shadow: none; }
+}
+@media(max-width: 440px) {
+  .sort-modal--setup .sort-setup-pending { display: none; }
+  .sort-modal--setup .sort-setup-bottom { flex-direction: column; align-items: stretch; }
+  .sort-modal--setup .sort-setup-start { width: 100%; }
+  .sort-modal--setup .sort-setup-intro h2 { font-size: 29px; }
+}
+@media(prefers-reduced-motion: reduce) {
+  .sort-modal--setup .sort-setup-start { transition: none; }
+}
