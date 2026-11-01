@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronRight, FileText, Layers3, Newspaper } from "lucide-react";
 import { loadStudyActivity, loadStudyInventory, weekStart, type StudyActivity, type StudyInventoryCard } from "../../lib/activity";
-import { isDocument } from "../../lib/knowledgeWorkspace";
 import type { PackWithType } from "../../lib/heuresis";
 import { bookReadingDays, useReadingLibrary } from "../../lib/readingBridge";
 import { supabase } from "../../lib/supabase";
@@ -22,9 +21,9 @@ type RecentEntry = { label: string; day: string | null; unavailable?: boolean };
 const DAY_MS = 86400000;
 const ACTIVITY_OPTIONS: Array<{ value: ActivityKind; label: string; unit: string }> = [
   { value: "flashcards", label: "Flashcards", unit: "cards reviewed" },
-  { value: "notes", label: "Notes", unit: "notes added or updated" },
+  { value: "notes", label: "Notes", unit: "notes created or last updated" },
   { value: "reading", label: "Reading", unit: "minutes logged" },
-  { value: "articles", label: "Articles", unit: "articles added, edited or published" },
+  { value: "articles", label: "Articles", unit: "articles created, last edited or published" },
 ];
 
 function dayKey(date: Date): string {
@@ -177,7 +176,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
     return new Map([...dayCards].map(([day, ids]) => [day, ids.size]));
   }, [reviews]);
 
-  const documents = useMemo(() => workspace.snapshot.entries.filter(isDocument), [workspace.snapshot.entries]);
+  const documents = useMemo(() => workspace.snapshot.entries.filter((entry) => entry.kind === "note"), [workspace.snapshot.entries]);
   const noteDays = useMemo(() => {
     const days = new Map<string, number>();
     for (const note of documents) {
