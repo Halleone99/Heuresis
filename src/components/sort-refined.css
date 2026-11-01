@@ -483,7 +483,7 @@
 .sort-modal--session .sort-footer-discard,.sort-modal--session .sort-footer-later { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:43px; padding:9px 18px; border:1px solid var(--ws-line-strong); border-radius:9px; color:var(--ws-text); background:transparent; font:600 12px var(--ws-sans); cursor:pointer; }
 .sort-modal--session .sort-footer-discard:hover:not(:disabled) { color:var(--c-cinnabar); border-color:var(--c-cinnabar); }
 .sort-modal--session .sort-footer-later:hover:not(:disabled) { border-color:var(--ws-accent); }
-.sort-modal--session .sort-save-next { display:inline-flex; align-items:center; justify-content:center; gap:15px; min-height:44px; padding:9px 23px; min-width:165px; border:1px solid var(--ws-accent); border-radius:9px; background:var(--ws-accent); color:var(--ws-on-primary); font:650 13px var(--ws-sans); cursor:pointer; }
+.sort-modal--session .sort-save-next { display:inline-flex; align-items:center; justify-content:center; gap:15px; min-height:44px; padding:9px 23px; min-width:165px; width:auto; flex:none; border:1px solid var(--ws-accent); border-radius:9px; background:var(--ws-accent); color:var(--ws-on-primary); font:650 13px var(--ws-sans); cursor:pointer; }
 .sort-modal--session :is(.sort-footer-discard,.sort-footer-later,.sort-save-next,.sort-enrichment-toggle):disabled { opacity:.45; cursor:not-allowed; }
 .sort-modal--session .sort-session-footer .sort-undo { max-width:355px; padding:7px 9px; }
 .sort-modal--session .sort-note-panel { flex:1; }
