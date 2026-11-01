@@ -5,10 +5,10 @@ const pack = readFileSync("src/components/PackView.tsx", "utf8");
 const main = readFileSync("src/main.tsx", "utf8");
 const css = readFileSync("src/topic-tag-first.css", "utf8");
 
-assert.match(pack, /const \[allCardsExpanded, setAllCardsExpanded\] = useState\(false\)/, "Opening a topic must not expand the full list");
-assert.match(pack, /const showCardList = allCardsExpanded \|\| activeFilterCount > 0/, "Searching and filtering open results; unfiltered topic stays compact");
-assert.match(pack, /!loading && !error && \(showCardList \|\| visibleTotal === 0\)/, "The table renders only on request, except the useful empty state");
-assert.match(pack, /onClick=\{\(\) => \{ clearFilters\(\); setAllCardsExpanded\(true\); \}\}>Show all/, "All cards remain one deliberate click away");
+assert.match(pack, /const \[allCardsExpanded, setAllCardsExpanded\] = useState\(false\)/, "Large topics are not forcibly expanded by default");
+assert.match(pack, /const showCardList = allCardsExpanded \|\| activeFilterCount > 0 \|\| visibleTotal <= 250/, "Small topics show cards immediately; larger topics expand on request");
+assert.match(pack, /!loading && !error && \(showCardList \|\| visibleTotal === 0\)/, "The table preserves explicit expansion for larger topics and the empty state");
+assert.match(pack, /onClick=\{\(\) => setAllCardsExpanded\(true\)\}>Show all/, "Large topics have an explicit Show all action");
 assert.match(pack, /const source = \[\.\.\.cards, \.\.\.referenceCards\]/, "All means learning and reference cards");
 assert.match(pack, /setAllCardsExpanded\(true\);\s*setQuery\(""\); setStatusFilters\(isReference/, "Opening a card from Search still reveals it");
 assert.match(pack, /const tagFacets = useMemo\(\(\) => \{/, "Counts are derived from actual card assignments");
