@@ -68,6 +68,8 @@ import "./topic-tag-first.css";
 import "./topic-card-controls.css";
 import "./library-home-refresh.css";
 import "./theme/chrome.css";
+// Final Selection-page hierarchy overrides, after older topic and tablet rules.
+import "./topic-smooth-navigation.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
