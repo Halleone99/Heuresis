@@ -553,6 +553,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
             onCopy={() => { void navigator.clipboard?.writeText([liveEntry.title, liveEntry.body].filter(Boolean).join("\n\n")).then(() => workspace.toast("Copied to the clipboard.")); }}
             onPrint={!isAndroidRuntime() ? printNote : undefined}
             onFlashcard={() => { if (liveEntry) setFlashcardTarget(liveEntry); }}
+            onNewNote={detached && workspace.writable ? () => onNewNote(draft.topicId) : undefined}
             onDelete={workspace.writable ? () => void remove() : undefined} /> : null}
         </>}
         <button type="button" className="ws-icon-button nb-doc-close" aria-label="Close note" title="Close note (Esc)" onClick={() => void closeNote()}><X size={16} /></button>
@@ -689,8 +690,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         {backlinks.map((row) => <button type="button" key={row.id} onClick={() => navigate({ topicId: row.topic_id, docId: row.id })}><KindIcon entry={row} size={13} />{entryTitle(row)}</button>)}
       </div> : null}
       <div className="nb-pager">
-        {newer ? <button type="button" onClick={() => navigate({ topicId: newer.topic_id, docId: newer.id })}><ArrowLeft size={14} /><span><small>Newer</small>{entryTitle(newer)}</span></button> : <span />}
-        {older ? <button type="button" className="is-next" onClick={() => navigate({ topicId: older.topic_id, docId: older.id })}><span><small>Older</small>{entryTitle(older)}</span><ArrowRight size={14} /></button> : <span />}
+        {newer ? <button type="button" onClick={() => navigate({ topicId: newer.topic_id, docId: newer.id })}><ArrowLeft size={14} /><span><small>Previous note</small>{entryTitle(newer)}</span></button> : <span />}
+        {older ? <button type="button" className="is-next" onClick={() => navigate({ topicId: older.topic_id, docId: older.id })}><span><small>Next note</small>{entryTitle(older)}</span><ArrowRight size={14} /></button> : <span />}
       </div>
       <p className="nb-doc-dates">Created {formatDay(liveEntry.created_at)} {formatTime(liveEntry.created_at)} · Last edited {formatDay(liveEntry.updated_at)} {formatTime(liveEntry.updated_at)}</p>
     </footer> : null}
@@ -728,7 +729,7 @@ function CaptureRow({ capture, onOpen, onFlashcard, actions }: { capture: Knowle
   </div>;
 }
 
-function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onPrint, onFlashcard, onDelete }: { onDetach?: () => void; onPin?: () => void; pinned?: boolean; onMove?: () => void; onCopy: () => void; onPrint?: () => void; onFlashcard: () => void; onDelete?: () => void }) {
+function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onPrint, onFlashcard, onNewNote, onDelete }: { onDetach?: () => void; onPin?: () => void; pinned?: boolean; onMove?: () => void; onCopy: () => void; onPrint?: () => void; onFlashcard: () => void; onNewNote?: () => void; onDelete?: () => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = usePopover(open, close);
@@ -737,7 +738,8 @@ function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onPrint, onF
   return <div className="ws-menu" ref={ref}>
     <button type="button" className={`ws-icon-button ${pinned ? "is-on" : ""}`} aria-label="More actions" title={pinned ? "More actions · pinned to Overview" : "More actions"} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal size={17} /></button>
     {open ? <div className="ws-menu-list is-right" role="menu">
-      {item("Open in new window", <ExternalLink size={14} />, onDetach)}
+      {item("New note", <ListPlus size={14} />, onNewNote)}
+       {item("Open in new window", <ExternalLink size={14} />, onDetach)}
       {item(pinned ? "Unpin from Overview" : "Pin to Overview", <Pin size={14} fill={pinned ? "currentColor" : "none"} />, onPin)}
       {item("Move to…", <FolderInput size={14} />, onMove)}
       {item("Make a flashcard…", <Layers size={14} />, onFlashcard)}
