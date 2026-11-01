@@ -54,6 +54,9 @@ function level(count: number): string {
 }
 const number = (value: number | null) => value === null ? "—" : value.toLocaleString("en-GB");
 const added = (value: number | null) => value === null ? "—" : "+" + number(value);
+// Separate real edits from initial creation; a new note can also be edited within 30 days.
+const wasEdited = (entry: { created_at: string; updated_at: string }) =>
+  new Date(entry.updated_at).getTime() > new Date(entry.created_at).getTime() + 1000;
 
 export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: Props) {
   const workspace = useWorkspace();
@@ -217,7 +220,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
   const learningTotal = inventoryLoading || inventoryError || !inventory ? null : inventory.filter((card) => card.retention === "learning").length;
   const noteTotal = workspace.loading || workspace.error ? null : documents.length;
   const noteAdded = noteTotal === null ? null : documents.filter((note) => inLast30(note.created_at)).length;
-  const noteUpdated = noteTotal === null ? null : documents.filter((note) => inLast30(note.updated_at) && !inLast30(note.created_at)).length;
+  const noteUpdated = noteTotal === null ? null : documents.filter((note) => inLast30(note.updated_at) && wasEdited(note)).length;
   const bookTotal = reading.loading || reading.error ? null : reading.books.length;
   const articleTotal = articleLoading || articleError || !articles ? null : articles.length;
   const articleAdded = articleTotal === null ? null : articles!.filter((row) => inLast30(row.created_at)).length;
@@ -238,7 +241,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
     { kind: "flashcards", item: cardReviewed === null ? { label: "Unavailable", day: null, unavailable: true }
       : { label: lastFlash ? number(flashDays.get(lastFlash) ?? 0) + " cards reviewed" : "No reviews yet", day: lastFlash } },
     { kind: "notes", item: noteTotal === null ? { label: "Unavailable", day: null, unavailable: true }
-      : { label: newestNote ? (newestNote.updated_at === newestNote.created_at ? "Note added" : "Note updated") : "No notes yet",
+      : { label: newestNote ? (wasEdited(newestNote) ? "Note edited" : "Note added") : "No notes yet",
         day: newestNote ? dateDay(newestNote.updated_at) : null } },
     { kind: "reading", item: bookTotal === null ? { label: "Unavailable", day: null, unavailable: true }
       : { label: lastRead ? number(readingDays.get(lastRead) ?? 0) + " min logged" : "No reading logged", day: lastRead } },
@@ -271,7 +274,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
         <span className="oh-card-title"><span className="oh-card-icon"><FileText size={20}/></span><strong>Notes</strong><ChevronRight size={18}/></span>
         <span className="oh-card-metrics"><span className="oh-card-total"><b>{number(noteTotal)}</b><small>Notes</small></span>
           <span className="oh-card-detail"><span><b>{added(noteAdded)}</b><small>Added (30 d)</small></span>
-            <span><b>{number(noteUpdated)}</b><small>Updated (30 d)</small></span></span></span>
+            <span><b>{number(noteUpdated)}</b><small>Edited (30 d)</small></span></span></span>
       </button>
       <button type="button" className="oh-summary-card" onClick={navigation.reading} aria-label="Open Reading">
         <span className="oh-card-title"><span className="oh-card-icon"><BookOpen size={20}/></span><strong>Reading</strong><ChevronRight size={18}/></span>
