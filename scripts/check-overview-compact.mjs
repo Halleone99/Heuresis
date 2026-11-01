@@ -17,7 +17,7 @@ assert.match(overview, /loadStudyActivity/);
 assert.match(overview, /role="img"/);
 assert.match(overview, /bookReadingDays/);
 assert.match(overview, /catalogue_articles/);
-assert.match(overview, /workspace\.snapshot\.entries\.filter\(isDocument\)/);
+assert.match(overview, /workspace\.snapshot\.entries\.filter\(\(entry\) => entry\.kind === "note"\)/);
 assert.match(overview, /Published \(30 d\)/);
 assert.doesNotMatch(overview, /articles.*read \(30 d\)/i, "Article reading is not recorded");
 assert.match(overview, /onClick=\{navigation\.flashcards\}/);
