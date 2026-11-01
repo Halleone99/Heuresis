@@ -11,5 +11,5 @@ assert.match(shell,/workspace\.error \? <div className="ws-error-panel" role="al
 assert.match(shell,/onClick=\{\(\) => void workspace\.reload\(\)\}/,"Retry remains functional");
 assert.match(shell,/section === "overview" \? <OverviewView/, "Study Overview is independent of Notebook loading");
 assert.match(overview,/Review history unavailable/,"Overview distinguishes loading failures from zero reviews");
-assert.match(overview,/historyReady/,"Overview only shows reviewed-card counts after history loads");
+assert.match(overview,/activityLoading \|\| activityError \|\| !activity/,"Overview only shows reviewed-card counts after history loads");
 console.log("Notebook loading, retry and Study-history state differentiation checks passed.");
