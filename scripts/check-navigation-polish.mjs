@@ -50,8 +50,8 @@ assert.match(app,/run: \(\) => navigateSection\(item\.id\)/,
   "Command palette navigation must open section home");
 assert.match(app,/navigateSection\(SECTIONS\[Number\(event\.code\.slice\(5\)\) - 1\]\.id\)/,
   "Alt+2 must open Study home");
-assert.match(app,/onOpenTopic=\{\(pack\) => \{ setSection\("study"\); openPack\(pack\); \}\}/,
-  "Overview topics must open the chosen Study topic");
+assert.match(app,/onOpenStudy=\{\(\) => \{ openLibrary\(\); setSection\("study"\); \}\}/,
+  "Overview Flashcards card must open Study Library");
 assert.match(app,/onOpenCard=\{\(hit\) => \{ const pack = packs\.find/,
   "Direct search results should still open a specific topic");
 
