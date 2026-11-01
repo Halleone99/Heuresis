@@ -21,7 +21,7 @@ assert.equal(overview.includes('Recent lessons'), false);
 assert.equal(overview.includes('Questions to clarify'), false);
 assert.equal(overview.includes('className="ov-empty-line"'), false);
 assert.ok(overview.includes('Last 26 weeks'), "Overview should show the Study-only calendar");
-assert.ok(overview.includes('Choose a Study topic'), "Overview should offer one selectable topic at a time");
+assert.ok(overview.includes('Activity shown on heatmap'), "Overview should offer a clear activity selector");
 assert.ok(!overview.includes('Notes to revisit') && !overview.includes('Browse subjects'));
 assert.ok(notebook.includes('<div className="ws-segmented" role="tablist"'));
 assert.equal(notebook.includes('<span>{counts.all - counts.lessons}'), false);
