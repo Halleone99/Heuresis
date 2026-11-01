@@ -92,22 +92,21 @@ export function ReadingView({ userId }: { userId: string }) {
   }
 
   return <div className="lit-page lit-reading-page">
-    <header className="lit-page-head">
-      <div><span className="lit-eyebrow">PERSONAL LIBRARY</span><h1>Reading</h1>
-        <p>Your collection of books, reflections and passages — shared with Personal OS.</p></div>
+    <header className="lit-reading-topbar">
+      <h1>{area === "quotations" ? "Quotations" : "Reading"}</h1>
+      <nav className="lit-reading-sections" aria-label="Reading sections">
+        {([
+          { id: "library", label: "Library", Icon: BookOpen },
+          { id: "authors", label: "Authors", Icon: Users },
+          { id: "quotations", label: "Quotations", Icon: Quote },
+        ] as const).map(({ id, label, Icon }) =>
+          <button type="button" key={id} className={area === id ? "is-active" : ""}
+            aria-current={area === id ? "page" : undefined} onClick={() => selectArea(id)}>
+            <Icon size={16} strokeWidth={1.7} aria-hidden="true"/>
+            <span>{label}</span>
+          </button>)}
+      </nav>
     </header>
-    <nav className="lit-reading-sections" aria-label="Reading sections">
-      {([
-        { id: "library", label: "Your library", hint: "Your collection", Icon: BookOpen },
-        { id: "authors", label: "Authors", hint: "Explore authors", Icon: Users },
-        { id: "quotations", label: "Quotations", hint: "Passages worth keeping", Icon: Quote },
-      ] as const).map(({ id, label, hint, Icon }) =>
-        <button type="button" key={id} className={area === id ? "is-active" : ""}
-          aria-current={area === id ? "page" : undefined} onClick={() => selectArea(id)}>
-          <Icon size={24} strokeWidth={1.6} aria-hidden="true"/>
-          <span><strong>{label}</strong><small>{hint}</small></span>
-        </button>)}
-    </nav>
     {area === "library" ? <>
     <div className="lit-reading-overview">
       <div className="lit-reading-stats" role="group" aria-label="Reading statistics">
