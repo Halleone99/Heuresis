@@ -9,11 +9,20 @@ const quotes = source("src/components/workspace/QuotationsView.tsx");
 const migration = source("supabase/migrations/20261031182227_reading_author_profiles.sql");
 
 // One reading experience and one source of truth for books and quotations.
-assert.match(reading, /label: "Your library"/);
+assert.match(reading, /label: "Library"/);
 assert.match(reading, /label: "Authors"/);
 assert.match(reading, /label: "Quotations"/);
 assert.match(reading, /<ReadingAuthors userId=\{userId\} books=\{api\.books\} quotes=\{api\.quotes\}/);
 assert.match(reading, /<QuotationsView userId=\{userId\}/);
+assert.match(reading, /<header className="lit-reading-topbar">/);
+assert.match(reading, /area === "quotations" \? "Quotations" : "Reading"/);
+assert.doesNotMatch(reading, /PERSONAL LIBRARY/);
+assert.doesNotMatch(quotes, /Choose a source|PASSAGES WORTH KEEPING/);
+assert.match(quotes, /className="lit-quote-opening-controls"/);
+assert.match(quotes, /className="lit-quote-collections-grid"/);
+assert.match(quotes, /onClick=\{\(\) => openCollection\(collection\)\}/);
+assert.match(quotes, /onClick=\{newQuote\}/);
+
 assert.match(reading, /onOpenBook=\{openBook\}/);
 assert.match(reading, /onAddBook=\{\(author\) =>/);
 
