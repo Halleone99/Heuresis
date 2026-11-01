@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { FilePlus2, NotebookPen, RefreshCw, X } from "lucide-react";
+import { NotebookPen, RefreshCw } from "lucide-react";
 import { DocumentPage } from "./DocumentPage";
 import type { NewDocRequest } from "./NotebookView";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
@@ -30,7 +30,6 @@ function DetachedNotePage() {
     request.noteId || !request.topicId ? null : { topicId: request.topicId, category: "note", draftKey: request.draftKey },
   );
   const entry = noteId ? workspace.entryById.get(noteId) ?? null : null;
-  const activeTopicId = entry?.topic_id ?? newDoc?.topicId ?? request.topicId;
 
   const close = useCallback(() => {
     void closeNoteWindow().catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
@@ -59,11 +58,6 @@ function DetachedNotePage() {
   return <div className="nb-detached-root">
     <header className="nb-window-top">
       <span className="nb-window-brand"><NotebookPen size={16} /> Heuresis <span> / Notebook</span></span>
-      <div className="nb-window-actions">
-        <button type="button" className="ws-button" onClick={() => openAnother(activeTopicId)} disabled={!workspace.writable || !activeTopicId}
-          title="Open another independent note window"><FilePlus2 size={14} /> New note</button>
-        <button type="button" className="ws-icon-button" onClick={close} title="Close this window" aria-label="Close window"><X size={15}/></button>
-      </div>
     </header>
     <main className="nb-window-main">
       {workspace.loading ? <div className="nb-window-message"><span className="ws-spinner"/> Opening your note…</div>
