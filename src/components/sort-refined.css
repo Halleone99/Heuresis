@@ -461,3 +461,53 @@
 @media(prefers-reduced-motion: reduce) {
   .sort-modal--setup .sort-setup-start { transition: none; }
 }
+
+
+/* New cards: sorting first, enrichment only while Edit is open. */
+.sort-backdrop .sort-modal.sort-modal--session { width:min(1370px,96vw)!important; height:min(790px,94dvh)!important; grid-template-rows:66px minmax(0,1fr) auto; border-radius:19px; }
+.sort-modal--session .sort-body { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(285px,.85fr)!important; min-height:0; overflow:hidden; }
+.sort-modal--session.sort-modal--editing .sort-body { grid-template-columns:minmax(230px,.85fr) minmax(0,1.6fr) minmax(285px,.95fr)!important; }
+.sort-modal--session .sort-editing-tools { display:none; min-width:0; min-height:0; overflow:hidden; }
+.sort-modal--session.sort-modal--editing .sort-editing-tools { display:flex; }
+.sort-modal--session .sort-editing-tools > .sort-enrichment { width:100%; min-height:0; }
+.sort-modal--session .sort-card { position:relative; min-width:0; padding:54px 28px 46px; }
+.sort-modal--session .sort-panel { min-height:0; overflow-y:auto; border-left:1px solid var(--ws-line); }
+.sort-modal--session .sort-top-progress { justify-self:center; min-width:150px; width:min(210px,20vw); display:grid; gap:7px; text-align:center; color:var(--ws-muted); font:11px var(--ws-mono); font-variant-numeric:tabular-nums; }
+.sort-modal--session .sort-progress-track { overflow:hidden; height:6px; border-radius:20px; background:var(--ws-line-strong); }
+.sort-modal--session .sort-progress-track > div { height:100%; border-radius:inherit; background:var(--ws-accent); transition:width .2s ease; }
+.sort-modal--session .sort-enrichment-toggle { position:absolute; top:20px; left:22px; display:inline-flex; align-items:center; gap:7px; padding:8px 11px; background:var(--ws-surface-2); color:var(--ws-text); border:1px solid var(--ws-line-strong); border-radius:8px; cursor:pointer; font:600 12px var(--ws-sans); }
+.sort-modal--session .sort-enrichment-toggle:hover:not(:disabled),.sort-modal--session .sort-enrichment-toggle.active { border-color:var(--ws-accent); background:var(--ws-accent-soft); color:var(--ws-ink); }
+.sort-modal--session .sort-rating button.selected { background:var(--ws-accent); border-color:var(--ws-accent); color:var(--ws-on-primary); }
+.sort-modal--session .sort-session-footer { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:77px; padding:13px 22px; border-top:1px solid var(--ws-line); background:var(--ws-surface); }
+.sort-modal--session .sort-footer-end { display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-left:auto; }
+.sort-modal--session .sort-footer-discard,.sort-modal--session .sort-footer-later { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:43px; padding:9px 18px; border:1px solid var(--ws-line-strong); border-radius:9px; color:var(--ws-text); background:transparent; font:600 12px var(--ws-sans); cursor:pointer; }
+.sort-modal--session .sort-footer-discard:hover:not(:disabled) { color:var(--c-cinnabar); border-color:var(--c-cinnabar); }
+.sort-modal--session .sort-footer-later:hover:not(:disabled) { border-color:var(--ws-accent); }
+.sort-modal--session .sort-save-next { display:inline-flex; align-items:center; justify-content:center; gap:15px; min-height:44px; padding:9px 23px; min-width:165px; border:1px solid var(--ws-accent); border-radius:9px; background:var(--ws-accent); color:var(--ws-on-primary); font:650 13px var(--ws-sans); cursor:pointer; }
+.sort-modal--session :is(.sort-footer-discard,.sort-footer-later,.sort-save-next,.sort-enrichment-toggle):disabled { opacity:.45; cursor:not-allowed; }
+.sort-modal--session .sort-session-footer .sort-undo { max-width:355px; padding:7px 9px; }
+.sort-modal--session .sort-note-panel { flex:1; }
+@media(max-width:980px) {
+ .sort-modal--session .sort-body { grid-template-columns:minmax(0,1.25fr) minmax(245px,.85fr)!important; }
+ .sort-modal--session.sort-modal--editing .sort-body { grid-template-columns:minmax(195px,.9fr) minmax(230px,1.2fr) minmax(225px,.9fr)!important; }
+}
+@media(max-width:730px) {
+ .sort-backdrop .sort-modal.sort-modal--session { height:min(94dvh,870px)!important; }
+ .sort-modal--session .sort-body,.sort-modal--session.sort-modal--editing .sort-body { display:flex; flex-direction:column; overflow-y:auto; }
+ .sort-modal--session .sort-card { order:0; min-height:260px; flex:0 0 auto; border-right:0; }
+ .sort-modal--session .sort-editing-tools { order:1; flex:0 0 auto; }
+ .sort-modal--session .sort-editing-tools > .sort-enrichment { max-height:none; overflow:visible; }
+ .sort-modal--session .sort-panel { order:2; flex:0 0 auto; overflow:visible; border-left:0; border-top:1px solid var(--ws-line); }
+ .sort-modal--session .sort-session-footer { min-height:69px; flex-wrap:wrap; padding:10px 12px; }
+ .sort-modal--session .sort-session-footer .sort-undo { order:3; max-width:none; width:100%; }
+ .sort-modal--session .sort-footer-end { gap:6px; }
+ .sort-modal--session :is(.sort-footer-discard,.sort-footer-later) { padding:8px 10px; }
+ .sort-modal--session .sort-save-next { min-width:0; padding:9px 12px; }
+ .sort-modal--session .sort-top-progress { min-width:60px; width:min(130px,20vw); }
+}
+@media(max-width:400px) {
+ .sort-modal--session .sort-footer-end { width:100%; }
+ .sort-modal--session .sort-save-next { flex:1; }
+ .sort-modal--session .sort-card { padding:64px 16px 25px; }
+}
+@media(prefers-reduced-motion:reduce) { .sort-modal--session .sort-progress-track > div { transition:none; } }
