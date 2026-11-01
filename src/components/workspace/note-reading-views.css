@@ -81,3 +81,10 @@
   .nb-note-outline, .nb-reader-settings, .nb-note-metrics { display: none !important; }
   .nb-reading-layout { display: block; }
 }
+
+/* Compact selector keeps all reading layouts accessible without a three-button toolbar. */
+.nb-view-switcher { gap: 7px; padding: 3px 7px 3px 10px; margin-right: 2px; }
+.nb-view-label { color: var(--ws-muted); font: 500 11px/1.2 var(--ws-sans); }
+.nb-view-switcher select { min-height: 26px; max-width: 112px; padding: 3px 16px 3px 4px; background: transparent; border: 0; color: var(--ws-text); font: 600 12px/1.2 var(--ws-sans); cursor: pointer; }
+.nb-view-switcher select:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; border-radius: 4px; }
+@media (max-width: 1050px) { .nb-view-label { display: none; } }
