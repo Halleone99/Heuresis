@@ -30,7 +30,7 @@ assert.match(sort, /const candidates = useMemo\(/, "Sort setup must retain searc
 assert.match(sort, /const \[randomOrder/, "Sort setup must retain card ordering");
 assert.match(sort, /const \[count/, "Sort setup must retain a batch-size choice");
 
-assert.match(pack, /aria-label="Card workflow and status filter"/, "Workflow stages are the status filter");
+assert.match(pack, /aria-label="Card progress"/, "Compact progress strip remains available");
 assert.doesNotMatch(pack, /status-menu-popover|StatusFilter = [^;]*favourite/,
   "Do not duplicate stage filters in the filter toolbar");
 assert.match(pack, /aria-pressed=\{favouriteOnly\}/, "Favourite-only filter must remain accessible");
@@ -47,7 +47,7 @@ assert.match(enrichment, /removeRelatedRelation/, "Sort must still unlink vocabu
 assert.match(enrichmentCss, /grid-template-columns/, "Sort needs a three-column desktop layout");
 assert.match(enrichmentCss, /max-width: 600px/, "Sort must adapt to phones");
 
-assert.match(pack, /aria-label="Card sessions: New or Review"/, "New and Review share one control");
+assert.match(pack, /aria-label="Card sessions"/, "New and Review share one compact control");
 assert.match(pack, /<Plus size=\{15\} \/> Add/, "Creating a card is labelled Add");
-assert.match(pack, /topic-filter-picker/, "All card filters share one panel");
+assert.match(pack, /inline-filter-importance[\s\S]*inline-filter-state[\s\S]*inline-filter-tags/, "Importance, State and Tags use independent inline dropdowns");
 console.log("New / Review and topic-filter checks passed.");
