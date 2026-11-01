@@ -1,25 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, ChevronLeft, ChevronRight, Eye, FileText, LayoutGrid } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { splitNoteSections } from "../../lib/noteSections";
 import { RichText, type LinkResolver } from "./RichText";
 
 export type NotebookReadMode = "document" | "canvas" | "study";
 type Props = { text: string; mode: NotebookReadMode; resolve?: LinkResolver; rubyPinyin: boolean; columns: 2 | 3; onColumnsChange: (columns: 2 | 3) => void; foldStorageKey?: string };
 
-const modes: { mode: NotebookReadMode; label: string; description: string; icon: typeof FileText }[] = [
-  { mode: "document", label: "Document", description: "Continuous Word-like page", icon: FileText },
-  { mode: "canvas", label: "Canvas", description: "OneNote-style panels in columns", icon: LayoutGrid },
-  { mode: "study", label: "Study", description: "Review sections one at a time", icon: BookOpen },
+const modes: { mode: NotebookReadMode; label: string }[] = [
+  { mode: "document", label: "Document" },
+  { mode: "canvas", label: "Panels" },
+  { mode: "study", label: "Recall" },
 ];
 
 export function NoteViewSwitcher({ mode, onChange }: { mode: NotebookReadMode; onChange: (mode: NotebookReadMode) => void }) {
-  return <div className="nb-view-switcher" role="group" aria-label="Note layout">
-    {modes.map(({ mode: next, label, description, icon: Icon }) =>
-      <button type="button" key={next} onClick={() => onChange(next)} aria-pressed={mode === next}
-        title={description} className={mode === next ? "is-active" : ""}>
-        <Icon size={14} aria-hidden="true"/><span>{label}</span>
-      </button>)}
-  </div>;
+  return <label className="nb-view-switcher" title="Choose how to read this note">
+    <span className="nb-view-label">View</span>
+    <select aria-label="Reading view" value={mode} onChange={(event) => onChange(event.target.value as NotebookReadMode)}>
+      {modes.map(({ mode: next, label }) => <option key={next} value={next}>{label}</option>)}
+    </select>
+  </label>;
 }
 
 export function NoteReadingViews({ text, mode, resolve, rubyPinyin, columns, onColumnsChange, foldStorageKey }: Props) {
