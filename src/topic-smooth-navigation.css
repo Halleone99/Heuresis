@@ -1,0 +1,206 @@
+/* Selection pages: consolidated hierarchy and quiet, inline filtering.
+   Applies to Russian, Chinese and other vocabulary topics without changing their data. */
+.modern-topic-page .modern-topic-title h1 {
+  font-size: clamp(33px, 3.4vw, 48px) !important;
+  line-height: 1.07 !important;
+  letter-spacing: -.035em;
+}
+.modern-topic-page .modern-topic-head { padding-bottom: 15px !important; }
+.modern-topic-page .topic-summary-strip {
+  display: block !important;
+  min-height: 0 !important;
+  margin-top: 13px !important;
+  padding: 5px !important;
+  border-radius: 15px !important;
+  background: color-mix(in srgb, var(--ws-surface) 75%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent) !important;
+  box-shadow: 0 9px 28px rgba(10, 24, 24, .06) !important;
+}
+.modern-topic-page .topic-summary-strip .workflow-overview-stages {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  align-items: stretch !important;
+}
+.modern-topic-page .topic-summary-strip .workflow-overview-stages > button {
+  display: flex !important;
+  grid-template-columns: none !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 10px !important;
+  height: 53px !important;
+  min-width: 0 !important;
+  padding: 5px 12px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--ws-text) !important;
+  transition: background .16s ease, color .16s ease !important;
+}
+.modern-topic-page .topic-summary-strip .workflow-overview-stages > button + button {
+  border-left: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent) !important;
+  border-radius: 0 !important;
+}
+.modern-topic-page .topic-summary-strip .workflow-overview-stages > button:hover,
+.modern-topic-page .topic-summary-strip .workflow-overview-stages > button.active {
+  background: color-mix(in srgb, var(--ws-primary) 10%, transparent) !important;
+}
+.modern-topic-page .topic-summary-strip .workflow-overview-stages svg { flex: 0 0 auto; opacity: .75; color: var(--ws-accent); }
+.modern-topic-page .topic-summary-strip .workflow-overview-stages [data-stage="mastered"] svg { color: var(--c-sage, var(--ws-accent)); }
+.modern-topic-page .topic-summary-strip .workflow-overview-stages > button > strong {
+  display: block !important;
+  font-size: 23px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: -.04em !important;
+  font-variant-numeric: tabular-nums;
+}
+.modern-topic-page .topic-summary-strip .workflow-stage-copy { display: inline-flex !important; align-items: center !important; padding: 0 !important; }
+.modern-topic-page .topic-summary-strip .workflow-stage-copy b { font-size: 12px !important; font-weight: 590 !important; color: var(--ws-text) !important; }
+.modern-topic-page .topic-smooth-actions { margin-top: 15px !important; padding: 0 2px !important; }
+.modern-topic-page .topic-smooth-actions .topic-learning-actions { width: 100%; display: flex; align-items: center; gap: 9px !important; flex-wrap: wrap; }
+.modern-topic-page .topic-smooth-actions .topic-session-control {
+  width: auto !important;
+  padding: 0 !important;
+  gap: 7px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.modern-topic-page .topic-smooth-actions .topic-learning-actions button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center;
+  gap: 8px !important;
+  min-height: 40px !important;
+  height: 40px !important;
+  padding: 0 16px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  transition: background .15s ease, border-color .15s ease, transform .15s ease !important;
+}
+.modern-topic-page .topic-smooth-actions .topic-session-control > .topic-action-primary {
+  min-width: 122px !important;
+  background: var(--ws-primary) !important;
+  color: var(--ws-on-primary) !important;
+  border: 1px solid var(--ws-primary) !important;
+}
+.modern-topic-page .topic-smooth-actions .topic-session-control > .topic-action-review {
+  min-width: 122px !important;
+  background: color-mix(in srgb, var(--ws-raised) 66%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 16%, transparent) !important;
+  color: var(--ws-text) !important;
+}
+.modern-topic-page .topic-smooth-actions .topic-action-browse {
+  min-width: 116px !important;
+  background: color-mix(in srgb, var(--ws-raised) 40%, transparent) !important;
+}
+.modern-topic-page .topic-smooth-actions .topic-action-add {
+  margin-left: auto !important;
+  background: color-mix(in srgb, var(--ws-raised) 50%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 12%, transparent) !important;
+}
+.modern-topic-page .topic-smooth-actions button:disabled { opacity: .45 !important; transform: none !important; }
+.modern-topic-page .topic-smooth-actions .topic-session-control small { background: color-mix(in srgb, currentColor 13%, transparent) !important; font-size: 10px; }
+.modern-topic-page .topic-inline-filters {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-top: 13px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+.modern-topic-page .topic-inline-filters .modern-topic-search {
+  min-height: 42px !important;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 14%, transparent) !important;
+  border-radius: 11px !important;
+  background: color-mix(in srgb, var(--ws-raised) 65%, transparent) !important;
+}
+.modern-topic-page .topic-inline-filters .modern-topic-search input { font-size: 12px !important; }
+.modern-topic-page .topic-inline-filters .compact-filter-actions { gap: 8px !important; flex-wrap: wrap; }
+.modern-topic-page .topic-inline-filters .filter-menu > summary,
+.modern-topic-page .topic-inline-filters .compact-favourite-filter {
+  min-height: 42px !important;
+  padding: 0 13px !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  border-radius: 11px !important;
+  border: 1px solid color-mix(in srgb, var(--ws-text) 14%, transparent) !important;
+  background: color-mix(in srgb, var(--ws-raised) 58%, transparent) !important;
+  color: var(--ws-text) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+.modern-topic-page .topic-inline-filters .filter-menu > summary:hover,
+.modern-topic-page .topic-inline-filters .filter-menu[open] > summary,
+.modern-topic-page .topic-inline-filters .compact-favourite-filter:hover,
+.modern-topic-page .topic-inline-filters .compact-favourite-filter.selected {
+  background: color-mix(in srgb, var(--ws-primary) 12%, var(--ws-raised)) !important;
+  border-color: color-mix(in srgb, var(--ws-primary) 32%, transparent) !important;
+}
+.modern-topic-page .topic-inline-filters .inline-topic-popover {
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  min-width: 225px;
+  max-width: min(350px, calc(100vw - 36px));
+  padding: 10px;
+  border-radius: 12px;
+  z-index: 60;
+}
+.modern-topic-page .topic-inline-filters .inline-filter-tags .inline-topic-popover { width: 295px; }
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-section {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 3px !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-section-title {
+  margin-bottom: 10px !important;
+}
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-section-title strong { font-size: 12px !important; }
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-section-title small { display: none !important; }
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-options { display: flex !important; flex-wrap: wrap; gap: 5px !important; }
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-options button { min-height: 32px !important; padding: 0 10px !important; }
+.modern-topic-page .topic-inline-filters .inline-topic-popover .topic-filter-tag-list { max-height: 270px !important; overflow-y: auto !important; }
+.modern-topic-page .topic-inline-filters .compact-clear-filter { min-height: 35px !important; border: 0 !important; background: transparent !important; }
+.modern-topic-page .topic-browse-compact { margin-top: 14px !important; padding: 11px 4px !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.modern-topic-page .topic-browse-heading strong { font-size: 14px !important; }
+.modern-topic-page .topic-browse-actions .secondary-button { min-height: 32px !important; border-radius: 8px !important; }
+.modern-topic-page .modern-topic-table { margin-top: 7px !important; }
+.modern-topic-page .modern-topic-row { transition: background .13s ease !important; }
+.modern-topic-page .modern-topic-row:hover { background: color-mix(in srgb, var(--ws-primary) 6%, transparent) !important; }
+.modern-topic-page .card-progress.is-unsorted .card-progress-bars { display: none !important; }
+.modern-topic-page .card-progress.is-unsorted { display: flex !important; align-items: center !important; }
+.modern-topic-page .card-progress.is-unsorted small {
+  font-size: 10px !important;
+  font-weight: 590 !important;
+  color: var(--ws-muted) !important;
+}
+@media (max-width: 1150px) {
+  .modern-topic-page .topic-inline-filters { flex-wrap: wrap !important; }
+  .modern-topic-page .topic-inline-filters .modern-topic-search { flex-basis: 100% !important; }
+  .modern-topic-page .topic-inline-filters .compact-filter-actions { width: 100%; justify-content: flex-start; }
+}
+@media (max-width: 760px) {
+  .modern-topic-page .topic-summary-strip .workflow-overview-stages > button { flex-direction: column !important; gap: 4px !important; height: 68px !important; }
+  .modern-topic-page .topic-summary-strip .workflow-overview-stages > button > strong { font-size: 21px !important; }
+  .modern-topic-page .topic-summary-strip .workflow-stage-copy b { font-size: 10px !important; }
+  .modern-topic-page .topic-summary-strip .workflow-overview-stages svg { display: none !important; }
+  .modern-topic-page .topic-smooth-actions .topic-learning-actions { width: 100%; }
+  .modern-topic-page .topic-smooth-actions .topic-session-control { width: 100% !important; }
+  .modern-topic-page .topic-smooth-actions .topic-session-control > button { flex: 1 !important; min-width: 0 !important; }
+  .modern-topic-page .topic-smooth-actions .topic-action-add { margin-left: 0 !important; }
+  .modern-topic-page .topic-inline-filters .compact-filter-actions { gap: 6px !important; }
+  .modern-topic-page .topic-inline-filters .filter-menu > summary,
+  .modern-topic-page .topic-inline-filters .compact-favourite-filter { min-height: 38px !important; }
+}
