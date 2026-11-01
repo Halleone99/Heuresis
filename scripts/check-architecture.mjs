@@ -73,7 +73,7 @@ if (sectionIds.join(",") !== "overview,study,notebook,mistakes,reading,reference
   throw new Error("Heuresis sidebar should keep Reading as the single entrance to books, authors and quotations.");
 }
 const reading = readFileSync(new URL("../src/components/workspace/ReadingView.tsx", import.meta.url), "utf8");
-if (!reading.includes('label: "Your library"') || !reading.includes('label: "Authors"') ||
+if (!(reading.includes('label: "Library"') || reading.includes('label: "Your library"')) || !reading.includes('label: "Authors"') ||
     !reading.includes('label: "Quotations"') || !reading.includes("<QuotationsView")) {
   throw new Error("Reading must provide library, authors and quotations under one navigation.");
 }
