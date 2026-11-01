@@ -281,35 +281,33 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
-  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className="sort-modal" role="dialog" aria-modal="true" aria-label="New cards">
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={filtersOpen && unsorted.length ? "sort-modal sort-modal--setup" : "sort-modal"} role="dialog" aria-modal="true" aria-label="New cards">
+
     <header className="sort-topbar">
       <div><span className="eyebrow">NEW CARDS</span><strong>{pack.title}</strong></div>
-      <span>{filtersOpen ? `${unsorted.length} to classify` : card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>
+      {filtersOpen && unsorted.length ? null : <span>{card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>}
       <div className="sort-topbar-actions">
+        {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
         {sessionStarted ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
-        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close New cards"><X size={18} /></button>
+        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
     {filtersOpen && unsorted.length ? <div className="sort-setup">
-      <h2>Choose new cards</h2>
-      <p>Select which unsorted cards to classify. Choose your tags and the number of cards for this pass.</p>
-      <div className="sort-setup-grid">
-        <label className="sort-setup-field"><span>Search new cards</span>
-          <span className="sort-setup-search"><Search size={16} aria-hidden="true" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Term, meaning or tag"
-            onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); beginSort(); } }} /></span>
-        </label>
-        <label className="sort-setup-field"><span>Cards in this pass</span>
-          <input type="number" inputMode="numeric" min={1} step={1} value={count}
-            aria-invalid={!validCount} aria-describedby="sort-count-help"
-            onChange={(event) => setCount(event.target.value)} />
-          <button type="button" className="sort-setup-all" disabled={!candidates.length} onClick={() => setCount(String(candidates.length))}>All {candidates.length} matching</button>
-          <small id="sort-count-help">{!validCount ? "Enter a whole number greater than zero." : requestedCount > candidates.length ? `Only ${candidates.length} matching cards are available.` : "You can type any positive whole number."}</small>
-        </label>
+      <div className="sort-setup-intro">
+        <h2>Choose cards to sort</h2>
+        <p>Select the tags and number of cards for this sorting session.</p>
       </div>
       <div className="sort-setup-tag-filter">
-        <span>Tags <small>optional · matches any selected tag</small></span>
+        <div className="sort-setup-label">TAGS <small>optional</small></div>
         {scopeTags.length ? <details className="sort-setup-tag-picker">
-          <summary><span>{selectedTags.length ? `${selectedTags.length} ${selectedTags.length === 1 ? "tag" : "tags"} selected` : "All tags"}</span><ChevronDown size={15} aria-hidden="true" /></summary>
+          <summary>
+            <Tag size={19} aria-hidden="true" />
+            <span className="sort-setup-tag-summary">
+              <strong>{selectedTags.length ? `${selectedTags.length} ${selectedTags.length === 1 ? "tag" : "tags"} selected` : "All tags"}</strong>
+              <small>{selectedTags.length ? `${candidates.length} matching unsorted cards` : `Include all ${unsorted.length} unsorted cards`}</small>
+            </span>
+            <ChevronDown size={19} aria-hidden="true" />
+          </summary>
           <div className="sort-setup-tag-menu">
             <input type="search" aria-label="Search tags" value={tagSearch} onChange={(event) => setTagSearch(event.target.value)} placeholder="Find a tag…" />
             <div className="sort-setup-tag-list">
@@ -321,17 +319,44 @@ export default function SortModal({ pack, cards, tags, startCardId = null, onClo
             </div>
             <button type="button" className="sort-setup-clear-tags" disabled={!selectedTags.length} onClick={() => setSelectedTags([])}>Clear tag selection</button>
           </div>
-        </details> : <small>No tags on unsorted cards — all cards will be included.</small>}
+        </details> : <div className="sort-setup-tag-empty"><Tag size={19} aria-hidden="true" /><span><strong>All tags</strong><small>Include all {unsorted.length} unsorted cards</small></span></div>}
       </div>
-      <div className="sort-setup-order"><span>Card order</span>
-        <SegmentedChoice label="New card order" value={randomOrder ? "random" : "topic"}
-          onChange={(choice) => setRandomOrder(choice === "random")}
-          options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={14} /> }]} />
+      <div className="sort-setup-grid">
+        <div className="sort-setup-quantity">
+          <label className="sort-setup-label" htmlFor="sort-session-count">NUMBER OF CARDS</label>
+          <div className="sort-setup-quantity-control">
+            <input id="sort-session-count" type="number" inputMode="numeric" min={1} step={1} value={count}
+              aria-invalid={!validCount} aria-describedby={!validCount || requestedCount > candidates.length ? "sort-count-help" : undefined}
+              onChange={(event) => setCount(event.target.value)} />
+            <div className="sort-setup-count-info"><span>cards in this session</span><small>{candidates.length} available</small></div>
+            <button type="button" className="sort-setup-all" disabled={!candidates.length} onClick={() => setCount(String(candidates.length))}>All {candidates.length}</button>
+          </div>
+          {!validCount || requestedCount > candidates.length ? <small id="sort-count-help" className="sort-setup-count-help" role="status">
+            {!validCount ? "Enter a positive whole number." : `Only ${candidates.length} cards match. The session will use ${selectedCount}.`}
+          </small> : null}
+        </div>
+        <div className="sort-setup-order">
+          <span className="sort-setup-label">CARD ORDER</span>
+          <SegmentedChoice label="New card order" value={randomOrder ? "random" : "topic"}
+            onChange={(choice) => setRandomOrder(choice === "random")}
+            options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={14} /> }]} />
+        </div>
+      </div>
+      <div className="sort-setup-search-row">
+        <Search size={19} aria-hidden="true" />
+        <input id="sort-session-search" aria-label="Search by term or meaning" value={query}
+          onChange={(event) => setQuery(event.target.value)} placeholder="Search by term or meaning"
+          onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); beginSort(); } }} />
+        <span>Optional</span>
       </div>
       <div className="sort-setup-bottom">
-        <span role="status">{candidates.length} matching new · {selectedCount} selected</span>
+        <div className="sort-setup-selection" role="status">
+          <strong>{selectedCount} {selectedCount === 1 ? "card" : "cards"} selected</strong>
+          <small>From {candidates.length} matching new {candidates.length === 1 ? "card" : "cards"}</small>
+        </div>
         <button type="button" className="sort-setup-start" disabled={!selectedCount} onClick={beginSort}>
-          Start sorting · {selectedCount} {selectedCount === 1 ? "card" : "cards"} <ArrowRight size={16}/></button>
+          Start sorting <ArrowRight size={19} aria-hidden="true" />
+        </button>
       </div>
     </div> : null}
     {!filtersOpen && !unsorted.length && !queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">NO NEW CARDS</p><h2>All cards have been classified.</h2><p>New cards arrive here when you capture them.</p>
