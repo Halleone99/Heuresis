@@ -114,5 +114,9 @@ export async function openCosmosWindow(options: CosmosLaunch) {
   }
 
   const popup = window.open(`/?${params.toString()}`, "_blank", `popup,width=${width},height=${height},resizable=yes,scrollbars=yes`);
-  if (!popup) throw new Error("The Heuresis popup was blocked.");
+  if (!popup) {
+    // Browser popup blocking must not prevent review: open the same UI in this tab.
+    params.set("inTab", "1");
+    openInCurrentApp(params);
+  }
 }
