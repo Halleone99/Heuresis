@@ -86,6 +86,9 @@
 .reviews-centre-empty p { margin: 0; color: var(--ws-muted); }
 .reviews-centre-empty button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 0; border: 0; background: transparent; color: var(--ws-accent); cursor: pointer; }
 .reviews-centre button:focus-visible, .library-reviews-entry:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
+@media (max-width: 1050px) {
+  .intelligent-library .library-stack > .library-reviews-entry { grid-column: 1 / -1; }
+}
 @media (max-width: 960px) {
   .reviews-centre-collections { grid-template-columns: 1fr; }
   .reviews-centre { width: min(730px, calc(100% - 36px)); }
