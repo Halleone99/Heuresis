@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { LogIn } from "lucide-react";
+import { ArrowRight, BookOpenText, Eye, EyeOff, LockKeyhole, WifiOff } from "lucide-react";
 import { readOfflineSession, rememberOfflineSession } from "../lib/offlineSession";
 import { setOfflineAccount } from "../lib/offlineFetch";
 import { supabase, supabaseConfigured } from "../lib/supabase";
@@ -16,6 +16,7 @@ export default function AuthGate({ children }: Props) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -72,16 +73,23 @@ export default function AuthGate({ children }: Props) {
     setSubmitting(false);
   }
 
-  if (loading) return <div className="boot-screen">Opening Heuresis…</div>;
+  if (loading) return (
+    <main className="auth-shell auth-shell--blue">
+      <div className="auth-loading" role="status" aria-live="polite">
+        <div className="auth-emblem"><HeuresisMark /></div>
+        <span>Opening your library…</span>
+      </div>
+    </main>
+  );
 
   if (!supabaseConfigured || !supabase) {
     return (
-      <main className="auth-shell">
-        <section className="auth-card">
-          <div className="brand-mark"><HeuresisMark /></div>
-          <p className="eyebrow">HEURESIS DESKTOP</p>
-          <h1>Connect the existing database.</h1>
-          <p>The desktop client could not resolve its Supabase configuration.</p>
+      <main className="auth-shell auth-shell--blue">
+        <section className="auth-card auth-card--notice">
+          <div className="auth-emblem"><HeuresisMark /></div>
+          <p className="auth-kicker">HEURESIS · CONNECTION</p>
+          <h1>Library unavailable.</h1>
+          <p>The application could not find its Supabase configuration. Check your installation settings and reopen Heuresis.</p>
         </section>
       </main>
     );
@@ -89,17 +97,58 @@ export default function AuthGate({ children }: Props) {
 
   if (!session) {
     return (
-      <main className="auth-shell">
-        <form className="auth-card" onSubmit={signIn}>
-          <div className="brand-mark"><HeuresisMark /></div>
-          <p className="eyebrow">HEURESIS DESKTOP</p>
-          <h1>Return to your library.</h1>
-          <p>Use the same Supabase account as Personal OS. Once synchronised, this device can reopen Heuresis without a connection.</p>
-          <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" /></label>
-          <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label>
-          {error ? <div className="form-error">{error}</div> : null}
-          <button className="primary-button" disabled={submitting} type="submit"><LogIn size={16} />{submitting ? "Signing in…" : "Sign in"}</button>
-        </form>
+      <main className="auth-shell auth-shell--blue">
+        <div className="auth-layout">
+          <section className="auth-intro" aria-labelledby="auth-intro-title">
+            <div className="auth-wordmark">
+              <div className="auth-emblem"><HeuresisMark /></div>
+              <div className="auth-wordmark-text"><strong>Heuresis</strong><span>KNOWLEDGE WORKSPACE</span></div>
+            </div>
+            <div className="auth-intro-content">
+              <div className="auth-overline"><span /> A MORE CONSIDERED WAY TO LEARN</div>
+              <h1 id="auth-intro-title">Make room for <em>everything you discover.</em></h1>
+              <p>Reading, languages, ideas and notes — one quiet place for what you learn and want to remember.</p>
+              <div className="auth-chapters" aria-label="Your library">
+                <span><BookOpenText size={17} strokeWidth={1.7} /> Read</span>
+                <i aria-hidden="true" />
+                <span>Connect</span>
+                <i aria-hidden="true" />
+                <span>Remember</span>
+              </div>
+            </div>
+            <div className="auth-intro-footer"><span>Η</span> YOUR PERSONAL LIBRARY</div>
+          </section>
+
+          <section className="auth-form-panel" aria-label="Sign in to Heuresis">
+            <form className="auth-card auth-card--blue" onSubmit={signIn}>
+              <p className="auth-kicker"><LockKeyhole size={13} strokeWidth={1.8} /> PRIVATE LIBRARY ACCESS</p>
+              <h2>Welcome back.</h2>
+              <p className="auth-form-description">Sign in to continue where you left off.</p>
+
+              <div className="auth-fields">
+                <label htmlFor="heuresis-sign-in-email">Email address</label>
+                <input id="heuresis-sign-in-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" autoCapitalize="none" placeholder="you@example.com" />
+                <label htmlFor="heuresis-sign-in-password">Password</label>
+                <div className="auth-password-wrap">
+                  <input id="heuresis-sign-in-password" type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" placeholder="Enter your password" />
+                  <button type="button" className="auth-password-toggle" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((value) => !value)}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </div>
+
+              {error ? <p className="form-error auth-error" role="alert">{error}</p> : null}
+              <button className="auth-submit" disabled={submitting} type="submit">
+                <span>{submitting ? "Signing in…" : "Open my library"}</span>
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+              <div className="auth-form-divider" aria-hidden="true" />
+              <p className="auth-account-help">Use the same Supabase account as Personal OS.</p>
+              <p className="auth-offline-note"><WifiOff size={15} strokeWidth={1.8} aria-hidden="true" /> After synchronisation, this device can reopen your library offline.</p>
+            </form>
+            <span className="auth-form-footnote">HEURESIS · A PLACE TO THINK AND REMEMBER</span>
+          </section>
+        </div>
       </main>
     );
   }
