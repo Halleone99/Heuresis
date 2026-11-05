@@ -399,6 +399,8 @@ const scenarios = {
     await popup.keyboard.press("d");
     await popup.locator(".cosmos-details").waitFor();
     check(await popup.locator(".cosmos-details-section, .cosmos-details-empty").count() >= 1, "D opens optional context after the answer");
+    check(await popup.locator(".cosmos-add, .cosmos-details-empty button, .cosmos-related button, .cosmos-text-block button, .retention-practice").count() === 0,
+      "Review is read-only, with no add or delete actions");
     await popup.keyboard.press("1");
     await popup.waitForTimeout(400);
     check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
