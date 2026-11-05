@@ -3,18 +3,30 @@ import { readTheme, writeTheme, type ThemePreference } from "./workspaceMemory";
 
 export type PalettePreference = "slate" | "forest" | "sepia" | "neutral";
 const PALETTE_KEY = "heuresis.palette.v1";
+const BLUE_UPGRADE_KEY = "heuresis.appearance.blue.v1";
 const EVENT = "heuresis:appearance-changed";
 
 export function readPalette(): PalettePreference {
   try {
-    const value = localStorage.getItem(PALETTE_KEY);
+    let value = localStorage.getItem(PALETTE_KEY);
+    // One-time visual upgrade: replace the old sepia default on existing installs.
+    // Later explicit palette choices remain untouched, including Sepia if reselected.
+    if (!localStorage.getItem(BLUE_UPGRADE_KEY)) {
+      if (!value || value === "sepia") {
+        value = "slate";
+        localStorage.setItem(PALETTE_KEY, value);
+      }
+      localStorage.setItem(BLUE_UPGRADE_KEY, "1");
+    }
     if (value === "slate" || value === "forest" || value === "sepia" || value === "neutral") return value;
   } catch { /* storage may not be available */ }
-  // Preserve the familiar look on existing devices until the user chooses.
-  return "sepia";
+  return "slate";
 }
 export function writePalette(value: PalettePreference) {
-  try { localStorage.setItem(PALETTE_KEY, value); } catch { /* optional */ }
+  try {
+    localStorage.setItem(PALETTE_KEY, value);
+    localStorage.setItem(BLUE_UPGRADE_KEY, "1");
+  } catch { /* optional */ }
 }
 const media = () => typeof window !== "undefined" && window.matchMedia
   ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -31,7 +43,7 @@ export function applyAppearance(mode: ThemePreference = readTheme(), palette: Pa
   document.documentElement.style.colorScheme = resolved;
   const hex = getComputedStyle(document.documentElement).getPropertyValue("--ws-page").trim();
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-  if (meta) meta.content = hex || (resolved === "dark" ? "#161412" : "#f2efe9");
+  if (meta) meta.content = hex || (resolved === "dark" ? "#1f2733" : "#eef1f4");
   if ("__TAURI_INTERNALS__" in window) {
     void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
       getCurrentWindow().setTheme(resolved).catch(() => undefined)).catch(() => undefined);
