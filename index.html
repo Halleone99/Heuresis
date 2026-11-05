@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f4f0e7" />
+    <meta name="theme-color" content="#1f2733" />
     <title>Heuresis</title>
     <script>
       // Resolve appearance before React mounts (including Capture and Review popups).
@@ -11,13 +11,22 @@
         try {
           const storedMode = localStorage.getItem("heuresis.theme.v1");
           const mode = storedMode === "light" || storedMode === "dark" ? storedMode : "system";
-          const saved = localStorage.getItem("heuresis.palette.v1");
-          const palette = ["slate", "forest", "sepia", "neutral"].includes(saved) ? saved : "sepia";
+          const paletteKey = "heuresis.palette.v1";
+          const upgradeKey = "heuresis.appearance.blue.v1";
+          const saved = localStorage.getItem(paletteKey);
+          let palette = ["slate", "forest", "sepia", "neutral"].includes(saved) ? saved : "slate";
+          if (!localStorage.getItem(upgradeKey)) {
+            if (!saved || saved === "sepia") {
+              palette = "slate";
+              localStorage.setItem(paletteKey, palette);
+            }
+            localStorage.setItem(upgradeKey, "1");
+          }
           const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.dataset.palette = palette;
           document.documentElement.dataset.theme = dark ? "dark" : "light";
           document.documentElement.style.colorScheme = dark ? "dark" : "light";
-        } catch { document.documentElement.dataset.palette = "sepia"; }
+        } catch { document.documentElement.dataset.palette = "slate"; }
       })();
     </script>
     <style>
@@ -29,7 +38,7 @@
       }
 
       body {
-        background: var(--ws-page, #f4f0e7);
+        background: var(--ws-page, #1f2733);
       }
 
       .heuresis-boot {
@@ -39,10 +48,8 @@
         display: grid;
         place-items: center;
         overflow: hidden;
-        background:
-          radial-gradient(circle at 50% 42%, var(--ws-accent-soft, rgba(255,255,255,.22)), transparent 42%),
-          var(--ws-page, #f2efe9);
-        color: var(--ws-ink, #211d19);
+        background: radial-gradient(circle at 50% 44%, rgba(102,149,214,.17), transparent 40%), linear-gradient(140deg, #0d192a, #172940 63%, #0e1929);
+        color: #edf3fa;
         font-family: Georgia, "Times New Roman", serif;
       }
 
@@ -52,10 +59,10 @@
         width: min(520px, 78vw);
         height: min(520px, 78vw);
         border-radius: 50%;
-        border: 1px solid rgba(169, 133, 82, 0.08);
+        border: 1px solid rgba(131, 172, 221, 0.10);
         box-shadow:
-          0 0 0 80px rgba(169, 133, 82, 0.025),
-          0 0 0 160px rgba(169, 133, 82, 0.018);
+          0 0 0 80px rgba(131, 172, 221, 0.035),
+          0 0 0 160px rgba(131, 172, 221, 0.020);
         pointer-events: none;
       }
 
@@ -77,12 +84,12 @@
         border-radius: 15px;
         background:
           radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.08), transparent 34%),
-          linear-gradient(145deg, #4f4b40 0%, #37342e 58%, #2c2925 100%);
-        color: #ead9b8;
+          linear-gradient(145deg, #334f72 0%, #1c324e 58%, #142439 100%);
+        color: #e4efff;
         box-shadow:
-          inset 0 0 0 1px rgba(215, 190, 145, 0.28),
+          inset 0 0 0 1px rgba(170, 204, 247, 0.28),
           inset 0 1px 0 rgba(255, 255, 255, 0.08),
-          0 14px 34px rgba(48, 42, 35, 0.15);
+          0 14px 34px rgba(2, 13, 32, 0.28);
         font-size: 32px;
         line-height: 1;
         letter-spacing: -0.08em;
@@ -97,12 +104,12 @@
       }
 
       .heuresis-boot-name span {
-        color: #a98552;
+        color: #9abfe9;
       }
 
       .heuresis-boot-status {
         min-width: 170px;
-        color: #8f877b;
+        color: #a6b8cf;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-size: 11px;
         font-weight: 500;
@@ -120,7 +127,7 @@
         width: 4px;
         height: 4px;
         border-radius: 50%;
-        background: #a98552;
+        background: #a7c7ee;
         opacity: 0.25;
         animation: heuresis-boot-pulse 1.25s ease-in-out infinite;
       }
