@@ -31,6 +31,7 @@ assert.doesNotMatch(cosmos, /<RetentionPractice\b/, "Review must not open a sepa
 assert.match(cosmos, /if \(mode === "review"\) return null;/, "Review side panels disable adding new content");
 assert.match(cosmos, /mode === "sort" \? <button title="Remove relation"/, "Relations are not removable from Review");
 assert.match(cosmos, /mode === "sort" \? <button title="Remove"/, "Saved text is not removable from Review");
+const exercise = readFileSync("src/components/RetentionPractice.tsx", "utf8");
 assert.match(exercise, /signalWorkspaceChange\(userId\)/, "Saved mistakes invalidate other workspace windows");
 assert.match(cosmos, /<ConnectionsPanel/, "Connections remains accessible from Review");
 console.log("Multilingual audio and unified targeted Review checks passed.");
