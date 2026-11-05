@@ -216,7 +216,8 @@ class EmptySelection extends Error {}
 
 /** Android (MagicPad APK): Review is a page inside the app's only WebView, opened from Study. */
 const ANDROID = isAndroidRuntime();
-const SINGLE_WINDOW = prefersSingleWindowNavigation();
+const SINGLE_WINDOW = prefersSingleWindowNavigation()
+  || new URLSearchParams(window.location.search).get("inTab") === "1";
 
 async function closeDesktopWindow() {
   // Closing the window on Android would close the whole app (it has one window and one
