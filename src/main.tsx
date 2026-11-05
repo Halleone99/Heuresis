@@ -69,6 +69,8 @@ import "./topic-card-controls.css";
 import "./library-home-refresh.css";
 // Final Selection-page hierarchy overrides, after older topic and tablet rules.
 import "./topic-smooth-navigation.css";
+// The sign-in experience has its own blue visual language.
+import "./auth-blue.css";
 // Canonical application chrome must be the final CSS import.
 import "./theme/chrome.css";
 
