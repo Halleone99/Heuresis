@@ -51,6 +51,10 @@ export async function openCaptureWindow(options: CaptureLaunch = {}) {
     "heuresis-capture",
     "popup,width=610,height=790,resizable=yes,scrollbars=yes",
   );
-  if (!popup) throw new Error("The Capture popup was blocked.");
+  if (!popup) {
+    params.set("inTab", "1");
+    openInCurrentApp(params);
+    return;
+  }
   popup.focus();
 }
