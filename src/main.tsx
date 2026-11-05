@@ -67,6 +67,7 @@ import "./chinese-selection-themes.css";
 import "./topic-tag-first.css";
 import "./topic-card-controls.css";
 import "./library-home-refresh.css";
+import "./review-centre.css";
 // Final Selection-page hierarchy overrides, after older topic and tablet rules.
 import "./topic-smooth-navigation.css";
 // The sign-in experience has its own blue visual language.
