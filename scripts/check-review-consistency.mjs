@@ -27,10 +27,11 @@ assert.match(cosmos, /\["hear","Hear"\]/, "Hear appears as the fifth exclusive a
 assert.match(cosmos, /method !== "hear"/, "Audio-first prompts only play in Hear mode");
 assert.match(cosmos, /Said aloud/, "Spoken confirmation remains explicit");
 assert.doesNotMatch(cosmos, /heuresis\.review\.audioPrompt\.v1/, "Separate Listen switch has been removed");
+assert.doesNotMatch(cosmos, /<RetentionPractice\b/, "Review must not open a separate add-example workflow");
+assert.match(cosmos, /if \(mode === "review"\) return null;/, "Review side panels disable adding new content");
+assert.match(cosmos, /mode === "sort" \? <button title="Remove relation"/, "Relations are not removable from Review");
+assert.match(cosmos, /mode === "sort" \? <button title="Remove"/, "Saved text is not removable from Review");
 const exercise = readFileSync("src/components/RetentionPractice.tsx", "utf8");
-assert.match(exercise, /Type example/, "Review exposes a typed example exercise");
-assert.match(exercise, /checkCaptureText\(submitted, pack\.title, "exercise", target\)/, "Typed examples receive contextual AI checking");
-assert.match(exercise, /Add to Mistake Log/, "Learners can file an actual correction");
 assert.match(exercise, /signalWorkspaceChange\(userId\)/, "Saved mistakes invalidate other workspace windows");
 assert.match(cosmos, /<ConnectionsPanel/, "Connections remains accessible from Review");
 console.log("Multilingual audio and unified targeted Review checks passed.");
