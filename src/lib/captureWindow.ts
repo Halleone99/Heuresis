@@ -1,4 +1,4 @@
-import { isAndroidRuntime, openInCurrentApp } from "./platform";
+import { openInCurrentApp, prefersSingleWindowNavigation } from "./platform";
 
 export type CaptureLaunch = {
   packId?: string | null;
@@ -17,7 +17,7 @@ export async function openCaptureWindow(options: CaptureLaunch = {}) {
 
   // Android has one application surface. Reuse the same Heuresis route instead
   // of creating a desktop WebviewWindow, preserving the exact Capture UI/data path.
-  if (isAndroidRuntime()) {
+  if (prefersSingleWindowNavigation()) {
     openInCurrentApp(params);
     return;
   }
