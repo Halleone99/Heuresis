@@ -1,10 +1,11 @@
-import { ArrowLeft, ArrowRight, Archive, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, BookOpen, Brain, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, type Collection, type PackWithType } from "../lib/heuresis";
 import { formatSeen } from "../lib/learningSignals";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
+import ReviewCentre from "./ReviewCentre";
 
 type Props = {
   collections: Collection[];
@@ -40,6 +41,7 @@ function newestOpen(packs: PackWithType[]) {
 
 export default function LibraryView({ collections, packs, archivedCount, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [reviewsOpen, setReviewsOpen] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
@@ -122,6 +124,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   function backToCollections() {
     setCollectionId(null);
   }
+
+  if (reviewsOpen) return <ReviewCentre collections={collections} packs={packs} onBack={() => setReviewsOpen(false)} />;
 
   if (activeCollection) {
     const collectionPacks = packs.filter((pack) => pack.collection_id === activeCollection.id);
@@ -286,6 +290,11 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
             <span><strong>Archive</strong><small>{plural(archivedCount, "archived topic")}</small></span>
             <ChevronRight size={17} aria-hidden="true" />
           </button> : null}
+          <button type="button" className="library-reviews-entry" onClick={() => setReviewsOpen(true)} title="Open Review Centre for all your topics">
+            <span className="library-reviews-entry-icon" aria-hidden="true"><Brain size={23} /></span>
+            <span className="library-reviews-entry-copy"><strong>Reviews</strong><small>Practise across all collections</small></span>
+            <ChevronRight size={18} className="library-reviews-entry-chevron" aria-hidden="true" />
+          </button>
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
     </section>

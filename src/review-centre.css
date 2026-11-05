@@ -1,0 +1,104 @@
+/* Review Centre: one quiet entry from the Library and a unified topic selector.
+   Reuses the existing StudyModal instead of introducing a separate review engine. */
+.library-reviews-entry {
+  width: 100%;
+  min-height: 76px;
+  margin-top: 7px;
+  padding: 13px 17px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 15px;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--ws-raised) 90%, transparent), color-mix(in srgb, var(--ws-accent) 8%, var(--ws-surface)));
+  box-shadow: var(--ws-shadow-1);
+  backdrop-filter: blur(18px);
+  color: var(--ws-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: transform .17s ease, background .17s ease, border-color .17s ease;
+}
+.library-reviews-entry:hover { transform: translateY(-1px); border-color: var(--ws-accent); background: var(--ws-raised); }
+.library-reviews-entry-icon {
+  width: 44px; height: 44px; flex: 0 0 44px;
+  display: grid; place-items: center; border-radius: 12px;
+  background: color-mix(in srgb, var(--ws-accent) 11%, var(--ws-raised));
+  color: var(--ws-accent);
+}
+.library-reviews-entry-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.library-reviews-entry-copy strong { font: 400 21px/1.1 var(--serif, Georgia, serif); }
+.library-reviews-entry-copy small { font: 400 11px/1.5 var(--ws-sans, Inter, sans-serif); color: var(--ws-muted); }
+.library-reviews-entry-chevron { flex: 0 0 auto; color: var(--ws-muted); }
+
+.reviews-centre {
+  width: min(1060px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 30px 0 90px;
+  color: var(--ws-ink);
+}
+.reviews-centre-back {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 0; background: transparent; padding: 8px 0;
+  color: var(--ws-text); cursor: pointer; font-size: 12px;
+}
+.reviews-centre-back:hover { color: var(--ws-accent); }
+.reviews-centre-header { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin: 22px 0 30px; }
+.reviews-centre-intro { max-width: 650px; }
+.reviews-centre-eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 700; letter-spacing: .13em; color: var(--ws-accent); }
+.reviews-centre-header h1 { margin: 10px 0 9px; font: 400 clamp(37px, 5vw, 52px)/1.03 var(--serif, Georgia, serif); letter-spacing: -.035em; }
+.reviews-centre-header h1 span { color: var(--ws-accent); }
+.reviews-centre-header p { color: var(--ws-muted); margin: 0; font: 400 13px/1.75 var(--ws-sans, Inter, sans-serif); }
+.reviews-centre-summary { display: flex; gap: 28px; flex: 0 0 auto; border-bottom: 1px solid var(--ws-line-strong); padding-bottom: 11px; }
+.reviews-centre-summary > span { display: flex; flex-direction: column; gap: 2px; }
+.reviews-centre-summary strong { font: 400 26px/1 var(--serif, Georgia, serif); }
+.reviews-centre-summary small { font-size: 11px; color: var(--ws-muted); }
+.reviews-centre-collections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; align-items: start; }
+.reviews-centre-group {
+  border: 1px solid var(--ws-line-strong); border-radius: 17px; overflow: hidden;
+  background: color-mix(in srgb, var(--ws-surface) 91%, transparent);
+  box-shadow: var(--ws-shadow-1); backdrop-filter: blur(20px);
+}
+.reviews-centre-group-header { display: flex; align-items: center; gap: 12px; padding: 17px 20px; }
+.reviews-centre-glyph {
+  flex: 0 0 47px; width: 47px; height: 47px; border-radius: 12px;
+  display: grid; place-items: center; font: 400 25px/1 var(--serif, Georgia, serif);
+  background: color-mix(in srgb, var(--accent, var(--ws-accent)) 10%, var(--ws-raised));
+  color: var(--ws-ink);
+}
+.reviews-centre-group-header h2 { margin: 0 0 4px; font: 400 23px/1.1 var(--serif, Georgia, serif); }
+.reviews-centre-group-header small { color: var(--ws-muted); font-size: 11px; }
+.reviews-centre-group-icon { margin-left: auto; color: var(--ws-muted); opacity: .7; }
+.reviews-centre-topic-list { padding: 0 11px 11px; }
+.reviews-centre-topic {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 10px; border: 0; border-top: 1px solid var(--ws-line);
+  background: transparent; color: var(--ws-ink); text-align: left; cursor: pointer;
+}
+.reviews-centre-topic:hover { background: color-mix(in srgb, var(--ws-accent) 6%, transparent); }
+.reviews-centre-topic:disabled { cursor: progress; opacity: .65; }
+.reviews-centre-topic-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.reviews-centre-topic-info strong { font-size: 13px; font-weight: 650; }
+.reviews-centre-topic-info small { color: var(--ws-muted); font-size: 11px; }
+.reviews-centre-topic-action { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--ws-accent); }
+.reviews-centre-error { padding: 13px 17px; color: var(--ws-ink); border: 1px solid var(--ws-line-strong); border-radius: 11px; background: var(--ws-raised); font-size: 12px; }
+.reviews-centre-empty { display: grid; justify-items: start; gap: 11px; padding: 30px; border: 1px solid var(--ws-line-strong); border-radius: 16px; background: var(--ws-surface); }
+.reviews-centre-empty h2 { font: 400 25px var(--serif, Georgia, serif); margin: 0; }
+.reviews-centre-empty p { margin: 0; color: var(--ws-muted); }
+.reviews-centre-empty button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 0; border: 0; background: transparent; color: var(--ws-accent); cursor: pointer; }
+.reviews-centre button:focus-visible, .library-reviews-entry:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 3px; }
+@media (max-width: 1050px) {
+  .intelligent-library .library-stack > .library-reviews-entry { grid-column: 1 / -1; }
+}
+@media (max-width: 960px) {
+  .reviews-centre-collections { grid-template-columns: 1fr; }
+  .reviews-centre { width: min(730px, calc(100% - 36px)); }
+}
+@media (max-width: 600px) {
+  .reviews-centre { width: calc(100% - 26px); padding-top: 14px; }
+  .reviews-centre-header { flex-direction: column; align-items: stretch; gap: 20px; }
+  .reviews-centre-header h1 { font-size: 39px; }
+  .reviews-centre-summary { align-self: stretch; justify-content: flex-start; }
+  .reviews-centre-group-header { padding: 14px; }
+  .reviews-centre-topic { padding: 13px 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .library-reviews-entry { transition: none; } }
