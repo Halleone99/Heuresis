@@ -8,7 +8,9 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    # Pin to a Playwright-supported distro. ubuntu-latest moved to 26.04,
+    # which Playwright 1.56.1 cannot install Chromium dependencies on.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
