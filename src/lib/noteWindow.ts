@@ -1,4 +1,4 @@
-import { isAndroidRuntime } from "./platform";
+import { prefersSingleWindowNavigation } from "./platform";
 
 /**
  * Every note uses a unique window label. Several different notes can remain
@@ -8,7 +8,7 @@ export type NoteWindowLaunch = { noteId?: string; topicId?: string };
 
 export async function openNoteWindow({ noteId, topicId }: NoteWindowLaunch): Promise<void> {
   if (!noteId && !topicId) throw new Error("Choose a note or topic first.");
-  if (isAndroidRuntime()) throw new Error("Separate note windows are available on desktop. Notes still open normally on your tablet.");
+  if (prefersSingleWindowNavigation()) throw new Error("Separate note windows are available on desktop. Notes still open normally in Notebook.");
 
   const windowId = crypto.randomUUID();
   const params = new URLSearchParams({ noteWindow: "1" });

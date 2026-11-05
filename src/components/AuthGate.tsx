@@ -79,9 +79,9 @@ export default function AuthGate({ children }: Props) {
       <main className="auth-shell">
         <section className="auth-card">
           <div className="brand-mark"><HeuresisMark /></div>
-          <p className="eyebrow">HEURESIS DESKTOP</p>
+          <p className="eyebrow">HEURESIS</p>
           <h1>Connect the existing database.</h1>
-          <p>The desktop client could not resolve its Supabase configuration.</p>
+          <p>Heuresis could not resolve its Supabase configuration.</p>
         </section>
       </main>
     );
@@ -92,7 +92,7 @@ export default function AuthGate({ children }: Props) {
       <main className="auth-shell">
         <form className="auth-card" onSubmit={signIn}>
           <div className="brand-mark"><HeuresisMark /></div>
-          <p className="eyebrow">HEURESIS DESKTOP</p>
+          <p className="eyebrow">HEURESIS</p>
           <h1>Return to your library.</h1>
           <p>Use the same Supabase account as Personal OS. Once synchronised, this device can reopen Heuresis without a connection.</p>
           <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" /></label>

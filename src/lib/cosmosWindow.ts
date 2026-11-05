@@ -1,4 +1,4 @@
-import { isAndroidRuntime, openInCurrentApp } from "./platform";
+import { openInCurrentApp, prefersSingleWindowNavigation } from "./platform";
 
 export type CosmosMode = "review" | "sort";
 export type CosmosSource = "recommended" | "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
@@ -79,9 +79,8 @@ export async function openCosmosWindow(options: CosmosLaunch) {
   const params = buildParams(options);
   const title = `${options.related ? "Related" : options.mode === "sort" ? "Sort" : "Flashcards"} · Heuresis`;
 
-  // Android uses the main app webview for study/review so sessions and auth remain
-  // in the same persisted client rather than relying on desktop popup windows.
-  if (isAndroidRuntime()) {
+  // Native Android and touch-sized web browsers use the same-tab review flow.
+  if (prefersSingleWindowNavigation()) {
     openInCurrentApp(params);
     return;
   }
@@ -115,5 +114,9 @@ export async function openCosmosWindow(options: CosmosLaunch) {
   }
 
   const popup = window.open(`/?${params.toString()}`, "_blank", `popup,width=${width},height=${height},resizable=yes,scrollbars=yes`);
-  if (!popup) throw new Error("The Heuresis popup was blocked.");
+  if (!popup) {
+    // Browser popup blocking must not prevent review: open the same UI in this tab.
+    params.set("inTab", "1");
+    openInCurrentApp(params);
+  }
 }

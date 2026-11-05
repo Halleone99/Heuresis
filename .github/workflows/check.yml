@@ -8,7 +8,8 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 does not support the ubuntu-26.04 ubuntu-latest runner.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,6 +36,7 @@ jobs:
       - run: node scripts/check-navigation-polish.mjs
       - run: node scripts/check-lesson-cleanup.mjs
       - run: node scripts/check-native-quick-capture.mjs
+      - run: node --experimental-strip-types scripts/check-web-runtime.mjs
       - run: node scripts/check-capture-context.mjs
       - run: node scripts/check-sort-review-flow.mjs
       - run: node scripts/check-topic-tag-browse.mjs
