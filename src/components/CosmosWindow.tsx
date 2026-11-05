@@ -52,7 +52,6 @@ import { supabase } from "../lib/supabase";
 import { readReviewSelection } from "../lib/cosmosWindow";
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
-import RetentionPractice from "./RetentionPractice";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import "./cosmos.css";
 
@@ -927,6 +926,8 @@ export default function CosmosWindow() {
   const detailsAvailable = mode === "sort" || revealed;
 
   const renderAddForm = (dimensionId: DimensionId, def: DimensionDef) => {
+    // Review is recall-only: content can be added during Sort or in the card editor.
+    if (mode === "review") return null;
     const showRelated = dimensionId === "neighbours" && structuredWords && !relatedReview;
     if (addingDim !== dimensionId) return <button className="cosmos-add" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(dimensionId); }}><Plus size={13} /> Add to {def.label}</button>;
     return showRelated
@@ -943,9 +944,9 @@ export default function CosmosWindow() {
       <header><h3>{def.label}</h3><span>{def.sub}</span><b>{countFor(dimensionId) || ""}</b></header>
       {dimensionId === "notes" && card.note?.trim() ? <article className="cosmos-field"><small>Card note</small><p>{card.note}</p></article> : null}
       {entries.map((entry) => <article className="cosmos-field" key={entry.key}><small>{entry.label}</small><p>{entry.value}</p></article>)}
-      {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}<button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button></article>) : null}
+      {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}{mode === "sort" ? <button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button> : null}</article>) : null}
       {dimensionBlocks.map((block) => block.type === "text"
-        ? <article className="cosmos-text-block" key={block.id}><p>{block.text}</p><button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button></article>
+        ? <article className="cosmos-text-block" key={block.id}><p>{block.text}</p>{mode === "sort" ? <button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button> : null}</article>
         : <figure className="cosmos-image-block" key={block.id}>
             {signedImages[block.path] ? <img src={signedImages[block.path]} alt={block.caption || "Card reference"} /> : <div className="cosmos-image-loading">Loading image…</div>}
             {block.caption ? <figcaption>{block.caption}</figcaption> : null}
@@ -965,8 +966,8 @@ export default function CosmosWindow() {
         ? ["examples", "neighbours", "components", "structure"].includes(def.id)
         : ["origin", "facts", "notes"].includes(def.id))
       : dimensions;
-    const filled = chosen.filter((def) => countFor(def.id) > 0 || addingDim === def.id);
-    const empty = chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id);
+    const filled = chosen.filter((def) => countFor(def.id) > 0 || (mode === "sort" && addingDim === def.id));
+    const empty = mode === "sort" ? chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id) : [];
     return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
       <header className="cosmos-details-head">
         <strong>{!split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
@@ -980,23 +981,13 @@ export default function CosmosWindow() {
           ? <div className="cosmos-context-wait"><strong>After the answer</strong><p>Your examples, connections and notes appear here once you reveal the card.</p></div>
           : <>
             {filled.map(renderDimension)}
-            {!filled.length ? <p className="cosmos-empty">Nothing recorded yet. Add what helps you remember this card.</p> : null}
-            {empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
+            {!filled.length ? <p className="cosmos-empty cosmos-details-empty">{mode === "review" ? "No saved context for this card." : "Nothing recorded yet. Add what helps you remember this card."}</p> : null}
+            {mode === "sort" && empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
           </>}
       </div>
     </aside>;
   };
 
-
-  async function saveSentenceExample(text: string) {
-    if (!card) return;
-    try {
-      const next: WorkspaceBlock[] = [...parseBlocks(card), { id: crypto.randomUUID(), type: "text", dim: "examples", text }];
-      const data = await patchCardData(card.id, { [WORKSPACE_BLOCKS_KEY]: serialiseBlocks(next) });
-      patchLocalCard(card.id, (current) => ({ ...current, data }));
-      await markLearning(["sentence"]);
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save this example."); throw error; }
-  }
 
   function playAudio(text: string, fieldKey?: string) {
     if (!pack) return;
@@ -1069,8 +1060,6 @@ export default function CosmosWindow() {
         <div><strong>Reference answer</strong><p>{difference.after.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
         <small>Differences are visual only; valid alternatives may differ.</small>
       </div> : null}
-      <RetentionPractice key={`${card.id}:${template?.id ?? ""}:${index}`} card={card} pack={pack} revealed={revealed} busy={busy}
-        onSaveSentence={saveSentenceExample} onNotice={setNotice} />
       {!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal answer <kbd>Space</kbd></button> : null}
     </div>;
   };
