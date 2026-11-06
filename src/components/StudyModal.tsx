@@ -28,8 +28,8 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
   const [history, setHistory] = useState<GradeEvent[] | null>(null);
   const [sizeInput, setSizeInput] = useState(String(remembered.size));
-  const [order, setOrder] = useState<"random" | "weakest" | "oldest">(
-    remembered.order === "random" ? "random" : remembered.order === "oldest" ? "oldest" : "weakest");
+  const [order, setOrder] = useState<"recommended" | "random" | "weakest" | "oldest">(
+    remembered.source === "recommended" ? "recommended" : remembered.order === "random" ? "random" : remembered.order === "oldest" ? "oldest" : "weakest");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [flags, setFlags] = useState<SpecialFlag[]>([]);
   const [includeMastered, setIncludeMastered] = useState(false);
@@ -83,7 +83,7 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     if (flags.some((flag) => !flagged(card, flag))) return false;
     const events = history ? eventsByCard.get(card.id) ?? [] : null;
     const legacyState = assessState(directionEvidence(card, null, events)).state;
-    return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds);
+    return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds, tagIds.length > 0 || flags.length > 0);
   }), [cards, eventsByCard, flags, history, includeMastered, tagIds, pairedIds, selectedTemplateIds]);
   const requestedSize = Number(sizeInput);
   const validSize = /^\d+$/.test(sizeInput) && Number.isSafeInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 500;
@@ -97,11 +97,11 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
   async function startReview() {
     if (!selectedTemplateIds.length || !eligible.length || !validSize || busy) return;
     setBusy(true); setError("");
-    writeReviewPrefs(pack.id, { ...remembered, source: "all", size: requestedSize, order });
+    writeReviewPrefs(pack.id, { ...remembered, source: order === "recommended" ? "recommended" : "all", size: requestedSize, order: order === "recommended" ? "weakest" : order });
     try {
       await openCosmosWindow({
         mode: "review", packId: pack.id, templateIds: selectedTemplateIds,
-        source: "all", order: order as CosmosOrder, count: sessionCount,
+        source: order === "recommended" ? "recommended" : "all", order: (order === "recommended" ? "weakest" : order) as CosmosOrder, count: sessionCount,
         tagIds, reviewFlags: flags, includeMastered,
       });
       onComplete();
@@ -135,8 +135,8 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
           <div className="review-order-field">
             <span>Order</span>
             <SegmentedChoice label="Review card order" className="study-order-toggle review-order-options"
-              value={order} onChange={(value) => setOrder(value as "random" | "weakest" | "oldest")}
-              options={[{ value: "weakest", label: "Weakest first" }, { value: "oldest", label: "Longest unseen" }, { value: "random", label: "Random" }]} />
+              value={order} onChange={(value) => setOrder(value as "recommended" | "random" | "weakest" | "oldest")}
+              options={[{ value: "recommended", label: "Most useful now" }, { value: "weakest", label: "Weakest first" }, { value: "oldest", label: "Longest unseen" }, { value: "random", label: "Random" }]} />
           </div>
         </div>
         <details className="review-filters">

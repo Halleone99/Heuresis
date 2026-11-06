@@ -1,7 +1,7 @@
 import { ArrowRight, Brain, Check, ChevronDown, Pencil, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
+import { fieldByRole, fieldText, patchCardData, saveCardNote, setCardRetention, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
 import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
@@ -23,7 +23,7 @@ type Props = {
   onReview?: () => void;
 };
 
-type Removal = { kind: "learn" | "discard"; card: CardWithStats };
+type Removal = { kind: "learn" | "reference" | "discard"; card: CardWithStats };
 const ORDER_KEY = "heuresis.sort.order.v1";
 
 function readOrder(): "topic" | "random" {
@@ -102,7 +102,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [noteDraft, setNoteDraft] = useState("");
   const [editingCard, setEditingCard] = useState(false);
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
-  const [selectedRank, setSelectedRank] = useState<number | null>(null);
   const [cardDraft, setCardDraft] = useState<Record<string, string>>({});
   const [cardEditError, setCardEditError] = useState("");
   const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
@@ -110,6 +109,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [message, setMessage] = useState("");
   const [learned, setLearned] = useState(0);
   const [discarded, setDiscarded] = useState(0);
+  const [referenced, setReferenced] = useState(0);
   const [lastRemoval, setLastRemoval] = useState<Removal | null>(null);
 
   const card = queue[index] ?? null;
@@ -128,7 +128,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
     setEditingCard(false); setCardEditError("");
-    setEnrichmentOpen(false); setSelectedRank(null);
+    setEnrichmentOpen(false);
     setMessage("");
   }, [card?.id]);
 
@@ -195,6 +195,20 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     finally { setBusy(false); }
   }
 
+  async function keepReference() {
+    if (!card || busy || enrichmentBlocked || editingCard) return;
+    setBusy(true); setMessage("");
+    try {
+      await saveQuickNote();
+      await setCardRetention(card.id, "reference");
+      setReferenced((value) => value + 1);
+      setLastRemoval({ kind: "reference", card });
+      setIndex((current) => current + 1);
+      onChanged();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not keep this reference."); }
+    finally { setBusy(false); }
+  }
+
   async function discard() {
     if (!card || busy || enrichmentBlocked || editingCard) return;
     setBusy(true); setMessage("");
@@ -216,12 +230,14 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setBusy(true); setMessage("");
     try {
       if (kind === "discard") await restoreDiscardedCard(restored.id);
+      else if (kind === "reference") await setCardRetention(restored.id, "learning");
       else {
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
         await patchCardData(restored.id, { _sorted_at: null });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
+      else if (kind === "reference") setReferenced((value) => Math.max(0, value - 1));
       else setLearned((value) => Math.max(0, value - 1));
       const position = queue.findIndex((item) => item.id === restored.id);
       const without = queue.filter((item) => item.id !== restored.id);
@@ -274,10 +290,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // Retain older Sort keyboard actions for existing users, without
       // crowding the new interface with shortcut labels.
       if (key === "c" || key === "u" || key === "p") {
-        event.preventDefault(); setSelectedRank(key === "c" ? 5 : key === "u" ? 3 : 1); return;
+        event.preventDefault(); void learn(key === "c" ? 5 : key === "u" ? 3 : 1); return;
       }
-      if (event.key === "Enter" && selectedRank !== null) { event.preventDefault(); void learn(selectedRank); return; }
       if (key === "e") { event.preventDefault(); setEnrichmentOpen((open) => !open); return; }
+      if (key === "r") { event.preventDefault(); void keepReference(); return; }
       if (key === "d" || event.key === "Delete") { event.preventDefault(); void discard(); return; }
       if (key === "l" || key === "s") { event.preventDefault(); later(); return; }
       if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); }
@@ -288,7 +304,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
 
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked || editingCard} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
-  const decided = learned + discarded;
+  const decided = learned + referenced + discarded;
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
@@ -374,8 +390,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       <div className="sort-finished-actions">{onReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review</button> : null}<button type="button" className="is-quiet" onClick={onClose}>Return to topic</button></div></div> : null}
     {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
       <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
-      <p>{[learned ? `${learned} to learn` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
-      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
+      <p>{[learned ? `${learned} to learn` : "", referenced ? `${referenced} kept as reference` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
+      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : lastRemoval.kind === "reference" ? "reference" : "learn"}</button> : null}
       <div className="sort-finished-actions">{onReview && learned ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className={onReview && learned ? "is-quiet" : ""} disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
     </div> : null}
     {!filtersOpen && card ? <div className="sort-body">
@@ -413,12 +429,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
             const rank = IMPORTANCE_RANK[level];
             return <button key={level} type="button"
               aria-label={"Select " + IMPORTANCE_LABEL[level] + " importance"}
-              aria-pressed={selectedRank === rank}
-              className={selectedRank === rank ? "selected" : ""}
+              aria-pressed={false}
+              className=""
               disabled={busy || enrichmentBlocked || editingCard}
-              onClick={() => setSelectedRank(rank)}>{IMPORTANCE_LABEL[level]}</button>;
+              onClick={() => void learn(rank)}>{IMPORTANCE_LABEL[level]}</button>;
           })}</div>
-          <span className="sort-rating-caption">Select importance, then Save & Next · C / U / P</span>
+          <span className="sort-rating-caption">Choose once to save and continue · C / U / P</span>
         </div>
         <div className="sort-tags-control">
           <div className="sort-side-heading"><h3><Tag size={15}/> Tags</h3>
@@ -445,11 +461,11 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     </div> : null}
     {!filtersOpen && card ? <footer className="sort-session-footer">
       <button type="button" className="sort-footer-discard" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}><Trash2 size={15} /> Discard</button>
-      {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {fieldText(lastRemoval.card.data, term?.key) || "Card"} · {lastRemoval.kind === "discard" ? "discarded" : "added to learning"}</span>
+      {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {fieldText(lastRemoval.card.data, term?.key) || "Card"} · {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "reference" ? "kept as reference" : "added to learning"}</span>
         <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13} /> Undo</button></div> : null}
       <div className="sort-footer-end">
         <button type="button" className="sort-footer-later" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}><SkipForward size={15} /> Later</button>
-        <button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank); }}>Save & Next <ArrowRight size={17} /></button>
+        <button type="button" className="sort-footer-reference" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void keepReference()}>Keep as reference · R</button>
       </div>
     </footer> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);

@@ -23,7 +23,7 @@ import { assessState, directionEvidence, summaryState, type GradeEvent, type Kno
 import { defaultDirections, directionPairs, legacyTemplateId } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { readReviewPrefs, rememberedTemplateIds } from "../lib/reviewPrefs";
-import { cardBarProgress } from "../lib/cardProgress";
+import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
 import BrowseModal from "./BrowseModal";
 import CardImagesEditor from "./CardImagesEditor";
 import ConnectionsPanel from "./ConnectionsPanel";
@@ -308,6 +308,18 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     }
     return counts;
   }, [cardBars, learningCards]);
+  const readyCount = useMemo(() => {
+    if (!stateTemplates.length) return 0;
+    const byCard = new Map<string, GradeEvent[]>();
+    for (const event of events ?? []) {
+      const own = byCard.get(event.cardId) ?? [];
+      own.push(event);
+      byCard.set(event.cardId, own);
+    }
+    return learningCards.filter((entry) => reviewEligible(cardBars.get(entry.id) ?? { bars: 0, mastered: false, estimated: false },
+      events ? byCard.get(entry.id) ?? [] : null, entry.stats.last_encountered_at,
+      false, Date.now(), stateTemplates.map((direction) => direction.id))).length;
+  }, [learningCards, cardBars, events, stateTemplates]);
   const favouriteCards = useMemo(() => cards.filter((card) => card.favourite), [cards]);
   // Offer only tags used by this topic; the card editor retains the global tag catalogue.
   const tagFacets = useMemo(() => {
@@ -427,7 +439,20 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   }
 
   /** Review always opens the user's simple selection screen. */
-  function startReview() { setStudyOpen(true); }
+  async function startReview() {
+    if (!readyCount || reviewStarting.current) return;
+    reviewStarting.current = true;
+    setReviewNotice("");
+    try {
+      await openCosmosWindow({ mode: "review", packId: pack.id, source: "recommended",
+        count: Math.min(readyCount, readReviewPrefs(pack.id).size) });
+      reviewOpened.current = true;
+    } catch (error) {
+      setReviewNotice(error instanceof Error ? error.message : "Could not open Review.");
+    } finally {
+      window.setTimeout(() => { reviewStarting.current = false; }, 800);
+    }
+  }
 
   async function openTargeted(_title: string, selected: CardWithStats[], limit?: number, templateId?: string) {
     const next = limit ? selected.slice(0, limit) : selected;
@@ -544,7 +569,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         <div className="topic-learning-actions">
           <div className="topic-session-control" role="group" aria-label="Card sessions">
             <button type="button" className="sort-command new-session-command topic-action-primary" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)} title="Classify new cards"><BookOpen size={15} /> New <small>{unsortedCards.length}</small></button>
-            <button type="button" className="review-command topic-action-review" disabled={!learningCards.length} onClick={() => setStudyOpen(true)} title="Practise classified cards"><Brain size={15} /> Review <small>{learningCards.length}</small></button>
+            <button type="button" className="review-command topic-action-review" disabled={!readyCount} onClick={() => void startReview()} title="Review cards ready today"><Brain size={15} /> Review <small>{readyCount}</small></button>
+             <button type="button" className="secondary-button" onClick={() => setStudyOpen(true)} title="Adjust review order and filters">Adjust</button>
           </div>
           <button type="button" className="secondary-button topic-action-browse" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button type="button" className="secondary-button topic-action-add" onClick={onCapture}><Plus size={15} /> Add</button>
@@ -576,7 +602,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
                   <button className={statusFilters.includes("unsorted") ? "selected" : ""} aria-pressed={statusFilters.includes("unsorted")} onClick={() => chooseStage("unsorted")}>To classify</button>
                   <button className={statusFilters.includes("reference") ? "selected" : ""} aria-pressed={statusFilters.includes("reference")} onClick={() => chooseStage("reference")}>Reference</button>
                   {PROGRESS_STAGES.map((stage) => <button key={stage} className={stateFilter === stage ? "selected" : ""} aria-pressed={stateFilter === stage} onClick={() => chooseState(stage)}>
-                    {stage === "new" ? "Never reviewed" : stage === "review" ? "Reviewed" : stage === "known" ? "Familiar" : "Mastered"}</button>)}
+                    {stage === "new" ? "Never reviewed" : stage === "review" ? "Reviewed" : stage === "known" ? "Known" : "Mastered"}</button>)}
                 </div>
               </section></div>
           </details>

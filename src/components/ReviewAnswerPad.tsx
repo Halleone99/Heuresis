@@ -10,6 +10,7 @@ type Props = { revealed: boolean; onHasWritingChange: (value: boolean) => void }
 export default function ReviewAnswerPad({ revealed, onHasWritingChange }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activePointer = useRef<number | null>(null);
+  const penObserved = useRef(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [eraser, setEraser] = useState(false);
   const strokesRef = useRef(strokes);
@@ -66,7 +67,8 @@ export default function ReviewAnswerPad({ revealed, onHasWritingChange }: Props)
     };
   };
   const start = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (revealed) return;
+    if (revealed || (penObserved.current && event.pointerType === "touch")) return;
+    if (event.pointerType === "pen") penObserved.current = true;
     event.preventDefault();
     const p = point(event);
     if (eraser) {
