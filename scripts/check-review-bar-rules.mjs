@@ -89,4 +89,20 @@ record(4, 0, "good");
 record(4, 1, "good");
 assert.equal(paired(4).mastered, true, "Another day's confirmed pair can grant Mastered");
 assert.equal(reviewEligible(paired(4), pairedEvents, null, false, modern + 4 * DAY + 1, pair), false, "A completed Mastered card stays out");
+// New ratings require Easy in both directions; previously earned bars remain intact.
+const strictStart = Date.UTC(2026, 10, 7, 12);
+const strictEvents = [];
+const strictCard = () => ({ id: "strict", data: {}, stats: { again_count: 0, hard_count: 0,
+  good_count: strictEvents.filter((e) => e.grade === "good").length,
+  easy_count: strictEvents.filter((e) => e.grade === "easy").length,
+  by_template: {}, last_encountered_at: null } });
+const strictProgress = (now) => cardBarProgress(strictCard(), strictEvents, null, pair, now);
+strictEvents.push({ cardId: "strict", templateId: pair[0], grade: "easy", at: strictStart });
+strictEvents.push({ cardId: "strict", templateId: pair[1], grade: "good", at: strictStart + DAY });
+assert.equal(strictProgress(strictStart + DAY + 1).bars, 1, "One Easy plus a Recalled cannot jump to four new bars");
+strictEvents.push({ cardId: "strict", templateId: pair[0], grade: "easy", at: strictStart + 2 * DAY });
+strictEvents.push({ cardId: "strict", templateId: pair[1], grade: "easy", at: strictStart + 3 * DAY });
+assert.equal(strictProgress(strictStart + 3 * DAY + 1).bars, 4, "Easy on both sides can jump to Known");
+const estimatedCard = { ...strictCard(), stats: { ...strictCard().stats, good_count: 9 } };
+assert.equal(cardBarProgress(estimatedCard, null, "strong").mastered, false, "Estimated history never grants Mastered");
 console.log("Review bar rules: legacy progression and bidirectional pairs, Easy, same-day eligibility, recovery and Mastered passed.");
