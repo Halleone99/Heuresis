@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, Archive, BookOpen, Brain, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, type Collection, type PackWithType } from "../lib/heuresis";
 import { formatSeen } from "../lib/learningSignals";
@@ -42,6 +43,10 @@ function newestOpen(packs: PackWithType[]) {
 export default function LibraryView({ collections, packs, archivedCount, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [reviewsOpen, setReviewsOpen] = useState(false);
+  const [reviewOverview, setReviewOverview] = useState<ReviewOverview | null>(null);
+  const [reviewRevision, setReviewRevision] = useState(0);
+  // null means every collection, otherwise the user can combine languages.
+  const [reviewFilterIds, setReviewFilterIds] = useState<string[] | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
@@ -50,6 +55,18 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const [captureRevision, setCaptureRevision] = useState(0);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
   const totalCards = packs.reduce((sum, pack) => sum + pack.card_count, 0);
+  const filteredReviewIds = reviewFilterIds === null ? collections.map((item) => item.id) : reviewFilterIds;
+  const selectedReviewPacks = packs.filter((pack) => filteredReviewIds.includes(pack.collection_id));
+  const reviewsReady = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.ready ?? 0), 0);
+  const reviewsDone = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.reviewedToday ?? 0), 0);
+  const reverseTomorrow = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.reverseTomorrow ?? 0), 0);
+  const refreshReviews = () => setReviewRevision((previous) => previous + 1);
+  const toggleReviewCollection = (id: string) => {
+    setReviewFilterIds((current) => {
+      if (current === null) return [id];
+      return current.includes(id) ? current.filter((value) => value !== id) : [...current, id];
+    });
+  };
 
   const latestCollection = useMemo(() => {
     if (!collections.length) return null;
@@ -111,6 +128,24 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     return () => { alive = false; };
   }, [selectedPacks]);
 
+  useEffect(() => {
+    let alive = true;
+    void loadReviewOverview(packs).then((overview) => {
+      if (alive) setReviewOverview(overview);
+    }).catch(() => {
+      if (alive) setReviewOverview(null);
+    });
+    return () => { alive = false; };
+  }, [packs, reviewRevision]);
+
+  useEffect(() => {
+    const onReturn = () => refreshReviews();
+    const onVisibility = () => { if (!document.hidden) refreshReviews(); };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { window.removeEventListener("focus", onReturn); document.removeEventListener("visibilitychange", onVisibility); };
+  }, []);
+
   function selectCollection(id: string) {
     setSelectedCollectionId(id);
     try { sessionStorage.setItem(LAST_COLLECTION_KEY, id); } catch { /* navigation preference only */ }
@@ -125,7 +160,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     setCollectionId(null);
   }
 
-  if (reviewsOpen) return <ReviewCentre collections={collections} packs={packs} onBack={() => setReviewsOpen(false)} />;
+  if (reviewsOpen) return <ReviewCentre collections={collections} packs={packs} overview={reviewOverview}
+    initialCollectionIds={filteredReviewIds} onBack={() => { setReviewsOpen(false); refreshReviews(); }} onRefresh={refreshReviews} />;
 
   if (activeCollection) {
     const collectionPacks = packs.filter((pack) => pack.collection_id === activeCollection.id);
@@ -211,6 +247,28 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           </div>
         </div>
       </header>
+
+      {collections.length ? <section className="library-review-today" aria-label="Reviews today">
+        <div className="library-review-today-title">
+          <span className="library-review-overline"><Brain size={14} aria-hidden="true" /> DAILY PRACTICE</span>
+          <h2>Reviews today <span>{reviewOverview ? reviewsReady.toLocaleString() + " ready" : "Checking…"}</span></h2>
+          <p>{reviewOverview ? (reviewsReady ? plural(reviewsDone, "card") + " completed today" : "Your selected languages are clear for today") : "Checking your review history…"}
+            {reverseTomorrow > 0 ? " · " + plural(reverseTomorrow, "reverse side") + " tomorrow" : ""}
+            {reviewOverview?.incomplete ? " · Some topics could not be counted" : ""}</p>
+        </div>
+        <div className="library-review-today-controls">
+          <div className="library-review-language-filters" role="group" aria-label="Choose languages for review">
+            <button type="button" aria-pressed={reviewFilterIds === null} className={reviewFilterIds === null ? "is-active" : ""}
+              onClick={() => setReviewFilterIds(null)}>All</button>
+            {collections.map((collection) => <button type="button" key={collection.id}
+              aria-pressed={reviewFilterIds !== null && reviewFilterIds.includes(collection.id)}
+              className={reviewFilterIds !== null && reviewFilterIds.includes(collection.id) ? "is-active" : ""}
+              onClick={() => toggleReviewCollection(collection.id)}>{collection.title}</button>)}
+          </div>
+          <button type="button" className="library-review-start" disabled={!reviewOverview || !filteredReviewIds.length}
+            onClick={() => setReviewsOpen(true)}>Review selection <ArrowRight size={15} aria-hidden="true" /></button>
+        </div>
+      </section> : null}
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
