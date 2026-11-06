@@ -76,6 +76,10 @@ async function revealAndGrade(popup, key) {
     throw error;
   });
   await popup.keyboard.press(key);
+  if (key === "1" || key === "2") {
+    await popup.locator(".cosmos-correction").waitFor();
+    await popup.locator(".cosmos-correction-actions button:has-text(\"Skip note\")").click();
+  }
   await popup.waitForTimeout(350);
 }
 async function waitFor(condition, timeout = 12000) {
@@ -118,6 +122,10 @@ const scenarios = {
         await popup.screenshot({ path: `${shots}/review-revealed.png` });
       }
       await popup.keyboard.press(step === 0 ? "1" : "3");
+      if (step === 0) {
+        await popup.locator(".cosmos-correction").waitFor();
+        await popup.locator(".cosmos-correction-actions button:has-text(\"Skip note\")").click();
+      }
       await popup.waitForTimeout(250);
     }
     await popup.locator(".cosmos-summary").waitFor();
@@ -207,6 +215,38 @@ const scenarios = {
     page.once("dialog", (dialog) => void dialog.accept());
     await page.locator('.ws-dialog button:has-text("Delete permanently")').first().click();
     check(await waitFor(async () => await sql(`select count(*) from heuresis_cards where data->>'term'='${first}'`) === "0"), "Delete permanently (after confirmation) removes it for good");
+  },
+
+  async "typed mistakes save the learner explanation in Supabase and restore it on retry"(page, context) {
+    const popup = await openPopup(context, "source=all&count=1&order=pack&mastered=1&templates=" + REC);
+    const { cardId, templateId } = await current(popup);
+    const before = await gradeCount();
+    await popup.locator('.cosmos-recall-methods button:has-text("Type")').click();
+    await popup.locator(".cosmos-inline-typing").fill("to suffer");
+    await popup.locator(".cosmos-inline-typing").press("Enter");
+    await popup.locator(".cosmos-results").waitFor();
+    await popup.locator(".cosmos-results button:has-text('Missed')").click();
+    await popup.locator(".cosmos-correction").waitFor();
+    check(await popup.locator(".cosmos-correction-fields textarea").first().inputValue() === "to suffer",
+      "The actual typed mistake is captured, not replaced by the suggested grade");
+    check(await gradeCount() === before, "Opening a correction does not advance or grade the card");
+    const explanation = "I confused this word with a different verb; the reference is about shame, not suffering.";
+    await popup.locator(".cosmos-correction-reason textarea").fill(explanation);
+    await popup.locator(".cosmos-correction-save").click();
+    await popup.locator(".cosmos-summary").waitFor();
+    check(await waitFor(async () => await gradeCount() === before + 1),
+      "Saving the explanation also records the Missed grade");
+    const count = Number(await sql("select count(*) from heuresis_review_corrections where card_id='" + cardId + "' and template_id='" + templateId + "' and attempt='to suffer' and explanation='" + explanation.replaceAll("'", "''") + "'"));
+    check(count === 1, "Supabase stores the mistake, its direction and the learner explanation exactly once");
+    await popup.locator('.cosmos-summary-actions button:has-text("Retry")').click();
+    await popup.evaluate(() => document.activeElement?.blur?.());
+    await popup.keyboard.press(" ");
+    await popup.locator(".cosmos-previous-correction summary").waitFor();
+    await popup.locator(".cosmos-previous-correction summary").click();
+    check((await popup.locator(".cosmos-previous-correction").innerText()).includes(explanation),
+      "The previous explanation can be consulted when reviewing the same direction again");
+    await popup.locator(".cosmos-results button:has-text('Known')").click();
+    await popup.close();
   },
 
   async "typed chinese answers get suggested results and input-method enter never reveals"(page, context) {
@@ -402,6 +442,8 @@ const scenarios = {
     check(await popup.locator(".cosmos-add, .cosmos-details-empty button, .cosmos-related button, .cosmos-text-block button, .retention-practice").count() === 0,
       "Review is read-only, with no add or delete actions");
     await popup.keyboard.press("1");
+    await popup.locator(".cosmos-correction").waitFor();
+    await popup.locator(".cosmos-correction-actions button:has-text(\"Skip note\")").click();
     await popup.waitForTimeout(400);
     check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
     if (await popup.locator(".cosmos-card").count() === 1) {
