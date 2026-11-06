@@ -1,5 +1,5 @@
 import { fieldText, type CardWithStats } from "./heuresis";
-import { cardBarProgress } from "./cardProgress";
+import { cardBarProgress, reviewedSuccessfullyToday } from "./cardProgress";
 import { importanceOf, IMPORTANCE_LABEL } from "./importance";
 import {
   assessState, daysSinceEvidence, directionEvidence, STATE_LABEL,
@@ -123,6 +123,8 @@ export function scoreCandidates(input: {
   for (const card of input.cards) {
     const grades = input.events?.filter((event) => event.cardId === card.id) ?? null;
     const pair = input.directions.length === 2 ? input.directions.map((direction) => direction.templateId) : [];
+    // Never queue the other side after this card was answered successfully today.
+    if (pair.length && reviewedSuccessfullyToday(grades, now)) continue;
     const pending = cardBarProgress(card, grades, null, pair, now).pendingDirections ?? [];
     for (const direction of input.directions) {
       if (pending.includes(direction.templateId) || !hasFront(card, direction)) continue;
@@ -195,6 +197,10 @@ export function recommendSession(input: {
     if (picked.state === "not-tried") newPicked += 1; else familiarPicked += 1;
     chosen.push(picked);
     chosenCards.add(picked.card.id);
+    // A daily session contains at most one direction of each card.
+    for (let i = pool.length - 1; i >= 0; i -= 1) {
+      if (pool[i].card.id === picked.card.id) pool.splice(i, 1);
+    }
   }
   return spaceSameCards(chosen.map((candidate) => ({
     cardId: candidate.card.id,
