@@ -48,9 +48,10 @@ export function reviewedSuccessfullyToday(history: GradeEvent[] | null, now = Da
 }
 
 /**
- * A reversible card remains eligible after passing only one direction, including
- * in another session on the same day. Already-passed directions are not repeated
- * simply to earn another bar. One-direction cards keep the old eligibility rule.
+ * A successful answer completes a reversible card for this calendar day. The
+ * opposite direction becomes eligible the next day; the passed side is retained
+ * as pending evidence until its partner is successful. One-direction cards keep
+ * their original same-day lock.
  */
 export function reviewEligible(
   progress: CardBarProgress,
