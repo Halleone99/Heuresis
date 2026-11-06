@@ -11,7 +11,7 @@ export const RESULT_ORDER: readonly StudyGrade[] = ["again", "hard", "good", "ea
 export const RESULT_LABEL: Record<StudyGrade, string> = {
   again: "Missed",
   hard: "Partial",
-  good: "Known",
+  good: "Recalled",
   easy: "Easy",
 };
 
@@ -31,7 +31,7 @@ export function resultCountsText(stats: Pick<CardStats, "again_count" | "hard_co
   const parts: string[] = [];
   if (stats.again_count) parts.push(`${stats.again_count} missed`);
   if (stats.hard_count) parts.push(`${stats.hard_count} partial`);
-  if (stats.good_count) parts.push(`${stats.good_count} known`);
+  if (stats.good_count) parts.push(`${stats.good_count} recalled`);
   if (stats.easy_count) parts.push(`${stats.easy_count} easy`);
   return parts.join(" · ");
 }
