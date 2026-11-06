@@ -57,9 +57,9 @@ export default function ReviewCorrectionPanel({ grade, initialAttempt, reference
     </div>
     {error ? <p className="cosmos-correction-error" role="alert">{error}</p> : null}
     <div className="cosmos-correction-actions">
-      <button type="button" disabled={saving} onClick={onCancel}>Back to ratings</button>
-      <button type="button" disabled={saving} onClick={onSkip} title="Record the review grade without a written correction">Skip note</button>
-      <button className="cosmos-correction-save" type="submit" disabled={saving || !explanation.trim()}>{saving ? "Saving…" : "Save correction & continue"}</button>
+      <button type="button" disabled={saving} onClick={onCancel}>Close</button>
+      <button type="button" disabled={saving} onClick={onSkip} title="Dismiss this optional correction">Skip note</button>
+      <button className="cosmos-correction-save" type="submit" disabled={saving || !explanation.trim()}>{saving ? "Saving…" : "Save correction"}</button>
     </div>
   </form>;
 }
