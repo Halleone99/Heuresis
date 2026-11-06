@@ -61,7 +61,9 @@ export function reviewEligible(
   selectedDirectionIds?: string[],
 ): boolean {
   if (progress.pendingDirections !== undefined) {
-    if (progress.completedToday) return false;
+    // A successful answer finishes this card for today. The reverse direction
+    // becomes eligible on a later day, without losing its pending pair progress.
+    if (progress.completedToday || reviewedSuccessfullyToday(history, now)) return false;
     if (selectedDirectionIds?.length && selectedDirectionIds.every((id) => progress.pendingDirections?.includes(id))) return false;
   } else if (reviewedSuccessfullyToday(history, now)) return false;
   if (includeMastered) return true;
