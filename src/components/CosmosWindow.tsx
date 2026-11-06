@@ -896,12 +896,16 @@ export default function CosmosWindow() {
     const gained = results.reduce((sum, item) => sum + Math.max(0, item.barsAfter - item.barsBefore), 0);
     const lost = results.reduce((sum, item) => sum + Math.max(0, item.barsBefore - item.barsAfter), 0);
     const mastered = results.filter((item) => !item.masteredBefore && item.masteredAfter).length;
+    const confirmedSides = results.filter((item) => isSuccess(item.grade)).length;
+    const progressSummary = gained === 0 && lost === 0 && progressDirectionIds.length === 2 && confirmedSides > 0
+      ? confirmedSides + " directions confirmed · reverse sides tomorrow"
+      : gained + " bars gained · " + lost + " bars lost";
     return [
       reviewed + " cards reviewed",
-      gained + " bars gained · " + lost + " bars lost",
+      progressSummary,
       mastered + " cards newly Mastered",
     ];
-  }, [done, results]);
+  }, [done, results, progressDirectionIds]);
 
   const correctionPrompt = pendingCorrection ? (correctionGrade
     ? <ReviewCorrectionPanel key={pendingCorrection.cardId + ":" + pendingCorrection.templateId}
