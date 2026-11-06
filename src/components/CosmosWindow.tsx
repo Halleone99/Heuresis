@@ -763,7 +763,15 @@ export default function CosmosWindow() {
       const exclude = new Set(results.map((entry) => candidateKey(entry.cardId, entry.templateId ?? "")));
       const directions = sessionTemplates.map((entry) => ({ templateId: entry.id, label: entry.name, front: entry.front, legacy: entry.id === legacyId }));
       const lastCard = results[results.length - 1]?.cardId;
-      return recommendSession({ cards: cards.filter(cardHasCompletedSort), directions, events, size: MORE_SIZE, exclude, recent: lastCard ? [lastCard] : [] })
+      const answered = new Set(results.map((entry) => entry.cardId));
+      const eligibleCards = cards.filter(cardHasCompletedSort).filter((entry) => {
+        if (answered.has(entry.id)) return false;
+        const grades = events?.filter((event) => event.cardId === entry.id) ?? null;
+        const oldState = assessState(directionEvidence(entry, null, grades)).state;
+        return reviewEligible(cardBarProgress(entry, grades, oldState, progressDirectionIds),
+          grades, entry.stats.last_encountered_at, config.includeMastered, Date.now(), sessionTemplates.map((item) => item.id));
+      });
+      return recommendSession({ cards: eligibleCards, directions, events, size: MORE_SIZE, exclude, recent: lastCard ? [lastCard] : [] })
         .map((rec) => ({ cardId: rec.cardId, templateId: rec.templateId, reasons: rec.reasons, state: rec.state }));
     }
     return manualRest.slice(0, MORE_SIZE);
@@ -1071,7 +1079,7 @@ export default function CosmosWindow() {
     <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
       {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentBars ? ` · ${currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : currentBars.bars + "/4 bars"}` : ""}
-        {sessionTemplates.length > 1 && !revealed ? <button type="button" className="cosmos-extra-toggle" disabled={busy}
+        {sessionTemplates.length > 1 && !revealed && !currentBars?.pendingDirections?.length ? <button type="button" className="cosmos-extra-toggle" disabled={busy}
           onClick={() => setQueue((items) => items.map((entry, position) => position === index
             ? { ...entry, templateId: sessionTemplates[(sessionTemplates.findIndex((candidate) => candidate.id === entry.templateId) + 1) % sessionTemplates.length].id }
             : entry))}>Switch direction</button> : null}
