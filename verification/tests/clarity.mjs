@@ -34,7 +34,10 @@ async function openTopic(page) {
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(400);
 }
-const stageCount = async (page, stage) => Number(await page.locator(`[data-stage="${stage}"] strong`).innerText());
+const stageCount = async (page, stage) => {
+  const count = page.locator(`[data-stage="${stage}"] strong`);
+  return await count.count() ? Number(await count.innerText()) : 0;
+};
 /** True when the element under (x, y) belongs to the given selector (i.e. nothing covers it). */
 const topmostIs = (page, x, y, selector) => page.evaluate(({ x, y, selector }) => Boolean(document.elementFromPoint(x, y)?.closest(selector)), { x, y, selector });
 
