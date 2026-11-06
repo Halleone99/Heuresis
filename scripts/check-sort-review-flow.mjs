@@ -18,12 +18,13 @@ assert.doesNotMatch(review, /Sort or review|study-mode-card sort|Sort cards<\/h2
 assert.match(review, /mode: "review"/, "Review session must still launch");
 
 assert.match(sort, /completeCardSort\(/, "Keep interest scoring");
+assert.match(sort, /onClick=\{\(\) => void learn\(rank\)\}/, "Importance must be a one-click decision");
 assert.match(sort, /setSortTags\(/, "Keep per-card tag editing");
-assert.doesNotMatch(sort, /setCardRetention\(card\.id, "reference"\)|keepReference\(/, "Sorting has no redundant Reference action");
+assert.match(sort, /setCardRetention\(card\.id, "reference"\)/, "Keep as reference must be restored");
 assert.match(sort, /<SkipForward size=\{15\} \/> Later/, "New cards retains a later decision");
 assert.match(sort, /Discard/, "Sorting retains recoverable Discard");
 assert.match(sort, /function beginSort\(/, "One sort setup must select its queue");
-assert.match(sort, /useState\(!startCardId\)/, "New opens setup before showing unsorted cards");
+assert.match(sort, /useState\(!startCardId && !fastStart\)/, "New opens setup unless quick start is requested");
 assert.match(sort, /selection\.slice\(0, selectedCount\)/, "Chosen quantity limits the actual queue");
 assert.match(sort, /type="checkbox" checked=\{selectedTags\.includes\(tag\.id\)\}/, "Tags can be selected at setup");
 assert.match(sort, /const candidates = useMemo\(/, "Sort setup must retain search/tag filtering");
