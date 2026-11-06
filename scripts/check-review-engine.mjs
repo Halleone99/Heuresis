@@ -109,7 +109,8 @@ for (let i = 1; i < two.length; i += 1) assert.notEqual(two[i].cardId, two[i - 1
 assert.equal(engine.spaceSameCards([{ cardId: "A" }, { cardId: "B" }], ["A"])[0].cardId, "B", "the first card of a new round is not the card just answered");
 
 const both = engine.recommendSession({ cards: [card("x"), card("y"), card("z"), card("v")], directions: [REC, PRO], events: [], size: 8, now: NOW });
-for (let i = 1; i < both.length; i += 1) assert.notEqual(both[i].cardId, both[i - 1].cardId, "opposite directions of one card are never adjacent");
+assert.equal(both.length, 4, "A daily recommendation selects each card only once, even with two directions");
+assert.equal(new Set(both.map((entry) => entry.cardId)).size, both.length, "No reverse direction is queued in the same session");
 
 const done = new Set(mixed.map((item) => engine.candidateKey(item.cardId, item.templateId)));
 const more = engine.recommendSession({ cards: [...many, ...familiar], directions: [REC], events: famEvents, size: 10, exclude: done, now: NOW });
