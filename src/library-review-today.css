@@ -1,0 +1,119 @@
+/* Daily review, integrated with the existing transparent Library surfaces. */
+.intelligent-library .library-review-today {
+  display: grid;
+  grid-template-columns: minmax(240px, .98fr) minmax(0, 1.28fr);
+  align-items: center;
+  gap: 22px;
+  margin: 18px 0 20px;
+  padding: 19px 23px;
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 19px;
+  background: linear-gradient(110deg,
+    color-mix(in srgb, var(--ws-raised) 91%, transparent),
+    color-mix(in srgb, var(--ws-accent) 6%, var(--ws-surface)));
+  box-shadow: var(--ws-shadow-1);
+  backdrop-filter: blur(20px);
+}
+.library-review-today-title { min-width: 0; }
+.library-review-overline {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 10px; letter-spacing: .12em; font-weight: 700;
+  color: var(--ws-accent);
+}
+.library-review-today-title h2 {
+  margin: 7px 0 5px;
+  font: 400 27px/1.12 var(--serif, Georgia, serif);
+  letter-spacing: -.02em;
+  color: var(--ws-ink);
+}
+.library-review-today-title h2 span {
+  margin-left: 10px;
+  font: 600 12px/1.1 var(--ws-sans, Inter, sans-serif);
+  letter-spacing: 0;
+  color: var(--ws-ink);
+}
+.library-review-today-title p {
+  margin: 0; color: var(--ws-muted);
+  font: 400 11px/1.5 var(--ws-sans, Inter, sans-serif);
+}
+.library-review-today-controls {
+  min-width: 0;
+  display: flex; align-items: center; justify-content: flex-end; gap: 14px;
+}
+.library-review-language-filters,
+.reviews-centre-filter-group {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px;
+}
+.library-review-language-filters button,
+.reviews-centre-filter-group button {
+  border: 1px solid var(--ws-line-strong);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--ws-surface) 72%, transparent);
+  color: var(--ws-muted);
+  font: 600 11px/1 var(--ws-sans, Inter, sans-serif);
+  cursor: pointer;
+  transition: background .16s, border-color .16s, color .16s;
+}
+.library-review-language-filters button:hover,
+.reviews-centre-filter-group button:hover { border-color: var(--ws-accent); color: var(--ws-ink); }
+.library-review-language-filters button.is-active,
+.reviews-centre-filter-group button.active {
+  border-color: color-mix(in srgb, var(--ws-accent) 52%, var(--ws-line));
+  background: color-mix(in srgb, var(--ws-accent) 15%, var(--ws-raised));
+  color: var(--ws-ink);
+}
+.library-review-start,
+.reviews-centre-start-all {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  flex: 0 0 auto;
+  min-height: 39px; border: 0; border-radius: 11px;
+  padding: 10px 15px;
+  background: var(--ws-primary, var(--ws-ink));
+  color: var(--ws-primary-ink, var(--ws-surface));
+  font: 650 12px/1.2 var(--ws-sans, Inter, sans-serif);
+  cursor: pointer;
+}
+.library-review-start:hover,
+.reviews-centre-start-all:hover { filter: brightness(1.09); }
+.library-review-start:disabled,
+.reviews-centre-start-all:disabled { opacity: .48; cursor: not-allowed; }
+.reviews-centre-review-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 14px; margin: 0 0 24px; padding: 14px 16px;
+  border: 1px solid var(--ws-line-strong); border-radius: 15px;
+  background: color-mix(in srgb, var(--ws-raised) 87%, transparent);
+  backdrop-filter: blur(18px);
+}
+.reviews-centre-filter-group { justify-content: flex-start; }
+.reviews-centre-route {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px; margin: -10px 0 22px; padding: 12px 16px;
+  border-bottom: 1px solid var(--ws-line-strong);
+  color: var(--ws-muted); font: 500 12px var(--ws-sans, Inter, sans-serif);
+}
+.reviews-centre-route button {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 0; background: transparent; padding: 6px 0;
+  color: var(--ws-accent); font: 650 12px var(--ws-sans, Inter, sans-serif);
+  cursor: pointer;
+}
+.reviews-centre-route button:disabled { opacity: .5; cursor: progress; }
+@media (max-width: 1120px) {
+  .intelligent-library .library-review-today { grid-template-columns: 1fr; gap: 13px; }
+  .library-review-today-controls { justify-content: space-between; }
+  .library-review-language-filters { justify-content: flex-start; }
+}
+@media (max-width: 600px) {
+  .intelligent-library .library-review-today { padding: 16px; margin: 15px 0 18px; }
+  .library-review-today-title h2 { font-size: 24px; }
+  .library-review-today-title h2 span { display: inline-block; }
+  .library-review-today-controls { align-items: stretch; flex-direction: column; }
+  .library-review-start { width: 100%; }
+  .reviews-centre-review-bar { align-items: stretch; flex-direction: column; }
+  .reviews-centre-start-all { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .library-review-language-filters button,
+  .reviews-centre-filter-group button { transition: none; }
+}
