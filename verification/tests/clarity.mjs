@@ -29,7 +29,8 @@ async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
   await page.waitForTimeout(800);
   await page.locator('button:has-text("HSK 2 — Time")').first().click();
-  await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+  const expand = page.locator('.topic-browse-actions button:has-text("Show all")');
+  if (await expand.count()) await expand.click();
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(400);
 }
@@ -48,17 +49,12 @@ function contrast(a, b) {
 const rgb = (value) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
 
 const scenarios = {
-  async "topic starts with tag groups rather than every card"(page) {
+  async "small topics show searchable cards without an unnecessary expansion"(page) {
     await page.click('.hw-sections button:has-text("Study")');
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();
-    check(await page.locator(".modern-topic-row").count() === 0, "opening a topic does not render every card");
-    check(await page.locator(".topic-filter-picker").count() === 1, "a compact searchable tag and state selector is available instead");
-    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
-    await page.locator(".modern-topic-row").first().waitFor();
-    check(await page.locator(".modern-topic-row").count() >= 5, "Show all explicitly expands the full table");
-    await page.locator('.topic-browse-actions button:has-text("Overview")').click();
-    check(await page.locator(".modern-topic-row").count() === 0, "Overview hides the table again");
+    check(await page.locator(".modern-topic-row").count() >= 5, "small topic shows its cards directly");
+    check(await page.locator(".inline-topic-filter").count() >= 3, "importance, state and tag filters remain accessible");
   },
 
   async "study stages agree in Library, topic, Sort, Browse and Review"(page) {
@@ -68,14 +64,16 @@ const scenarios = {
     const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
     check(/2 UNSORTED/i.test(libraryRow), `Library counts the two unsorted cards (“${libraryRow}”)`);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
-    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    const expand = page.locator('.topic-browse-actions button:has-text("Show all")');
+    if (await expand.count()) await expand.click();
     await page.locator(".modern-topic-row").first().waitFor();
     await page.waitForTimeout(400);
     const [unsorted, learning, reference] = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];
     check(unsorted === 2 && learning === 5 && reference === 0, `topic stages are Unsorted 2 → Learning 5 · Reference 0 (got ${unsorted} / ${learning} / ${reference})`);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(/^1 \/ 2$/.test((await page.locator(".sort-topbar > span").innerText()).trim()), "Sort opens on the first of the two unsorted cards, never reviewed ones");
+    check(await page.locator(".sort-card").count() === 1, "Sort only shows unsorted cards after the selection setup");
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("Browse")').first().click();
     await page.locator(".browse-status-grid").waitFor();
@@ -84,7 +82,7 @@ const scenarios = {
     check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
     check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
     await page.keyboard.press("Escape");
-    await page.locator(".review-command").click();
+    await page.locator('button[title="Adjust review order and filters"]').click();
     await page.locator(".review-controls").waitFor();
     // Eligibility can change when historical grades arrive: mastered cards are excluded
     // unless requested. Assert against the *loaded* pool, not its transient initial count.
@@ -105,6 +103,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     check(await topmostIs(page, 120, 300, ".sort-backdrop"), "Sort covers the sidebar instead of sitting under it");
     check(await topmostIs(page, 200, 100, ".sort-modal"), "the Sort title is visible (not hidden behind the sidebar)");
@@ -117,7 +116,7 @@ const scenarios = {
 
   async "selected review direction stays readable while hovered"(page) {
     await openTopic(page);
-    await page.locator(".review-command").click();
+    await page.locator('button[title="Adjust review order and filters"]').click();
     await page.locator(".review-controls").waitFor();
     const selected = page.locator('.study-order-toggle button[aria-pressed="true"]');
     await selected.hover();
@@ -131,6 +130,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-enrichment").waitFor();
     const left = await page.locator(".sort-enrichment").boundingBox();
     const centre = await page.locator(".sort-card").boundingBox();
@@ -156,6 +156,7 @@ const scenarios = {
       "New knowledge is saved to the original flashcard data");
     await page.keyboard.press("Escape");
     await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").click();
     if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
       await page.locator('.sort-enrich-heading:has-text("Examples")').click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
@@ -166,14 +167,15 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(true, "Sort opens straight into the queue (no setup step)");
+    check(true, "Sort begins after selecting the batch");
     const decision = page.locator(".sort-panel");
     check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
-    check(await decision.getByRole("button", { name: "Learn as Core" }).count() === 1, "Core classification is available");
-    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is no longer a Sort action");
-    check(await decision.getByRole("button", { name: /^Later/ }).count() === 1, "Sort Later is available");
-    check(await decision.getByRole("button", { name: /Discard/ }).count() === 1, "Discard to Trash remains recoverable");
+    check(await decision.getByRole("button", { name: "Select Core importance" }).count() === 1, "Core classification is available");
+    check(await page.locator('.sort-footer-reference:has-text("Keep as reference")').count() === 1, "Keep as reference is restored");
+    check(await page.locator(".sort-footer-later").count() === 1, "Sort Later is available");
+    check(await page.locator(".sort-footer-discard").count() === 1, "Discard to Trash remains recoverable");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("l");
     await page.waitForTimeout(350);
