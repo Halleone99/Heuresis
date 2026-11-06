@@ -19,8 +19,8 @@ import type { StudyTemplate } from "./study";
  * A session is then picked greedily with soft mixing: every new card already chosen
  * makes the next new card a little less attractive, and every familiar card the next
  * familiar one, so new and familiar cards mix without a fixed ratio (weak familiar
- * cards still come first). The opposite direction of a card already chosen is
- * discounted and never placed right after it.
+ * cards still come first). A successful card is held until tomorrow, and a
+ * recommended daily session includes at most one direction of each card.
  * Every recommendation carries plain-language reasons.
  */
 
