@@ -42,6 +42,9 @@ jobs:
           (cd verification && nohup node gateway.mjs > gateway.log 2>&1 &)
           nohup npx vite --port 1421 --strictPort > vite.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:1421/ >/dev/null && curl -sf http://localhost:54321/rest/v1/ >/dev/null && break; sleep 1; done
+      - name: Review correction persistence smoke test
+        working-directory: verification
+        run: node tests/review-v3.mjs "typed mistakes save"
       - name: Review and Sort real-browser scenarios
         working-directory: verification
         run: |
