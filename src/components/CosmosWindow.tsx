@@ -304,16 +304,15 @@ export default function CosmosWindow() {
     setMethodState(next);
     writeReviewMethod(next);
   };
-  // Remember the method last used for this specific card (not the direction).
+  // The answering method is chosen for the whole review session, not per card.
+  // A card's last method is saved for its history and counts, but must never
+  // override the method the user most recently selected.
   useEffect(() => {
-    if (mode !== "review" || !card) return;
-    const saved = card.data[REVIEW_LAST_METHOD_KEY];
-    const valid = saved === "think" || saved === "type" || saved === "handwrite" || saved === "say" || saved === "hear";
-    const next = valid ? saved as ReviewMethod : readReviewMethod();
+    if (mode !== "review" || method !== "hear" || !card) return;
     const front = template?.front.length ? template.front : [fieldByRole(pack?.cardType, "term")?.key].filter((key): key is string => Boolean(key));
     const listeningAvailable = Boolean(reviewSpokenPrompt(front ?? [], card.data, fieldByRole(pack?.cardType, "reading")?.key));
-    setMethodState(next === "hear" && !listeningAvailable ? "think" : next);
-  }, [mode, card?.id, template?.id, pack?.id]);
+    if (!listeningAvailable) setMethodState("think");
+  }, [mode, method, card?.id, template?.id, pack?.id]);
 
   const patchLocalCard = useCallback((cardId: string, updater: (card: CardWithStats) => CardWithStats) => {
     setCards((current) => current.map((entry) => entry.id === cardId ? updater(entry) : entry));
