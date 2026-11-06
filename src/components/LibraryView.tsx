@@ -84,7 +84,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
   const nextNewTopic = newTopics.find((pack) => pack.id === newTopicId) ?? newTopics[0] ?? null;
   const newTopicReady = nextNewTopic ? reviewOverview?.topics[nextNewTopic.id]?.newReady ?? 0 : 0;
-  const newBatchSize = Math.min(newTopicReady, Math.max(1, newCardQuota - todayNew || newCardQuota));
+  const newBatchSize = Math.min(newTopicReady, todayNew >= newCardQuota ? newCardQuota : Math.max(1, newCardQuota - todayNew));
   const newProgress = Math.min(100, Math.round((todayNew / newCardQuota) * 100));
 
   function changeNewCardQuota(value: number) {
