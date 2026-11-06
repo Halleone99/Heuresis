@@ -130,7 +130,7 @@ function parseConfig(): Config {
     packId,
     templateId: params.get("template") ?? "",
     templateIds,
-    source: source === "recommended" ? "all" : source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
+    source: source === "recommended" || source === "new" || source === "favourites" || source === "interesting" || source === "again" || source === "unsorted" ? source : "all",
     order: params.get("order") === "random" || params.get("order") === "weakest" || params.get("order") === "oldest" ? params.get("order") as Order : source === "recommended" ? "weakest" : "pack",
     count: rawCount === "all" || !Number.isFinite(numeric) || numeric <= 0 ? "all" : Math.floor(numeric),
     tagIds: params.getAll("tag").filter(Boolean),
@@ -372,13 +372,14 @@ export default function CosmosWindow() {
 
         let nextQueue: QueueItem[] = [];
         let rest: QueueItem[] = [];
+        const deliberateSelection = Boolean(config.selectionToken || config.tagIds.length || config.reviewFlags.length || config.query);
         const ready = allCards.filter(cardHasCompletedSort).filter((entry) => {
           if (config.mode !== "review") return true;
           const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
           const oldState = assessState(directionEvidence(entry, null, grades)).state;
           const progress = cardBarProgress(entry, grades, oldState, progressPair);
           return reviewEligible(progress, grades, entry.stats.last_encountered_at,
-            config.includeMastered || Boolean(config.selectionToken), Date.now(), activeTemplates.map((template) => template.id));
+            config.includeMastered || Boolean(config.selectionToken), Date.now(), activeTemplates.map((template) => template.id), deliberateSelection);
         });
         // A filtered or targeted review must never quietly fall back to every card.
         const selection = config.selectionToken ? readReviewSelection(config.packId, config.selectionToken) : [];
@@ -386,8 +387,13 @@ export default function CosmosWindow() {
         if (isRecommended) {
           const legacy = legacyTemplateId(nextTemplates, setup.defaultTemplateId);
           const directions = activeTemplates.map((entry) => ({ templateId: entry.id, label: entry.name, front: entry.front, legacy: entry.id === legacy }));
-          const size = config.count === "all" ? ready.length * directions.length : config.count;
-          nextQueue = recommendSession({ cards: ready, directions, events: history, size })
+          let recommendedCards = selection.length ? ready.filter((entry) => selection.includes(entry.id)) : ready;
+          if (config.tagIds.length) recommendedCards = recommendedCards.filter((entry) => config.tagIds.every((id) => entry.tags.some((tag) => tag.id === id)));
+          if (config.reviewFlags.length) recommendedCards = recommendedCards.filter((entry) => config.reviewFlags.every((flag) =>
+            flag === "favourite" ? entry.favourite : flag === "important" ? (entry.data["_review_important"] === "true" || entry.tags.some((tag) => tag.name.toLowerCase() === "important")) : flag === "missed" ? entry.stats.again_count >= 2 : true));
+          if (config.query) recommendedCards = recommendedCards.filter((entry) => [entry.note ?? "", ...Object.values(entry.data).flatMap((value) => Array.isArray(value) ? value : [value])].join(" ").toLocaleLowerCase().includes(config.query.toLocaleLowerCase()));
+          const size = config.count === "all" ? recommendedCards.length * directions.length : config.count;
+          nextQueue = recommendSession({ cards: recommendedCards, directions, events: history, size })
             .map((rec) => ({ cardId: rec.cardId, templateId: rec.templateId, reasons: rec.reasons, state: rec.state }));
         } else {
           let pool = relatedReview
@@ -416,14 +422,14 @@ export default function CosmosWindow() {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
               return reviewEligible(cardBarProgress(entry, grades, oldState, progressPair), grades, entry.stats.last_encountered_at,
-                config.includeMastered || selection.length > 0, Date.now(), activeTemplates.map((template) => template.id));
+                config.includeMastered || selection.length > 0, Date.now(), activeTemplates.map((template) => template.id), deliberateSelection);
             });
           }
           if (config.order === "random") pool = shuffle(pool);
           else if (config.order === "weakest") pool.sort((a, b) => {
             const progress = (entry: CardWithStats) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
-              return cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state);
+              return cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state, progressPair);
             };
             const left = progress(a); const right = progress(b);
             return (left.bars + (left.mastered ? 1 : 0)) - (right.bars + (right.mastered ? 1 : 0));
@@ -930,6 +936,7 @@ export default function CosmosWindow() {
         {summary ? <div className="cosmos-summary-lines">{summary.map((line) => <p key={line}>{line}</p>)}</div> : <p>No cards were answered.</p>}
         <div className="cosmos-summary-actions">
           {retryableThisRound.length ? <button className="primary" disabled={busy} onClick={() => void retryMissed()}>{busy ? "Opening…" : `Retry ${plural(retryableThisRound.length, "missed or partial card")}`}</button> : null}
+           {moreAvailable ? <button disabled={busy} onClick={() => void continueWithMore()}>10 more</button> : null}
           <button disabled={busy} onClick={() => void closeSession().then(() => closeDesktopWindow())}>Done</button>
         </div>
       </div>;
