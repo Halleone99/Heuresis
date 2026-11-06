@@ -78,7 +78,7 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
       const templateIds = defaultDirections(setup.templates, setup.defaultTemplateId).map((item) => item.id);
       if (!templateIds.length) throw new Error(`No review directions are configured for “${pack.title}”.`);
       await openCosmosWindow({
-        mode: "review", packId, templateIds, source: "all", order: "weakest",
+        mode: "review", packId, templateIds, source: "recommended", order: "weakest",
         count: "all", cardIds,
       });
       setRoutePosition(nextPosition);
