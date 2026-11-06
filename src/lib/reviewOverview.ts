@@ -3,7 +3,7 @@ import { cardBarProgress, reviewEligible, reviewedSuccessfullyToday } from "./ca
 import { assessState, directionEvidence, type GradeEvent } from "./knowledgeState";
 import { defaultDirections } from "./recommend";
 import { loadGradeEvents } from "./reviewEvidence";
-import { cardHasCompletedSort } from "./sort";
+import { cardHasCompletedSort, SORTED_AT_KEY } from "./sort";
 import { loadStudySetup } from "./study";
 
 export type TopicReviewSummary = {
@@ -11,6 +11,8 @@ export type TopicReviewSummary = {
   ready: number;
   reviewedToday: number;
   reverseTomorrow: number;
+  newReady: number;
+  newToday: number;
   /** Cards to include in an explicitly requested full-topic review. */
   readyCardIds: string[];
 };
@@ -18,6 +20,8 @@ export type ReviewOverview = {
   ready: number;
   reviewedToday: number;
   reverseTomorrow: number;
+  newReady: number;
+  newToday: number;
   topics: Record<string, TopicReviewSummary>;
   /** Do not silently show a complete-looking total if any topic failed to load. */
   incomplete: boolean;
@@ -49,9 +53,18 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     const readyCardIds: string[] = [];
     let reviewedToday = 0;
     let reverseTomorrow = 0;
+    let newReady = 0;
+    let newToday = 0;
+    const today = new Date(now).toDateString();
 
     for (const card of cards) {
-      if (!cardHasCompletedSort(card) || !directions.length) continue;
+      if (!cardHasCompletedSort(card)) { newReady += 1; continue; }
+      // A card counts towards the daily new-card quota only once it is actually
+      // classified and saved. Undo removes _sorted_at and reverses this count.
+      const sortedAt = card.data[SORTED_AT_KEY];
+      if (typeof sortedAt === "string" && sortedAt && Number.isFinite(Date.parse(sortedAt))
+        && new Date(sortedAt).toDateString() === today) newToday += 1;
+      if (!directions.length) continue;
       const grades = history ? groups.get(card.id) ?? [] : null;
       const oldState = assessState(directionEvidence(card, null, grades)).state;
       const progress = cardBarProgress(card, grades, oldState, pair, now);
@@ -61,7 +74,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
         if (pair.length && progress.pendingDirections?.length === 1) reverseTomorrow += 1;
       }
     }
-    return { packId: pack.id, ready: readyCardIds.length, reviewedToday, reverseTomorrow, readyCardIds };
+    return { packId: pack.id, ready: readyCardIds.length, reviewedToday, reverseTomorrow, newReady, newToday, readyCardIds };
   }));
 
   const topics: Record<string, TopicReviewSummary> = {};
@@ -75,6 +88,8 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     ready: values.reduce((sum, topic) => sum + topic.ready, 0),
     reviewedToday: values.reduce((sum, topic) => sum + topic.reviewedToday, 0),
     reverseTomorrow: values.reduce((sum, topic) => sum + topic.reverseTomorrow, 0),
+    newReady: values.reduce((sum, topic) => sum + topic.newReady, 0),
+    newToday: values.reduce((sum, topic) => sum + topic.newToday, 0),
     topics,
     incomplete,
   };

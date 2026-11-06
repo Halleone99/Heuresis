@@ -15,6 +15,8 @@ type Props = {
   cards: CardWithStats[];
   tags: HeuresisTag[];
   startCardId?: string | null;
+  /** One-tap daily quota launcher bypasses setup with this many unsorted cards. */
+  quickStartCount?: number;
   onClose: () => void;
   onChanged: () => void;
   /** Offered when the pass is finished: the next useful learning action. */
@@ -42,25 +44,27 @@ function shuffled<T>(items: T[]) {
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
-export default function SortModal({ pack, cards, tags, startCardId = null, onClose, onChanged, onReview }: Props) {
+export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, onClose, onChanged, onReview }: Props) {
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
   const dialogRef = useRef<HTMLElement>(null);
+  const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
   const [randomOrder, setRandomOrder] = useState(() => readOrder() === "random");
   const [queue, setQueue] = useState<CardWithStats[]>(() => {
     const ordered = readOrder() === "random" ? shuffled(unsorted) : unsorted;
-    if (!startCardId) return ordered;
-    const selected = ordered.find((item) => item.id === startCardId);
-    return selected ? [selected, ...ordered.filter((item) => item.id !== startCardId)] : ordered;
+    if (startCardId) {
+      const selected = ordered.find((item) => item.id === startCardId);
+      return selected ? [selected, ...ordered.filter((item) => item.id !== startCardId)] : ordered;
+    }
+    return fastStart ? ordered.slice(0, Math.floor(quickStartCount!)) : ordered;
   });
-  // The topic's New button must show setup before any sorting decision can be made.
-  // Direct links to a particular card can still open that card immediately.
-  const [filtersOpen, setFiltersOpen] = useState(!startCardId);
-  const [sessionStarted, setSessionStarted] = useState(Boolean(startCardId));
+  // The topic's New button retains its setup screen; the daily quota can begin immediately.
+  const [filtersOpen, setFiltersOpen] = useState(!startCardId && !fastStart);
+  const [sessionStarted, setSessionStarted] = useState(Boolean(startCardId || fastStart));
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagSearch, setTagSearch] = useState("");
   // Keep the draft as text: clearing and retyping a number must work normally.
-  const [count, setCount] = useState(() => String(Math.min(20, Math.max(1, unsorted.length))));
+  const [count, setCount] = useState(() => String(Math.min(quickStartCount ?? 20, Math.max(1, unsorted.length))));
   const requestedCount = Number(count);
   const validCount = /^\d+$/.test(count.trim()) && Number.isSafeInteger(requestedCount) && requestedCount > 0;
   const scopeTags = useMemo(() => {

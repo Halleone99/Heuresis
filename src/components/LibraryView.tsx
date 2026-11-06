@@ -1,12 +1,13 @@
-import { ArrowLeft, ArrowRight, Archive, BookOpen, Brain, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, BookOpen, Brain, ChevronRight, Layers3, Link2, Minus, Pencil, Play, Plus, Sparkles, Target } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
-import { listCards, type Collection, type PackWithType } from "../lib/heuresis";
+import { listCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { formatSeen } from "../lib/learningSignals";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import ReviewCentre from "./ReviewCentre";
+import SortModal from "./SortModal";
 
 type Props = {
   collections: Collection[];
@@ -22,6 +23,17 @@ type Props = {
 };
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
+const NEW_CARD_QUOTA_KEY = "heuresis.newCards.dailyQuota.v1";
+
+function readNewCardQuota(): number {
+  try {
+    const value = Number(localStorage.getItem(NEW_CARD_QUOTA_KEY));
+    if (Number.isSafeInteger(value) && value >= 5 && value <= 50) return value;
+  } catch { /* Device preference; card progress is saved in Supabase. */ }
+  return 10;
+}
+
+type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number };
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
@@ -45,6 +57,11 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [reviewOverview, setReviewOverview] = useState<ReviewOverview | null>(null);
   const [reviewRevision, setReviewRevision] = useState(0);
+  const [newCardQuota, setNewCardQuota] = useState(readNewCardQuota);
+  const [newTopicId, setNewTopicId] = useState<string | null>(null);
+  const [quickSort, setQuickSort] = useState<QuickSortSession | null>(null);
+  const [newOpening, setNewOpening] = useState(false);
+  const [newError, setNewError] = useState("");
   // null means every collection, otherwise the user can combine languages.
   const [reviewFilterIds, setReviewFilterIds] = useState<string[] | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
@@ -61,6 +78,40 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const reviewsDone = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.reviewedToday ?? 0), 0);
   const reverseTomorrow = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.reverseTomorrow ?? 0), 0);
   const refreshReviews = () => setReviewRevision((previous) => previous + 1);
+  const todayNew = reviewOverview?.newToday ?? 0;
+  const newReady = reviewOverview?.newReady ?? 0;
+  const newTopics = packs.filter((pack) => (reviewOverview?.topics[pack.id]?.newReady ?? 0) > 0)
+    .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
+  const nextNewTopic = newTopics.find((pack) => pack.id === newTopicId) ?? newTopics[0] ?? null;
+  const newTopicReady = nextNewTopic ? reviewOverview?.topics[nextNewTopic.id]?.newReady ?? 0 : 0;
+  const newBatchSize = Math.min(newTopicReady, Math.max(1, newCardQuota - todayNew || newCardQuota));
+  const newProgress = Math.min(100, Math.round((todayNew / newCardQuota) * 100));
+
+  function changeNewCardQuota(value: number) {
+    const next = Math.min(50, Math.max(5, value));
+    setNewCardQuota(next);
+    try { localStorage.setItem(NEW_CARD_QUOTA_KEY, String(next)); } catch { /* Device preference only. */ }
+  }
+
+  async function startNewCards() {
+    if (!nextNewTopic || !newBatchSize || newOpening) return;
+    setNewOpening(true);
+    setNewError("");
+    try {
+      const [cards, tags] = await Promise.all([listCards(nextNewTopic.id), listTags()]);
+      const unsorted = cards.filter((card) => !cardHasCompletedSort(card));
+      if (!unsorted.length) { refreshReviews(); setNewError("No unclassified cards remain in this topic."); return; }
+      setQuickSort({ pack: nextNewTopic, cards, tags, count: Math.min(newBatchSize, unsorted.length) });
+    } catch (failure) {
+      setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
+    } finally { setNewOpening(false); }
+  }
+
+  function closeQuickSort() {
+    setQuickSort(null);
+    refreshReviews();
+    window.dispatchEvent(new Event("heuresis:study-changed"));
+  }
   const toggleReviewCollection = (id: string) => {
     setReviewFilterIds((current) => {
       if (current === null) return [id];
@@ -248,7 +299,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
         </div>
       </header>
 
-      {collections.length ? <section className="library-review-today" aria-label="Reviews today">
+      {collections.length ? <div className="library-daily-grid">
+        <section className="library-review-today" aria-label="Reviews today">
         <div className="library-review-today-title">
           <span className="library-review-overline"><Brain size={14} aria-hidden="true" /> DAILY PRACTICE</span>
           <h2>Reviews today <span>{reviewOverview ? reviewsReady.toLocaleString() + " ready" : "Checking…"}</span></h2>
@@ -268,7 +320,37 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           <button type="button" className="library-review-start" disabled={!reviewOverview || !filteredReviewIds.length}
             onClick={() => setReviewsOpen(true)}>Review selection <ArrowRight size={15} aria-hidden="true" /></button>
         </div>
-      </section> : null}
+        </section>
+        <section className="library-new-today" aria-label="New cards daily quota">
+          <div className="library-new-head">
+            <span className="library-review-overline"><BookOpen size={14} aria-hidden="true" /> NEW LEARNING</span>
+            <h2>New cards <span>{reviewOverview ? plural(newReady, "available card") : "Checking…"}</span></h2>
+            <p>Classify new cards and add them to your learning queue.</p>
+          </div>
+          <div className="library-new-quota">
+            <div className="library-new-quota-count"><strong>{todayNew}</strong><span> / {newCardQuota} today</span></div>
+            <div className="library-new-quota-adjust" role="group" aria-label="Daily new cards target">
+              <Target size={14} aria-hidden="true" />
+              <button type="button" aria-label="Decrease daily new cards target by 5" disabled={newCardQuota <= 5} onClick={() => changeNewCardQuota(newCardQuota - 5)}><Minus size={13} /></button>
+              <span>{newCardQuota} / day</span>
+              <button type="button" aria-label="Increase daily new cards target by 5" disabled={newCardQuota >= 50} onClick={() => changeNewCardQuota(newCardQuota + 5)}><Plus size={13} /></button>
+            </div>
+          </div>
+          <div className="library-new-progress" role="progressbar" aria-label="Daily new cards completed" aria-valuenow={Math.min(todayNew, newCardQuota)} aria-valuemin={0} aria-valuemax={newCardQuota}><span style={{ width: newProgress + "%" }} /></div>
+          <div className="library-new-launch">
+            <label htmlFor="library-new-topic">NEXT TOPIC</label>
+            <select id="library-new-topic" value={nextNewTopic?.id ?? ""} disabled={!newTopics.length || newOpening}
+              onChange={(event) => setNewTopicId(event.target.value)}>
+              {newTopics.length ? newTopics.map((pack) => <option key={pack.id} value={pack.id}>{collections.find((item) => item.id === pack.collection_id)?.title ?? "Collection"} · {pack.title} ({reviewOverview?.topics[pack.id]?.newReady ?? 0})</option>)
+                : <option value="">No new cards available</option>}
+            </select>
+            <button type="button" className="library-new-start" disabled={!reviewOverview || !nextNewTopic || !newBatchSize || newOpening}
+              onClick={() => void startNewCards()}>{newOpening ? "Opening…" : todayNew >= newCardQuota ? "Extra cards" : "Start " + newBatchSize + (newBatchSize === 1 ? " card" : " cards")} <ArrowRight size={15} aria-hidden="true" /></button>
+          </div>
+          {newError ? <p className="library-new-error" role="alert">{newError}</p> : null}
+          {reviewOverview?.incomplete ? <p className="library-new-note">Some topics could not be counted.</p> : null}
+        </section>
+      </div> : null}
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
@@ -355,6 +437,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           </button>
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
+      {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
+        quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined} /> : null}
     </section>
   );
 }
