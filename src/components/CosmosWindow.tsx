@@ -756,7 +756,7 @@ export default function CosmosWindow() {
     await saveReviewCorrection({
       id, cardId: card.id, packId: pack.id, sessionId: sessionRef.current,
       templateId: template.id, grade, attempt,
-      referenceAnswer: answerValues().map((value) => value.value).filter(Boolean).join(" · "),
+      referenceAnswer: answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
       explanation,
     });
     if (!await answer(grade)) throw new Error("Correction saved, but the review result was not recorded. Try again.");
@@ -1146,7 +1146,7 @@ export default function CosmosWindow() {
             key={card.id + ":" + index + ":" + correctionGrade}
             grade={correctionGrade}
             initialAttempt={method === "type" ? typed : ""}
-            referenceAnswer={answerValues().map((value) => value.value).filter(Boolean).join(" · ")}
+            referenceAnswer={answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · ")}
             onSave={saveCorrection}
             onSkip={() => { if (correctionGrade) { const grade = correctionGrade; setCorrectionGrade(null); void answer(grade); } }}
             onCancel={() => setCorrectionGrade(null)} />
