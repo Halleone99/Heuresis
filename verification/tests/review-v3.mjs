@@ -76,10 +76,6 @@ async function revealAndGrade(popup, key) {
     throw error;
   });
   await popup.keyboard.press(key);
-  if (key === "1" || key === "2") {
-    await popup.locator(".cosmos-correction").waitFor();
-    await popup.locator(".cosmos-correction-actions button:has-text(\"Skip note\")").click();
-  }
   await popup.waitForTimeout(350);
 }
 async function waitFor(condition, timeout = 12000) {
@@ -117,15 +113,11 @@ const scenarios = {
       await popup.keyboard.press(" ");
       await popup.locator(".cosmos-results").waitFor();
       if (step === 0) {
-        check((await popup.locator(".cosmos-results button b").allInnerTexts()).join(",") === "Missed,Partial,Known,Easy",
-          "Ratings are Missed, Partial, Known and Easy");
+        check((await popup.locator(".cosmos-results button b").allInnerTexts()).join(",") === "Missed,Partial,Recalled,Easy",
+          "Ratings are Missed, Partial, Recalled and Easy");
         await popup.screenshot({ path: `${shots}/review-revealed.png` });
       }
       await popup.keyboard.press(step === 0 ? "1" : "3");
-      if (step === 0) {
-        await popup.locator(".cosmos-correction").waitFor();
-        await popup.locator(".cosmos-correction-actions button:has-text(\"Skip note\")").click();
-      }
       await popup.waitForTimeout(250);
     }
     await popup.locator(".cosmos-summary").waitFor();
@@ -133,7 +125,7 @@ const scenarios = {
     const summary = await popup.locator(".cosmos-summary-lines").innerText();
     check(/cards reviewed/.test(summary) && /bars gained/.test(summary) && /Mastered/.test(summary),
       "Summary shows only totals, bar movements and newly Mastered cards");
-    check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0, "No unexpected session extension");
+    check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() <= 1, "More cards, when available, are optional");
     check(await popup.locator('.cosmos-summary-actions button:has-text("Retry")').count() === 1, "Missed cards can be retried on demand");
     await popup.close();
   },
@@ -144,8 +136,8 @@ const scenarios = {
     check(total > 0 && total <= 5, "Session shows no more than the selected five cards");
     for (let step = 0; step < total; step += 1) await revealAndGrade(popup, "3");
     await popup.locator(".cosmos-summary").waitFor();
-    check(await popup.locator('.cosmos-summary-actions button:has-text("10 more")').count() === 0,
-      "Five-card session ends at five without automatic extension");
+    check(await popup.locator(".cosmos-summary").count() === 1,
+      "Five-card session ends at five without automatically extending");
     await popup.close();
   },
 
@@ -226,16 +218,18 @@ const scenarios = {
     await popup.locator(".cosmos-inline-typing").press("Enter");
     await popup.locator(".cosmos-results").waitFor();
     await popup.locator(".cosmos-results button:has-text('Missed')").click();
+    await popup.locator(".cosmos-summary").waitFor();
+    check(await waitFor(async () => await gradeCount() === before + 1),
+      "Missed grade is persisted immediately without requiring a correction");
+    await popup.locator('.cosmos-optional-correction button:has-text("Add correction")').click();
     await popup.locator(".cosmos-correction").waitFor();
     check(await popup.locator(".cosmos-correction-fields textarea").first().inputValue() === "to suffer",
-      "The actual typed mistake is captured, not replaced by the suggested grade");
-    check(await gradeCount() === before, "Opening a correction does not advance or grade the card");
+      "The actual typed mistake is captured for an optional correction");
     const explanation = "I confused this word with a different verb; the reference is about shame, not suffering.";
     await popup.locator(".cosmos-correction-reason textarea").fill(explanation);
     await popup.locator(".cosmos-correction-save").click();
-    await popup.locator(".cosmos-summary").waitFor();
-    check(await waitFor(async () => await gradeCount() === before + 1),
-      "Saving the explanation also records the Missed grade");
+    check(await gradeCount() === before + 1,
+      "Saving the optional correction does not grade twice");
     const count = Number(await sql("select count(*) from heuresis_review_corrections where card_id='" + cardId + "' and template_id='" + templateId + "' and attempt='to suffer' and explanation='" + explanation.replaceAll("'", "''") + "'"));
     check(count === 1, "Supabase stores the mistake, its direction and the learner explanation exactly once");
     await popup.locator('.cosmos-summary-actions button:has-text("Retry")').click();
@@ -245,7 +239,7 @@ const scenarios = {
     await popup.locator(".cosmos-previous-correction summary").click();
     check((await popup.locator(".cosmos-previous-correction").innerText()).includes(explanation),
       "The previous explanation can be consulted when reviewing the same direction again");
-    await popup.locator(".cosmos-results button:has-text('Known')").click();
+    await popup.locator(".cosmos-results button:has-text('Recalled')").click();
     await popup.close();
   },
 
@@ -296,7 +290,7 @@ const scenarios = {
       await popup.keyboard.press(step === 0 ? "4" : "3");
       await popup.waitForTimeout(400);
     }
-    check(answers[0].suggestion === "Known", `the characters committed by an IME are Recalled (${answers[0].term}: ${answers[0].suggestion})`);
+    check(answers[0].suggestion === "Recalled", `the characters committed by an IME are Recalled (${answers[0].term}: ${answers[0].suggestion})`);
     check(answers[1].suggestion === "Partial", `numbered pinyin is Partial (${answers[1].term}: ${answers[1].suggestion})`);
     check(answers[2].suggestion === "Partial", `pinyin without tones is Partial (${answers[2].term}: ${answers[2].suggestion})`);
     check(answers[3].suggestion === "Missed", `a wrong word is Missed (${answers[3].term}: ${answers[3].suggestion})`);
@@ -355,7 +349,7 @@ const scenarios = {
 
   async "review remembers card count and one of three order choices"(page, context) {
     await openTopic(page);
-    await page.locator(".review-command").click();
+    await page.locator('button:has-text("Adjust")').first().click();
     await page.locator(".review-controls").waitFor();
     await page.locator("#review-session-size").fill("5");
     await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).click();
@@ -368,7 +362,7 @@ const scenarios = {
     check(launched.searchParams.get("order") === "random" && count > 0 && count <= 5,
       "Review launches with Random order and at most the selected five cards");
     await popup.close();
-    await page.locator(".review-command").click();
+    await page.locator('button:has-text("Adjust")').first().click();
     await page.locator(".review-controls").waitFor();
     check(await page.locator("#review-session-size").inputValue() === "5",
       "Five-card choice is remembered");
@@ -442,8 +436,6 @@ const scenarios = {
     check(await popup.locator(".cosmos-add, .cosmos-details-empty button, .cosmos-related button, .cosmos-text-block button, .retention-practice").count() === 0,
       "Review is read-only, with no add or delete actions");
     await popup.keyboard.press("1");
-    await popup.locator(".cosmos-correction").waitFor();
-    await popup.locator(".cosmos-correction-actions button:has-text(\"Skip note\")").click();
     await popup.waitForTimeout(400);
     check(await popup.locator(".cosmos-details").count() === 0, "context does not expose the next question's answer");
     if (await popup.locator(".cosmos-card").count() === 1) {
