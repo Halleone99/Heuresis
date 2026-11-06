@@ -42,7 +42,7 @@ export default function ReviewCorrectionPanel({ grade, initialAttempt, reference
   }}>
     <div className="cosmos-correction-heading">
       <strong>Record this {RESULT_LABEL[grade].toLowerCase()} answer</strong>
-      <span>Your explanation will be saved with this card in Supabase.</span>
+      <span>Your explanation will be saved with this card.</span>
     </div>
     <div className="cosmos-correction-fields">
       <label><span>What I answered or confused it with</span>
