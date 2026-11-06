@@ -8,6 +8,8 @@ import { reviewGradeCount } from "./learningSignals";
  * forwards, reversible language cards need a successful answer in both directions.
  */
 export const BIDIRECTIONAL_PROGRESS_SINCE = Date.parse("2026-10-31T13:00:00Z");
+/** Preserve historical Easy gains; require Easy on both sides for new pairs. */
+const STRICT_EASY_PAIR_SINCE = Date.parse("2026-11-06T00:00:00Z");
 
 export type CardBarProgress = {
   bars: number;
@@ -28,7 +30,7 @@ function approximateLegacy(card: CardWithStats, oldState: KnowledgeState | null)
   const attempts = reviewGradeCount(card);
   if (!attempts) return { bars: 0, mastered: false, estimated: false };
   const successes = Math.max(0, card.stats.good_count + card.stats.easy_count);
-  if (oldState === "strong") return { bars: 4, mastered: true, estimated: true };
+  if (oldState === "strong") return { bars: 4, mastered: false, estimated: true };
   if (oldState === "holding") return { bars: 4, mastered: false, estimated: true };
   if (!successes) return { bars: 0, mastered: false, estimated: true };
   return { bars: Math.min(3, Math.max(1, successes)), mastered: false, estimated: true };
@@ -147,7 +149,9 @@ export function cardBarProgress(
       } else {
         validated.set(event.templateId, event.grade);
         if (validated.size === 2) {
-          const combined = [...validated.values()].includes("easy") ? "easy" : "good";
+          const combined = event.at < STRICT_EASY_PAIR_SINCE
+            ? ([...validated.values()].includes("easy") ? "easy" : "good")
+            : ([...validated.values()].every((value) => value === "easy") ? "easy" : "good");
           successful(combined);
           completedDay = day;
           validated.clear();
