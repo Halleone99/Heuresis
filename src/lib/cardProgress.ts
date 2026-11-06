@@ -62,13 +62,14 @@ export function reviewEligible(
   includeMastered = false,
   now = Date.now(),
   selectedDirectionIds?: string[],
+  ignoreDailyHold = false,
 ): boolean {
   if (progress.pendingDirections !== undefined) {
     // A successful answer finishes this card for today. The reverse direction
     // becomes eligible on a later day, without losing its pending pair progress.
-    if (progress.completedToday || reviewedSuccessfullyToday(history, now)) return false;
-    if (selectedDirectionIds?.length && selectedDirectionIds.every((id) => progress.pendingDirections?.includes(id))) return false;
-  } else if (reviewedSuccessfullyToday(history, now)) return false;
+    if (!ignoreDailyHold && (progress.completedToday || reviewedSuccessfullyToday(history, now))) return false;
+    if (!ignoreDailyHold && selectedDirectionIds?.length && selectedDirectionIds.every((id) => progress.pendingDirections?.includes(id))) return false;
+  } else if (!ignoreDailyHold && reviewedSuccessfullyToday(history, now)) return false;
   if (includeMastered) return true;
   if (!progress.mastered) return true;
   const latest = history?.length ? Math.max(...history.map((event) => event.at)) : Date.parse(lastReviewed ?? "");
