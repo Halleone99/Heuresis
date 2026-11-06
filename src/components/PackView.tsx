@@ -576,7 +576,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
                   <button className={statusFilters.includes("unsorted") ? "selected" : ""} aria-pressed={statusFilters.includes("unsorted")} onClick={() => chooseStage("unsorted")}>To classify</button>
                   <button className={statusFilters.includes("reference") ? "selected" : ""} aria-pressed={statusFilters.includes("reference")} onClick={() => chooseStage("reference")}>Reference</button>
                   {PROGRESS_STAGES.map((stage) => <button key={stage} className={stateFilter === stage ? "selected" : ""} aria-pressed={stateFilter === stage} onClick={() => chooseState(stage)}>
-                    {stage === "new" ? "Never reviewed" : stage === "review" ? "Reviewed" : stage === "known" ? "Familiar" : "Mastered"}</button>)}
+                    {stage === "new" ? "Never reviewed" : stage === "review" ? "Reviewed" : stage === "known" ? "Known" : "Mastered"}</button>)}
                 </div>
               </section></div>
           </details>
