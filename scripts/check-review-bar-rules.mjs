@@ -62,7 +62,8 @@ const paired = (day) => cardBarProgress(pairedCard(), pairedEvents, null, pair, 
 record(0, 0, "good");
 assert.equal(paired(0).bars, 0, "Recognition alone cannot earn a bar");
 assert.deepEqual(paired(0).pendingDirections, [pair[0]], "First direction is saved across sessions");
-assert.equal(reviewEligible(paired(0), pairedEvents, null, false, modern + 1, pair), true, "The opposite side remains available today");
+assert.equal(reviewEligible(paired(0), pairedEvents, null, false, modern + 1, pair), false, "A successful first side finishes the card for today");
+assert.equal(reviewEligible(paired(0), pairedEvents, null, false, modern + DAY + 1, pair), true, "The opposite side becomes available tomorrow");
 assert.equal(reviewEligible(paired(0), pairedEvents, null, false, modern + 1, [pair[0]]), false, "An already passed side is not repeated unnecessarily");
 record(1, 1, "good");
 assert.equal(paired(1).bars, 1, "Production on the following day completes the pair");
