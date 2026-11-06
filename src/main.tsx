@@ -72,10 +72,10 @@ import "./review-centre.css";
 import "./topic-smooth-navigation.css";
 // The sign-in experience has its own blue visual language.
 import "./auth-blue.css";
+// Daily review panel, ahead of canonical chrome's final palette rules.
+import "./library-review-today.css";
 // Canonical application chrome must be the final CSS import.
 import "./theme/chrome.css";
-// Last: daily review panel and language filters on the Library homepage.
-import "./library-review-today.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
