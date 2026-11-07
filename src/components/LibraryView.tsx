@@ -290,7 +290,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
       <header className="intelligent-library-head">
         <div className="library-head-copy">
           <h1>Heuresis<span>.</span></h1>
-          <p className="library-home-subtitle">Your library of language, knowledge and discoveries.</p>
+          
           <div className="library-home-totals" aria-label="Library totals">
             <span><BookOpen size={15} aria-hidden="true" /><strong>{totalCards.toLocaleString()}</strong> cards</span>
             <span><Layers3 size={15} aria-hidden="true" /><strong>{collections.length.toLocaleString()}</strong> collections</span>
@@ -302,9 +302,9 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
       {collections.length ? <div className="library-daily-grid">
         <section className="library-review-today" aria-label="Reviews today">
         <div className="library-review-today-title">
-          <span className="library-review-overline"><Brain size={14} aria-hidden="true" /> DAILY PRACTICE</span>
-          <h2>Reviews today <span>{reviewOverview ? reviewsReady.toLocaleString() + " ready" : "Checking…"}</span></h2>
-          <p>{reviewOverview ? (reviewsReady ? plural(reviewsDone, "card") + " completed today" : "Your selected languages are clear for today") : "Checking your review history…"}
+          <span className="library-review-overline"><Brain size={14} aria-hidden="true" /> PRACTICE</span>
+          <h2>Review <span>{reviewOverview ? reviewsReady.toLocaleString() + " due" : "Checking…"}</span></h2>
+          <p>{reviewOverview ? (reviewsReady ? plural(reviewsDone, "card") + " completed today" : "All caught up") : "Checking your review history…"}
             {reverseTomorrow > 0 ? " · " + plural(reverseTomorrow, "reverse side") + " tomorrow" : ""}
             {reviewOverview?.incomplete ? " · Some topics could not be counted" : ""}</p>
         </div>
@@ -318,14 +318,14 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
               onClick={() => toggleReviewCollection(collection.id)}>{collection.title}</button>)}
           </div>
           <button type="button" className="library-review-start" disabled={!reviewOverview || !filteredReviewIds.length}
-            onClick={() => setReviewsOpen(true)}>Review selection <ArrowRight size={15} aria-hidden="true" /></button>
+            onClick={() => setReviewsOpen(true)}>Open reviews <ArrowRight size={15} aria-hidden="true" /></button>
         </div>
         </section>
         <section className="library-new-today" aria-label="New cards daily quota">
           <div className="library-new-head">
-            <span className="library-review-overline"><BookOpen size={14} aria-hidden="true" /> NEW LEARNING</span>
+            <span className="library-review-overline"><BookOpen size={14} aria-hidden="true" /> LEARN</span>
             <h2>New cards <span>{reviewOverview ? plural(newReady, "available card") : "Checking…"}</span></h2>
-            <p>Classify new cards and add them to your learning queue.</p>
+            
           </div>
           <div className="library-new-quota">
             <div className="library-new-quota-count"><strong>{todayNew}</strong><span> / {newCardQuota} today</span></div>
