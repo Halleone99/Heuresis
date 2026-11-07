@@ -83,7 +83,7 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     if (flags.some((flag) => !flagged(card, flag))) return false;
     const events = history ? eventsByCard.get(card.id) ?? [] : null;
     const legacyState = assessState(directionEvidence(card, null, events)).state;
-    return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds, tagIds.length > 0 || flags.length > 0);
+    return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds);
   }), [cards, eventsByCard, flags, history, includeMastered, tagIds, pairedIds, selectedTemplateIds]);
   const requestedSize = Number(sizeInput);
   const validSize = /^\d+$/.test(sizeInput) && Number.isSafeInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 500;
