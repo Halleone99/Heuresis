@@ -34,4 +34,32 @@ assert.match(cosmos, /mode === "sort" \? <button title="Remove"/, "Saved text is
 const exercise = readFileSync("src/components/RetentionPractice.tsx", "utf8");
 assert.match(exercise, /signalWorkspaceChange\(userId\)/, "Saved mistakes invalidate other workspace windows");
 assert.match(cosmos, /<ConnectionsPanel/, "Connections remains accessible from Review");
+
+// A daily new-card quota of 3 must never cap "Review all" to 3.
+// Its exact per-topic selection survives the transition between popup pages.
+const store = new Map();
+globalThis.localStorage = {
+  getItem: (key) => store.get(key) ?? null,
+  setItem: (key, value) => { store.set(key, String(value)); },
+};
+const routeApi = loadTs("src/lib/cosmosWindow.ts", {
+  "./platform": { isAndroidRuntime: () => false, openInCurrentApp: () => {} },
+});
+const route = routeApi.createReviewRoute([
+  { packId: "first-topic", cardIds: ["a", "b", "c"] },
+  { packId: "next-topic", cardIds: ["d", "e", "f", "g", "h"] },
+]);
+assert.equal(routeApi.readReviewRoute(route).length, 2);
+const nextParams = routeApi.nextReviewRouteParams(route, "first-topic");
+assert.equal(nextParams.get("pack"), "next-topic");
+assert.equal(nextParams.get("count"), "all");
+assert.equal(nextParams.get("route"), route);
+assert.deepEqual(routeApi.readReviewSelection("next-topic", nextParams.get("selection")), ["d", "e", "f", "g", "h"]);
+assert.equal(routeApi.nextReviewRouteParams(route, "next-topic"), null);
+assert.match(readFileSync("src/components/ReviewCentre.tsx", "utf8"), /reviewRouteToken: token/,
+  "Review all passes the route token to the popup");
+assert.match(cosmos, /nextReviewRouteParams\(config\.reviewRouteToken, pack\.id\)/,
+  "The popup advances through every topic in the route");
+assert.match(cosmos, /await recordStudyEvent|recordStudyEvent\(/, "Each topic keeps recording grades");
+
 console.log("Multilingual audio and unified targeted Review checks passed.");
