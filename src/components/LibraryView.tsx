@@ -86,7 +86,6 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const newTopics = packs.filter((pack) => (reviewOverview?.topics[pack.id]?.newReady ?? 0) > 0)
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
   const nextNewTopic = newTopics.find((pack) => pack.id === newTopicId) ?? newTopics[0] ?? null;
-  const newTopicReady = nextNewTopic ? reviewOverview?.topics[nextNewTopic.id]?.newReady ?? 0 : 0;
   const unsortedTopicCards = newTopicCards?.filter((card) => !cardHasCompletedSort(card)) ?? [];
   const newTagOptions = [...unsortedTopicCards.reduce((byId, card) => {
     for (const tag of card.tags) {
@@ -491,7 +490,8 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
-        quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined} /> : null}
+        quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined}
+        onReview={() => { setReviewFilterIds([quickSort.pack.collection_id]); setReviewsOpen(true); }} /> : null}
     </section>
   );
 }
