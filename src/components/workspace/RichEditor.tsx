@@ -179,6 +179,15 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   }, [source, sourceText]);
 
   const emit = useCallback(() => {
+    // The placeholder must reflect the editable DOM immediately, not wait for
+    // the debounced Markdown save. A parent can read getMarkdown() and cancel
+    // that timer before it updates the placeholder.
+    const root = rootRef.current;
+    if (root) {
+      const hasContent = Boolean(root.textContent?.trim())
+        || Boolean(root.querySelector("img, hr, table, video, audio, iframe"));
+      setEmpty(!hasContent);
+    }
     if (emitTimer.current) window.clearTimeout(emitTimer.current);
     emitTimer.current = window.setTimeout(() => {
       emitTimer.current = null;
