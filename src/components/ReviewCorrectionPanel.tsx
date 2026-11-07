@@ -3,15 +3,16 @@ import { loadLatestReviewCorrection, type ReviewCorrection, type ReviewCorrectio
 import { RESULT_LABEL } from "../lib/reviewResults";
 
 type Props = {
-  grade: ReviewCorrectionGrade;
+  grade: ReviewCorrectionGrade | null;
+  onGradeChange: (grade: ReviewCorrectionGrade) => void;
   initialAttempt: string;
   referenceAnswer: string;
-  onSave: (id: string, attempt: string, explanation: string) => Promise<void>;
+  onSave: (id: string, attempt: string, explanation: string, grade: ReviewCorrectionGrade) => Promise<void>;
   onSkip: () => void;
   onCancel: () => void;
 };
 
-export default function ReviewCorrectionPanel({ grade, initialAttempt, referenceAnswer, onSave, onSkip, onCancel }: Props) {
+export default function ReviewCorrectionPanel({ grade, onGradeChange, initialAttempt, referenceAnswer, onSave, onSkip, onCancel }: Props) {
   const [id] = useState(() => crypto.randomUUID());
   const [attempt, setAttempt] = useState(initialAttempt);
   const [explanation, setExplanation] = useState("");
@@ -19,11 +20,11 @@ export default function ReviewCorrectionPanel({ grade, initialAttempt, reference
   const [error, setError] = useState("");
 
   async function submit() {
-    if (saving || !explanation.trim()) return;
+    if (saving || !grade || !explanation.trim()) return;
     setSaving(true);
     setError("");
     try {
-      await onSave(id, attempt, explanation);
+      await onSave(id, attempt, explanation, grade);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save the correction.");
     } finally {
@@ -41,8 +42,15 @@ export default function ReviewCorrectionPanel({ grade, initialAttempt, reference
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void submit(); }
   }}>
     <div className="cosmos-correction-heading">
-      <strong>Record this {RESULT_LABEL[grade].toLowerCase()} answer</strong>
-      <span>Your explanation will be saved with this card in Supabase.</span>
+      <strong>Why wrong? · Log mistake</strong>
+      <span>Save what you confused and why, alongside this card.</span>
+    </div>
+    <div className="cosmos-correction-grade" role="group" aria-label="Rate this answer">
+      <span>Review rating</span>
+      {(["again", "hard"] as const).map((option) => <button key={option} type="button"
+        aria-pressed={grade === option} className={grade === option ? "is-selected" : ""}
+        disabled={saving} onClick={() => onGradeChange(option)}>{RESULT_LABEL[option]}</button>)}
+      {!grade ? <small>Choose Missed or Partial to save.</small> : null}
     </div>
     <div className="cosmos-correction-fields">
       <label><span>What I answered or confused it with</span>
@@ -58,8 +66,8 @@ export default function ReviewCorrectionPanel({ grade, initialAttempt, reference
     {error ? <p className="cosmos-correction-error" role="alert">{error}</p> : null}
     <div className="cosmos-correction-actions">
       <button type="button" disabled={saving} onClick={onCancel}>Back to ratings</button>
-      <button type="button" disabled={saving} onClick={onSkip} title="Record the review grade without a written correction">Skip note</button>
-      <button className="cosmos-correction-save" type="submit" disabled={saving || !explanation.trim()}>{saving ? "Saving…" : "Save correction & continue"}</button>
+      <button type="button" disabled={saving || !grade} onClick={onSkip} title="Record the review grade without a written correction">Skip note</button>
+      <button className="cosmos-correction-save" type="submit" disabled={saving || !grade || !explanation.trim()}>{saving ? "Saving…" : "Save correction & continue"}</button>
     </div>
   </form>;
 }
