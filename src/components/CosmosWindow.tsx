@@ -54,7 +54,7 @@ import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAu
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
-import { saveReviewCorrection } from "../lib/reviewCorrections";
+import { saveReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import "./cosmos.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
@@ -277,7 +277,8 @@ export default function CosmosWindow() {
   const [saidAnswer, setSaidAnswer] = useState(false);
   const [typed, setTyped] = useState("");
   const [suggestion, setSuggestion] = useState<AnswerSuggestion | null>(null);
-  const [correctionGrade, setCorrectionGrade] = useState<"again" | "hard" | null>(null);
+  const [correctionGrade, setCorrectionGrade] = useState<ReviewCorrectionGrade | null>(null);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
   const lastAutoAudioRef = useRef("");
@@ -703,7 +704,7 @@ export default function CosmosWindow() {
     }
     setIndex(nextIndex);
     setRevealed(false);
-    setTyped(""); setSuggestion(null); setCorrectionGrade(null); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
+    setTyped(""); setSuggestion(null); setCorrectionGrade(null); setCorrectionOpen(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
     stopReviewAudio();
   }
 
@@ -742,17 +743,17 @@ export default function CosmosWindow() {
   }
 
   function selectGrade(grade: StudyGrade) {
-    if (busy || correctionGrade) return;
+    if (busy || correctionOpen) return;
     if (grade === "again" || grade === "hard") {
       setCorrectionGrade(grade);
+      setCorrectionOpen(true);
       return;
     }
     void answer(grade);
   }
 
-  async function saveCorrection(id: string, attempt: string, explanation: string): Promise<void> {
-    const grade = correctionGrade;
-    if (!card || !pack || !template || !sessionRef.current || !grade) throw new Error("The review has changed. Open the correction again.");
+  async function saveCorrection(id: string, attempt: string, explanation: string, grade: ReviewCorrectionGrade): Promise<void> {
+    if (!card || !pack || !template || !sessionRef.current || !correctionOpen) throw new Error("The review has changed. Open the correction again.");
     await saveReviewCorrection({
       id, cardId: card.id, packId: pack.id, sessionId: sessionRef.current,
       templateId: template.id, grade, attempt,
@@ -873,8 +874,8 @@ export default function CosmosWindow() {
       if (event.isComposing || event.keyCode === 229) return;
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
-      if (correctionGrade) {
-        if (event.key === "Escape" && !typing && !busy) { event.preventDefault(); setCorrectionGrade(null); }
+      if (correctionOpen) {
+        if (event.key === "Escape" && !typing && !busy) { event.preventDefault(); setCorrectionOpen(false); setCorrectionGrade(null); }
         return; // Do not grade again or close the review while recording a correction.
       }
       // Space/Enter on a focused button must activate that button, not reveal the card.
@@ -1142,19 +1143,24 @@ export default function CosmosWindow() {
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
           {card && <PreviousReviewCorrection cardId={card.id} templateId={template?.id ?? null} />}
-          {correctionGrade ? <ReviewCorrectionPanel
-            key={card.id + ":" + index + ":" + correctionGrade}
+          {correctionOpen ? <ReviewCorrectionPanel
+            key={card.id + ":" + index}
             grade={correctionGrade}
+            onGradeChange={setCorrectionGrade}
             initialAttempt={method === "type" ? typed : ""}
             referenceAnswer={answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · ")}
             onSave={saveCorrection}
-            onSkip={() => { if (correctionGrade) { const grade = correctionGrade; setCorrectionGrade(null); void answer(grade); } }}
-            onCancel={() => setCorrectionGrade(null)} />
+            onSkip={() => { if (correctionGrade) { const grade = correctionGrade; setCorrectionOpen(false); setCorrectionGrade(null); void answer(grade); } }}
+            onCancel={() => { setCorrectionOpen(false); setCorrectionGrade(null); }} />
           : <div className="cosmos-results" role="group" aria-label="How well did you recall it?">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
             className={suggestion?.grade === grade ? "is-suggested" : ""}
             title={RESULT_HINT[grade]} onClick={() => selectGrade(grade)}>
             <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{sentenceCard ? sentenceRatings[grade] : RESULT_HINT[grade]}</span></button>)}</div>}
-          <div className="cosmos-secondary-actions"><button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button></div>
+          <div className="cosmos-secondary-actions">
+            {!correctionOpen ? <button type="button" className="cosmos-extra-toggle cosmos-log-mistake" disabled={busy}
+              onClick={() => { setCorrectionGrade(null); setCorrectionOpen(true); }}>Why wrong? · Log mistake</button> : null}
+            <button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button>
+          </div>
           {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
         </> : <span>Attempt the answer before revealing it. {ANDROID ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
