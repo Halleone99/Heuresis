@@ -276,7 +276,6 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           <div className="library-home-totals" aria-label="Library totals">
             <span><BookOpen size={15} aria-hidden="true" /><strong>{totalCards.toLocaleString()}</strong> cards</span>
             <span><Layers3 size={15} aria-hidden="true" /><strong>{collections.length.toLocaleString()}</strong> collections</span>
-            {waitingTotal > 0 ? <span><Sparkles size={15} aria-hidden="true" /><strong>{waitingTotal.toLocaleString()}</strong> uncatalogued discoveries</span> : null}
           </div>
         </div>
       </header>
