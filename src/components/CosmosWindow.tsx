@@ -49,7 +49,7 @@ import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/revie
 import { signHeuresisCardImages } from "../lib/cardMedia";
 import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
-import { nextReviewRouteParams, readReviewSelection } from "../lib/cosmosWindow";
+import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
@@ -291,6 +291,18 @@ export default function CosmosWindow() {
   const mode = config.mode;
   const relatedReview = config.relatedReview;
   const recommended = mode === "review" && !relatedReview && config.source === "recommended";
+  const routeProgress = useMemo(() => {
+    if (!config.reviewRouteToken) return null;
+    try {
+      const route = readReviewRoute(config.reviewRouteToken);
+      const position = route.findIndex((entry) => entry.packId === config.packId);
+      if (position < 0) return null;
+      return {
+        before: route.slice(0, position).reduce((sum, entry) => sum + entry.cardIds.length, 0),
+        total: route.reduce((sum, entry) => sum + entry.cardIds.length, 0),
+      };
+    } catch { return null; }
+  }, [config.reviewRouteToken, config.packId]);
   const item = queue[index] ?? null;
   const card = item ? cards.find((entry) => entry.id === item.cardId) ?? null : null;
   const templateFor = useCallback((entry: QueueItem | null) => {
@@ -1154,7 +1166,9 @@ export default function CosmosWindow() {
       </div> : null}
 
       {item?.reasons.length ? <button type="button" className="cosmos-why" aria-expanded={whyOpen} onClick={() => setWhyOpen((value) => !value)} title="Why this card?"><CircleHelp size={15} /> Why?</button> : null}
-      <span className="cosmos-count">{index + 1} / {queue.length}</span>
+      <span className="cosmos-count">{routeProgress
+        ? `${Math.min(routeProgress.total, routeProgress.before + index + 1)} / ${routeProgress.total}`
+        : `${index + 1} / ${queue.length}`}</span>
       <button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button>
     </header>
     {whyOpen && item?.reasons.length ? <div className="cosmos-why-panel" role="dialog" aria-label="Why this card was recommended">
@@ -1162,7 +1176,10 @@ export default function CosmosWindow() {
       <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
       <small>The selection follows your chosen ordering and filters. Cards have no compulsory review deadlines.</small>
     </div> : null}
-    <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((index + (revealed || mode === "sort" ? 1 : 0)) / queue.length) * 100)}%` }} /></div>
+    <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((routeProgress
+      ? routeProgress.before + index + (revealed ? 1 : 0)
+      : index + (revealed || mode === "sort" ? 1 : 0))
+      / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div>
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
