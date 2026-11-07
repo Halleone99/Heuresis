@@ -89,10 +89,10 @@ function networkUnavailable(error?: unknown) {
 }
 
 /** Grades recorded on this device that have not reached the server yet (offline evidence). */
-export function pendingStudyGrades(packId: string): Array<{ card_id: string; template_id: string | null; event_type: StudyGrade; created_at: string }> {
+export function pendingStudyGrades(packId: string): Array<{ client_event_id: string; card_id: string; template_id: string | null; event_type: StudyGrade; created_at: string }> {
   return readQueue()
     .filter((event) => event.pack_id === packId && (event.event_type === "again" || event.event_type === "hard" || event.event_type === "good" || event.event_type === "easy"))
-    .map((event) => ({ card_id: event.card_id, template_id: event.template_id, event_type: event.event_type as StudyGrade, created_at: event.created_at }));
+    .map((event) => ({ client_event_id: event.client_event_id, card_id: event.card_id, template_id: event.template_id, event_type: event.event_type as StudyGrade, created_at: event.created_at }));
 }
 
 export function getStudyQueueState(): StudyQueueState {
@@ -101,6 +101,17 @@ export function getStudyQueueState(): StudyQueueState {
     pending: events.filter((event) => event.attempts < PARK_AFTER).length,
     parked: events.filter((event) => event.attempts >= PARK_AFTER).length,
   };
+}
+
+/** Refresh counts in this window and every other Tauri/browser window after a grade. */
+function notifyReviewProgress() {
+  if (typeof window === "undefined") return;
+  if (typeof window.dispatchEvent === "function") window.dispatchEvent(new Event("heuresis:study-changed"));
+  try {
+    const channel = new BroadcastChannel("heuresis-review-progress");
+    channel.postMessage({ type: "grade-saved" });
+    channel.close();
+  } catch { /* BroadcastChannel may be unavailable in a restricted WebView. */ }
 }
 
 function queueStudyEvent(input: Omit<QueuedStudyEvent, "client_event_id" | "created_at" | "attempts">) {
@@ -143,6 +154,7 @@ async function sendStudyBatch(batch: QueuedStudyEvent[]): Promise<void> {
   if (!error) {
     const sentIds = new Set(batch.map((event) => event.client_event_id));
     writeQueue(readQueue().filter((event) => !sentIds.has(event.client_event_id)));
+    if (batch.some((event) => event.event_type === "good" || event.event_type === "easy" || event.event_type === "again" || event.event_type === "hard")) notifyReviewProgress();
     return;
   }
   if (networkUnavailable(error) || !isInvalidStudyEvent(error)) throw error;
@@ -259,5 +271,6 @@ export async function recordStudyEvent(input: {
     template_id: input.templateId,
     event_type: input.eventType,
   });
+  if (input.eventType === "good" || input.eventType === "easy" || input.eventType === "again" || input.eventType === "hard") notifyReviewProgress();
   if (typeof navigator === "undefined" || navigator.onLine) void flushStudyEvents().catch(() => undefined);
 }

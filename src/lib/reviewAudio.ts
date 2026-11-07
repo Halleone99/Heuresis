@@ -28,9 +28,10 @@ export function reviewSpokenPrompt(
   front: string[],
   data: Record<string, unknown>,
   readingKey?: string | null,
+  meaningKey?: string | null,
 ): { key: string; text: string } | null {
   for (const key of front) {
-    if (key === readingKey) continue;
+    if (key === readingKey || key === meaningKey) continue;
     const value = data[key];
     if (typeof value === "string" && value.trim()) return { key, text: value.trim() };
   }

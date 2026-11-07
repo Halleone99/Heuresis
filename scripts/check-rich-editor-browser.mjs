@@ -16,9 +16,11 @@ writeFileSync(dir + "/fixture.tsx", [
   'import "../../src/components/workspace/workspace.css";',
   'import "../../src/components/workspace/note-formatting.css";',
   'function Demo() {',
-  'const [text, setText] = useState("你好\\nNǐ hǎo\\nHello");',
+  'const exampleMode = new URLSearchParams(window.location.search).has("empty");',
+  'const initial = exampleMode ? "" : "你好\\nNǐ hǎo\\nHello";',
+  'const [text, setText] = useState(initial);',
   'return <div className="heuresis-desktop" style={{maxWidth:800,margin:24}}>',
-  '<RichEditor value={"你好\\nNǐ hǎo\\nHello"} resetKey="regression" onChange={setText} />',
+  '<RichEditor value={initial} resetKey={exampleMode ? "empty" : "regression"} placeholder="Sentence, pinyin, translation…" onChange={setText} />',
   '<pre data-testid="markdown">{text}</pre><div data-testid="reader"><RichText text={"First\\n\\nSecond"} /></div></div>;',
   '}',
   'createRoot(document.getElementById("root")!).render(<Demo />);',
@@ -218,6 +220,20 @@ try {
   assert.equal(await tablePage.locator('.nb-editor table[data-table-style="striped"]').count(), 1, "Restyling a table should not duplicate it");
   await waitForText(tablePage, "{table:striped}");
   await tablePage.close();
+
+  // A populated Sort example must not be obscured by its empty-state hint.
+  // Check the empty-to-typed transition before the debounced Markdown update.
+  const examplePage = await context.newPage();
+  await examplePage.goto(url + "?empty");
+  await examplePage.locator('.nb-placeholder').waitFor();
+  await examplePage.locator('.nb-editor[contenteditable="true"]').click();
+  await examplePage.keyboard.insertText("明天不一定下雨。");
+  assert.equal(await examplePage.locator('.nb-placeholder').count(), 0, "Example placeholder still overlaps typed Chinese text");
+  await examplePage.keyboard.insertText(" Míngtiān bù yídìng xià yǔ. It might not rain tomorrow.");
+  await waitForText(examplePage, "It might not rain tomorrow.");
+  assert.equal(await examplePage.locator('.nb-placeholder').count(), 0, "Example placeholder reappeared over a filled editor");
+  await examplePage.close();
+
   await context.close();
 
   const touch = await browser.newContext({ viewport: { width: 820, height: 1100 }, hasTouch: true, isMobile: true });

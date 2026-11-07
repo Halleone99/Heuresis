@@ -95,7 +95,8 @@ function words(value: string) { return value.trim().split(/\s+/).filter(Boolean)
  */
 export function isWordSized(value: string) {
   const text = value.replace(/(?:\s*,\s*[-–‑¨][^,;/|]*)+$/u, "").trim();
-  if (!text || SENTENCE_END.test(text) || /[,，;；]/.test(text)) return false;
+  const cyrillicWordPair = /^\p{Script=Cyrillic}[\p{Script=Cyrillic}\p{M}-]*\s*,\s*\p{Script=Cyrillic}[\p{Script=Cyrillic}\p{M}-]*$/u.test(text);
+  if (!text || SENTENCE_END.test(text) || (/[,，;；]/.test(text) && !cyrillicWordPair)) return false;
   return hasHan(text) ? (text.match(/\p{Script=Han}/gu) ?? []).length <= 4 : words(text) <= 3;
 }
 

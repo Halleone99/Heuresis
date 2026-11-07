@@ -214,7 +214,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
                 if (entered.trim()) setDraft(entered);
                 else stopAdding();
               }} autoFocus />}
-            <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !(detailEditor.current?.getMarkdown() || draft).trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
+            <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !draft.trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
           </div> : <div className="sort-enrich-add-actions">
             <button type="button" onClick={() => openAdd(dim, "text")} disabled={blocked}><Plus size={13} /> {dim === "examples" ? "Add example" : dim === "components" ? "Add part" : "Add detail"}</button>
             {dim === "neighbours" && structuredWords ? <button type="button" onClick={() => openAdd(dim, "word")} disabled={blocked}><Plus size={13} /> Link word</button> : null}

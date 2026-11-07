@@ -472,3 +472,8 @@
   .cosmos-review-foot .cosmos-correction-actions button:first-child { margin-right:0; }
   .cosmos-review-foot .cosmos-correction-actions .cosmos-correction-save { width:100%; }
 }
+
+/* Optional correction after a saved Missed/Partial rating. */
+.cosmos-optional-correction { display:flex; justify-content:center; align-items:center; gap:8px; margin:12px auto; color:var(--muted); }
+.cosmos-optional-correction button { min-height:34px; padding:5px 10px; background:transparent; border:1px solid var(--line-2); border-radius:7px; color:var(--ink-2); font:12px var(--sans); cursor:pointer; }
+.cosmos-optional-correction button:last-child { border:0; font-size:18px; }
