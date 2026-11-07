@@ -103,7 +103,7 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
       <div className="reviews-centre-review-bar">
         <div className="reviews-centre-filter-group" role="group" aria-label="Filter review languages">
           <button type="button" className={collectionIds.length === collections.length ? "active" : ""} aria-pressed={collectionIds.length === collections.length}
-            onClick={() => { setCollectionIds(collections.map((collection) => collection.id)); setRoute([]); setRoutePosition(0); }}>All</button>
+            onClick={() => setCollectionIds(collections.map((collection) => collection.id))}>All</button>
           {collections.map((collection) => <button type="button" key={collection.id}
             className={collectionIds.includes(collection.id) && collectionIds.length !== collections.length ? "active" : ""}
             aria-pressed={collectionIds.includes(collection.id)} onClick={() => toggleCollection(collection.id)}>{collection.title}</button>)}
