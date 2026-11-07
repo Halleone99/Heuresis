@@ -106,7 +106,7 @@ export function getStudyQueueState(): StudyQueueState {
 /** Refresh counts in this window and every other Tauri/browser window after a grade. */
 function notifyReviewProgress() {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event("heuresis:study-changed"));
+  if (typeof window.dispatchEvent === "function") window.dispatchEvent(new Event("heuresis:study-changed"));
   try {
     const channel = new BroadcastChannel("heuresis-review-progress");
     channel.postMessage({ type: "grade-saved" });
