@@ -28,7 +28,7 @@ const NEW_CARD_QUOTA_KEY = "heuresis.newCards.dailyQuota.v1";
 function readNewCardQuota(): number {
   try {
     const value = Number(localStorage.getItem(NEW_CARD_QUOTA_KEY));
-    if (Number.isSafeInteger(value) && value >= 5 && value <= 50) return value;
+    if (Number.isSafeInteger(value) && value >= 1 && value <= 50) return value;
   } catch { /* Device preference; card progress is saved in Supabase. */ }
   return 10;
 }
@@ -88,7 +88,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const newProgress = Math.min(100, Math.round((todayNew / newCardQuota) * 100));
 
   function changeNewCardQuota(value: number) {
-    const next = Math.min(50, Math.max(5, value));
+    const next = Math.min(50, Math.max(1, value));
     setNewCardQuota(next);
     try { localStorage.setItem(NEW_CARD_QUOTA_KEY, String(next)); } catch { /* Device preference only. */ }
   }
@@ -331,9 +331,9 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
             <div className="library-new-quota-count"><strong>{todayNew}</strong><span> / {newCardQuota} today</span></div>
             <div className="library-new-quota-adjust" role="group" aria-label="Daily new cards target">
               <Target size={14} aria-hidden="true" />
-              <button type="button" aria-label="Decrease daily new cards target by 5" disabled={newCardQuota <= 5} onClick={() => changeNewCardQuota(newCardQuota - 5)}><Minus size={13} /></button>
+              <button type="button" aria-label="Decrease daily new cards target by 1" disabled={newCardQuota <= 1} onClick={() => changeNewCardQuota(newCardQuota - 1)}><Minus size={13} /></button>
               <span>{newCardQuota} / day</span>
-              <button type="button" aria-label="Increase daily new cards target by 5" disabled={newCardQuota >= 50} onClick={() => changeNewCardQuota(newCardQuota + 5)}><Plus size={13} /></button>
+              <button type="button" aria-label="Increase daily new cards target by 1" disabled={newCardQuota >= 50} onClick={() => changeNewCardQuota(newCardQuota + 1)}><Plus size={13} /></button>
             </div>
           </div>
           <div className="library-new-progress" role="progressbar" aria-label="Daily new cards completed" aria-valuenow={Math.min(todayNew, newCardQuota)} aria-valuemin={0} aria-valuemax={newCardQuota}><span style={{ width: newProgress + "%" }} /></div>
