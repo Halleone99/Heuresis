@@ -529,10 +529,11 @@ export default function CosmosWindow() {
       return;
     }
     if (!params) return; // Last topic: retain the normal completion summary.
+    const nextParams = params;
     routeAdvancing.current = true;
     void closeSession().then(() => {
       const nextUrl = new URL(window.location.href);
-      nextUrl.search = params.toString();
+      nextUrl.search = nextParams.toString();
       window.location.replace(nextUrl.toString());
     }).catch((failure) => {
       routeAdvancing.current = false;
