@@ -312,3 +312,76 @@
 @media (prefers-reduced-motion: reduce) {
   .library-daily-grid .library-new-progress span { transition: none; }
 }
+
+/* New-card controls: use the active palette, never OS/default brown or grey.
+   Keep the native topic selector and quota behaviour unchanged. */
+.intelligent-library .library-daily-grid .library-new-launch select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--ws-line-strong);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  box-shadow: none;
+  color-scheme: inherit;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease;
+}
+.intelligent-library .library-daily-grid .library-new-launch select option {
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+}
+.intelligent-library .library-daily-grid .library-new-launch select:hover:not(:disabled) {
+  border-color: var(--ws-accent-line);
+  background: var(--ws-surface-2);
+}
+.intelligent-library .library-daily-grid .library-new-launch select:focus-visible {
+  outline: 2px solid var(--ws-accent);
+  outline-offset: 2px;
+}
+.intelligent-library .library-daily-grid .library-new-quota-adjust button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--ws-line);
+  background: transparent;
+  color: var(--ws-muted);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.intelligent-library .library-daily-grid .library-new-quota-adjust button:hover:not(:disabled) {
+  border-color: var(--ws-accent-line);
+  background: var(--ws-accent-soft);
+  color: var(--ws-ink);
+}
+.intelligent-library .library-daily-grid .library-new-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--ws-accent-line);
+  background: var(--ws-accent-soft);
+  color: var(--ws-ink);
+  box-shadow: none;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.intelligent-library .library-daily-grid .library-new-start:hover:not(:disabled) {
+  border-color: var(--ws-accent);
+  background: color-mix(in srgb, var(--ws-accent) 23%, var(--ws-surface));
+}
+.intelligent-library .library-daily-grid .library-new-quota-adjust button:disabled,
+.intelligent-library .library-daily-grid .library-new-start:disabled,
+.intelligent-library .library-daily-grid .library-new-launch select:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .intelligent-library .library-daily-grid .library-new-launch select,
+  .intelligent-library .library-daily-grid .library-new-quota-adjust button,
+  .intelligent-library .library-daily-grid .library-new-start {
+    transition: none;
+  }
+}
