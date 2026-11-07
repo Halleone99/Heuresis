@@ -1,9 +1,9 @@
-import { ArrowLeft, ArrowRight, Archive, BookOpen, Brain, ChevronRight, Layers3, Link2, Minus, Pencil, Play, Plus, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
-import { formatSeen } from "../lib/learningSignals";
+import { NEW_CARD_QUOTA_EVENT, readNewCardQuota } from "../lib/newCardQuota";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import ReviewCentre from "./ReviewCentre";
@@ -23,16 +23,6 @@ type Props = {
 };
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
-const NEW_CARD_QUOTA_KEY = "heuresis.newCards.dailyQuota.v1";
-
-function readNewCardQuota(): number {
-  try {
-    const value = Number(localStorage.getItem(NEW_CARD_QUOTA_KEY));
-    if (Number.isSafeInteger(value) && value >= 1 && value <= 50) return value;
-  } catch { /* Device preference; card progress is saved in Supabase. */ }
-  return 10;
-}
-
 type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number };
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
@@ -68,7 +58,6 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
   const [relatedCounts, setRelatedCounts] = useState<Record<string, number>>({});
-  const [unsortedCounts, setUnsortedCounts] = useState<Record<string, number>>({});
   const [captureRevision, setCaptureRevision] = useState(0);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
   const totalCards = packs.reduce((sum, pack) => sum + pack.card_count, 0);
@@ -85,13 +74,6 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const nextNewTopic = newTopics.find((pack) => pack.id === newTopicId) ?? newTopics[0] ?? null;
   const newTopicReady = nextNewTopic ? reviewOverview?.topics[nextNewTopic.id]?.newReady ?? 0 : 0;
   const newBatchSize = Math.min(newTopicReady, Math.max(1, newCardQuota - todayNew || newCardQuota));
-  const newProgress = Math.min(100, Math.round((todayNew / newCardQuota) * 100));
-
-  function changeNewCardQuota(value: number) {
-    const next = Math.min(50, Math.max(1, value));
-    setNewCardQuota(next);
-    try { localStorage.setItem(NEW_CARD_QUOTA_KEY, String(next)); } catch { /* Device preference only. */ }
-  }
 
   async function startNewCards() {
     if (!nextNewTopic || !newBatchSize || newOpening) return;
@@ -170,14 +152,16 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   }, [packs]);
 
   useEffect(() => {
-    let alive = true;
-    if (!selectedPacks.length) { setUnsortedCounts({}); return; }
-    void Promise.all(selectedPacks.map(async (pack) => {
-      const cards = await listCards(pack.id);
-      return [pack.id, cards.filter((card) => !cardHasCompletedSort(card)).length] as const;
-    })).then((rows) => { if (alive) setUnsortedCounts(Object.fromEntries(rows)); }).catch(() => { if (alive) setUnsortedCounts({}); });
-    return () => { alive = false; };
-  }, [selectedPacks]);
+    const syncTarget = () => setNewCardQuota(readNewCardQuota());
+    window.addEventListener(NEW_CARD_QUOTA_EVENT, syncTarget);
+    window.addEventListener("storage", syncTarget);
+    window.addEventListener("focus", syncTarget);
+    return () => {
+      window.removeEventListener(NEW_CARD_QUOTA_EVENT, syncTarget);
+      window.removeEventListener("storage", syncTarget);
+      window.removeEventListener("focus", syncTarget);
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -277,12 +261,10 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
 
   const selectedCards = selectedPacks.reduce((sum, pack) => sum + pack.card_count, 0);
   const selectedSeen = selectedPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-  const selectedPercent = selectedCards ? Math.min(100, Math.round((selectedSeen / selectedCards) * 100)) : 0;
   const selectedNewWords = selectedCollection ? relatedCounts[selectedCollection.id] ?? 0 : 0;
   const lastOpened = newestOpen(selectedPacks);
   const resumePack = selectedPacks.find((pack) => pack.last_opened_at === lastOpened) ?? selectedPacks[0];
-  const otherCollections = selectedCollection ? collections.filter((collection) => collection.id !== selectedCollection.id) : collections;
-  const waitingTotal = Object.values(relatedCounts).reduce((sum, count) => sum + count, 0);
+  const recentPacks = selectedPacks.slice().sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01")).slice(0, 2);
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
 
   return (
@@ -299,58 +281,53 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
         </div>
       </header>
 
-      {collections.length ? <div className="library-daily-grid">
-        <section className="library-review-today" aria-label="Reviews today">
-        <div className="library-review-today-title">
-          <span className="library-review-overline"><Brain size={14} aria-hidden="true" /> PRACTICE</span>
-          <h2>Review <span>{reviewOverview ? reviewsReady.toLocaleString() + " due" : "Checking…"}</span></h2>
-          <p>{reviewOverview ? (reviewsReady ? plural(reviewsDone, "card") + " completed today" : "All caught up") : "Checking your review history…"}
-            {reverseTomorrow > 0 ? " · " + plural(reverseTomorrow, "reverse side") + " tomorrow" : ""}
-            {reviewOverview?.incomplete ? " · Some topics could not be counted" : ""}</p>
+      {collections.length ? <section className="library-study-panel" aria-label="Today's study">
+        <div className="library-study-heading">
+          <h2>Today's study</h2>
+          <span>{reviewOverview ? plural(reviewsDone, "card") + " reviewed today" : "Checking study progress…"}</span>
         </div>
-        <div className="library-review-today-controls">
-          <div className="library-review-language-filters" role="group" aria-label="Choose languages for review">
-            <button type="button" aria-pressed={reviewFilterIds === null} className={reviewFilterIds === null ? "is-active" : ""}
-              onClick={() => setReviewFilterIds(null)}>All</button>
-            {collections.map((collection) => <button type="button" key={collection.id}
-              aria-pressed={reviewFilterIds !== null && reviewFilterIds.includes(collection.id)}
-              className={reviewFilterIds !== null && reviewFilterIds.includes(collection.id) ? "is-active" : ""}
-              onClick={() => toggleReviewCollection(collection.id)}>{collection.title}</button>)}
-          </div>
-          <button type="button" className="library-review-start" disabled={!reviewOverview || !filteredReviewIds.length}
-            onClick={() => setReviewsOpen(true)}>Open reviews <ArrowRight size={15} aria-hidden="true" /></button>
-        </div>
-        </section>
-        <section className="library-new-today" aria-label="New cards daily quota">
-          <div className="library-new-head">
-            <span className="library-review-overline"><BookOpen size={14} aria-hidden="true" /> LEARN</span>
-            <h2>New cards <span>{reviewOverview ? plural(newReady, "available card") : "Checking…"}</span></h2>
-            
-          </div>
-          <div className="library-new-quota">
-            <div className="library-new-quota-count"><strong>{todayNew}</strong><span> / {newCardQuota} today</span></div>
-            <div className="library-new-quota-adjust" role="group" aria-label="Daily new cards target">
-              <Target size={14} aria-hidden="true" />
-              <button type="button" aria-label="Decrease daily new cards target by 1" disabled={newCardQuota <= 1} onClick={() => changeNewCardQuota(newCardQuota - 1)}><Minus size={13} /></button>
-              <span>{newCardQuota} / day</span>
-              <button type="button" aria-label="Increase daily new cards target by 1" disabled={newCardQuota >= 50} onClick={() => changeNewCardQuota(newCardQuota + 1)}><Plus size={13} /></button>
+        <div className="library-study-actions">
+          <section className="library-review-today" aria-label="Reviews today">
+            <div className="library-study-main">
+              <span className="library-study-kicker">REVIEW</span>
+              <div className="library-study-metric"><strong>{reviewOverview ? reviewsReady.toLocaleString() : "—"}</strong><span>due</span></div>
+              <p>Keep the cards you've learnt in memory.</p>
             </div>
-          </div>
-          <div className="library-new-progress" role="progressbar" aria-label="Daily new cards completed" aria-valuenow={Math.min(todayNew, newCardQuota)} aria-valuemin={0} aria-valuemax={newCardQuota}><span style={{ width: newProgress + "%" }} /></div>
-          <div className="library-new-launch">
-            <label htmlFor="library-new-topic">NEXT TOPIC</label>
-            <select id="library-new-topic" value={nextNewTopic?.id ?? ""} disabled={!newTopics.length || newOpening}
-              onChange={(event) => setNewTopicId(event.target.value)}>
-              {newTopics.length ? newTopics.map((pack) => <option key={pack.id} value={pack.id}>{collections.find((item) => item.id === pack.collection_id)?.title ?? "Collection"} · {pack.title} ({reviewOverview?.topics[pack.id]?.newReady ?? 0})</option>)
-                : <option value="">No new cards available</option>}
-            </select>
-            <button type="button" className="library-new-start" disabled={!reviewOverview || !nextNewTopic || !newBatchSize || newOpening}
-              onClick={() => void startNewCards()}>{newOpening ? "Opening…" : todayNew >= newCardQuota ? "Extra cards" : "Start " + newBatchSize + (newBatchSize === 1 ? " card" : " cards")} <ArrowRight size={15} aria-hidden="true" /></button>
-          </div>
-          {newError ? <p className="library-new-error" role="alert">{newError}</p> : null}
-          {reviewOverview?.incomplete ? <p className="library-new-note">Some topics could not be counted.</p> : null}
-        </section>
-      </div> : null}
+            <div className="library-review-language-filters" role="group" aria-label="Choose collections for review">
+              <button type="button" aria-pressed={reviewFilterIds === null} className={reviewFilterIds === null ? "is-active" : ""}
+                onClick={() => setReviewFilterIds(null)}>All</button>
+              {collections.map((collection) => <button type="button" key={collection.id}
+                aria-pressed={reviewFilterIds !== null && reviewFilterIds.includes(collection.id)}
+                className={reviewFilterIds !== null && reviewFilterIds.includes(collection.id) ? "is-active" : ""}
+                onClick={() => toggleReviewCollection(collection.id)}>{collection.title}</button>)}
+            </div>
+            <button type="button" className="library-review-start" disabled={!reviewOverview || !filteredReviewIds.length}
+              onClick={() => setReviewsOpen(true)}>{reviewsReady > 0 ? "Review " + plural(reviewsReady, "card") : "Open reviews"} <ArrowRight size={15} aria-hidden="true" /></button>
+          </section>
+          <section className="library-new-today" aria-label="New cards">
+            <div className="library-study-main">
+              <span className="library-study-kicker">NEW CARDS</span>
+              <div className="library-study-metric"><strong>{reviewOverview ? newReady.toLocaleString() : "—"}</strong><span>available</span></div>
+              <p>{reviewOverview ? plural(todayNew, "card") + " introduced today" : "Checking available cards…"}</p>
+            </div>
+            <div className="library-new-launch">
+              <label htmlFor="library-new-topic">Choose a topic</label>
+              <select id="library-new-topic" aria-label="Choose a topic for new cards" value={nextNewTopic?.id ?? ""} disabled={!newTopics.length || newOpening}
+                onChange={(event) => setNewTopicId(event.target.value)}>
+                {newTopics.length ? newTopics.map((pack) => <option key={pack.id} value={pack.id}>{collections.find((item) => item.id === pack.collection_id)?.title ?? "Collection"} · {pack.title} ({reviewOverview?.topics[pack.id]?.newReady ?? 0})</option>)
+                  : <option value="">No new cards available</option>}
+              </select>
+              <button type="button" className="library-new-start" disabled={!reviewOverview || !nextNewTopic || !newBatchSize || newOpening}
+                onClick={() => void startNewCards()}>{newOpening ? "Opening…" : todayNew >= newCardQuota ? "Study extra cards" : "Start " + plural(newBatchSize, "card")} <ArrowRight size={15} aria-hidden="true" /></button>
+            </div>
+            {newError ? <p className="library-new-error" role="alert">{newError}</p> : null}
+          </section>
+        </div>
+        {reviewOverview?.incomplete || reverseTomorrow > 0 ? <div className="library-study-footnote">
+          {reverseTomorrow > 0 ? plural(reverseTomorrow, "reverse side") + " scheduled tomorrow" : ""}
+          {reviewOverview?.incomplete ? (reverseTomorrow > 0 ? " · " : "") + "Some topics could not be counted." : ""}
+        </div> : null}
+      </section> : null}
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
@@ -361,80 +338,46 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
           <div className="library-resume-head">
             <span className="library-resume-glyph" aria-hidden="true">{collectionGlyph(selectedCollection)}</span>
             <div className="library-resume-copy">
-              <p className="eyebrow">COLLECTION</p>
               <button type="button" className="library-resume-title" onClick={() => openCollection(selectedCollection.id)}>{selectedCollection.title}</button>
-              {selectedCollection.description ? <p>{selectedCollection.description}</p> : null}
-              <div className="library-resume-figs">
-                <span><b>{selectedCards.toLocaleString()}</b><small>cards</small></span>
-                <span><b>{selectedSeen.toLocaleString()}</b><small>explored</small></span>
-                <span><b>{selectedPercent}%</b><small>explored</small></span>
-                {lastOpened ? <span><b>{formatSeen(lastOpened).replace("seen ", "")}</b><small>last opened</small></span> : null}
-              </div>
+              <p className="library-resume-summary">{selectedCards ? selectedSeen.toLocaleString() + " of " + selectedCards.toLocaleString() + " cards explored" : "No cards yet"}</p>
             </div>
           </div>
-
-          {selectedPacks.length ? <div className="library-resume-topics" aria-label="Collection topics">
-            {selectedPacks.map((pack) => {
-              const progress = pack.card_count ? Math.min(100, Math.round((pack.encountered_cards / pack.card_count) * 100)) : 0;
-              const unsorted = unsortedCounts[pack.id] ?? 0;
-              return <button type="button" key={pack.id} onClick={() => onOpen(pack)} title={"Open " + pack.title}>
-                <span className="library-topic-copy">
-                  <strong>{pack.title}</strong>
-                  <small>{plural(pack.card_count, "card")}{unsorted ? " · " + unsorted.toLocaleString() + " unsorted" : ""}</small>
-                </span>
-                <span className="library-topic-progress">
-                  <i aria-hidden="true"><em style={{ width: progress + "%" }} /></i>
-                  <b>{progress}%</b>
-                </span>
-                <ChevronRight size={16} className="library-topic-chevron" aria-hidden="true" />
-              </button>;
-            })}
-          </div> : <button type="button" className="library-resume-empty" onClick={() => openCollection(selectedCollection.id)}>Create your first topic <ArrowRight size={14} /></button>}
-
-          {selectedNewWords > 0 ? <button type="button" className="library-waiting" onClick={() => onOpenNewWords(selectedCollection)}>
-            <Sparkles size={16} aria-hidden="true" />
-            <strong>{selectedNewWords.toLocaleString()}</strong>
-            <span>uncatalogued {selectedNewWords === 1 ? "discovery" : "discoveries"}</span>
-            <ChevronRight size={17} aria-hidden="true" />
-          </button> : null}
-
+          {recentPacks.length ? <div className="library-resume-topics" aria-label="Recent topics">
+            {recentPacks.map((pack) => <button type="button" key={pack.id} onClick={() => onOpen(pack)} title={"Open " + pack.title}>
+              <span className="library-topic-copy"><strong>{pack.title}</strong><small>{plural(pack.card_count, "card")}</small></span>
+              <ChevronRight size={16} className="library-topic-chevron" aria-hidden="true" />
+            </button>)}
+          </div> : <button type="button" className="library-resume-empty" onClick={() => onNewTopic(selectedCollection.id)}>Create your first topic <ArrowRight size={14} /></button>}
           <div className="library-resume-actions">
-            {resumePack ? <button type="button" className="library-resume-primary" onClick={() => onOpen(resumePack)}><Play size={15} fill="currentColor" aria-hidden="true" /> Continue topic</button>
-              : <button type="button" className="library-resume-primary" onClick={() => onNewTopic(selectedCollection.id)}><Plus size={15} aria-hidden="true" /> New topic</button>}
-            <button type="button" className="library-resume-secondary" onClick={() => openCollection(selectedCollection.id)}><BookOpen size={15} aria-hidden="true" /> All topics</button>
+            {resumePack ? <button type="button" className="library-resume-primary" onClick={() => onOpen(resumePack)} title={"Continue " + resumePack.title}><Play size={14} fill="currentColor" aria-hidden="true" /> Continue last topic</button>
+              : <button type="button" className="library-resume-primary" onClick={() => onNewTopic(selectedCollection.id)}><Plus size={14} aria-hidden="true" /> New topic</button>}
+            <button type="button" className="library-resume-secondary" onClick={() => openCollection(selectedCollection.id)}>View all topics</button>
           </div>
+          {selectedNewWords > 0 ? <button type="button" className="library-resume-discoveries" onClick={() => onOpenNewWords(selectedCollection)}>
+            <Sparkles size={14} aria-hidden="true" /> {plural(selectedNewWords, "uncatalogued discovery")} <ArrowRight size={13} aria-hidden="true" />
+          </button> : null}
         </section>
-
-        <aside className="library-stack" aria-label="Other collections">
+        <aside className="library-stack" aria-label="Collections">
           <div className="library-stack-head">
             <h2>Collections</h2>
             <button type="button" className="library-stack-new" onClick={onNewCollection}><Plus size={14} aria-hidden="true" /> New</button>
           </div>
-          {otherCollections.map((collection) => {
+          {collections.map((collection) => {
             const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
             const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
-            const seen = collectionPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-            const progress = cards ? Math.min(100, Math.round((seen / cards) * 100)) : 0;
-            return <button type="button" key={collection.id} className={collectionPacks.length ? "library-mini" : "library-mini off"} data-accent={collection.accent} onClick={() => selectCollection(collection.id)} title={"Show " + collection.title + " on the Library page"}>
+            return <button type="button" key={collection.id} className={"library-mini" + (!collectionPacks.length ? " off" : "") + (collection.id === selectedCollection.id ? " is-current" : "")}
+              data-accent={collection.accent} onClick={() => openCollection(collection.id)} title={"Open " + collection.title}>
               <span className="library-mini-glyph" aria-hidden="true">{collectionGlyph(collection)}</span>
               <span className="library-mini-copy">
                 <strong>{collection.title}</strong>
-                <small>{collectionPacks.length ? plural(cards, "card") + " · " + plural(collectionPacks.length, "topic") + " · " + progress + "% explored" : "No topics yet"}</small>
-                {collectionPacks.length ? <i aria-hidden="true"><em style={{ width: progress + "%" }} /></i> : null}
+                <small>{plural(cards, "card")} · {plural(collectionPacks.length, "topic")}</small>
               </span>
-              <ChevronRight size={17} className="library-mini-chevron" aria-hidden="true" />
+              <ChevronRight size={16} className="library-mini-chevron" aria-hidden="true" />
             </button>;
           })}
-          {archivedCount > 0 ? <button type="button" className="library-stack-archive" onClick={onArchive}>
-            <Archive size={19} aria-hidden="true" />
-            <span><strong>Archive</strong><small>{plural(archivedCount, "archived topic")}</small></span>
-            <ChevronRight size={17} aria-hidden="true" />
+          {archivedCount > 0 ? <button type="button" className="library-stack-archive-link" onClick={onArchive}>
+            <Archive size={14} aria-hidden="true" /> Archive · {plural(archivedCount, "topic")}
           </button> : null}
-          <button type="button" className="library-reviews-entry" onClick={() => setReviewsOpen(true)} title="Open Review Centre for all your topics">
-            <span className="library-reviews-entry-icon" aria-hidden="true"><Brain size={23} /></span>
-            <span className="library-reviews-entry-copy"><strong>Reviews</strong><small>Practise across all collections</small></span>
-            <ChevronRight size={18} className="library-reviews-entry-chevron" aria-hidden="true" />
-          </button>
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
