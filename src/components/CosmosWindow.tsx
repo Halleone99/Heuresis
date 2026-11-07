@@ -300,6 +300,7 @@ export default function CosmosWindow() {
       return {
         before: route.slice(0, position).reduce((sum, entry) => sum + entry.cardIds.length, 0),
         total: route.reduce((sum, entry) => sum + entry.cardIds.length, 0),
+        hasNext: position < route.length - 1,
       };
     } catch { return null; }
   }, [config.reviewRouteToken, config.packId]);
@@ -968,6 +969,9 @@ export default function CosmosWindow() {
   if (error || !pack) return <div className={`cosmos-state ${emptySelection ? "done" : "error"}`}><strong>{emptySelection ? (relatedReview ? "No related words to review." : mode === "sort" ? "Nothing to sort here." : "Nothing to review here.") : "Heuresis could not open."}</strong><p>{error || "Missing topic data."}</p><button onClick={() => void closeDesktopWindow()}>Close</button></div>;
   if (done || !card) {
     if (mode === "review") {
+      if (routeProgress?.hasNext && !routeError) {
+        return <div className="cosmos-state" role="status">Opening the next Review topic…</div>;
+      }
       return <div className="cosmos-state done cosmos-summary">
         <strong>{relatedReview ? "Related review complete." : "Session complete."}</strong>
         {summary ? <div className="cosmos-summary-lines">{summary.map((line) => <p key={line}>{line}</p>)}</div> : <p>No cards were answered.</p>}
