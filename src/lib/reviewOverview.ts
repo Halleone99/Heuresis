@@ -47,6 +47,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     const [cards, setup, history] = await Promise.all([
       listCards(pack.id), loadStudySetup(pack.id, pack.card_type_id), loadGradeEvents(pack.id),
     ]);
+    if (history === null) throw new Error("Review history could not be verified for this topic.");
     const directions = defaultDirections(setup.templates, setup.defaultTemplateId).map((item) => item.id);
     const pair = directions.length === 2 ? directions : [];
     const groups = eventsByCard(history);
