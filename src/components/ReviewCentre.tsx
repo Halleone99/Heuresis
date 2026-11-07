@@ -1,9 +1,7 @@
-import { ArrowLeft, ArrowRight, BookOpen, Brain, Layers3, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Brain, Layers3 } from "lucide-react";
 import { useRef, useState } from "react";
 import { listTopicCards, type CardWithStats, type Collection, type PackWithType } from "../lib/heuresis";
-import { openCosmosWindow } from "../lib/cosmosWindow";
-import { defaultDirections } from "../lib/recommend";
-import { loadStudySetup } from "../lib/study";
+import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import type { ReviewOverview } from "../lib/reviewOverview";
 import StudyModal from "./StudyModal";
 
@@ -23,8 +21,6 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
   const [collectionIds, setCollectionIds] = useState<string[]>(initialCollectionIds);
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [route, setRoute] = useState<string[]>([]);
-  const [routePosition, setRoutePosition] = useState(0);
   const request = useRef(0);
 
   const availableCollections = collections.filter((collection) => collectionIds.includes(collection.id)).map((collection) => ({
@@ -35,12 +31,9 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
     .filter((pack) => (overview?.topics[pack.id]?.ready ?? 0) > 0);
   const topicCount = availableCollections.reduce((sum, group) => sum + group.topics.length, 0);
   const readyCount = eligiblePacks.reduce((sum, pack) => sum + (overview?.topics[pack.id]?.ready ?? 0), 0);
-  const nextPack = packs.find((pack) => pack.id === route[routePosition]);
 
   function toggleCollection(id: string) {
     setCollectionIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
-    setRoute([]);
-    setRoutePosition(0);
   }
 
   async function chooseTopic(pack: PackWithType) {
@@ -63,39 +56,29 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
     }
   }
 
-  /** A guided review across collections, preserving the existing topic-specific
-   * templates, grading and Supabase session records. Each topic opens in Review,
-   * then the next can be launched from this page. */
-  async function launchPack(packId: string, nextPosition: number) {
-    const pack = packs.find((entry) => entry.id === packId);
-    if (!pack || loadingPackId) return;
-    const cardIds = overview?.topics[packId]?.readyCardIds ?? [];
-    if (!cardIds.length) { setRoutePosition(nextPosition); return; }
+  /** Review all due cards in one continuous flow, without the New cards quota. */
+  async function startAll() {
+    if (loadingPackId || !eligiblePacks.length || !overview) return;
+    const entries = eligiblePacks.map((pack) => ({
+      packId: pack.id,
+      cardIds: overview.topics[pack.id]?.readyCardIds ?? [],
+    })).filter((entry) => entry.cardIds.length > 0);
+    if (!entries.length) return;
     setError("");
-    setLoadingPackId(packId);
+    setLoadingPackId("all");
     try {
-      const setup = await loadStudySetup(pack.id, pack.card_type_id);
-      const templateIds = defaultDirections(setup.templates, setup.defaultTemplateId).map((item) => item.id);
-      if (!templateIds.length) throw new Error(`No review directions are configured for “${pack.title}”.`);
+      const token = createReviewRoute(entries);
       await openCosmosWindow({
-        mode: "review", packId, templateIds, source: "all", order: "weakest",
-        count: "all", cardIds,
+        mode: "review", packId: entries[0].packId,
+        source: "all", order: "weakest", count: "all",
+        cardIds: entries[0].cardIds, reviewRouteToken: token,
       });
-      setRoutePosition(nextPosition);
       onRefresh();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not open Review.");
+      setError(failure instanceof Error ? failure.message : "Could not open Review all.");
     } finally {
       setLoadingPackId(null);
     }
-  }
-
-  function startAll() {
-    if (loadingPackId || !eligiblePacks.length) return;
-    const ids = eligiblePacks.map((pack) => pack.id);
-    setRoute(ids);
-    setRoutePosition(0);
-    void launchPack(ids[0], 1);
   }
 
   function leave() {
@@ -110,7 +93,7 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
         <div className="reviews-centre-intro">
           <span className="reviews-centre-eyebrow"><Brain size={14} /> YOUR PRACTICE SPACE</span>
           <h1>Review Centre<span>.</span></h1>
-          <p>Review every available card from the languages you choose, one topic at a time. The reverse side is left for tomorrow after a successful answer.</p>
+          <p>Review every available card from the languages you choose in one continuous session. The reverse side is left for tomorrow after a successful answer.</p>
         </div>
         <div className="reviews-centre-summary" aria-label="Review totals">
           <span><strong>{overview ? readyCount.toLocaleString() : "–"}</strong><small>ready today</small></span>
@@ -126,14 +109,8 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
             aria-pressed={collectionIds.includes(collection.id)} onClick={() => toggleCollection(collection.id)}>{collection.title}</button>)}
         </div>
         <button type="button" className="reviews-centre-start-all" disabled={!overview || !eligiblePacks.length || loadingPackId !== null}
-          onClick={startAll}>{loadingPackId ? "Opening…" : `Review all available · ${readyCount}`} <ArrowRight size={15}/></button>
+          onClick={() => void startAll()}>{loadingPackId ? "Opening…" : `Review all available · ${readyCount}`} <ArrowRight size={15}/></button>
       </div>
-      {route.length ? <div className="reviews-centre-route" role="status">
-        <span>{routePosition >= route.length ? "All selected topics opened" : `${routePosition} of ${route.length} topics opened`}</span>
-        {nextPack ? <button type="button" onClick={() => void launchPack(nextPack.id, routePosition + 1)}
-          disabled={loadingPackId !== null}>Next · {nextPack.title} <ArrowRight size={14}/></button>
-          : <button type="button" onClick={() => { setRoute([]); setRoutePosition(0); onRefresh(); }}><RefreshCw size={14}/> Recheck reviews</button>}
-      </div> : null}
       {overview?.incomplete ? <p className="reviews-centre-error" role="status">Some topics could not be counted. Only verified available cards are included.</p> : null}
       {error ? <p className="reviews-centre-error" role="alert">{error}</p> : null}
       {availableCollections.length ? (
