@@ -74,6 +74,8 @@ import "./topic-smooth-navigation.css";
 import "./auth-blue.css";
 // Daily review panel, ahead of canonical chrome's final palette rules.
 import "./library-review-today.css";
+// Final, homepage-only layout refinements and the compact Study preference.
+import "./library-home-quiet.css";
 // Canonical application chrome must be the final CSS import.
 import "./theme/chrome.css";
 

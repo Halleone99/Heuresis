@@ -5,6 +5,7 @@ import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import { BACKGROUND_PRESETS, createBackgroundPresetImage, presetSwatch, type BackgroundPreset } from "../lib/backgroundPresets";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
+import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import SortingSettings from "./SortingSettings";
 import StructureSettings from "./StructureSettings";
 
@@ -19,7 +20,7 @@ type BackgroundApi = {
   removeImage: () => Promise<void>;
 };
 
-type Tab = "appearance" | "sorting" | "cards";
+type Tab = "appearance" | "study" | "sorting" | "cards";
 type Props = {
   backgrounds: Record<BackgroundPageKey, BackgroundApi>;
   packs: PackWithType[];
@@ -235,14 +236,36 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
     </div></section>;
 }
 
+function StudySettings() {
+  const [dailyTarget, setDailyTarget] = useState(readNewCardQuota);
+
+  return <section className="heuresis-study-settings" aria-label="Study preferences">
+    <div className="settings-section-heading">
+      <strong>Daily new cards</strong>
+      <span>Choose how many new cards you want to introduce each day. This does not limit reviews already due.</span>
+    </div>
+    <label className="heuresis-study-target">
+      <span>Daily target</span>
+      <input type="number" min={1} max={50} step={1} value={dailyTarget}
+        aria-label="Daily new cards target"
+        onChange={(event) => {
+          const value = Number(event.currentTarget.value);
+          if (Number.isFinite(value)) setDailyTarget(saveNewCardQuota(value));
+        }} />
+      <small>1–50 new cards per day</small>
+    </label>
+    <p className="heuresis-study-device-note">Saved on this device. Your study progress and review history are still saved in your account.</p>
+  </section>;
+}
+
 export default function SettingsModal({ backgrounds, packs, collections, onDataChanged, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("appearance");
   return (
     <div className="modal-backdrop settings-layer" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className="settings-modal settings-modal-wide" role="dialog" aria-modal="true" aria-label="Heuresis settings">
         <header className="settings-head"><div><p className="eyebrow">PREFERENCES</p><h2>Settings</h2></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={17} /></button></header>
-        <nav className="settings-tabs"><button aria-pressed={tab === "appearance"} onClick={() => setTab("appearance")}>Appearance</button><button aria-pressed={tab === "sorting"} onClick={() => setTab("sorting")}>Sorting</button><button aria-pressed={tab === "cards"} onClick={() => setTab("cards")}>Cards & directions</button></nav>
-        <div className="settings-body">{tab === "appearance" ? <AppearanceSettings backgrounds={backgrounds} /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>
+        <nav className="settings-tabs"><button aria-pressed={tab === "appearance"} onClick={() => setTab("appearance")}>Appearance</button><button aria-pressed={tab === "study"} onClick={() => setTab("study")}>Study</button><button aria-pressed={tab === "sorting"} onClick={() => setTab("sorting")}>Sorting</button><button aria-pressed={tab === "cards"} onClick={() => setTab("cards")}>Cards & directions</button></nav>
+        <div className="settings-body">{tab === "appearance" ? <AppearanceSettings backgrounds={backgrounds} /> : null}{tab === "study" ? <StudySettings /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>
       </section>
     </div>
   );
