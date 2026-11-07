@@ -49,7 +49,7 @@ import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/revie
 import { signHeuresisCardImages } from "../lib/cardMedia";
 import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
-import { readReviewSelection } from "../lib/cosmosWindow";
+import { nextReviewRouteParams, readReviewSelection } from "../lib/cosmosWindow";
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
@@ -87,6 +87,7 @@ type Config = {
   includeMastered: boolean;
   query: string;
   selectionToken: string;
+  reviewRouteToken: string;
 };
 
 
@@ -138,6 +139,7 @@ function parseConfig(): Config {
     includeMastered: params.get("mastered") === "1",
     query: params.get("q")?.trim() ?? "",
     selectionToken: params.get("selection") ?? "",
+    reviewRouteToken: params.get("route") ?? "",
   };
 }
 
@@ -251,6 +253,7 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
+  const [routeError, setRouteError] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [leftContextOpen, setLeftContextOpen] = useState(false);
   const [detailsPinned, setDetailsPinned] = useState(() => { try { return localStorage.getItem(DETAILS_PIN_KEY) === "1"; } catch { return false; } });
@@ -281,6 +284,7 @@ export default function CosmosWindow() {
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
+  const routeAdvancing = useRef(false);
   const lastAutoAudioRef = useRef("");
   const learningInFlightRef = useRef(new Set<string>());
 
@@ -367,7 +371,9 @@ export default function CosmosWindow() {
         const isRecommended = config.mode === "review" && !relatedReview && config.source === "recommended";
         const activeTemplates = requested.length
           ? requested
-          : isRecommended ? defaultDirections(nextTemplates, setup.defaultTemplateId) : chosenTemplate ? [chosenTemplate] : [];
+          : isRecommended || Boolean(config.reviewRouteToken)
+            ? defaultDirections(nextTemplates, setup.defaultTemplateId)
+            : chosenTemplate ? [chosenTemplate] : [];
         const progressPair = defaultDirections(nextTemplates, setup.defaultTemplateId).map((entry) => entry.id);
         if (config.mode === "review" && !activeTemplates.length) throw new Error("This topic has no review direction yet.");
 
@@ -510,6 +516,29 @@ export default function CosmosWindow() {
       void closeSession();
     };
   }, [config, closeSession, relatedReview]);
+
+  // Review all is one uninterrupted flow. Finish each topic's Supabase session
+  // before replacing this popup's URL with the next topic and its exact due cards.
+  useEffect(() => {
+    if (!done || !pack || !config.reviewRouteToken || routeAdvancing.current) return;
+    let params: URLSearchParams | null;
+    try {
+      params = nextReviewRouteParams(config.reviewRouteToken, pack.id);
+    } catch (failure) {
+      setRouteError(failure instanceof Error ? failure.message : "Could not continue Review all.");
+      return;
+    }
+    if (!params) return; // Last topic: retain the normal completion summary.
+    routeAdvancing.current = true;
+    void closeSession().then(() => {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.search = params.toString();
+      window.location.replace(nextUrl.toString());
+    }).catch((failure) => {
+      routeAdvancing.current = false;
+      setRouteError(failure instanceof Error ? failure.message : "Could not open the next Review topic.");
+    });
+  }, [done, pack?.id, config.reviewRouteToken, closeSession]);
 
   useEffect(() => {
     if (!card || !pack || !structuredWords || relatedReview) {
@@ -929,6 +958,7 @@ export default function CosmosWindow() {
       return <div className="cosmos-state done cosmos-summary">
         <strong>{relatedReview ? "Related review complete." : "Session complete."}</strong>
         {summary ? <div className="cosmos-summary-lines">{summary.map((line) => <p key={line}>{line}</p>)}</div> : <p>No cards were answered.</p>}
+        {routeError ? <p role="alert">{routeError}</p> : null}
         <div className="cosmos-summary-actions">
           {retryableThisRound.length ? <button className="primary" disabled={busy} onClick={() => void retryMissed()}>{busy ? "Opening…" : `Retry ${plural(retryableThisRound.length, "missed or partial card")}`}</button> : null}
           <button disabled={busy} onClick={() => void closeSession().then(() => closeDesktopWindow())}>Done</button>
