@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import { loadTs } from "./lib/load-ts.mjs";
 
 // Use the production eligibility and overview functions, not a copy of their rules.
-const progress = loadTs("src/lib/cardProgress.ts");
+const progress = loadTs("src/lib/cardProgress.ts", {
+  "./learningSignals": { reviewGradeCount: (card) => card.stats.again_count + card.stats.hard_count + card.stats.good_count + card.stats.easy_count },
+});
 const now = Date.UTC(2026, 10, 7, 12);
 const grades = [{ cardId: "reviewed", templateId: "front", grade: "good", at: now - 1_000 }];
 const cards = [
