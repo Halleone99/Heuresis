@@ -356,6 +356,8 @@ export default function CosmosWindow() {
         ]);
         if (cancelled) return;
 
+        if (config.mode === "review" && !relatedReview && history === null)
+          throw new Error("Review history is unavailable. Reconnect before reviewing, so today's completed cards are not repeated.");
         const nextTemplates = setup.templates;
         const requestedIds = config.templateIds.length ? config.templateIds : config.templateId ? [config.templateId] : [];
         const requested = requestedIds.map((id) => nextTemplates.find((entry) => entry.id === id)).filter((entry): entry is StudyTemplate => Boolean(entry));
@@ -369,14 +371,13 @@ export default function CosmosWindow() {
 
         let nextQueue: QueueItem[] = [];
         let rest: QueueItem[] = [];
-        const deliberateSelection = Boolean(config.selectionToken || config.tagIds.length || config.reviewFlags.length || config.query);
         const ready = allCards.filter(cardHasCompletedSort).filter((entry) => {
           if (config.mode !== "review") return true;
           const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
           const oldState = assessState(directionEvidence(entry, null, grades)).state;
           const progress = cardBarProgress(entry, grades, oldState, progressPair);
           return reviewEligible(progress, grades, entry.stats.last_encountered_at,
-            config.includeMastered || Boolean(config.selectionToken), Date.now(), activeTemplates.map((template) => template.id), deliberateSelection);
+            config.includeMastered, Date.now(), activeTemplates.map((template) => template.id));
         });
         // A filtered or targeted review must never quietly fall back to every card.
         const selection = config.selectionToken ? readReviewSelection(config.packId, config.selectionToken) : [];
@@ -419,7 +420,7 @@ export default function CosmosWindow() {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
               return reviewEligible(cardBarProgress(entry, grades, oldState, progressPair), grades, entry.stats.last_encountered_at,
-                config.includeMastered || selection.length > 0, Date.now(), activeTemplates.map((template) => template.id), deliberateSelection);
+                config.includeMastered, Date.now(), activeTemplates.map((template) => template.id));
             });
           }
           if (config.order === "random") pool = shuffle(pool);
