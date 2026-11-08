@@ -1273,6 +1273,7 @@ export default function CosmosWindow() {
       {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
     {editOpen && card ? <ReviewCardEditor key={card.id} pack={pack} card={card}
+      onRelationsChanged={() => { void listRelatedCatalogue(pack.id, card.id).then(setRelatedRows).catch(() => undefined); }}
       onClose={() => setEditOpen(false)}
       onSaved={(updated) => {
         patchLocalCard(card.id, () => updated);
