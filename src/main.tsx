@@ -78,6 +78,8 @@ import "./library-review-today.css";
 import "./library-home-quiet.css";
 // Canonical application chrome must be the final CSS import.
 import "./theme/chrome.css";
+// Final override is deliberately scoped to the single-mode Study homepage.
+import "./library-study-refined.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
