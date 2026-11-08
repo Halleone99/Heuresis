@@ -924,6 +924,8 @@ export default function CosmosWindow() {
         return; // Do not grade again or close the review while recording a correction.
       }
       if (gradedMistake) {
+        // Let focused buttons handle Enter themselves; otherwise Enter advances.
+        if (target?.closest("button,[role=button]") && (event.key === "Enter" || event.key === " ")) return;
         if (!typing && !busy && event.key === "Enter") { event.preventDefault(); void advance(queue, index + 1); }
         return;
       }
