@@ -77,6 +77,8 @@ import "./library-review-today.css";
 // Final, homepage-only layout refinements and the compact Study preference.
 import "./library-home-quiet.css";
 // Canonical application chrome must be the final CSS import.
+// Scoped to the single-mode homepage; canonical chrome remains the final CSS import.
+import "./library-study-refined.css";
 import "./theme/chrome.css";
 
 // Secondary windows load their own code only when opened, so the main window

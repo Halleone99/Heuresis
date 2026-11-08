@@ -13,6 +13,10 @@ export type TopicReviewSummary = {
   reverseTomorrow: number;
   newReady: number;
   newToday: number;
+  /** Newly introduced cards over the past seven local calendar days (including today). */
+  newLast7: number;
+  /** Distinct card/day review pairs, so repeated attempts do not inflate activity. */
+  reviewsLast7: number;
   /** Cards to include in an explicitly requested full-topic review. */
   readyCardIds: string[];
 };
@@ -22,6 +26,8 @@ export type ReviewOverview = {
   reverseTomorrow: number;
   newReady: number;
   newToday: number;
+  newLast7: number;
+  reviewsLast7: number;
   topics: Record<string, TopicReviewSummary>;
   /** Do not silently show a complete-looking total if any topic failed to load. */
   incomplete: boolean;
@@ -43,6 +49,9 @@ function eventsByCard(events: GradeEvent[] | null) {
  * with the reverse side held for tomorrow.
  */
 export async function loadReviewOverview(packs: PackWithType[], now = Date.now()): Promise<ReviewOverview> {
+  const sevenDayStart = new Date(now);
+  sevenDayStart.setHours(0, 0, 0, 0);
+  sevenDayStart.setDate(sevenDayStart.getDate() - 6);
   const summaries = await Promise.allSettled(packs.filter((pack) => pack.card_count > 0).map(async (pack) => {
     const [cards, setup, history] = await Promise.all([
       listCards(pack.id), loadStudySetup(pack.id, pack.card_type_id), loadGradeEvents(pack.id),
@@ -55,6 +64,8 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     let reverseTomorrow = 0;
     let newReady = 0;
     let newToday = 0;
+    let newLast7 = 0;
+    let reviewsLast7 = 0;
     const today = new Date(now).toDateString();
 
     for (const card of cards) {
@@ -62,10 +73,18 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       // A card counts towards the daily new-card quota only once it is actually
       // classified and saved. Undo removes _sorted_at and reverses this count.
       const sortedAt = card.data[SORTED_AT_KEY];
-      if (typeof sortedAt === "string" && sortedAt && Number.isFinite(Date.parse(sortedAt))
-        && new Date(sortedAt).toDateString() === today) newToday += 1;
+      if (typeof sortedAt === "string" && sortedAt && Number.isFinite(Date.parse(sortedAt))) {
+        const sortedTime = Date.parse(sortedAt);
+        if (new Date(sortedTime).toDateString() === today) newToday += 1;
+        if (sortedTime >= sevenDayStart.getTime() && sortedTime <= now) newLast7 += 1;
+      }
       if (!directions.length) continue;
       const grades = history ? groups.get(card.id) ?? [] : null;
+      if (grades) {
+        const distinctDays = new Set(grades.filter((grade) => grade.at >= sevenDayStart.getTime() && grade.at <= now)
+          .map((grade) => new Date(grade.at).toDateString()));
+        reviewsLast7 += distinctDays.size;
+      }
       const oldState = assessState(directionEvidence(card, null, grades)).state;
       const progress = cardBarProgress(card, grades, oldState, pair, now);
       if (reviewEligible(progress, grades, card.stats.last_encountered_at, false, now, directions)) readyCardIds.push(card.id);
@@ -74,7 +93,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
         if (pair.length && progress.pendingDirections?.length === 1) reverseTomorrow += 1;
       }
     }
-    return { packId: pack.id, ready: readyCardIds.length, reviewedToday, reverseTomorrow, newReady, newToday, readyCardIds };
+    return { packId: pack.id, ready: readyCardIds.length, reviewedToday, reverseTomorrow, newReady, newToday, newLast7, reviewsLast7, readyCardIds };
   }));
 
   const topics: Record<string, TopicReviewSummary> = {};
@@ -90,6 +109,8 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     reverseTomorrow: values.reduce((sum, topic) => sum + topic.reverseTomorrow, 0),
     newReady: values.reduce((sum, topic) => sum + topic.newReady, 0),
     newToday: values.reduce((sum, topic) => sum + topic.newToday, 0),
+    newLast7: values.reduce((sum, topic) => sum + topic.newLast7, 0),
+    reviewsLast7: values.reduce((sum, topic) => sum + topic.reviewsLast7, 0),
     topics,
     incomplete,
   };
