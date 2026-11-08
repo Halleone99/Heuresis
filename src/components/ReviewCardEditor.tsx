@@ -30,11 +30,19 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved }: Props
     setSaving(true);
     setError("");
     try {
+      // A review result can update card metadata while this window stays open.
+      // Refresh the version stamp without overwriting a genuine content edit elsewhere.
+      const latest = await getCard(card.id).catch(() => null);
+      if (latest && (
+        schema.some((field) => fieldText(latest.data, field.key) !== fieldText(card.data, field.key)) ||
+        (latest.note ?? "") !== (card.note ?? "")
+      )) throw new Error("This card was edited elsewhere. Close and reopen Modify to see the latest version.");
+      const source = latest ?? card;
       await updateCard(pack, card.id, values, {
         note,
-        favourite: card.favourite,
-        interest_rank: card.interest_rank,
-        expectedUpdatedAt: card.updated_at,
+        favourite: source.favourite,
+        interest_rank: source.interest_rank,
+        expectedUpdatedAt: source.updated_at,
       });
       // Refresh the actual database row so the running review displays edited content.
       // If reading back is unavailable, the successful save is still reflected locally.
