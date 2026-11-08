@@ -1,12 +1,14 @@
 import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fieldText, getCard, updateCard, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
+import RelatedEditor from "./RelatedEditor";
 
 type Props = {
   pack: PackWithType;
   card: CardWithStats;
   onClose: () => void;
   onSaved: (card: CardWithStats) => void;
+  onRelationsChanged?: () => void;
 };
 type KnowledgeKind = "example" | "grammar" | "parts" | "origin" | "fact" | "note";
 type KnowledgeOption = { kind: KnowledgeKind; label: string; dimension: string; hint: string };
@@ -89,7 +91,7 @@ function serializeBlock(block: EditableBlock, pack: PackWithType): string {
   const base = {
     ...(block.original ?? {}),
     id: block.id,
-    type: block.original?.type ?? block.kind,
+    type: block.kind === "example" ? "example" : block.original?.type ?? block.kind,
     schema_version: block.original?.schema_version ?? 2,
     dim: block.original?.dim ?? option.dimension,
   };
@@ -132,7 +134,7 @@ function fieldGroups(fields: FieldDef[]) {
 }
 
 /** Edit the complete card during review, using Capture's knowledge-block storage format. */
-export default function ReviewCardEditor({ pack, card, onClose, onSaved }: Props) {
+export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelationsChanged }: Props) {
   const schema = pack.cardType?.field_schema ?? [];
   const groups = fieldGroups(schema);
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -255,6 +257,13 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved }: Props
           {KNOWLEDGE.map((option) => <button type="button" key={option.kind} disabled={saving}
             onClick={() => addBlock(option.kind)}><Plus size={12} aria-hidden="true" /> {option.label}</button>)}
         </div>
+        <details className="cosmos-edit-more cosmos-edit-connections">
+          <summary>Related words &amp; connections <span>Optional</span></summary>
+          <div className="cosmos-edit-more-body">
+            <p>Connections save when added, separately from other card edits.</p>
+            <RelatedEditor pack={pack} card={card} onChanged={onRelationsChanged} />
+          </div>
+        </details>
         <label className="cosmos-edit-field cosmos-edit-primary-note">
           <span>General note</span>
           <textarea rows={2} placeholder="Optional" value={note} onChange={(event) => setNote(event.target.value)} />
