@@ -1,18 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { loadLatestReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
-import { RESULT_LABEL } from "../lib/reviewResults";
+import { loadReviewCorrections, type ReviewCorrection } from "../lib/reviewCorrections";
 
 type Props = {
-  grade: ReviewCorrectionGrade | null;
-  onGradeChange: (grade: ReviewCorrectionGrade) => void;
   initialAttempt: string;
   referenceAnswer: string;
-  onSave: (id: string, attempt: string, explanation: string, grade: ReviewCorrectionGrade) => Promise<void>;
-  onSkip: () => void;
+  onSave: (id: string, attempt: string, explanation: string) => Promise<void>;
   onCancel: () => void;
 };
 
-export default function ReviewCorrectionPanel({ grade, onGradeChange, initialAttempt, referenceAnswer, onSave, onSkip, onCancel }: Props) {
+/** Optional, inline reflection AFTER the grade has already been recorded. */
+export default function ReviewCorrectionPanel({ initialAttempt, referenceAnswer, onSave, onCancel }: Props) {
   const [id] = useState(() => crypto.randomUUID());
   const [attempt, setAttempt] = useState(initialAttempt);
   const [explanation, setExplanation] = useState("");
@@ -20,13 +17,13 @@ export default function ReviewCorrectionPanel({ grade, onGradeChange, initialAtt
   const [error, setError] = useState("");
 
   async function submit() {
-    if (saving || !grade || !explanation.trim()) return;
+    if (saving || !explanation.trim()) return;
     setSaving(true);
     setError("");
     try {
-      await onSave(id, attempt, explanation, grade);
+      await onSave(id, attempt, explanation);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not save the correction.");
+      setError(reason instanceof Error ? reason.message : "Could not save the explanation.");
     } finally {
       setSaving(false);
     }
@@ -38,57 +35,55 @@ export default function ReviewCorrectionPanel({ grade, onGradeChange, initialAtt
   }
 
   return <form className="cosmos-correction" onSubmit={onSubmit} onKeyDown={(event) => {
-    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (!saving) onCancel(); }
+    if (event.key === "Escape" && !saving) { event.preventDefault(); event.stopPropagation(); onCancel(); }
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void submit(); }
   }}>
     <div className="cosmos-correction-heading">
-      <strong>Why wrong? · Log mistake</strong>
-      <span>Save what you confused and why, alongside this card.</span>
-    </div>
-    <div className="cosmos-correction-grade" role="group" aria-label="Rate this answer">
-      <span>Review rating</span>
-      {(["again", "hard"] as const).map((option) => <button key={option} type="button"
-        aria-pressed={grade === option} className={grade === option ? "is-selected" : ""}
-        disabled={saving} onClick={() => onGradeChange(option)}>{RESULT_LABEL[option]}</button>)}
-      {!grade ? <small>Choose Missed or Partial to save.</small> : null}
+      <strong>Why wrong?</strong>
+      <span>A short note for next time. The review result is already recorded.</span>
     </div>
     <div className="cosmos-correction-fields">
-      <label><span>What I answered or confused it with</span>
+      <label><span>What I thought</span>
         <textarea value={attempt} onChange={(event) => setAttempt(event.target.value)}
-          rows={2} maxLength={3000} placeholder="What did you think the answer was? (If nothing came to mind, leave blank.)" autoFocus />
+          rows={2} maxLength={3000} placeholder="What did I confuse it with?" autoFocus/>
       </label>
       <div className="cosmos-correction-reference"><span>Correct answer</span><p>{referenceAnswer}</p></div>
-      <label className="cosmos-correction-reason"><span>Why it is different · what I need to remember</span>
+      <label className="cosmos-correction-reason"><span>Why it was wrong · what to remember</span>
         <textarea value={explanation} onChange={(event) => setExplanation(event.target.value)}
-          rows={3} maxLength={3000} placeholder="Explain the confusion in your own words…" required />
+          rows={2} maxLength={3000} placeholder="The distinction I need to remember…" required/>
       </label>
     </div>
     {error ? <p className="cosmos-correction-error" role="alert">{error}</p> : null}
     <div className="cosmos-correction-actions">
-      <button type="button" disabled={saving} onClick={onCancel}>Back to ratings</button>
-      <button type="button" disabled={saving || !grade} onClick={onSkip} title="Record the review grade without a written correction">Skip note</button>
-      <button className="cosmos-correction-save" type="submit" disabled={saving || !grade || !explanation.trim()}>{saving ? "Saving…" : "Save correction & continue"}</button>
+      <button type="button" disabled={saving} onClick={onCancel}>Cancel</button>
+      <button className="cosmos-correction-save" type="submit" disabled={saving || !explanation.trim()}>
+        {saving ? "Saving…" : "Save explanation"}
+      </button>
     </div>
   </form>;
 }
 
+/** Only mounted after a fresh Missed/Partial grade, never on answer reveal. */
 export function PreviousReviewCorrection({ cardId, templateId }: { cardId: string; templateId: string | null }) {
-  const [previous, setPrevious] = useState<ReviewCorrection | null>(null);
+  const [history, setHistory] = useState<ReviewCorrection[]>([]);
   useEffect(() => {
     let current = true;
-    setPrevious(null);
-    void loadLatestReviewCorrection(cardId, templateId)
-      .then((value) => { if (current) setPrevious(value); })
-      .catch(() => undefined); // Historical note availability must never block grading.
+    setHistory([]);
+    void loadReviewCorrections(cardId, templateId)
+      .then((value) => { if (current) setHistory(value); })
+      .catch(() => undefined); // A network failure cannot block a review.
     return () => { current = false; };
   }, [cardId, templateId]);
-  if (!previous) return null;
+  if (!history.length) return null;
   return <details className="cosmos-previous-correction">
-    <summary>Earlier correction · {new Date(previous.created_at).toLocaleDateString()}</summary>
+    <summary>Earlier explanations · {history.length}</summary>
     <div className="cosmos-previous-correction-body">
-      {previous.attempt ? <p><b>I answered</b> {previous.attempt}</p> : <p><b>I could not recall an answer.</b></p>}
-      <p><b>Correct</b> {previous.reference_answer}</p>
-      <p><b>Why</b> {previous.explanation}</p>
+      {history.map((entry) => <article key={entry.id} className="cosmos-correction-history-entry">
+        <small>{new Date(entry.created_at).toLocaleString()}</small>
+        <p><b>I thought</b>{entry.attempt || "No answer came to mind"}</p>
+        <p><b>Correct</b>{entry.reference_answer}</p>
+        <p><b>Remember</b>{entry.explanation}</p>
+      </article>)}
     </div>
   </details>;
 }
