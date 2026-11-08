@@ -63,9 +63,10 @@ const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 type StudyMode = "review" | "sort";
 type DimensionId = "neighbours" | "components" | "examples" | "structure" | "origin" | "facts" | "notes";
 type DimensionDef = { id: DimensionId; label: string; sub: string };
-type WorkspaceTextBlock = { id: string; type: "text"; text: string; dim: DimensionId };
+type WorkspaceTextBlock = { id: string; type: "text" | "grammar" | "parts" | "origin" | "fact" | "note"; text: string; dim: DimensionId };
+type WorkspaceExampleBlock = { id: string; type: "example"; source: string; reading: string; translation: string; text: string; dim: DimensionId };
 type WorkspaceImageBlock = { id: string; type: "image"; path: string; caption: string; dim: DimensionId };
-type WorkspaceBlock = WorkspaceTextBlock | WorkspaceImageBlock;
+type WorkspaceBlock = WorkspaceTextBlock | WorkspaceExampleBlock | WorkspaceImageBlock;
 type Source = "recommended" | "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
 type Order = "pack" | "random" | "weakest" | "oldest";
 /** One step of a session: a card in one direction, with the reasons it was chosen. */
@@ -172,11 +173,30 @@ function parseBlocks(card: CardWithStats | null): WorkspaceBlock[] {
   return raw.flatMap<WorkspaceBlock>((entry) => {
     try {
       const value = JSON.parse(entry) as Record<string, unknown>;
-      if (value.type === "text" && typeof value.id === "string" && typeof value.text === "string") {
-        return [{ id: value.id, type: "text", text: value.text, dim: normaliseDimension(value.dim) } satisfies WorkspaceTextBlock];
+      if (["text", "grammar", "parts", "origin", "fact", "note"].includes(String(value.type))
+        && typeof value.id === "string" && typeof value.text === "string") {
+        return [{
+          ...value,
+          id: value.id,
+          type: value.type as WorkspaceTextBlock["type"],
+          text: value.text,
+          dim: normaliseDimension(value.dim),
+        } satisfies WorkspaceTextBlock];
+      }
+      if (value.type === "example" && typeof value.id === "string") {
+        const source = typeof value.source === "string" ? value.source : String(value.text ?? "").split("\n")[0];
+        const reading = typeof value.reading === "string" ? value.reading : "";
+        const translation = typeof value.translation === "string" ? value.translation : "";
+        return [{
+          ...value,
+          id: value.id, type: "example", source, reading, translation,
+          text: typeof value.text === "string" ? value.text : [source, reading, translation].filter(Boolean).join("\n"),
+          dim: "examples",
+        } satisfies WorkspaceExampleBlock];
       }
       if (value.type === "image" && typeof value.id === "string" && typeof value.path === "string") {
         return [{
+          ...value,
           id: value.id,
           type: "image",
           path: value.path,
@@ -1042,12 +1062,19 @@ export default function CosmosWindow() {
       {dimensionId === "notes" && card.note?.trim() ? <article className="cosmos-field"><small>Card note</small><p>{card.note}</p></article> : null}
       {entries.map((entry) => <article className="cosmos-field" key={entry.key}><small>{entry.label}</small><p>{entry.value}</p></article>)}
       {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}{mode === "sort" ? <button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button> : null}</article>) : null}
-      {dimensionBlocks.map((block) => block.type === "text"
-        ? <article className="cosmos-text-block" key={block.id}><p>{block.text}</p>{mode === "sort" ? <button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button> : null}</article>
-        : <figure className="cosmos-image-block" key={block.id}>
+      {dimensionBlocks.map((block) => block.type === "image"
+        ? <figure className="cosmos-image-block" key={block.id}>
             {signedImages[block.path] ? <img src={signedImages[block.path]} alt={block.caption || "Card reference"} /> : <div className="cosmos-image-loading">Loading image…</div>}
             {block.caption ? <figcaption>{block.caption}</figcaption> : null}
-          </figure>)}
+          </figure>
+        : block.type === "example"
+          ? <article className="cosmos-text-block cosmos-example-block" key={block.id}>
+              <p>{block.source}</p>
+              {block.reading ? <p className="cosmos-example-reading">{block.reading}</p> : null}
+              {block.translation ? <p className="cosmos-example-translation">{block.translation}</p> : null}
+              {mode === "sort" ? <button title="Remove example" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button> : null}
+            </article>
+          : <article className="cosmos-text-block" key={block.id}><p>{block.text}</p>{mode === "sort" ? <button title="Remove" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button> : null}</article>)}
       {renderAddForm(dimensionId, def)}
     </section>;
   };
