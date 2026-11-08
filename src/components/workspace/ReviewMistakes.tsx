@@ -34,7 +34,7 @@ function stamp(value: string) {
 }
 
 /** Entries are materialised by Supabase only after a second wrong grade, not by the UI. */
-export function ReviewMistakes() {
+export function ReviewMistakes({ search = "" }: { search?: string }) {
   const [rows, setRows] = useState<DisplayMistake[]>([]);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -98,16 +98,20 @@ export function ReviewMistakes() {
     return () => { mounted = false; };
   }, []);
 
-  if (!rows.length && !error) return null;
+  const query = search.trim().toLocaleLowerCase();
+  const filtered = query ? rows.filter((row) => [row.title, row.reference, row.topic, row.direction,
+    ...row.notes.flatMap((note) => [note.attempt, note.reference_answer, note.explanation])]
+    .some((value) => value.toLocaleLowerCase().includes(query))) : rows;
+  if (!filtered.length && !error) return null;
   return <section className="ml-review-automatic" aria-label="Repeated flashcard mistakes">
     <header className="ml-review-automatic-head">
       <div><span className="ml-review-kicker">From flashcards</span><h2>Repeated in review</h2>
         <p>Added after two Missed or Partial answers. Each card and direction has one history.</p></div>
-      <span className="ml-review-total">{rows.length}</span>
+      <span className="ml-review-total">{filtered.length}</span>
     </header>
     {error ? <p className="ml-review-error" role="alert">Repeated review records could not be loaded. {error}</p> : null}
     <div className="ml-review-list">
-      {(expanded ? rows : rows.slice(0, 8)).map((row) => <details className="ml-review-row" key={row.id}>
+      {(expanded ? filtered : filtered.slice(0, 8)).map((row) => <details className="ml-review-row" key={row.id}>
         <summary><span className="ml-review-icon"><RotateCcw size={15}/></span>
           <span className="ml-review-identity"><strong>{row.title}</strong>
             <small>{row.topic} · {row.direction} · {stamp(row.last_wrong_at)}</small></span>
@@ -133,7 +137,7 @@ export function ReviewMistakes() {
         </div>
       </details>)}
     </div>
-    {rows.length > 8 ? <button type="button" className="ml-review-show-more"
+    {filtered.length > 8 ? <button type="button" className="ml-review-show-more"
       onClick={() => setExpanded((value) => !value)}>{expanded ? "Show less" : "Show all repeated mistakes"}</button> : null}
   </section>;
 }
