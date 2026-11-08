@@ -45,6 +45,9 @@ jobs:
       - name: Review correction persistence smoke test
         working-directory: verification
         run: node tests/review-v3.mjs "typed mistakes save"
+      - name: Offline correction synchronisation smoke test
+        working-directory: verification
+        run: node tests/review-v3.mjs "offline explanation notes"
       - name: Review and Sort real-browser scenarios
         working-directory: verification
         run: |

@@ -6,6 +6,7 @@ import { useWorkspace } from "./WorkspaceContext";
 import { SubjectCard } from "./SubjectCard";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText } from "./RichText";
+import { ReviewMistakes } from "./ReviewMistakes";
 import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
 import { parseCaptureLine } from "../../lib/captureParse";
 
@@ -308,6 +309,8 @@ export function MistakeLog() {
           }}>{adding ? <X size={16}/> : <Plus size={16}/>} {adding ? "Cancel" : "Add mistake"}</button> : null}
       </div>
     </header>
+
+    {allPage ? <ReviewMistakes search={search}/> : null}
 
     {selectedThemeCount > 0 ? <div className="ml-study-selection" role="region" aria-label="Selected practice themes">
       <div className="ml-study-selection-copy">

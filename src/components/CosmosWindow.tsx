@@ -280,8 +280,9 @@ export default function CosmosWindow() {
   const [saidAnswer, setSaidAnswer] = useState(false);
   const [typed, setTyped] = useState("");
   const [suggestion, setSuggestion] = useState<AnswerSuggestion | null>(null);
-  const [correctionGrade, setCorrectionGrade] = useState<ReviewCorrectionGrade | null>(null);
+  const [gradedMistake, setGradedMistake] = useState<ReviewCorrectionGrade | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionStatus, setCorrectionStatus] = useState<"synced" | "queued" | null>(null);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
   const routeAdvancing = useRef(false);
@@ -747,12 +748,12 @@ export default function CosmosWindow() {
     }
     setIndex(nextIndex);
     setRevealed(false);
-    setTyped(""); setSuggestion(null); setCorrectionGrade(null); setCorrectionOpen(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
+    setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
     stopReviewAudio();
   }
 
   async function answer(grade: StudyGrade): Promise<boolean> {
-    if (!card || !pack || !template || !item || !sessionRef.current || !revealed || busy || unsavedDraft) return false;
+    if (!card || !pack || !template || !item || !sessionRef.current || !revealed || busy || unsavedDraft || gradedMistake) return false;
     setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
@@ -777,7 +778,10 @@ export default function CosmosWindow() {
         barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered }]);
       // Local evidence, so retries and the summary see this answer at once.
       setEvents((current) => current ? [...current, graded] : current);
-      await advance(queue, index + 1);
+      if (grade === "again" || grade === "hard") {
+        // Record the result immediately; the optional explanation never controls grading.
+        setGradedMistake(grade);
+      } else await advance(queue, index + 1);
       return true;
     } catch (answerError) {
       setNotice(answerError instanceof Error ? answerError.message : "Could not save the result.");
@@ -786,24 +790,22 @@ export default function CosmosWindow() {
   }
 
   function selectGrade(grade: StudyGrade) {
-    if (busy || correctionOpen) return;
-    if (grade === "again" || grade === "hard") {
-      setCorrectionGrade(grade);
-      setCorrectionOpen(true);
-      return;
-    }
+    if (busy || correctionOpen || gradedMistake) return;
     void answer(grade);
   }
 
-  async function saveCorrection(id: string, attempt: string, explanation: string, grade: ReviewCorrectionGrade): Promise<void> {
-    if (!card || !pack || !template || !sessionRef.current || !correctionOpen) throw new Error("The review has changed. Open the correction again.");
-    await saveReviewCorrection({
+  async function saveCorrection(id: string, attempt: string, explanation: string): Promise<void> {
+    if (!card || !pack || !template || !sessionRef.current || !gradedMistake || !correctionOpen) {
+      throw new Error("This review has changed. Open the explanation again.");
+    }
+    const status = await saveReviewCorrection({
       id, cardId: card.id, packId: pack.id, sessionId: sessionRef.current,
-      templateId: template.id, grade, attempt,
+      templateId: template.id, grade: gradedMistake, attempt,
       referenceAnswer: answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
       explanation,
     });
-    if (!await answer(grade)) throw new Error("Correction saved, but the review result was not recorded. Try again.");
+    setCorrectionStatus(status);
+    setCorrectionOpen(false);
   }
 
   const roundResults = results.slice(roundStart);
@@ -918,8 +920,14 @@ export default function CosmosWindow() {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
       if (correctionOpen) {
-        if (event.key === "Escape" && !typing && !busy) { event.preventDefault(); setCorrectionOpen(false); setCorrectionGrade(null); }
+        if (event.key === "Escape" && !busy) { event.preventDefault(); setCorrectionOpen(false); }
         return; // Do not grade again or close the review while recording a correction.
+      }
+      if (gradedMistake) {
+        // Let focused buttons handle Enter themselves; otherwise Enter advances.
+        if (target?.closest("button,[role=button]") && (event.key === "Enter" || event.key === " ")) return;
+        if (!typing && !busy && event.key === "Enter") { event.preventDefault(); void advance(queue, index + 1); }
+        return;
       }
       // Space/Enter on a focused button must activate that button, not reveal the card.
       if (target?.closest("button,[role=button]") && (event.key === " " || event.key === "Enter")) return;
@@ -1194,25 +1202,36 @@ export default function CosmosWindow() {
         {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
-          {card && <PreviousReviewCorrection cardId={card.id} templateId={template?.id ?? null} />}
-          {correctionOpen ? <ReviewCorrectionPanel
-            key={card.id + ":" + index}
-            grade={correctionGrade}
-            onGradeChange={setCorrectionGrade}
-            initialAttempt={method === "type" ? typed : ""}
-            referenceAnswer={answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · ")}
-            onSave={saveCorrection}
-            onSkip={() => { if (correctionGrade) { const grade = correctionGrade; setCorrectionOpen(false); setCorrectionGrade(null); void answer(grade); } }}
-            onCancel={() => { setCorrectionOpen(false); setCorrectionGrade(null); }} />
-          : <div className="cosmos-results" role="group" aria-label="How well did you recall it?">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
+          {gradedMistake ? <div className="cosmos-mistake-followup" role="status">
+            <div className="cosmos-mistake-confirm">
+              <span className="cosmos-mistake-dot" aria-hidden="true"/>
+              <strong>{RESULT_LABEL[gradedMistake]} recorded</strong>
+              <span>The result is saved. Add a note only if it would help.</span>
+            </div>
+            {correctionOpen ? <ReviewCorrectionPanel
+              key={card.id + ":" + index}
+              initialAttempt={method === "type" ? typed : ""}
+              referenceAnswer={answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · ")}
+              onSave={saveCorrection}
+              onCancel={() => setCorrectionOpen(false)}/>
+            : <>
+              <div className="cosmos-mistake-choices">
+                {correctionStatus ? <span className="cosmos-note-saved">
+                  {correctionStatus === "synced" ? "Explanation saved" : "Saved on this device · sync pending"}
+                </span> : <button type="button" className="cosmos-why-note"
+                  onClick={() => setCorrectionOpen(true)}>Why wrong?</button>}
+                <button type="button" className="cosmos-continue" disabled={busy}
+                  onClick={() => void advance(queue, index + 1)}>Next <span aria-hidden="true">→</span></button>
+              </div>
+              {!correctionStatus && <PreviousReviewCorrection cardId={card.id} templateId={template?.id ?? null}/>}
+            </>}
+          </div> : <div className="cosmos-results" role="group" aria-label="How well did you recall it?">{RESULT_ORDER.map((grade, position) => <button key={grade} disabled={busy}
             className={suggestion?.grade === grade ? "is-suggested" : ""}
             title={RESULT_HINT[grade]} onClick={() => selectGrade(grade)}>
             <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{sentenceCard ? sentenceRatings[grade] : RESULT_HINT[grade]}</span></button>)}</div>}
-          <div className="cosmos-secondary-actions">
-            {!correctionOpen ? <button type="button" className="cosmos-extra-toggle cosmos-log-mistake" disabled={busy}
-              onClick={() => { setCorrectionGrade(null); setCorrectionOpen(true); }}>Why wrong? · Log mistake</button> : null}
+          {!gradedMistake && <div className="cosmos-secondary-actions">
             <button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button>
-          </div>
+          </div>}
           {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
         </> : <span>Attempt the answer before revealing it. {ANDROID ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>

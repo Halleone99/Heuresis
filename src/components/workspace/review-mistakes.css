@@ -1,0 +1,75 @@
+/* A quiet, independently sourced shelf for recurring flashcard mistakes. */
+.ml-review-automatic {
+  margin:18px 0 24px; padding:16px 18px;
+  border:1px solid var(--ws-line); border-radius:11px;
+  background:var(--ws-surface);
+}
+.ml-review-automatic-head {
+  display:flex; align-items:center; justify-content:space-between; gap:15px;
+  margin-bottom:12px;
+}
+.ml-review-kicker {
+  display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:.095em;
+  font-size:10px; font-weight:650; color:var(--ws-muted);
+}
+.ml-review-automatic-head h2 {
+  margin:0; font:600 16px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--ws-ink);
+}
+.ml-review-automatic-head p { margin:3px 0 0; color:var(--ws-muted); font:12px/1.45 Inter,sans-serif; }
+.ml-review-total {
+  flex:none; min-width:30px; padding:5px 8px; border-radius:6px;
+  background:var(--ws-surface-2); color:var(--ws-text);
+  font:600 12px/1.4 Inter,sans-serif; text-align:center;
+}
+.ml-review-list { display:grid; gap:6px; }
+.ml-review-row { border:1px solid var(--ws-line); border-radius:8px; background:var(--ws-surface-2); overflow:hidden; }
+.ml-review-row > summary {
+  list-style:none; cursor:pointer; display:flex; gap:11px; align-items:center;
+  padding:11px 12px; min-height:40px; transition:background .16s ease;
+}
+.ml-review-row > summary::-webkit-details-marker { display:none; }
+.ml-review-row > summary:hover { background:color-mix(in srgb,var(--ws-raised) 70%,transparent); }
+.ml-review-row > summary:focus-visible { outline:2px solid var(--ws-accent); outline-offset:-2px; }
+.ml-review-icon {
+  flex:none; width:30px; height:30px; border:1px solid var(--ws-line);
+  border-radius:8px; display:grid; place-items:center; color:var(--ws-muted);
+  background:var(--ws-surface);
+}
+.ml-review-row[open] .ml-review-icon { color:var(--ws-primary); }
+.ml-review-identity { min-width:0; flex:1; display:grid; gap:3px; }
+.ml-review-identity strong {
+  font:600 14px/1.35 Inter,sans-serif; color:var(--ws-ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ml-review-identity small {
+  color:var(--ws-muted); font:11px/1.4 Inter,sans-serif;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ml-review-times { flex:none; color:var(--ws-text); font:600 12px/1.4 Inter,sans-serif; }
+.ml-review-detail { padding:11px 15px 14px 53px; border-top:1px solid var(--ws-line); }
+.ml-review-reference { display:grid; gap:4px; margin:0 0 11px; color:var(--ws-text); font:14px/1.5 Inter,sans-serif; }
+.ml-review-reference span,.ml-review-notes > span {
+  display:block; color:var(--ws-muted); font:600 10px/1.45 Inter,sans-serif;
+}
+.ml-review-notes article { margin-top:9px; padding:11px 12px; border-radius:7px; background:var(--ws-surface); border:1px solid var(--ws-line); }
+.ml-review-notes small { color:var(--ws-muted); font:11px/1.4 Inter,sans-serif; }
+.ml-review-notes p { margin:5px 0 0; color:var(--ws-text); font:12px/1.5 Inter,sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
+.ml-review-notes b { color:var(--ws-ink); font-weight:600; }
+.ml-review-empty-note { margin:10px 0; color:var(--ws-muted); font:12px/1.5 Inter,sans-serif; }
+.ml-review-attempts { margin-top:12px; }
+.ml-review-attempts > summary { cursor:pointer; color:var(--ws-muted); font:11px/1.4 Inter,sans-serif; }
+.ml-review-attempts ol { margin:8px 0 0; padding-left:21px; max-height:200px; overflow:auto; }
+.ml-review-attempts li { margin-bottom:5px; font:11px/1.4 Inter,sans-serif; color:var(--ws-muted); }
+.ml-review-attempts li span { margin-left:8px; color:var(--ws-text); }
+.ml-review-show-more {
+  margin-top:11px; padding:7px 0; background:transparent; border:0;
+  cursor:pointer; color:var(--ws-text); font:600 12px/1.4 Inter,sans-serif;
+}
+.ml-review-show-more:hover { color:var(--ws-ink); }
+.ml-review-error { margin:8px 0; font:12px/1.4 Inter,sans-serif; color:var(--ws-muted); }
+@media(max-width:600px) {
+  .ml-review-automatic { padding:12px; margin:14px 0 20px; }
+  .ml-review-detail { padding:11px 12px; }
+  .ml-review-automatic-head p { font-size:11px; }
+}
