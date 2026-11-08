@@ -528,3 +528,159 @@
   .cosmos-correction-reason { grid-column:auto; }
   .cosmos-review-foot .cosmos-mistake-choices button { min-width:100px; }
 }
+
+
+/* Quiet correction of the actual flashcard, without leaving the review session. */
+.cosmos-card-modify {
+  position:absolute;
+  top:17px;
+  right:19px;
+  z-index:9;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:7px 9px;
+  border:1px solid transparent;
+  border-radius:7px;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  font:500 11px/1 var(--sans);
+  opacity:.78;
+  transition:color .15s ease,background .15s ease,border-color .15s ease,opacity .15s ease;
+}
+.cosmos-card-modify:hover,
+.cosmos-card-modify:focus-visible {
+  opacity:1;
+  color:var(--ink-2);
+  border-color:var(--line-2);
+  background:var(--paper-2);
+}
+.cosmos-card-modify:focus-visible { outline:2px solid var(--live); outline-offset:2px; }
+.cosmos-card-modify:disabled { opacity:.3; cursor:default; }
+
+.cosmos-edit-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:110;
+  display:grid;
+  place-items:center;
+  padding:18px;
+  background:rgba(9,17,29,.72);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+.cosmos-edit-dialog {
+  width:min(590px,100%);
+  max-height:min(800px,calc(100dvh - 36px));
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid var(--ws-line);
+  border-radius:14px;
+  background:var(--ws-surface);
+  color:var(--ws-primary);
+  box-shadow:0 24px 90px rgba(0,0,0,.3);
+  font-family:var(--sans);
+}
+.cosmos-edit-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  padding:23px 27px 18px;
+  border-bottom:1px solid var(--ws-line);
+}
+.cosmos-edit-head span { font:600 10px/1 var(--sans); letter-spacing:.14em; color:var(--ws-muted); }
+.cosmos-edit-head h2 { margin:7px 0 0; font:400 29px/1.12 var(--serif); color:var(--ws-primary); }
+.cosmos-edit-head button {
+  width:33px;
+  height:33px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border:1px solid transparent;
+  border-radius:8px;
+  background:transparent;
+  color:var(--ws-muted);
+  cursor:pointer;
+}
+.cosmos-edit-head button:hover { border-color:var(--ws-line); color:var(--ws-primary); }
+.cosmos-edit-fields {
+  min-height:0;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:15px;
+  padding:23px 27px;
+}
+.cosmos-edit-field { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.cosmos-edit-field > span { font:600 11px/1.2 var(--sans); color:var(--ws-muted); }
+.cosmos-edit-field input,
+.cosmos-edit-field textarea {
+  display:block;
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  padding:11px 12px;
+  border:1px solid var(--ws-line);
+  border-radius:8px;
+  outline:none;
+  background:var(--ws-surface-2);
+  color:var(--ws-primary);
+  font:15px/1.5 var(--sans);
+  resize:vertical;
+}
+.cosmos-edit-field input:focus,
+.cosmos-edit-field textarea:focus {
+  border-color:var(--c-sage);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--c-sage) 17%,transparent);
+}
+.cosmos-edit-error { margin:0 27px 15px; color:var(--c-cinnabar); font:12px/1.5 var(--sans); }
+.cosmos-edit-foot {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+  padding:16px 27px 20px;
+  border-top:1px solid var(--ws-line);
+}
+.cosmos-edit-foot > span {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--ws-muted);
+  font:11px/1.4 var(--sans);
+}
+.cosmos-edit-foot > div { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.cosmos-edit-foot button {
+  min-height:36px;
+  padding:8px 14px;
+  border:1px solid var(--ws-line);
+  border-radius:8px;
+  background:transparent;
+  color:var(--ws-text);
+  font:500 12px/1 var(--sans);
+  cursor:pointer;
+}
+.cosmos-edit-foot button:hover:not(:disabled) { border-color:var(--ws-muted); }
+.cosmos-edit-foot button.cosmos-edit-save {
+  border-color:color-mix(in srgb,var(--c-sage) 42%,var(--ws-line));
+  background:color-mix(in srgb,var(--c-sage) 14%,var(--ws-surface));
+  color:var(--ws-primary);
+}
+.cosmos-edit-foot button.cosmos-edit-save:hover:not(:disabled) {
+  background:color-mix(in srgb,var(--c-sage) 23%,var(--ws-surface));
+}
+.cosmos-edit-foot button:focus-visible { outline:2px solid var(--c-sage); outline-offset:2px; }
+.cosmos-edit-foot button:disabled { opacity:.5; cursor:default; }
+@media(max-width:640px) {
+  .cosmos-card-modify { top:10px; right:11px; padding:7px; }
+  .cosmos-edit-backdrop { padding:10px; }
+  .cosmos-edit-dialog { max-height:calc(100dvh - 20px); border-radius:11px; }
+  .cosmos-edit-head { padding:17px 18px 14px; }
+  .cosmos-edit-fields { padding:17px 18px; gap:13px; }
+  .cosmos-edit-foot { padding:14px 18px; }
+  .cosmos-edit-error { margin:0 18px 12px; }
+}
