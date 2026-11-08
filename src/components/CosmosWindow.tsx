@@ -1,4 +1,4 @@
-import { CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pin, Plus, SkipForward, X } from "lucide-react";
+import { CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Plus, SkipForward, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fieldByRole,
@@ -53,6 +53,7 @@ import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
+import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { saveReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import "./cosmos.css";
@@ -276,6 +277,7 @@ export default function CosmosWindow() {
   const [roundStart, setRoundStart] = useState(0);
   const [method, setMethodState] = useState<ReviewMethod>(() => readReviewMethod());
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [hasWriting, setHasWriting] = useState(false);
   const [saidAnswer, setSaidAnswer] = useState(false);
   const [typed, setTyped] = useState("");
@@ -307,6 +309,7 @@ export default function CosmosWindow() {
   }, [config.reviewRouteToken, config.packId]);
   const item = queue[index] ?? null;
   const card = item ? cards.find((entry) => entry.id === item.cardId) ?? null : null;
+  useEffect(() => { setEditOpen(false); }, [card?.id, index]);
   const templateFor = useCallback((entry: QueueItem | null) => {
     if (!entry) return null;
     return templates.find((template) => template.id === entry.templateId) ?? sessionTemplates[0] ?? templates[0] ?? null;
@@ -919,6 +922,7 @@ export default function CosmosWindow() {
       if (event.isComposing || event.keyCode === 229) return;
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
+      if (editOpen) return; // Never trigger review shortcuts while editing card content.
       if (correctionOpen) {
         if (event.key === "Escape" && !busy) { event.preventDefault(); setCorrectionOpen(false); }
         return; // Do not grade again or close the review while recording a correction.
@@ -1198,6 +1202,10 @@ export default function CosmosWindow() {
         {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
           title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
           onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
+        {(mode === "sort" || revealed) ? <button type="button" className="cosmos-card-modify"
+          onClick={() => setEditOpen(true)} disabled={busy} title="Modify this card without grading it">
+          <Pencil size={13} aria-hidden="true" /> Modify
+        </button> : null}
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
         {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
@@ -1237,5 +1245,13 @@ export default function CosmosWindow() {
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
+    {editOpen && card ? <ReviewCardEditor key={card.id} pack={pack} card={card}
+      onClose={() => setEditOpen(false)}
+      onSaved={(updated) => {
+        patchLocalCard(card.id, () => updated);
+        setSuggestion(null); // Any suggestion based on the previous reference answer is stale.
+        setEditOpen(false);
+        setNotice("Card updated.");
+      }} /> : null}
   </main>;
 }
