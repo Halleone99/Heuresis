@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Archive, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
@@ -8,6 +8,7 @@ import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import ReviewCentre from "./ReviewCentre";
 import SortModal from "./SortModal";
+import TodayStudyPanel from "./TodayStudyPanel";
 
 type Props = {
   collections: Collection[];
@@ -42,18 +43,16 @@ function newestOpen(packs: PackWithType[]) {
   }, null);
 }
 
-export default function LibraryView({ collections, packs, archivedCount, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onArchive, onNewCollection }: Props) {
+export default function LibraryView({ collections, packs, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [reviewOverview, setReviewOverview] = useState<ReviewOverview | null>(null);
   const [reviewRevision, setReviewRevision] = useState(0);
   const [newCardQuota, setNewCardQuota] = useState(readNewCardQuota);
-  const [newTopicId, setNewTopicId] = useState<string | null>(null);
   const [quickSort, setQuickSort] = useState<QuickSortSession | null>(null);
   const [newOpening, setNewOpening] = useState(false);
   const [newError, setNewError] = useState("");
-  // null means every collection, otherwise the user can combine languages.
-  const [reviewFilterIds, setReviewFilterIds] = useState<string[] | null>(null);
+  const [reviewLaunchIds, setReviewLaunchIds] = useState<string[] | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
@@ -61,29 +60,18 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
   const [captureRevision, setCaptureRevision] = useState(0);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
   const totalCards = packs.reduce((sum, pack) => sum + pack.card_count, 0);
-  const filteredReviewIds = reviewFilterIds === null ? collections.map((item) => item.id) : reviewFilterIds;
-  const selectedReviewPacks = packs.filter((pack) => filteredReviewIds.includes(pack.collection_id));
-  const reviewsReady = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.ready ?? 0), 0);
-  const reviewsDone = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.reviewedToday ?? 0), 0);
-  const reverseTomorrow = selectedReviewPacks.reduce((sum, pack) => sum + (reviewOverview?.topics[pack.id]?.reverseTomorrow ?? 0), 0);
+  const filteredReviewIds = reviewLaunchIds ?? collections.map((item) => item.id);
   const refreshReviews = () => setReviewRevision((previous) => previous + 1);
-  const todayNew = reviewOverview?.newToday ?? 0;
-  const newReady = reviewOverview?.newReady ?? 0;
-  const newTopics = packs.filter((pack) => (reviewOverview?.topics[pack.id]?.newReady ?? 0) > 0)
-    .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
-  const nextNewTopic = newTopics.find((pack) => pack.id === newTopicId) ?? newTopics[0] ?? null;
-  const newTopicReady = nextNewTopic ? reviewOverview?.topics[nextNewTopic.id]?.newReady ?? 0 : 0;
-  const newBatchSize = Math.min(newTopicReady, Math.max(1, newCardQuota - todayNew || newCardQuota));
 
-  async function startNewCards() {
-    if (!nextNewTopic || !newBatchSize || newOpening) return;
+  async function startNewCards(pack: PackWithType, count: number) {
+    if (!Number.isInteger(count) || count < 1 || newOpening) return;
     setNewOpening(true);
     setNewError("");
     try {
-      const [cards, tags] = await Promise.all([listCards(nextNewTopic.id), listTags()]);
+      const [cards, tags] = await Promise.all([listCards(pack.id), listTags()]);
       const unsorted = cards.filter((card) => !cardHasCompletedSort(card));
       if (!unsorted.length) { refreshReviews(); setNewError("No unclassified cards remain in this topic."); return; }
-      setQuickSort({ pack: nextNewTopic, cards, tags, count: Math.min(newBatchSize, unsorted.length) });
+      setQuickSort({ pack, cards, tags, count: Math.min(count, unsorted.length) });
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
     } finally { setNewOpening(false); }
@@ -94,12 +82,6 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
     refreshReviews();
     window.dispatchEvent(new Event("heuresis:study-changed"));
   }
-  const toggleReviewCollection = (id: string) => {
-    setReviewFilterIds((current) => {
-      if (current === null) return [id];
-      return current.includes(id) ? current.filter((value) => value !== id) : [...current, id];
-    });
-  };
 
   const latestCollection = useMemo(() => {
     if (!collections.length) return null;
@@ -280,53 +262,10 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
         </div>
       </header>
 
-      {collections.length ? <section className="library-study-panel" aria-label="Today's study">
-        <div className="library-study-heading">
-          <h2>Today's study</h2>
-          <span>{reviewOverview ? plural(reviewsDone, "card") + " reviewed today" : "Checking study progress…"}</span>
-        </div>
-        <div className="library-study-actions">
-          <section className="library-review-today" aria-label="Reviews today">
-            <div className="library-study-main">
-              <span className="library-study-kicker">REVIEW</span>
-              <div className="library-study-metric"><strong>{reviewOverview ? reviewsReady.toLocaleString() : "—"}</strong><span>due</span></div>
-              <p>Keep the cards you've learnt in memory.</p>
-            </div>
-            <div className="library-review-language-filters" role="group" aria-label="Choose collections for review">
-              <button type="button" aria-pressed={reviewFilterIds === null} className={reviewFilterIds === null ? "is-active" : ""}
-                onClick={() => setReviewFilterIds(null)}>All</button>
-              {collections.map((collection) => <button type="button" key={collection.id}
-                aria-pressed={reviewFilterIds !== null && reviewFilterIds.includes(collection.id)}
-                className={reviewFilterIds !== null && reviewFilterIds.includes(collection.id) ? "is-active" : ""}
-                onClick={() => toggleReviewCollection(collection.id)}>{collection.title}</button>)}
-            </div>
-            <button type="button" className="library-review-start" disabled={!reviewOverview || !filteredReviewIds.length}
-              onClick={() => setReviewsOpen(true)}>{reviewsReady > 0 ? "Review " + plural(reviewsReady, "card") : "Open reviews"} <ArrowRight size={15} aria-hidden="true" /></button>
-          </section>
-          <section className="library-new-today" aria-label="New cards">
-            <div className="library-study-main">
-              <span className="library-study-kicker">NEW CARDS</span>
-              <div className="library-study-metric"><strong>{reviewOverview ? newReady.toLocaleString() : "—"}</strong><span>available</span></div>
-              <p>{reviewOverview ? plural(todayNew, "card") + " introduced today" : "Checking available cards…"}</p>
-            </div>
-            <div className="library-new-launch">
-              <label htmlFor="library-new-topic">Choose a topic</label>
-              <select id="library-new-topic" aria-label="Choose a topic for new cards" value={nextNewTopic?.id ?? ""} disabled={!newTopics.length || newOpening}
-                onChange={(event) => setNewTopicId(event.target.value)}>
-                {newTopics.length ? newTopics.map((pack) => <option key={pack.id} value={pack.id}>{collections.find((item) => item.id === pack.collection_id)?.title ?? "Collection"} · {pack.title} ({reviewOverview?.topics[pack.id]?.newReady ?? 0})</option>)
-                  : <option value="">No new cards available</option>}
-              </select>
-              <button type="button" className="library-new-start" disabled={!reviewOverview || !nextNewTopic || !newBatchSize || newOpening}
-                onClick={() => void startNewCards()}>{newOpening ? "Opening…" : todayNew >= newCardQuota ? "Study extra cards" : "Start " + plural(newBatchSize, "card")} <ArrowRight size={15} aria-hidden="true" /></button>
-            </div>
-            {newError ? <p className="library-new-error" role="alert">{newError}</p> : null}
-          </section>
-        </div>
-        {reviewOverview?.incomplete || reverseTomorrow > 0 ? <div className="library-study-footnote">
-          {reverseTomorrow > 0 ? plural(reverseTomorrow, "reverse side") + " scheduled tomorrow" : ""}
-          {reviewOverview?.incomplete ? (reverseTomorrow > 0 ? " · " : "") + "Some topics could not be counted." : ""}
-        </div> : null}
-      </section> : null}
+      {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
+        quota={newCardQuota} opening={newOpening} error={newError}
+        onReview={(ids) => { setReviewLaunchIds(ids); setReviewsOpen(true); }}
+        onStartNew={(pack, count) => void startNewCards(pack, count)} /> : null}
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
@@ -374,9 +313,7 @@ export default function LibraryView({ collections, packs, archivedCount, onOpen,
               <ChevronRight size={16} className="library-mini-chevron" aria-hidden="true" />
             </button>;
           })}
-          {archivedCount > 0 ? <button type="button" className="library-stack-archive-link" onClick={onArchive}>
-            <Archive size={14} aria-hidden="true" /> Archive · {plural(archivedCount, "topic")}
-          </button> : null}
+          
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
