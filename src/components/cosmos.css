@@ -838,3 +838,15 @@
   .cosmos-edit-example-row { grid-template-columns:minmax(0,1fr); }
   .cosmos-edit-add-menu { gap:6px; }
 }
+
+.cosmos-edit-connections { margin-top:3px; }
+.cosmos-edit-connections .cosmos-edit-more-body > p {
+  margin:2px 0 0;
+  color:var(--ws-muted);
+  font:11px/1.5 var(--sans);
+}
+.cosmos-edit-connections .related-editor {
+  padding:4px 0 0;
+  border:0;
+  background:transparent;
+}
