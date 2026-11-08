@@ -384,7 +384,12 @@ export async function createCard(pack: PackWithType, values: Record<string, stri
 function canDesktopRoundTripWorkspaceEntry(entry: string) {
   try {
     const value = JSON.parse(entry) as Record<string, unknown>;
-    if (value?.type === "text") return typeof value.id === "string" && typeof value.text === "string";
+    if (["text", "grammar", "parts", "origin", "fact", "note"].includes(String(value?.type))) {
+      return typeof value.id === "string" && typeof value.text === "string";
+    }
+    if (value?.type === "example") {
+      return typeof value.id === "string" && (typeof value.source === "string" || typeof value.text === "string");
+    }
     if (value?.type === "image") return typeof value.id === "string" && typeof value.path === "string";
     return false;
   } catch {
@@ -430,6 +435,8 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
   interest_rank?: number | null;
   tagIds?: string[];
   expectedUpdatedAt?: string;
+  /** Optional full edit of the card's structured knowledge, merged atomically with its fields. */
+  workspaceBlocks?: string[];
 }) {
   const visibleData = cleanCardValues(pack, values);
   const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
@@ -439,7 +446,11 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
   // A field that is still visible can deliberately be cleared; an unseen field cannot.
   const visibleKeys = new Set((pack.cardType?.field_schema ?? []).map((field) => field.key));
   const preserved = Object.fromEntries(Object.entries(previous).filter(([key]) => !visibleKeys.has(key)));
-  const data = { ...preserved, ...visibleData };
+  const data = {
+    ...preserved,
+    ...visibleData,
+    ...(extras.workspaceBlocks !== undefined ? { [WORKSPACE_BLOCKS_KEY]: extras.workspaceBlocks } : {}),
+  };
   const rank = extras.interest_rank == null ? null : Math.min(5, Math.max(1, Math.round(extras.interest_rank)));
   let mutation = db().from("heuresis_cards").update({
     data,
