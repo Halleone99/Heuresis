@@ -310,7 +310,7 @@ export function MistakeLog() {
       </div>
     </header>
 
-    {allPage && !search.trim() ? <ReviewMistakes/> : null}
+    {allPage ? <ReviewMistakes search={search}/> : null}
 
     {selectedThemeCount > 0 ? <div className="ml-study-selection" role="region" aria-label="Selected practice themes">
       <div className="ml-study-selection-copy">
