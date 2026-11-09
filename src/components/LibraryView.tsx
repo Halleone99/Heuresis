@@ -57,6 +57,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [newOpening, setNewOpening] = useState(false);
   const [newError, setNewError] = useState("");
   const [reviewLaunchIds, setReviewLaunchIds] = useState<string[] | null>(null);
+  const [reviewLaunchTopicId, setReviewLaunchTopicId] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
@@ -201,7 +202,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   }
 
   if (reviewsOpen) return <ReviewCentre collections={collections} packs={packs} overview={reviewOverview}
-    initialCollectionIds={filteredReviewIds} onBack={() => { setReviewsOpen(false); refreshReviews(); }} onRefresh={refreshReviews} />;
+    initialCollectionIds={filteredReviewIds} initialTopicId={reviewLaunchTopicId} onBack={() => { setReviewsOpen(false); refreshReviews(); }} onRefresh={refreshReviews} />;
 
   if (activeCollection) {
     const collectionPacks = packs.filter((pack) => pack.collection_id === activeCollection.id);
@@ -287,7 +288,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
 
       {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
         quota={newCardQuota} opening={newOpening} error={newError}
-        onReview={(ids) => { setReviewLaunchIds(ids); setReviewsOpen(true); }}
+        onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
         onStartNew={(pack, count) => void startNewCards(pack, count)}
         onStartLearning={(pack) => void startLearning(pack)} /> : null}
 

@@ -10,22 +10,24 @@ type Props = {
   packs: PackWithType[];
   overview: ReviewOverview | null;
   initialCollectionIds: string[];
+  initialTopicId?: string | null;
   onBack: () => void;
   onRefresh: () => void;
 };
 
 type SelectedReview = { pack: PackWithType; cards: CardWithStats[] };
 
-export default function ReviewCentre({ collections, packs, overview, initialCollectionIds, onBack, onRefresh }: Props) {
+export default function ReviewCentre({ collections, packs, overview, initialCollectionIds, initialTopicId, onBack, onRefresh }: Props) {
   const [selected, setSelected] = useState<SelectedReview | null>(null);
   const [collectionIds, setCollectionIds] = useState<string[]>(initialCollectionIds);
+  const [topicFilter, setTopicFilter] = useState<string | null>(initialTopicId ?? null);
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const request = useRef(0);
 
   const availableCollections = collections.filter((collection) => collectionIds.includes(collection.id)).map((collection) => ({
     collection,
-    topics: packs.filter((pack) => pack.collection_id === collection.id && pack.card_count > 0),
+    topics: packs.filter((pack) => pack.collection_id === collection.id && pack.card_count > 0 && (!topicFilter || pack.id === topicFilter)),
   })).filter((group) => group.topics.length > 0);
   const eligiblePacks = availableCollections.flatMap((group) => group.topics)
     .filter((pack) => (overview?.topics[pack.id]?.ready ?? 0) > 0);
@@ -33,6 +35,7 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
   const readyCount = eligiblePacks.reduce((sum, pack) => sum + (overview?.topics[pack.id]?.ready ?? 0), 0);
 
   function toggleCollection(id: string) {
+    setTopicFilter(null);
     setCollectionIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   }
 
@@ -103,7 +106,8 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
       <div className="reviews-centre-review-bar">
         <div className="reviews-centre-filter-group" role="group" aria-label="Filter review languages">
           <button type="button" className={collectionIds.length === collections.length ? "active" : ""} aria-pressed={collectionIds.length === collections.length}
-            onClick={() => setCollectionIds(collections.map((collection) => collection.id))}>All</button>
+            onClick={() => { setTopicFilter(null); setCollectionIds(collections.map((collection) => collection.id)); }}>All</button>
+          {topicFilter ? <button type="button" onClick={() => setTopicFilter(null)}>All topics</button> : null}
           {collections.map((collection) => <button type="button" key={collection.id}
             className={collectionIds.includes(collection.id) && collectionIds.length !== collections.length ? "active" : ""}
             aria-pressed={collectionIds.includes(collection.id)} onClick={() => toggleCollection(collection.id)}>{collection.title}</button>)}
