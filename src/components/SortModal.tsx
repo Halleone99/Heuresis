@@ -229,7 +229,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       else {
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
-        await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: null });
+        await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: restored.data[LEARNING_STAGE_KEY] ?? null });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
       else {
