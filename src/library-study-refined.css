@@ -316,11 +316,11 @@
 .today-study-intro h2 {margin:0;color:var(--ws-ink);font:400 clamp(26px,2.7vw,38px)/1.12 var(--serif,Georgia,serif);letter-spacing:-.025em}
 .today-study-intro p {margin:13px 0 0;color:var(--ws-muted);font:500 12px var(--ws-sans,Inter,sans-serif)}
 .today-study-workspace {display:grid;gap:20px;min-width:0}
-.today-study-controls {display:flex;align-items:flex-start;gap:13px;min-width:0}
-.today-study-switch {display:grid;grid-template-columns:1fr 1fr;flex:0 0 154px;padding:3px;border:1px solid var(--ws-line-strong);border-radius:999px;background:var(--ws-surface)}
-.today-study-switch button {min-height:37px;padding:8px 11px;border:0;border-radius:999px;background:transparent;color:var(--ws-muted);font:650 12px var(--ws-sans,Inter,sans-serif);cursor:pointer}
+.today-study-controls {display:flex;align-items:flex-start;flex-wrap:wrap;gap:13px;min-width:0}
+.today-study-switch {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));flex:0 0 218px;padding:3px;border:1px solid var(--ws-line-strong);border-radius:999px;background:var(--ws-surface)}
+.today-study-switch button {min-height:37px;padding:8px 7px;border:0;border-radius:999px;background:transparent;color:var(--ws-muted);font:650 12px var(--ws-sans,Inter,sans-serif);cursor:pointer}
 .today-study-switch button.selected {color:#182a3e;background:#efcf98}
-.today-study-picker {position:relative;flex:1;min-width:0}
+.today-study-picker {position:relative;flex:1 1 175px;min-width:0}
 .today-study-picker-trigger {display:flex;align-items:center;gap:10px;width:100%;height:47px;padding:5px 10px;border:1px solid var(--ws-line-strong);border-radius:11px;background:var(--ws-surface);color:var(--ws-ink);text-align:left;cursor:pointer}
 .today-study-picker-glyph {display:grid;flex:none;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--ws-raised);color:var(--ws-ink);font-size:19px}
 .today-study-picker-label {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 12px var(--ws-sans,Inter,sans-serif)}
@@ -364,7 +364,7 @@
  .today-study-intro h2 {font-size:27px}
  .today-study-intro p {margin-top:6px;font-size:11px}
  .today-study-controls {flex-wrap:wrap;gap:9px}
- .today-study-switch {flex-basis:133px}
+ .today-study-switch {flex-basis:197px}
  .today-study-picker {flex-basis:170px}
  .today-study-statistics {grid-column:1;gap:0}
  .today-study-stat {display:flex;flex-direction:column-reverse;gap:3px;border-right:1px solid var(--ws-line);padding:2px;text-align:center}

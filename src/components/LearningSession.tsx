@@ -11,6 +11,8 @@ import "./learning-session.css";
 type Props = {
   pack: PackWithType;
   cards: CardWithStats[];
+  packByCardId?: Record<string, PackWithType>;
+  scopeTitle?: string;
   onClose: () => void;
   onChanged: () => void;
 };
@@ -43,7 +45,7 @@ function languageOf(pack: PackWithType) {
   return "en-GB";
 }
 
-export default function LearningSession({ pack, cards, onClose, onChanged }: Props) {
+export default function LearningSession({ pack, cards, packByCardId, scopeTitle, onClose, onChanged }: Props) {
   const [local, setLocal] = useState(() => cards.filter(inLearning));
   const [index, setIndex] = useState(0);
   const [active, setActive] = useState<ExerciseId | null>(null);
@@ -56,14 +58,18 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const card = local[Math.min(index, Math.max(0, local.length - 1))] ?? null;
+  const currentPack = card ? packByCardId?.[card.id] ?? pack : pack;
+  const samePackCards = useMemo(() => cards.filter((item) =>
+    !packByCardId || (packByCardId[item.id] ?? pack).id === currentPack.id
+  ), [cards, currentPack.id, pack, packByCardId]);
   const state = card ? readAcquisition(card.data) : null;
   const score = state ? acquisitionScore(state) : 0;
   const ready = state ? acquisitionReady(state) : false;
-  const termRole = fieldByRole(pack.cardType, "term");
-  const meaningRole = fieldByRole(pack.cardType, "meaning");
-  const exampleRole = fieldByRole(pack.cardType, "example");
-  const term = card ? fieldText(card.data, termRole?.key || pack.cardType?.field_schema[0]?.key) : "";
-  const meaning = card ? fieldText(card.data, meaningRole?.key || pack.cardType?.field_schema[1]?.key) : "";
+  const termRole = fieldByRole(currentPack.cardType, "term");
+  const meaningRole = fieldByRole(currentPack.cardType, "meaning");
+  const exampleRole = fieldByRole(currentPack.cardType, "example");
+  const term = card ? fieldText(card.data, termRole?.key || currentPack.cardType?.field_schema[0]?.key) : "";
+  const meaning = card ? fieldText(card.data, meaningRole?.key || currentPack.cardType?.field_schema[1]?.key) : "";
   const example = card ? fieldText(card.data, exampleRole?.key) : "";
   const reference = term.trim();
   const letters = segments(reference);
@@ -72,13 +78,13 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
   const mask = letters.map((char, i) => char.trim() && (i % 3 === 1 || (letters.length < 3 && i === 0)) ? "＿" : char).join("");
   const alternatives = useMemo(() => {
     if (!card) return [] as string[];
-    const others = cards.filter((item) => item.id !== card.id).map((item) => fieldText(item.data, meaningRole?.key || pack.cardType?.field_schema[1]?.key).trim())
+    const others = samePackCards.filter((item) => item.id !== card.id).map((item) => fieldText(item.data, meaningRole?.key || currentPack.cardType?.field_schema[1]?.key).trim())
       .filter((value) => value && readable(value) !== readable(meaning));
     const unique = [...new Map(others.map((value) => [readable(value), value])).values()];
     if (!meaning.trim() || unique.length < 2) return [] as string[];
     return [unique[0], meaning, unique[1]].sort((a, b) => a.localeCompare(b));
-  }, [card?.id, cards, meaning, meaningRole?.key]);
-  const comparison = cards.find((item) => item.id !== card?.id && fieldText(item.data, termRole?.key).trim()) ?? null;
+  }, [card?.id, samePackCards, meaning, meaningRole?.key]);
+  const comparison = samePackCards.find((item) => item.id !== card?.id && fieldText(item.data, termRole?.key).trim()) ?? null;
   const prepared = local.filter((item) => inLearning(item) && acquisitionReady(readAcquisition(item.data)));
   const reviewed = local.filter((item) => !inLearning(item)).length;
 
@@ -142,7 +148,7 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
     if (!("speechSynthesis" in window) || !reference) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(reference);
-    utterance.lang = languageOf(pack); utterance.rate = 0.85;
+    utterance.lang = languageOf(currentPack); utterance.rate = 0.85;
     window.speechSynthesis.speak(utterance);
   }
   async function transferReady() {
@@ -167,7 +173,7 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
   return createPortal(<div className="acq-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <section className="acq-dialog" role="dialog" aria-modal="true" aria-label="Learning exercises">
       <header className="acq-top">
-        <div><span className="acq-kicker">HEURESIS · LEARNING</span><strong>{pack.title}</strong></div>
+        <div><span className="acq-kicker">HEURESIS · LEARNING</span><strong>{scopeTitle || currentPack.title}</strong></div>
         <span className="acq-counter">{finished ? "Session complete" : `${index + 1} / ${local.length}`}</span>
         <button className="acq-icon" type="button" disabled={busy} onClick={onClose} aria-label="Close Learning"><X size={17}/></button>
       </header>

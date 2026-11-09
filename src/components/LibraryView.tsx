@@ -52,7 +52,9 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [reviewRevision, setReviewRevision] = useState(0);
   const [newCardQuota, setNewCardQuota] = useState(readNewCardQuota);
   const [quickSort, setQuickSort] = useState<QuickSortSession | null>(null);
-  const [learningSession, setLearningSession] = useState<{ pack: PackWithType; cards: CardWithStats[] } | null>(null);
+  const [learningSession, setLearningSession] = useState<{
+    pack: PackWithType; cards: CardWithStats[]; packByCardId: Record<string, PackWithType>; scopeTitle?: string;
+  } | null>(null);
   const [learningOpening, setLearningOpening] = useState(false);
   const [newOpening, setNewOpening] = useState(false);
   const [newError, setNewError] = useState("");
@@ -82,14 +84,23 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     } finally { setNewOpening(false); }
   }
 
-  async function startLearning(pack: PackWithType) {
+  async function startLearning(requested: PackWithType | PackWithType[], scopeTitle?: string) {
     if (learningOpening) return;
     setLearningOpening(true);
     setNewError("");
     try {
-      const cards = (await listCards(pack.id)).filter((item) => cardHasCompletedSort(item) && inLearning(item));
-      if (!cards.length) { refreshReviews(); setNewError("No cards are currently in Learning for this topic."); return; }
-      setLearningSession({ pack, cards });
+      const requestedPacks = Array.isArray(requested) ? requested : [requested];
+      const results = await Promise.all(requestedPacks.map(async (pack) => ({
+        pack, cards: (await listCards(pack.id)).filter((item) => cardHasCompletedSort(item) && inLearning(item)),
+      })));
+      const eligible = results.filter(({ cards }) => cards.length > 0);
+      if (!eligible.length) { refreshReviews(); setNewError("No cards are currently in Learning for this selection."); return; }
+      setLearningSession({
+        pack: eligible[0].pack,
+        cards: eligible.flatMap(({ cards }) => cards),
+        packByCardId: Object.fromEntries(eligible.flatMap(({ pack, cards }) => cards.map((card) => [card.id, pack]))),
+        scopeTitle,
+      });
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not open Learning.");
     } finally { setLearningOpening(false); }
@@ -287,10 +298,10 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
       </header>
 
       {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
-        quota={newCardQuota} opening={newOpening} error={newError}
+        quota={newCardQuota} opening={newOpening || learningOpening} error={newError}
         onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
         onStartNew={(pack, count) => void startNewCards(pack, count)}
-        onStartLearning={(pack) => void startLearning(pack)} /> : null}
+        onStartLearning={(eligible, scopeTitle) => void startLearning(eligible, scopeTitle)} /> : null}
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
@@ -345,6 +356,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
         quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined}
         onLearning={() => void startLearning(quickSort.pack)} /> : null}
       {learningSession ? <LearningSession key={learningSession.pack.id} pack={learningSession.pack} cards={learningSession.cards}
+        packByCardId={learningSession.packByCardId} scopeTitle={learningSession.scopeTitle}
         onClose={closeLearning} onChanged={refreshReviews} /> : null}
     </section>
   );

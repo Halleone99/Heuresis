@@ -4,13 +4,16 @@ import { assessState, directionEvidence, type GradeEvent } from "./knowledgeStat
 import { defaultDirections } from "./recommend";
 import { loadGradeEvents } from "./reviewEvidence";
 import { cardHasCompletedSort, SORTED_AT_KEY } from "./sort";
-import { inLearning, inReview } from "./learningStage";
+import { acquisitionReady, inLearning, inReview, readAcquisition } from "./learningStage";
 import { loadStudySetup } from "./study";
 
 export type TopicReviewSummary = {
   packId: string;
   ready: number;
   learningReady: number;
+  learningPrepared: number;
+  learningExercisesToday: number;
+  learningExercisesLast7: number;
   reviewedToday: number;
   reverseTomorrow: number;
   newReady: number;
@@ -25,6 +28,9 @@ export type TopicReviewSummary = {
 export type ReviewOverview = {
   ready: number;
   learningReady: number;
+  learningPrepared: number;
+  learningExercisesToday: number;
+  learningExercisesLast7: number;
   reviewedToday: number;
   reverseTomorrow: number;
   newReady: number;
@@ -67,39 +73,53 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     let reverseTomorrow = 0;
     let newReady = 0;
     let learningReady = 0;
+    let learningPrepared = 0;
+    let learningExercisesToday = 0;
+    let learningExercisesLast7 = 0;
     let newToday = 0;
     let newLast7 = 0;
     let reviewsLast7 = 0;
     const today = new Date(now).toDateString();
 
     for (const card of cards) {
+      // Historical activity remains visible after a Learning → Review transition.
+      const acquisition = readAcquisition(card.data);
+      for (const event of acquisition.history) {
+        if (event.kind !== "exercise") continue;
+        const at = Date.parse(event.at);
+        if (!Number.isFinite(at) || at > now) continue;
+        if (at >= sevenDayStart.getTime()) learningExercisesLast7 += 1;
+        if (new Date(at).toDateString() === today) learningExercisesToday += 1;
+      }
       if (!cardHasCompletedSort(card)) { newReady += 1; continue; }
-      if (inLearning(card)) { learningReady += 1; continue; }
-      if (!inReview(card)) continue;
-      // A card counts towards the daily new-card quota only once it is actually
-      // classified and saved. Undo removes _sorted_at and reverses this count.
+      // Count newly classified cards independently from their current study phase.
       const sortedAt = card.data[SORTED_AT_KEY];
       if (typeof sortedAt === "string" && sortedAt && Number.isFinite(Date.parse(sortedAt))) {
         const sortedTime = Date.parse(sortedAt);
         if (new Date(sortedTime).toDateString() === today) newToday += 1;
         if (sortedTime >= sevenDayStart.getTime() && sortedTime <= now) newLast7 += 1;
       }
-      if (!directions.length) continue;
       const grades = history ? groups.get(card.id) ?? [] : null;
       if (grades) {
         const distinctDays = new Set(grades.filter((grade) => grade.at >= sevenDayStart.getTime() && grade.at <= now)
           .map((grade) => new Date(grade.at).toDateString()));
         reviewsLast7 += distinctDays.size;
+        if (reviewedSuccessfullyToday(grades, now)) reviewedToday += 1;
       }
+      if (inLearning(card)) {
+        learningReady += 1;
+        if (acquisitionReady(acquisition)) learningPrepared += 1;
+        continue;
+      }
+      if (!inReview(card) || !directions.length) continue;
       const oldState = assessState(directionEvidence(card, null, grades)).state;
       const progress = cardBarProgress(card, grades, oldState, pair, now);
       if (reviewEligible(progress, grades, card.stats.last_encountered_at, false, now, directions)) readyCardIds.push(card.id);
-      if (reviewedSuccessfullyToday(grades, now)) {
-        reviewedToday += 1;
-        if (pair.length && progress.pendingDirections?.length === 1) reverseTomorrow += 1;
+      if (grades && reviewedSuccessfullyToday(grades, now) && pair.length && progress.pendingDirections?.length === 1) {
+        reverseTomorrow += 1;
       }
     }
-    return { packId: pack.id, ready: readyCardIds.length, learningReady, reviewedToday, reverseTomorrow, newReady, newToday, newLast7, reviewsLast7, readyCardIds };
+    return { packId: pack.id, ready: readyCardIds.length, learningReady, learningPrepared, learningExercisesToday, learningExercisesLast7, reviewedToday, reverseTomorrow, newReady, newToday, newLast7, reviewsLast7, readyCardIds };
   }));
 
   const topics: Record<string, TopicReviewSummary> = {};
@@ -112,6 +132,9 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
   return {
     ready: values.reduce((sum, topic) => sum + topic.ready, 0),
     learningReady: values.reduce((sum, topic) => sum + topic.learningReady, 0),
+    learningPrepared: values.reduce((sum, topic) => sum + topic.learningPrepared, 0),
+    learningExercisesToday: values.reduce((sum, topic) => sum + topic.learningExercisesToday, 0),
+    learningExercisesLast7: values.reduce((sum, topic) => sum + topic.learningExercisesLast7, 0),
     reviewedToday: values.reduce((sum, topic) => sum + topic.reviewedToday, 0),
     reverseTomorrow: values.reduce((sum, topic) => sum + topic.reverseTomorrow, 0),
     newReady: values.reduce((sum, topic) => sum + topic.newReady, 0),

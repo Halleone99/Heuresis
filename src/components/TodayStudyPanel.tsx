@@ -12,7 +12,7 @@ type Props = {
   error: string;
   onReview: (collectionIds: string[], topicId?: string) => void;
   onStartNew: (pack: PackWithType, count: number) => void;
-  onStartLearning: (pack: PackWithType) => void;
+  onStartLearning: (packs: PackWithType[], scopeLabel: string) => void;
 };
 
 function plural(count: number, singular: string, pluralForm = singular + "s") {
@@ -20,7 +20,7 @@ function plural(count: number, singular: string, pluralForm = singular + "s") {
 }
 
 export default function TodayStudyPanel({ collections, packs, overview, quota, opening, error, onReview, onStartNew, onStartLearning }: Props) {
-  const [mode, setMode] = useState<"new" | "review">("new");
+  const [mode, setMode] = useState<"new" | "learn" | "review">("new");
   const [selection, setSelection] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -34,19 +34,35 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
   const collectionIds = selectedPack ? [selectedPack.collection_id] : selectedCollection
     ? [selectedCollection.id] : collections.map((c) => c.id);
   const scopePacks = selectedPack ? [selectedPack] : packs.filter((pack) => collectionIds.includes(pack.collection_id));
-  const total = (key: "ready" | "newReady" | "reviewedToday" | "newToday" | "newLast7" | "reviewsLast7" | "learningReady") =>
+  const total = (key: "ready" | "newReady" | "reviewedToday" | "newToday" | "newLast7" | "reviewsLast7" | "learningReady" | "learningPrepared" | "learningExercisesToday" | "learningExercisesLast7" | "reverseTomorrow") =>
     scopePacks.reduce((sum, pack) => sum + (overview?.topics[pack.id]?.[key] ?? 0), 0);
   const ready = total("ready"), newReady = total("newReady"), reviewedToday = total("reviewedToday"),
-    newToday = total("newToday"), newLast7 = total("newLast7"), reviewsLast7 = total("reviewsLast7"), learningReady = total("learningReady");
+    newToday = total("newToday"), newLast7 = total("newLast7"), reviewsLast7 = total("reviewsLast7"),
+    learningReady = total("learningReady"), learningPrepared = total("learningPrepared"),
+    learningExercisesToday = total("learningExercisesToday"), learningExercisesLast7 = total("learningExercisesLast7");
   const newTopics = scopePacks.filter((pack) => (overview?.topics[pack.id]?.newReady ?? 0) > 0)
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
   const nextTopic = newTopics[0] ?? null;
-  const nextLearningTopic = scopePacks.find((pack) => (overview?.topics[pack.id]?.learningReady ?? 0) > 0) ?? null;
+  const learningPacks = scopePacks.filter((pack) => (overview?.topics[pack.id]?.learningReady ?? 0) > 0);
   const topicReady = nextTopic ? overview?.topics[nextTopic.id]?.newReady ?? 0 : 0;
   const glyph = selectedParent?.glyph || selectedCollection?.glyph;
   const scopeLabel = selectedPack ? (selectedParent?.title ?? "Collection") + " · " + selectedPack.title :
     selectedCollection ? selectedCollection.title + " · All topics" : "All subjects · All topics";
   const todayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const stats = mode === "new"
+    ? [{ label: "New available", value: newReady, icon: Layers3 },
+       { label: "Introduced today", value: newToday, icon: CheckCircle2 },
+       { label: "In Learning", value: learningReady, icon: BookOpen }]
+    : mode === "learn"
+      ? [{ label: "In Learning", value: learningReady, icon: BookOpen },
+         { label: "Ready for Review", value: learningPrepared, icon: CheckCircle2 },
+         { label: "Exercises today", value: learningExercisesToday, icon: Clock3 }]
+      : [{ label: "Due now", value: ready, icon: Clock3 },
+         { label: "Reviewed today", value: reviewedToday, icon: CheckCircle2 },
+         { label: "Reverse tomorrow", value: total("reverseTomorrow"), icon: Layers3 }];
+  const weeklyActivity = mode === "new" ? plural(newLast7, "new card")
+    : mode === "learn" ? plural(learningExercisesLast7, "exercise")
+    : plural(reviewsLast7, "review");
 
   useEffect(() => {
     if (!pickerOpen && !sessionOpen) return;
@@ -65,6 +81,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
   function launch() {
     if (!overview || opening) return;
     if (mode === "review") { onReview(collectionIds, selectedPack?.id); return; }
+    if (mode === "learn") { onStartLearning(learningPacks, scopeLabel); return; }
     openNewSession();
   }
 
@@ -89,6 +106,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
           <div className="today-study-controls">
             <div className="today-study-switch" role="group" aria-label="Study mode">
               <button type="button" aria-pressed={mode === "new"} className={mode === "new" ? "selected" : ""} onClick={() => setMode("new")}>New</button>
+              <button type="button" aria-pressed={mode === "learn"} className={mode === "learn" ? "selected" : ""} onClick={() => setMode("learn")}>Learn</button>
               <button type="button" aria-pressed={mode === "review"} className={mode === "review" ? "selected" : ""} onClick={() => setMode("review")}>Review</button>
             </div>
             <div className="today-study-picker" ref={pickerRef}>
@@ -127,18 +145,16 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
               </div> : null}
             </div>
           </div>
-          <button type="button" className="today-study-start" disabled={!overview || opening || (mode === "new" ? !nextTopic : !collectionIds.length)}
+          <button type="button" className="today-study-start" disabled={!overview || opening || (mode === "new" ? !nextTopic : mode === "learn" ? !learningReady : !collectionIds.length)}
             onClick={launch}><Play size={21} fill="currentColor" aria-hidden="true"/>{opening ? "Opening…" : "Start"}</button>
-          {learningReady > 0 && nextLearningTopic ? <button type="button" className="today-study-learning" disabled={opening}
-            onClick={() => onStartLearning(nextLearningTopic)}><BookOpen size={14}/> Continue Learning · {plural(learningReady, "card")}</button> : null}
         </div>
         <aside className="today-study-statistics" aria-label="Statistics for the selected subject or topic">
-          <div className="today-study-stat"><Clock3 size={18}/><span>Due now</span><strong>{overview ? ready.toLocaleString() : "—"}</strong></div>
-          <div className="today-study-stat"><Layers3 size={18}/><span>New available</span><strong>{overview ? newReady.toLocaleString() : "—"}</strong></div>
-          <div className="today-study-stat"><CheckCircle2 size={18}/><span>Reviewed today</span><strong>{overview ? reviewedToday.toLocaleString() : "—"}</strong></div>
-          <div className="today-study-week"><TrendingUp size={16}/>{overview ? (mode === "review" ? reviewsLast7 : newLast7).toLocaleString() : "—"} {mode === "review" ? "reviews in the last 7 days" : "new in the last 7 days"}</div>
+          {stats.map(({ label, value, icon: Icon }) => <div className="today-study-stat" key={label}>
+            <Icon size={18}/><span>{label}</span><strong>{overview ? value.toLocaleString() : "—"}</strong>
+          </div>)}
+          <div className="today-study-week"><TrendingUp size={16}/>{overview ? weeklyActivity : "—"} in the last 7 days</div>
         </aside>
-        {error && mode === "new" ? <p className="today-study-notice" role="alert">{error}</p> : null}
+        {error && (mode === "new" || mode === "learn") ?} <p className="today-study-notice" role="alert">{error}</p> : null}
         {overview?.incomplete ? <p className="today-study-notice" role="status">Some topic counts are unavailable.</p> : null}
       </section>
 
