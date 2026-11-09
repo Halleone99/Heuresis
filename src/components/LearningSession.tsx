@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, Brain, Check, CheckCircle2, Pencil, Volume2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Volume2, X } from "lucide-react";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "../lib/heuresis";
 import {
-  EXERCISE_IDS, acquisitionReady, acquisitionScore, awardExercise, finishAcquisition,
+  acquisitionReady, acquisitionScore, awardExercise, finishAcquisition,
   inLearning, readAcquisition, saveAcquisition, type ExerciseId,
 } from "../lib/learningStage";
 import "./learning-session.css";
@@ -62,7 +62,7 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
   const termRole = fieldByRole(pack.cardType, "term");
   const meaningRole = fieldByRole(pack.cardType, "meaning");
   const exampleRole = fieldByRole(pack.cardType, "example");
-  const term = card ? fieldText(card.data, termRole?.key) || Object.values(card.data).find((s) => typeof s === "string" && s && !s.startsWith("{")) || "" : "";
+  const term = card ? fieldText(card.data, termRole?.key || pack.cardType?.field_schema[0]?.key) : "";
   const meaning = card ? fieldText(card.data, meaningRole?.key) : "";
   const example = card ? fieldText(card.data, exampleRole?.key) : "";
   const reference = term.trim();
@@ -79,7 +79,7 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
     return [unique[0], meaning, unique[1]].sort((a, b) => a.localeCompare(b));
   }, [card?.id, cards, meaning, meaningRole?.key]);
   const comparison = cards.find((item) => item.id !== card?.id && fieldText(item.data, termRole?.key).trim()) ?? null;
-  const prepared = local.filter((item) => acquisitionReady(readAcquisition(item.data)));
+  const prepared = local.filter((item) => inLearning(item) && acquisitionReady(readAcquisition(item.data)));
   const reviewed = local.filter((item) => !inLearning(item)).length;
 
   function chooseExercise(id: ExerciseId) {
