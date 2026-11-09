@@ -34,10 +34,10 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
   const collectionIds = selectedPack ? [selectedPack.collection_id] : selectedCollection
     ? [selectedCollection.id] : collections.map((c) => c.id);
   const scopePacks = selectedPack ? [selectedPack] : packs.filter((pack) => collectionIds.includes(pack.collection_id));
-  const total = (key: "ready" | "newReady" | "reviewedToday" | "newToday" | "newLast7" | "learningReady") =>
+  const total = (key: "ready" | "newReady" | "reviewedToday" | "newToday" | "newLast7" | "reviewsLast7" | "learningReady") =>
     scopePacks.reduce((sum, pack) => sum + (overview?.topics[pack.id]?.[key] ?? 0), 0);
   const ready = total("ready"), newReady = total("newReady"), reviewedToday = total("reviewedToday"),
-    newToday = total("newToday"), newLast7 = total("newLast7"), learningReady = total("learningReady");
+    newToday = total("newToday"), newLast7 = total("newLast7"), reviewsLast7 = total("reviewsLast7"), learningReady = total("learningReady");
   const newTopics = scopePacks.filter((pack) => (overview?.topics[pack.id]?.newReady ?? 0) > 0)
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
   const nextTopic = newTopics[0] ?? null;
@@ -136,7 +136,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
           <div className="today-study-stat"><Clock3 size={18}/><span>Due now</span><strong>{overview ? ready.toLocaleString() : "—"}</strong></div>
           <div className="today-study-stat"><Layers3 size={18}/><span>New available</span><strong>{overview ? newReady.toLocaleString() : "—"}</strong></div>
           <div className="today-study-stat"><CheckCircle2 size={18}/><span>Reviewed today</span><strong>{overview ? reviewedToday.toLocaleString() : "—"}</strong></div>
-          <div className="today-study-week"><TrendingUp size={16}/>{overview ? newLast7.toLocaleString() : "—"} new in the last 7 days</div>
+          <div className="today-study-week"><TrendingUp size={16}/>{overview ? (mode === "review" ? reviewsLast7 : newLast7).toLocaleString() : "—"} {mode === "review" ? "reviews in the last 7 days" : "new in the last 7 days"}</div>
         </aside>
         {error && mode === "new" ? <p className="today-study-notice" role="alert">{error}</p> : null}
         {overview?.incomplete ? <p className="today-study-notice" role="status">Some topic counts are unavailable.</p> : null}
