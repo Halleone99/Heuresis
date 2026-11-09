@@ -9,7 +9,7 @@ Both targets continue using the same Supabase schema as Personal OS. No database
 ## Deploy a preview
 
 1. In Vercel, import `Halleone99/Heuresis` as a Vite project, root `/`, build command `npm run build`, output `dist`.
-2. Create a **preview** for branch `web/first-browser-deployment-2026-11-05`, not a production deployment from unverified `main`.
+2. Create a **preview** from the browser-ready branch and verify it before merging into `main`; after checks pass, deploy the tested `main` commit to production. Reuse the existing Heuresis Vercel project if you have access rather than creating a duplicate.
 3. Use the existing client-side Supabase **publishable** key. Never include service-role/secret keys in Vite environment variables or frontend code.
 4. Before making the site public, review RLS on Heuresis and Knowledge tables, user ownership checks in RPC functions and storage bucket policies. Check Supabase's Auth Site URL / Redirect URLs if changing authentication methods (current password sign-in does not depend on an OAuth redirect).
 5. Confirm sign-in and sign-out, same-account Personal OS / Heuresis data, Notebook create/edit/reload, card reviews and event counts, Reading, Catalogue, image uploads, popup-blocked fallback, mobile in-tab navigation, and multi-device sync.
