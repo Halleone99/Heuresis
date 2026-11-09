@@ -6,6 +6,8 @@ import { listCards, listTags, type CardWithStats, type Collection, type Heuresis
 import { NEW_CARD_QUOTA_EVENT, readNewCardQuota } from "../lib/newCardQuota";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
+import { inLearning } from "../lib/learningStage";
+import LearningSession from "./LearningSession";
 import ReviewCentre from "./ReviewCentre";
 import SortModal from "./SortModal";
 import TodayStudyPanel from "./TodayStudyPanel";
@@ -50,6 +52,8 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [reviewRevision, setReviewRevision] = useState(0);
   const [newCardQuota, setNewCardQuota] = useState(readNewCardQuota);
   const [quickSort, setQuickSort] = useState<QuickSortSession | null>(null);
+  const [learningSession, setLearningSession] = useState<{ pack: PackWithType; cards: CardWithStats[] } | null>(null);
+  const [learningOpening, setLearningOpening] = useState(false);
   const [newOpening, setNewOpening] = useState(false);
   const [newError, setNewError] = useState("");
   const [reviewLaunchIds, setReviewLaunchIds] = useState<string[] | null>(null);
@@ -75,6 +79,25 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
     } finally { setNewOpening(false); }
+  }
+
+  async function startLearning(pack: PackWithType) {
+    if (learningOpening) return;
+    setLearningOpening(true);
+    setNewError("");
+    try {
+      const cards = (await listCards(pack.id)).filter((item) => cardHasCompletedSort(item) && inLearning(item));
+      if (!cards.length) { refreshReviews(); setNewError("No cards are currently in Learning for this topic."); return; }
+      setLearningSession({ pack, cards });
+    } catch (failure) {
+      setNewError(failure instanceof Error ? failure.message : "Could not open Learning.");
+    } finally { setLearningOpening(false); }
+  }
+
+  function closeLearning() {
+    setLearningSession(null);
+    refreshReviews();
+    window.dispatchEvent(new Event("heuresis:study-changed"));
   }
 
   function closeQuickSort() {
@@ -265,7 +288,8 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
       {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
         quota={newCardQuota} opening={newOpening} error={newError}
         onReview={(ids) => { setReviewLaunchIds(ids); setReviewsOpen(true); }}
-        onStartNew={(pack, count) => void startNewCards(pack, count)} /> : null}
+        onStartNew={(pack, count) => void startNewCards(pack, count)}
+        onStartLearning={(pack) => void startLearning(pack)} /> : null}
 
       {selectedCollection ? <div className="library-desk">
         <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
@@ -317,7 +341,10 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
-        quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined} /> : null}
+        quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined}
+        onLearning={() => void startLearning(quickSort.pack)} /> : null}
+      {learningSession ? <LearningSession key={learningSession.pack.id} pack={learningSession.pack} cards={learningSession.cards}
+        onClose={closeLearning} onChanged={refreshReviews} /> : null}
     </section>
   );
 }
