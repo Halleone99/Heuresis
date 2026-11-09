@@ -30,8 +30,10 @@ assert.match(sort, /<SortEnrichmentPanel/, "Sort exposes editable card details w
 assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
 assert.match(study, /requestedSize >= 1 && requestedSize <= 500/, "Review size validates positive amounts up to 500");
 
-assert.match(pack, /disabled=\{!learningCards\.length\}/, "Do not open Review before a card is sorted into Learning");
-assert.match(pack, /onClick=\{\(\) => setStudyOpen\(true\)\}[\s\S]{0,180}<Brain size=\{15\} \/> Review <small>\{learningCards\.length\}<\/small><\/button>/, "Review opens the selection screen");
+assert.match(pack, /disabled=\{!acquisitionCards\.length\}/, "Learning opens only when some classified cards need initial acquisition");
+assert.match(pack, /onClick=\{\(\) => setLearningOpen\(true\)\}/, "Learning opens its dedicated exercise screen");
+assert.match(pack, /disabled=\{!reviewCards\.length\}/, "Review excludes cards awaiting initial Learning");
+assert.match(pack, /onClick=\{\(\) => setStudyOpen\(true\)\}[\s\S]{0,180}<BookOpen size=\{15\} \/> Review <small>\{reviewCards\.length\}<\/small><\/button>/, "Review opens the selection screen");
 assert.doesNotMatch(pack, /className="secondary-button review-adjust"/, "No redundant Adjust action");
 assert.match(pack, /className="topic-more-menu topic-settings-menu"/, "Secondary actions share the Settings menu");
 assert.match(pack, /Import cards/, "Import remains reachable");
