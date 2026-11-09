@@ -104,16 +104,21 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
                   const expanded = expandedId === collection.id;
                   return <div key={collection.id} className="today-study-picker-group">
                     <div className="today-study-picker-subject">
-                      <button type="button" className={selection === "collection:" + collection.id ? "current" : ""}
-                        onClick={() => choose("collection:" + collection.id)}>
-                        <span aria-hidden="true">{collection.glyph || collection.title.slice(0,1)}</span>{collection.title}<small>All topics</small>
+                      <button type="button" aria-expanded={expanded}
+                        aria-label={(expanded ? "Collapse " : "Show ") + collection.title + " topics"}
+                        onClick={() => setExpandedId(expanded ? null : collection.id)}>
+                        <span aria-hidden="true">{collection.glyph || collection.title.slice(0, 1)}</span>
+                        <span className="today-study-picker-subject-name">{collection.title}</span>
+                        <small>{plural(children.length, "topic")}</small>
+                        <ChevronRight size={16} aria-hidden="true"/>
                       </button>
-                      <button type="button" className="today-study-expand" aria-expanded={expanded}
-                        aria-label={(expanded ? "Collapse " : "Expand ") + collection.title + " topics"}
-                        onClick={() => setExpandedId(expanded ? null : collection.id)}><ChevronRight size={16}/></button>
                     </div>
                     {expanded ? <div className="today-study-picker-topics">
+                      <button type="button" className={selection === "collection:" + collection.id ? "current all-topics" : "all-topics"}
+                        aria-pressed={selection === "collection:" + collection.id}
+                        onClick={() => choose("collection:" + collection.id)}>All topics</button>
                       {children.map((pack) => <button type="button" key={pack.id} className={selection === "topic:" + pack.id ? "current" : ""}
+                        aria-pressed={selection === "topic:" + pack.id}
                         onClick={() => choose("topic:" + pack.id)}>{pack.title}</button>)}
                       {!children.length ? <small>No topics yet</small> : null}
                     </div> : null}
