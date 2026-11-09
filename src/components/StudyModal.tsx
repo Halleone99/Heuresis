@@ -9,6 +9,7 @@ import { loadGradeEvents } from "../lib/reviewEvidence";
 import { directionPairs } from "../lib/recommend";
 import { readReviewPrefs, writeReviewPrefs } from "../lib/reviewPrefs";
 import { cardHasCompletedSort } from "../lib/sort";
+import { inReview } from "../lib/learningStage";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import "./study.css";
 
@@ -78,7 +79,7 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
   const pairedIds = activePair ? [...activePair.ids] : [];
 
   const eligible = useMemo(() => cards.filter((card) => {
-    if (!cardHasCompletedSort(card)) return false;
+    if (!cardHasCompletedSort(card) || !inReview(card)) return false;
     if (tagIds.some((id) => !card.tags.some((tag) => tag.id === id))) return false;
     if (flags.some((flag) => !flagged(card, flag))) return false;
     const events = history ? eventsByCard.get(card.id) ?? [] : null;
