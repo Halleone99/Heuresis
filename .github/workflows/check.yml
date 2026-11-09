@@ -62,6 +62,7 @@ jobs:
       - run: node scripts/check-data-integrity-regressions.mjs
       - run: node scripts/check-study-workflow-polish.mjs
       - run: node scripts/check-final-clarity.mjs
+      - run: node scripts/check-learning-stage.mjs
       - run: node scripts/check-review-engine.mjs
       - run: node scripts/check-review-bar-rules.mjs
       - run: node scripts/check-review-consistency.mjs
