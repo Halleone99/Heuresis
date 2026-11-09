@@ -4,10 +4,12 @@ import {
   fieldByRole,
   fieldText,
   listCards,
+  listCollections,
   listPacks,
   listTags,
   patchCardData,
   type CardWithStats,
+  type Collection,
   type FieldDef,
   type HeuresisTag,
   type PackWithType,
@@ -20,6 +22,7 @@ import {
   type LearningCounts,
 } from "../lib/learning";
 import { reviewGradeCount, templateDirection } from "../lib/learningSignals";
+import { languageFromCollection, languageName } from "../lib/languages";
 import {
   addRelatedWord,
   listRelatedCards,
@@ -261,6 +264,7 @@ function plural(count: number, word: string) { return `${count} ${count === 1 ? 
 export default function CosmosWindow() {
   const config = useMemo(parseConfig, []);
   const [pack, setPack] = useState<PackWithType | null>(null);
+  const [reviewCollection, setReviewCollection] = useState<Collection | null>(null);
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
@@ -387,7 +391,7 @@ export default function CosmosWindow() {
         const auth = await supabase.auth.getSession();
         if (!auth.data.session) throw new Error("Sign in to the main Heuresis window first.");
 
-        const packs = await listPacks();
+        const [packs, collections] = await Promise.all([listPacks(), listCollections()]);
         const nextPack = packs.find((entry) => entry.id === config.packId) ?? null;
         if (!nextPack) throw new Error("This Heuresis topic no longer exists.");
 
@@ -521,6 +525,7 @@ export default function CosmosWindow() {
 
         const counts = config.mode === "review" ? await getLearningCounts(nextQueue.map((entry) => entry.cardId)).catch(() => ({})) : {};
         setPack(nextPack);
+        setReviewCollection(collections.find((entry) => entry.id === nextPack.collection_id) ?? null);
         setCards(allCards);
         setTags(allTags);
         setTemplates(nextTemplates);
@@ -1191,6 +1196,8 @@ export default function CosmosWindow() {
   const sentenceCard = !isWordSized(fieldText(card.data, term?.key));
   const sentenceRatings: Record<StudyGrade, string> = { again: "Meaning lost or incorrect", hard: "Partly right; major slips", good: "Meaning and grammar correct", easy: "Accurate and natural, immediately" };
   const directionName = template?.name ?? "";
+  // Read from the current topic’s collection, not the Review all filter or card text.
+  const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
   return <main className="cosmos-shell">
     <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
@@ -1226,6 +1233,7 @@ export default function CosmosWindow() {
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
+        {mode === "review" && reviewLanguage ? <span className="cosmos-review-language" aria-label={`Language: ${reviewLanguage}`} title={`${reviewLanguage} · ${pack.title}`}>{reviewLanguage}</span> : null}
         {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
           title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
           onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
