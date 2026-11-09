@@ -1,4 +1,4 @@
-import { isAndroidRuntime, openInCurrentApp } from "./platform";
+import { openInCurrentApp, prefersSingleWindowNavigation } from "./platform";
 
 export type CaptureLaunch = {
   packId?: string | null;
@@ -17,7 +17,7 @@ export async function openCaptureWindow(options: CaptureLaunch = {}) {
 
   // Android has one application surface. Reuse the same Heuresis route instead
   // of creating a desktop WebviewWindow, preserving the exact Capture UI/data path.
-  if (isAndroidRuntime()) {
+  if (prefersSingleWindowNavigation()) {
     openInCurrentApp(params);
     return;
   }
@@ -51,6 +51,10 @@ export async function openCaptureWindow(options: CaptureLaunch = {}) {
     "heuresis-capture",
     "popup,width=610,height=790,resizable=yes,scrollbars=yes",
   );
-  if (!popup) throw new Error("The Capture popup was blocked.");
+  if (!popup) {
+    params.set("inTab", "1");
+    openInCurrentApp(params);
+    return;
+  }
   popup.focus();
 }

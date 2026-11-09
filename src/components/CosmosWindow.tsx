@@ -51,7 +51,7 @@ import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
-import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
+import { prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
@@ -243,12 +243,13 @@ function isConceptualPack(pack: PackWithType) {
 class EmptySelection extends Error {}
 
 /** Android (MagicPad APK): Review is a page inside the app's only WebView, opened from Study. */
-const ANDROID = isAndroidRuntime();
+const SINGLE_WINDOW = prefersSingleWindowNavigation()
+  || new URLSearchParams(window.location.search).get("inTab") === "1";
 
 async function closeDesktopWindow() {
   // Closing the window on Android would close the whole app (it has one window and one
   // WebView). Go back to the Study page Review was opened from instead.
-  if (ANDROID) {
+  if (SINGLE_WINDOW) {
     returnToHeuresisApp();
     return;
   }
