@@ -183,7 +183,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
         workspaceBlocks,
       });
       const refreshed = await getCard(card.id).catch(() => null);
-      const nextData = { ...card.data, [BLOCK_KEY]: workspaceBlocks };
+      const nextData: CardWithStats["data"] = { ...card.data, [BLOCK_KEY]: workspaceBlocks };
       for (const field of schema) {
         const value = (values[field.key] ?? "").trim();
         if (value) nextData[field.key] = value;
