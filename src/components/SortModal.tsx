@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
+import { bypassAcquisition, enterInitialLearning, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
 import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
@@ -21,9 +22,10 @@ type Props = {
   onChanged: () => void;
   /** Offered when the pass is finished: the next useful learning action. */
   onReview?: () => void;
+  onLearning?: () => void;
 };
 
-type Removal = { kind: "learn" | "discard"; card: CardWithStats };
+type Removal = { kind: "learn" | "discard"; card: CardWithStats; phase?: AcquisitionPhase };
 const ORDER_KEY = "heuresis.sort.order.v1";
 
 function readOrder(): "topic" | "random" {
@@ -44,7 +46,7 @@ function shuffled<T>(items: T[]) {
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
-export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, onClose, onChanged, onReview }: Props) {
+export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, onClose, onChanged, onReview, onLearning }: Props) {
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
   const dialogRef = useRef<HTMLElement>(null);
   const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
@@ -109,6 +111,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [learned, setLearned] = useState(0);
+  const [toLearning, setToLearning] = useState(0);
+  const [toReview, setToReview] = useState(0);
   const [discarded, setDiscarded] = useState(0);
   const [lastRemoval, setLastRemoval] = useState<Removal | null>(null);
 
@@ -180,15 +184,21 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     } else onClose();
   }
 
-  async function learn(rank: number) {
+  async function learn(rank: number, destination: AcquisitionPhase = "learning") {
     if (!card || busy || enrichmentBlocked || editingCard) return;
     setBusy(true); setMessage("");
     try {
       // The three visible priorities retain the existing numeric database representation.
       await saveQuickNote();
+      const state = readAcquisition(card.data);
+      // Phase is saved before sorting, so a partially completed action cannot leak into Review.
+      const next = destination === "learning" ? enterInitialLearning(state) : bypassAcquisition(state);
+      await patchCardData(card.id, { [LEARNING_STAGE_KEY]: serializeAcquisition(next) });
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
-      setLastRemoval({ kind: "learn", card });
+      if (destination === "learning") setToLearning((value) => value + 1);
+      else setToReview((value) => value + 1);
+      setLastRemoval({ kind: "learn", card, phase: destination });
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this decision."); }
@@ -219,10 +229,14 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       else {
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
-        await patchCardData(restored.id, { _sorted_at: null });
+        await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: null });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
-      else setLearned((value) => Math.max(0, value - 1));
+      else {
+        setLearned((value) => Math.max(0, value - 1));
+        if (lastRemoval.phase === "learning") setToLearning((value) => Math.max(0, value - 1));
+        if (lastRemoval.phase === "review") setToReview((value) => Math.max(0, value - 1));
+      }
       const position = queue.findIndex((item) => item.id === restored.id);
       const without = queue.filter((item) => item.id !== restored.id);
       const at = position >= 0 && position < index ? index - 1 : index;
@@ -374,9 +388,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       <div className="sort-finished-actions">{onReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review</button> : null}<button type="button" className="is-quiet" onClick={onClose}>Return to topic</button></div></div> : null}
     {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
       <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
-      <p>{[learned ? `${learned} to learn` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
+      <p>{[toLearning ? `${toLearning} to Learning` : "", toReview ? `${toReview} to Review` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
       {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
-      <div className="sort-finished-actions">{onReview && learned ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className={onReview && learned ? "is-quiet" : ""} disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
+      <div className="sort-finished-actions">{onLearning && toLearning ? <button type="button" onClick={() => { onClose(); onLearning(); }}><Brain size={15} /> Start Learning</button> : null}{onReview && toReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className="is-quiet" disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
     </div> : null}
     {!filtersOpen && card ? <div className="sort-body">
       <div id="sort-editing-tools" className="sort-editing-tools"><SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} onBlockedChange={setEnrichmentBlocked} /></div>
@@ -449,7 +463,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13} /> Undo</button></div> : null}
       <div className="sort-footer-end">
         <button type="button" className="sort-footer-later" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}><SkipForward size={15} /> Later</button>
-        <button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank); }}>Save & Next <ArrowRight size={17} /></button>
+        <button type="button" className="sort-footer-later" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "review"); }}>To Review <ArrowRight size={15} /></button><button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "learning"); }}>To Learning <Brain size={16} /></button>
       </div>
     </footer> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
