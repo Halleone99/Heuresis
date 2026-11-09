@@ -68,6 +68,26 @@
   background:var(--paper);
   box-shadow:0 30px 72px -36px rgba(38,32,25,.42),0 1px 0 rgba(255,255,255,.75) inset;
 }
+/* Visible even before reveal: Review all may move between different languages. */
+.cosmos-review-language {
+  position:absolute;
+  top:18px;
+  left:20px;
+  z-index:5;
+  display:inline-block;
+  box-sizing:border-box;
+  max-width:calc(100% - 150px);
+  overflow:hidden;
+  padding:6px 10px;
+  border:1px solid var(--line-2);
+  border-radius:6px;
+  background:var(--paper-2);
+  color:var(--muted);
+  font:600 10px/1.2 var(--sans);
+  letter-spacing:.025em;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
 .cosmos-nucleus {
   flex:1;
   display:flex;
@@ -676,6 +696,7 @@
 .cosmos-edit-foot button:focus-visible { outline:2px solid var(--c-sage); outline-offset:2px; }
 .cosmos-edit-foot button:disabled { opacity:.5; cursor:default; }
 @media(max-width:640px) {
+  .cosmos-review-language { top:11px; left:12px; padding:6px 8px; }
   .cosmos-card-modify { top:10px; right:11px; padding:7px; }
   .cosmos-edit-backdrop { padding:10px; }
   .cosmos-edit-dialog { max-height:calc(100dvh - 20px); border-radius:11px; }
