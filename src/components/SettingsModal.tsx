@@ -8,6 +8,7 @@ import { useAppearance, type PalettePreference } from "../lib/theme";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import SortingSettings from "./SortingSettings";
 import StructureSettings from "./StructureSettings";
+import { BUILD_COMMIT, buildPlatform } from "../lib/buildInfo";
 
 type BackgroundApi = {
   imageUrl: string | null;
@@ -266,6 +267,9 @@ export default function SettingsModal({ backgrounds, packs, collections, onDataC
         <header className="settings-head"><div><p className="eyebrow">PREFERENCES</p><h2>Settings</h2></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={17} /></button></header>
         <nav className="settings-tabs"><button aria-pressed={tab === "appearance"} onClick={() => setTab("appearance")}>Appearance</button><button aria-pressed={tab === "study"} onClick={() => setTab("study")}>Study</button><button aria-pressed={tab === "sorting"} onClick={() => setTab("sorting")}>Sorting</button><button aria-pressed={tab === "cards"} onClick={() => setTab("cards")}>Cards & directions</button></nav>
         <div className="settings-body">{tab === "appearance" ? <AppearanceSettings backgrounds={backgrounds} /> : null}{tab === "study" ? <StudySettings /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>
+        <footer className="heuresis-build-meta" style={{ padding: "0 24px 15px", fontSize: 11, opacity: 0.65 }}>
+          {buildPlatform()} · source <code title={BUILD_COMMIT}>{BUILD_COMMIT === "unknown" ? "unknown revision" : BUILD_COMMIT.slice(0, 8)}</code>
+        </footer>
       </section>
     </div>
   );

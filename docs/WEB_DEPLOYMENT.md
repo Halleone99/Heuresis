@@ -31,3 +31,22 @@ node --experimental-strip-types scripts/check-web-runtime.mjs
 node scripts/check-architecture.mjs
 npm run build
 ```
+
+## Standard release workflow (web + native)
+
+**Single source of truth:** `Halleone99/Heuresis` on GitHub. The Vite React interface is shared by the browser and Tauri. Do not copy files into Personal OS or maintain a separate production web branch.
+
+1. Make changes on a feature branch and open a pull request to `main`.
+2. Require the **Check Heuresis / frontend** build to pass and review relevant browser/native acceptance results before merging. Investigate failing checks; do not bypass failures without a documented reason. GitHub branch protection and Vercel Deployment Checks must be enabled by a project administrator.
+3. Merge the tested change into `main`. The existing **Heuresis Vercel project** must be connected to `Halleone99/Heuresis`, with production branch `main`, framework Vite, root `/`, build command `npm run build`, and output directory `dist`. Vercel then deploys each push automatically; do **not** create a second project if `heuresis-phi.vercel.app` already belongs to one.
+4. Existing GitHub Actions on `main` automatically build Windows x64 installers and Android ARM64 APK artefacts. Windows ARM64 is still manually triggered. Native **builds are not installed updates**: reinstall an APK/installer to run that build. Signed in-app Tauri updating is a separate future project.
+5. In **Settings**, compare the short Git SHA and platform label on the web and native app. A native installation can be older than the website, even if both builds come from the same repository.
+6. Verify the production deployment says **READY** at the expected source SHA and check sign-in, Learning, Review, Catalogue, and Supabase synchronisation before declaring the website up to date.
+
+### One-time Vercel connection
+
+The existing site currently used is `https://heuresis-phi.vercel.app`. The ChatGPT-connected Vercel team has exposed only the `health-os` project so far. Do not link Heuresis to or overwrite `health-os`. The Vercel owner must switch to the team containing the existing Heuresis project or expand the Vercel connection's project/team access, then connect that existing project to the GitHub repo above.
+
+The build embeds `VERCEL_GIT_COMMIT_SHA` when exposed by Vercel, or detects the current Git HEAD if available; `HEURESIS_BUILD_COMMIT` is an explicit build-time override for non-Git packaging. The fallback label is `unknown revision`, which must **not** count as a verified release.
+
+**Never put Supabase service-role keys or a Vercel access token into Vite client variables.**
