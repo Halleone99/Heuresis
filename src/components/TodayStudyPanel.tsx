@@ -154,7 +154,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
           </div>)}
           <div className="today-study-week"><TrendingUp size={16}/>{overview ? weeklyActivity : "—"} in the last 7 days</div>
         </aside>
-        {error && (mode === "new" || mode === "learn") ?} <p className="today-study-notice" role="alert">{error}</p> : null}
+        {error && (mode === "new" || mode === "learn") ? <p className="today-study-notice" role="alert">{error}</p> : null}
         {overview?.incomplete ? <p className="today-study-notice" role="status">Some topic counts are unavailable.</p> : null}
       </section>
 
