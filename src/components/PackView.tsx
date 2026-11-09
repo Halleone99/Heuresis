@@ -16,6 +16,8 @@ import {
 } from "../lib/heuresis";
 import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, reviewGradeCount, templateDirection, type DirectionTemplates } from "../lib/learningSignals";
 import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
+import { inLearning, inReview } from "../lib/learningStage";
+import LearningSession from "./LearningSession";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import { openCosmosWindow } from "../lib/cosmosWindow";
 import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, importanceOf, ranksFor, type Importance } from "../lib/importance";
@@ -191,6 +193,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const [editing, setEditing] = useState<CardWithStats | null>(null);
   const [connectionsCard, setConnectionsCard] = useState<CardWithStats | null>(null);
   const [studyOpen, setStudyOpen] = useState(false);
+  const [learningOpen, setLearningOpen] = useState(false);
   const reviewOpened = useRef(false);
   const reviewStarting = useRef(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -295,6 +298,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
   const learningCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "learning"), [cards]);
+  const acquisitionCards = useMemo(() => learningCards.filter(inLearning), [learningCards]);
+  const reviewCards = useMemo(() => learningCards.filter(inReview), [learningCards]);
   const stageOf = (card: CardWithStats): ProgressStage => {
     const progress = cardBars.get(card.id);
     return progress?.mastered ? "mastered" : progress?.bars === 4 ? "known" : reviewGradeCount(card) ? "review" : "new";
@@ -526,7 +531,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
             <BookOpen size={18} aria-hidden="true" /><strong>{unsortedCards.length.toLocaleString()}</strong><span className="workflow-stage-copy"><b>To classify</b></span>
           </button>
           <button type="button" className={statusFilters.includes("learning") && !stateFilter ? "active" : ""} data-stage="learning" aria-pressed={statusFilters.includes("learning") && !stateFilter} onClick={() => chooseStage("learning")}>
-            <Brain size={18} aria-hidden="true" /><strong>{learningCards.length.toLocaleString()}</strong><span className="workflow-stage-copy"><b>In Review</b></span>
+            <Brain size={18} aria-hidden="true" /><strong>{learningCards.length.toLocaleString()}</strong><span className="workflow-stage-copy"><b>Classified</b></span>
           </button>
           <button type="button" className={stateFilter === "mastered" ? "active" : ""} data-stage="mastered" aria-pressed={stateFilter === "mastered"} onClick={() => chooseState("mastered")}>
             <Star size={18} aria-hidden="true" /><strong>{stateCounts.mastered.toLocaleString()}</strong><span className="workflow-stage-copy"><b>Mastered</b></span>
@@ -544,7 +549,8 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         <div className="topic-learning-actions">
           <div className="topic-session-control" role="group" aria-label="Card sessions">
             <button type="button" className="sort-command new-session-command topic-action-primary" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)} title="Classify new cards"><BookOpen size={15} /> New <small>{unsortedCards.length}</small></button>
-            <button type="button" className="review-command topic-action-review" disabled={!learningCards.length} onClick={() => setStudyOpen(true)} title="Practise classified cards"><Brain size={15} /> Review <small>{learningCards.length}</small></button>
+            <button type="button" className="review-command topic-action-review" disabled={!acquisitionCards.length} onClick={() => setLearningOpen(true)} title="Initial Learning exercises"><Brain size={15} /> Learning <small>{acquisitionCards.length}</small></button>
+             <button type="button" className="review-command topic-action-review" disabled={!reviewCards.length} onClick={() => setStudyOpen(true)} title="Review prepared cards"><BookOpen size={15} /> Review <small>{reviewCards.length}</small></button>
           </div>
           <button type="button" className="secondary-button topic-action-browse" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
           <button type="button" className="secondary-button topic-action-add" onClick={onCapture}><Plus size={15} /> Add</button>
@@ -705,8 +711,9 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
 
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} onRetention={(retention) => changeRetention(editing, retention)} /> : null}
       {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} /> : null}
-      {studyOpen ? <StudyModal pack={pack} cards={cards} onClose={() => setStudyOpen(false)} onComplete={() => { reviewOpened.current = true; }} /> : null}
-      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} /> : null}
+      {studyOpen ? <StudyModal pack={pack} cards={reviewCards} onClose={() => setStudyOpen(false)} onComplete={() => { reviewOpened.current = true; }} /> : null}
+      {learningOpen ? <LearningSession pack={pack} cards={acquisitionCards} onClose={() => { setLearningOpen(false); void refreshAll(); }} onChanged={() => void refreshAll()} /> : null}
+      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} onLearning={() => setLearningOpen(true)} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
     </section>
