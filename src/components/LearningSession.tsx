@@ -63,7 +63,7 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
   const meaningRole = fieldByRole(pack.cardType, "meaning");
   const exampleRole = fieldByRole(pack.cardType, "example");
   const term = card ? fieldText(card.data, termRole?.key || pack.cardType?.field_schema[0]?.key) : "";
-  const meaning = card ? fieldText(card.data, meaningRole?.key) : "";
+  const meaning = card ? fieldText(card.data, meaningRole?.key || pack.cardType?.field_schema[1]?.key) : "";
   const example = card ? fieldText(card.data, exampleRole?.key) : "";
   const reference = term.trim();
   const letters = segments(reference);
@@ -72,7 +72,7 @@ export default function LearningSession({ pack, cards, onClose, onChanged }: Pro
   const mask = letters.map((char, i) => char.trim() && (i % 3 === 1 || (letters.length < 3 && i === 0)) ? "＿" : char).join("");
   const alternatives = useMemo(() => {
     if (!card) return [] as string[];
-    const others = cards.filter((item) => item.id !== card.id).map((item) => fieldText(item.data, meaningRole?.key).trim())
+    const others = cards.filter((item) => item.id !== card.id).map((item) => fieldText(item.data, meaningRole?.key || pack.cardType?.field_schema[1]?.key).trim())
       .filter((value) => value && readable(value) !== readable(meaning));
     const unique = [...new Map(others.map((value) => [readable(value), value])).values()];
     if (!meaning.trim() || unique.length < 2) return [] as string[];
