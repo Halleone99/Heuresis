@@ -6,6 +6,10 @@ on:
       - "src/**"
       - "src-tauri/**"
       - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "index.html"
+      - "public/**"
       - ".github/workflows/tauri-windows-x64-preview.yml"
   pull_request:
     branches: [main]
@@ -13,6 +17,10 @@ on:
       - "src/**"
       - "src-tauri/**"
       - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "index.html"
+      - "public/**"
       - ".github/workflows/tauri-windows-x64-preview.yml"
   workflow_dispatch:
 
