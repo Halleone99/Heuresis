@@ -1,4 +1,4 @@
-import { isAndroidRuntime, openInCurrentApp } from "./platform";
+import { openInCurrentApp, prefersSingleWindowNavigation } from "./platform";
 
 export type CosmosMode = "review" | "sort";
 export type CosmosSource = "recommended" | "all" | "new" | "favourites" | "interesting" | "again" | "unsorted";
@@ -133,7 +133,7 @@ export async function openCosmosWindow(options: CosmosLaunch) {
 
   // Android uses the main app webview for study/review so sessions and auth remain
   // in the same persisted client rather than relying on desktop popup windows.
-  if (isAndroidRuntime()) {
+  if (prefersSingleWindowNavigation()) {
     openInCurrentApp(params);
     return;
   }
@@ -167,5 +167,9 @@ export async function openCosmosWindow(options: CosmosLaunch) {
   }
 
   const popup = window.open(`/?${params.toString()}`, "_blank", `popup,width=${width},height=${height},resizable=yes,scrollbars=yes`);
-  if (!popup) throw new Error("The Heuresis popup was blocked.");
+  if (!popup) {
+    params.set("inTab", "1");
+    openInCurrentApp(params);
+    return;
+  }
 }

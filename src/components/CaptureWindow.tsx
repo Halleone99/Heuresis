@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import AuthGate from "./AuthGate";
 import CaptureView from "./CaptureView";
 import { listCollections, listPacks, type Collection, type PackWithType } from "../lib/heuresis";
-import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
+import { prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 
 async function closeCaptureWindow() {
-  if (isAndroidRuntime()) {
+  if (prefersSingleWindowNavigation() || new URLSearchParams(window.location.search).get("inTab") === "1") {
     returnToHeuresisApp();
     return;
   }

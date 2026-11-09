@@ -51,7 +51,7 @@ import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
-import { isAndroidRuntime, returnToHeuresisApp } from "../lib/platform";
+import { prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
@@ -243,12 +243,13 @@ function isConceptualPack(pack: PackWithType) {
 class EmptySelection extends Error {}
 
 /** Android (MagicPad APK): Review is a page inside the app's only WebView, opened from Study. */
-const ANDROID = isAndroidRuntime();
+const SINGLE_WINDOW = prefersSingleWindowNavigation()
+  || new URLSearchParams(window.location.search).get("inTab") === "1";
 
 async function closeDesktopWindow() {
   // Closing the window on Android would close the whole app (it has one window and one
   // WebView). Go back to the Study page Review was opened from instead.
-  if (ANDROID) {
+  if (SINGLE_WINDOW) {
     returnToHeuresisApp();
     return;
   }
@@ -1298,7 +1299,7 @@ export default function CosmosWindow() {
             <button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button>
           </div>}
           {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
-        </> : <span>Attempt the answer before revealing it. {ANDROID ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+        </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>

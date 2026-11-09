@@ -29,7 +29,7 @@ async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
   await page.waitForTimeout(800);
   await page.locator('button:has-text("HSK 2 — Time")').first().click();
-  await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+  if (await page.locator('.topic-browse-actions button:has-text("Show all")').count()) await page.locator('.topic-browse-actions button:has-text("Show all")').click();
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(400);
 }
@@ -52,13 +52,15 @@ const scenarios = {
     await page.click('.hw-sections button:has-text("Study")');
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();
-    check(await page.locator(".modern-topic-row").count() === 0, "opening a topic does not render every card");
-    check(await page.locator(".topic-filter-picker").count() === 1, "a compact searchable tag and state selector is available instead");
-    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    // Compact topics now expose cards immediately; larger topics have Show all.
+    // Keep this legacy scenario name because CI invokes it directly by name.
+    check(await page.locator(".inline-filter-tags summary").count() === 1,
+      "the topic provides the current inline tag filter");
+    const showAll = page.locator('.topic-browse-actions button:has-text("Show all")');
+    if (await showAll.count()) await showAll.click();
     await page.locator(".modern-topic-row").first().waitFor();
-    check(await page.locator(".modern-topic-row").count() >= 5, "Show all explicitly expands the full table");
-    await page.locator('.topic-browse-actions button:has-text("Overview")').click();
-    check(await page.locator(".modern-topic-row").count() === 0, "Overview hides the table again");
+    check(await page.locator(".modern-topic-row").count() >= 5,
+      "the topic shows at least five cards with its filters available");
   },
 
   async "study stages agree in Library, topic, Sort, Browse and Review"(page) {
@@ -68,7 +70,7 @@ const scenarios = {
     const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
     check(/2 UNSORTED/i.test(libraryRow), `Library counts the two unsorted cards (“${libraryRow}”)`);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
-    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    if (await page.locator('.topic-browse-actions button:has-text("Show all")').count()) await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-row").first().waitFor();
     await page.waitForTimeout(400);
     const [unsorted, learning, reference] = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];
