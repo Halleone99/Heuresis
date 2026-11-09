@@ -103,7 +103,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
               <span>{mode === "new" ? "available" : mode === "learning" ? "to practise" : "due"}</span>
             </div>
             <span className="library-study-v2-week"><TrendingUp size={13} aria-hidden="true" />
-              {overview ? (mode === "new" ? newLast7 : reviewsLast7).toLocaleString() : "—"} {mode === "new" ? "new cards in the last 7 days" : "reviews in the last 7 days"}
+              {mode === "learning" ? "Complete 10 exercises per card to unlock Review" : <>{overview ? (mode === "new" ? newLast7 : reviewsLast7).toLocaleString() : "—"} {mode === "new" ? "new cards in the last 7 days" : "reviews in the last 7 days"}</>}
             </span>
           </div>
           {mode === "new" ? <div className="library-study-v2-launch">
