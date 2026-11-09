@@ -46,6 +46,7 @@ import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, typ
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
+import { enterInitialLearning, inReview, readAcquisition, saveAcquisition, suggestRelearning } from "../lib/learningStage";
 import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW_LAST_METHOD_KEY } from "../lib/reviewMethodCounts";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
@@ -422,6 +423,7 @@ export default function CosmosWindow() {
         let rest: QueueItem[] = [];
         const ready = allCards.filter(cardHasCompletedSort).filter((entry) => {
           if (config.mode !== "review") return true;
+          if (!inReview(entry)) return false;
           const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
           const oldState = assessState(directionEvidence(entry, null, grades)).state;
           const progress = cardBarProgress(entry, grades, oldState, progressPair);
@@ -439,7 +441,7 @@ export default function CosmosWindow() {
             .map((rec) => ({ cardId: rec.cardId, templateId: rec.templateId, reasons: rec.reasons, state: rec.state }));
         } else {
           let pool = relatedReview
-            ? [...allCards]
+            ? [...allCards].filter(inReview)
             : config.mode === "sort"
               ? (config.source === "unsorted" ? allCards.filter((entry) => !cardHasCompletedSort(entry)) : sourceCards(allCards, config.source))
               : sourceCards(ready, config.source === "unsorted" ? "all" : config.source);
@@ -814,6 +816,20 @@ export default function CosmosWindow() {
     } catch (answerError) {
       setNotice(answerError instanceof Error ? answerError.message : "Could not save the result.");
       return false;
+    } finally { setBusy(false); }
+  }
+
+  async function sendBackToLearning() {
+    if (!card || busy || !inReview(card)) return;
+    setBusy(true); setNotice("");
+    try {
+      const updated = await saveAcquisition(card, enterInitialLearning(readAcquisition(card.data)));
+      patchLocalCard(card.id, () => updated);
+      // A card sent to Learning must disappear from every remaining Review direction.
+      await advance(queue.filter((entry) => entry.cardId !== card.id), index);
+      window.dispatchEvent(new Event("heuresis:study-changed"));
+    } catch (failure) {
+      setNotice(failure instanceof Error ? failure.message : "Could not send this card to Learning.");
     } finally { setBusy(false); }
   }
 
@@ -1263,6 +1279,9 @@ export default function CosmosWindow() {
                   {correctionStatus === "synced" ? "Explanation saved" : "Saved on this device · sync pending"}
                 </span> : <button type="button" className="cosmos-why-note"
                   onClick={() => setCorrectionOpen(true)}>Why wrong?</button>}
+                {suggestRelearning((events ?? []).filter((event) => event.cardId === card.id)) ?
+                  <span className="cosmos-relearn-hint">Repeated difficulty · consider Learning</span> : null}
+                <button type="button" className="cosmos-extra-toggle" disabled={busy} onClick={() => void sendBackToLearning()}>Relearn</button>
                 <button type="button" className="cosmos-continue" disabled={busy}
                   onClick={() => void advance(queue, index + 1)}>Next <span aria-hidden="true">→</span></button>
               </div>
@@ -1273,6 +1292,7 @@ export default function CosmosWindow() {
             title={RESULT_HINT[grade]} onClick={() => selectGrade(grade)}>
             <b>{RESULT_LABEL[grade]}</b><small>{position + 1}</small><span>{sentenceCard ? sentenceRatings[grade] : RESULT_HINT[grade]}</span></button>)}</div>}
           {!gradedMistake && <div className="cosmos-secondary-actions">
+            <button type="button" className="cosmos-extra-toggle" disabled={busy} onClick={() => void sendBackToLearning()}>Relearn</button>
             <button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button>
           </div>}
           {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
