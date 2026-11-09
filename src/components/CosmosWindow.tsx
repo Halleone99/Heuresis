@@ -826,7 +826,9 @@ export default function CosmosWindow() {
       const updated = await saveAcquisition(card, enterInitialLearning(readAcquisition(card.data)));
       patchLocalCard(card.id, () => updated);
       // A card sent to Learning must disappear from every remaining Review direction.
-      await advance(queue.filter((entry) => entry.cardId !== card.id), index);
+      const remaining = queue.filter((entry) => entry.cardId !== card.id);
+      setQueue(remaining);
+      await advance(remaining, index);
       window.dispatchEvent(new Event("heuresis:study-changed"));
     } catch (failure) {
       setNotice(failure instanceof Error ? failure.message : "Could not send this card to Learning.");
