@@ -100,7 +100,7 @@ const scenarios = {
     check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
     check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
     await page.keyboard.press("Escape");
-    await page.locator(".review-command").click();
+    await page.locator(".topic-session-control button[title="Review prepared cards"]").click();
     await page.locator(".review-controls").waitFor();
     // Eligibility can change when historical grades arrive: mastered cards are excluded
     // unless requested. Assert against the *loaded* pool, not its transient initial count.
@@ -121,6 +121,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     check(await topmostIs(page, 120, 300, ".sort-backdrop"), "Sort covers the sidebar instead of sitting under it");
     check(await topmostIs(page, 200, 100, ".sort-modal"), "the Sort title is visible (not hidden behind the sidebar)");
@@ -133,7 +134,7 @@ const scenarios = {
 
   async "selected review direction stays readable while hovered"(page) {
     await openTopic(page);
-    await page.locator(".review-command").click();
+    await page.locator(".topic-session-control button[title="Review prepared cards"]").click();
     await page.locator(".review-controls").waitFor();
     const selected = page.locator('.study-order-toggle button[aria-pressed="true"]');
     await selected.hover();
@@ -147,6 +148,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-enrichment").waitFor();
     const left = await page.locator(".sort-enrichment").boundingBox();
     const centre = await page.locator(".sort-card").boundingBox();
@@ -172,6 +174,7 @@ const scenarios = {
       "New knowledge is saved to the original flashcard data");
     await page.keyboard.press("Escape");
     await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").click();
     if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
       await page.locator('.sort-enrich-heading:has-text("Examples")').click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
