@@ -39,18 +39,20 @@ function tapped(result, message) {
 }
 
 /** Sort a full pass using the current Core / Active / Passive decisions.
- * Choosing an importance saves immediately; Sort Later and Discard remain separate actions.
+ * Choosing an importance prepares the decision; To Review or To Learn saves it.
  * The right-hand panel can scroll on a tablet, so test actual finger reachability.
  */
 async function sortByTouch(page, name) {
   await addUnsortedCards();
   await openTopicByTouch(page);
   tapped(await fingerTap(page, ".sort-command", { label: "Sort" }), "Sort opens with a tap");
+  await page.locator(".sort-setup-start").waitFor({ timeout: 10000 });
+  tapped(await fingerTap(page, ".sort-setup-start", { label: "Start New" }), "New selection starts by touch");
   await page.locator(".sort-card").waitFor({ timeout: 10000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${shots}/${name}-sort.png` });
   check(await reachableNow(page, ".sort-topbar-actions button:last-child"), "Sort's close button is on screen and not covered");
-  check(await reachableNow(page, ".sort-topbar > span"), "Sort's progress (1 / 3) is on screen and not covered");
+  check(await reachableNow(page, ".sort-top-progress > span"), "Sort progress is on screen and not covered");
   check(await reachableNow(page, ".sort-card > strong"), "the card itself is on screen");
   const bottomNavCovers = await page.evaluate(() => {
     const modal = document.querySelector(".sort-modal");
@@ -65,16 +67,19 @@ async function sortByTouch(page, name) {
   check(!bottomNavCovers, "no app navigation or Capture handle floats over Sort");
 
   const first = (await page.locator(".sort-card > strong").innerText()).trim();
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Learn as Core"]', { label: "Core" }), "Core saves the first card with a tap");
+  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Core importance"]', { label: "Core" }), "Core importance is selected by touch");
+  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review" }), "Core classification is saved explicitly");
   await page.waitForTimeout(700);
   const second = (await page.locator(".sort-card > strong").innerText()).trim();
   check(second !== first, "choosing Core advances to the next card");
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Learn as Passive"]', { label: "Passive" }), "Passive saves the second card");
+  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Passive importance"]', { label: "Passive" }), "Passive importance is selected");
+  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review" }), "Passive classification is saved explicitly");
   await page.waitForTimeout(700);
   tapped(await fingerTap(page, '.sort-undo button', { label: "Undo" }), "Undo restores the last sorted card");
   await page.waitForTimeout(700);
   check((await page.locator(".sort-card > strong").innerText()).trim() === second, "Undo brings the second card back");
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Learn as Passive"]', { label: "Passive again" }), "Passive re-sorts the restored card");
+  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Passive importance"]', { label: "Passive again" }), "Passive is reselected after Undo");
+  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review" }), "Restored card is classified again");
   await page.waitForTimeout(700);
   const third = (await page.locator(".sort-card > strong").innerText()).trim();
   const full = page.viewportSize();
@@ -84,7 +89,8 @@ async function sortByTouch(page, name) {
   await page.locator(".sort-note-panel textarea").fill("seen in lesson 4");
   tapped(await fingerTap(page, ".sort-note-panel textarea", { label: "Quick note (keyboard open)" }), "the quick note remains reachable with the keyboard open");
   await page.screenshot({ path: `${shots}/${name}-sort-keyboard.png` });
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Learn as Active"]', { label: "Active (keyboard open)" }), "Active saves with the keyboard open");
+  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Active importance"]', { label: "Active (keyboard open)" }), "Active importance is selectable with the keyboard open");
+  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review (keyboard open)" }), "The decision remains reachable with the keyboard open");
   await page.setViewportSize(full);
   await page.waitForTimeout(800);
   await page.locator(".sort-finished").waitFor({ timeout: 8000 });
@@ -109,7 +115,7 @@ async function startReviewByTouch(page) {
 async function reviewByTouch(page, name, { start = "topic" } = {}) {
   if (start === "topic") {
     await openTopicByTouch(page);
-    tapped(await fingerTap(page, ".review-command", { label: "Review" }), "Review starts with a tap");
+    tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review starts with a tap");
   }
   await startReviewByTouch(page);
   await page.waitForTimeout(600);
@@ -144,6 +150,10 @@ async function reviewByTouch(page, name, { start = "topic" } = {}) {
     }
     const grade = await fingerTap(page, `.cosmos-results button:nth-child(${step === 0 ? 1 : 3})`, { label: "result", scroll: false });
     if (!grade.ok) { failures += 1; console.log("   ", grade.reason); break; }
+    if (step === 0 && await page.locator(".cosmos-mistake-followup").count()) {
+      await page.locator(".cosmos-continue").waitFor();
+      tapped(await fingerTap(page, ".cosmos-continue", { label: "Continue after Missed" }), "Missed feedback advances by touch");
+    }
     await page.waitForTimeout(250);
   }
   check(failures === 0, `every card is revealed and answered by tapping, without scrolling (${total})`);
@@ -171,7 +181,7 @@ const scenarios = {
   async "wide landscape: Review by touch"(page) { await reviewByTouch(page, "wide"); },
   async "landscape: closing Review mid-session returns to the topic"(page) {
     await openTopicByTouch(page);
-    tapped(await fingerTap(page, ".review-command", { label: "Review" }), "Review");
+    tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
     tapped(await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer" }), "Show answer");
     tapped(await fingerTap(page, ".cosmos-results button:nth-child(3)", { label: "Recalled" }), "Recalled");
@@ -185,7 +195,7 @@ const scenarios = {
   },
   async "landscape: side panels open and close by touch"(page) {
     await openTopicByTouch(page);
-    tapped(await fingerTap(page, ".review-command", { label: "Review" }), "Review");
+    tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
     tapped(await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer" }), "Show answer");
     for (const label of ["Context", "Notes"]) {
@@ -215,7 +225,7 @@ const scenarios = {
   },
   async "portrait: Notes drawer opens over the card and closes"(page) {
     await openTopicByTouch(page);
-    tapped(await fingerTap(page, ".review-command", { label: "Review" }), "Review");
+    tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
     tapped(await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer" }), "Show answer");
     tapped(await fingerTap(page, '.cosmos-panel-toggles button:nth-child(2)', { label: "Notes" }), "Notes opens");
@@ -228,7 +238,7 @@ const scenarios = {
   },
   async "landscape: Adjust → Start review, by touch"(page) {
     await openTopicByTouch(page);
-    tapped(await fingerTap(page, ".review-command", { label: "Review setup" }), "Review setup opens");
+    tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review setup" }), "Review setup opens");
     await page.locator(".study-start").waitFor({ timeout: 10000 });
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${shots}/landscape-adjust.png` });
@@ -240,7 +250,7 @@ const scenarios = {
   },
   async "landscape: Review with typed answers"(page) {
     await openTopicByTouch(page);
-    tapped(await fingerTap(page, ".review-command", { label: "Review" }), "Review");
+    tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
     tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Type")', { label: "Type" }), "Type is selectable by touch");
     check(await page.locator('.cosmos-recall-methods button:has-text("Type")').getAttribute("aria-pressed") === "true", "Type becomes the answering method");
