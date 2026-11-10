@@ -539,7 +539,7 @@ const scenarios = {
 
     // A card learned before and sent back starts a new cycle: its old readiness does not count.
     const learned = await phaseOf("已经");
-    const back = JSON.stringify({ ...learned, phase: "learning", cycle: learned.cycle + 1, history: [...learned.history, { at: new Date().toISOString(), cycle: learned.cycle + 1, kind: "enter_learning", reason: "relearn" }] });
+    const back = JSON.stringify({ ...learned, phase: "learning", cycle: learned.cycle + 1, completed: [], history: [...learned.history, { at: new Date().toISOString(), cycle: learned.cycle + 1, kind: "enter_learning", reason: "relearn" }] });
     await sql(`update heuresis_cards set data = data || jsonb_build_object('_acquisition_v1', '${back.replace(/'/g, "''")}') where data->>'term' = '已经'`);
     await page.bringToFront();
     await page.reload();
