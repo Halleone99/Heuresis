@@ -190,7 +190,7 @@ const scenarios = {
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     const decision = page.locator(".sort-modal");
-    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
+    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Active and Passive");
     check(await decision.getByRole("button", { name: "Select Core importance" }).count() === 1, "Core classification is available");
     check(await decision.locator(".sort-save-next:has-text('To Learn')").count() === 1, "A classified card can enter Learn");
     check(await decision.locator(".sort-footer-end button:has-text('To Review')").count() === 1, "A classified card can bypass Learn");
@@ -203,11 +203,11 @@ const scenarios = {
     check(await sql("select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='" + first + "'") === "t", "Sort Later leaves the first card unsorted");
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("u");
-    check(await decision.getByRole("button", { name: "Select Useful importance" }).getAttribute("aria-pressed") === "true",
-      "U selects Useful importance without silently saving");
+    check(await decision.getByRole("button", { name: "Select Active importance" }).getAttribute("aria-pressed") === "true",
+      "U selects Active importance without silently saving");
     await page.keyboard.press("Enter");
     await page.locator(".sort-finished").waitFor();
-    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true", "Useful stores rank 3 and marks the card sorted");
+    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true", "Active stores rank 3 and marks the card sorted");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
