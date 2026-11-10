@@ -46,7 +46,7 @@ import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, typ
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
-import { enterInitialLearning, inReview, readAcquisition, saveAcquisition, suggestRelearning } from "../lib/learningStage";
+import { enterLearning, inReview, readAcquisition, saveAcquisition, suggestRelearning } from "../lib/learningStage";
 import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW_LAST_METHOD_KEY } from "../lib/reviewMethodCounts";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
@@ -820,11 +820,15 @@ export default function CosmosWindow() {
     } finally { setBusy(false); }
   }
 
-  async function sendBackToLearning() {
+  /**
+   * Review → Learn. Only the card's phase changes (and a new Learning cycle starts): its
+   * review grades, statistics and history stay exactly as they are.
+   */
+  async function sendBackToLearning(reason: "relearn" | "repeated-mistakes" = "relearn") {
     if (!card || busy || !inReview(card)) return;
     setBusy(true); setNotice("");
     try {
-      const updated = await saveAcquisition(card, enterInitialLearning(readAcquisition(card.data)));
+      const updated = await saveAcquisition(card, enterLearning(readAcquisition(card.data), reason));
       patchLocalCard(card.id, () => updated);
       // A card sent to Learning must disappear from every remaining Review direction.
       const remaining = queue.filter((entry) => entry.cardId !== card.id);
@@ -1282,9 +1286,11 @@ export default function CosmosWindow() {
                   {correctionStatus === "synced" ? "Explanation saved" : "Saved on this device · sync pending"}
                 </span> : <button type="button" className="cosmos-why-note"
                   onClick={() => setCorrectionOpen(true)}>Why wrong?</button>}
-                {suggestRelearning((events ?? []).filter((event) => event.cardId === card.id)) ?
-                  <span className="cosmos-relearn-hint">Repeated difficulty · consider Learning</span> : null}
-                <button type="button" className="cosmos-extra-toggle" disabled={busy} onClick={() => void sendBackToLearning()}>Relearn</button>
+                {suggestRelearning((events ?? []).filter((event) => event.cardId === card.id))
+                  ? <button type="button" className="cosmos-relearn-suggested" disabled={busy}
+                    title="Missed or partly recalled at least twice in its last five reviews. Learn rebuilds it with five exercises; its review history is kept."
+                    onClick={() => void sendBackToLearning("repeated-mistakes")}>Missed repeatedly · Return to Learn</button>
+                  : <button type="button" className="cosmos-extra-toggle" disabled={busy} onClick={() => void sendBackToLearning()}>Relearn</button>}
                 <button type="button" className="cosmos-continue" disabled={busy}
                   onClick={() => void advance(queue, index + 1)}>Next <span aria-hidden="true">→</span></button>
               </div>

@@ -61,7 +61,7 @@ assert.match(migration, /storage\.foldername\(name\)\)\[1\] = \(select auth\.uid
 
 // ---------------------------------------------------------------- backup
 const backup = read("src/lib/localBackup.ts");
-assert.match(backup, /OPTIONAL_BACKUP_TABLES = \["catalogue_subjects", "catalogue_volumes", "catalogue_articles"\]/, "Catalogue tables are in the PC backup");
+assert.match(backup, /OPTIONAL_BACKUP_TABLES = \["catalogue_subjects", "catalogue_volumes", "catalogue_articles"[,\]]/, "Catalogue tables are in the PC backup");
 assert.match(backup, /absent_optional_tables/, "a server without the migration still backs up everything else");
 assert.match(read("src-tauri/src/local_backup.rs"), /"heuresis-catalogue-media"/, "the native backup accepts Catalogue images");
 

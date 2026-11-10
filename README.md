@@ -29,6 +29,8 @@ The app has five sections in a compact sidebar: **Overview, Study, Notebook, Mis
 
 **Catalogue:** a separate editorial studio for designed A4 articles and volumes, with PDF export. It never changes Notebook notes; *From Notebook* copies a note into a new draft. Apply `supabase/migrations/20261030090000_catalogue_publications.sql` (additive; new tables and a private image bucket only). Until it is applied the Catalogue says so and the rest of the app is unaffected. Details: `docs/CATALOGUE.md`.
 
+**Learn:** Study has three connected stages, **New → Learn → Review**, on the same card. Learn is a round of exactly five exercises per card (10 points each, 50 at most); a card is Ready for Review at 40/50 with the final recall right. Apply `supabase/migrations/20261110120000_heuresis_learn_rounds.sql` (additive; two new tables and their functions). Until it is applied Learn says so, and New and Review are unaffected. Details: `docs/LEARN.md`.
+
 Details: `docs/KNOWLEDGE_WORKSPACE.md`. What changed in this version, how it was verified and what is still open: `docs/WORKSPACE_V2_REPORT.md`. Local end-to-end harness (PostgreSQL + PostgREST + Playwright, no real Supabase project needed): `verification/README.md`.
 
 ## Shared database contract

@@ -14,6 +14,9 @@ const READ_RPCS = new Set([
   "heuresis_list_related_catalogue",
   "heuresis_related_counts",
   "heuresis_learning_counts",
+  // Learn's two read-only functions; its writes are never timed out (see below).
+  "heuresis_learn_overview",
+  "heuresis_learn_round_state",
 ]);
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim() || PERSONAL_OS_SUPABASE_URL;

@@ -46,6 +46,10 @@ const READ_RPCS = new Set([
   "heuresis_list_related_catalogue",
   "heuresis_related_counts",
   "heuresis_learning_counts",
+  // Learn: state and activity are read-only; begin/record/correct are queued like any write
+  // and are safe to replay because the database keeps one row per (round, position).
+  "heuresis_learn_overview",
+  "heuresis_learn_round_state",
 ]);
 const EVENT_RPC = "heuresis_record_events";
 const REQUIRES_CONNECTION_RPCS = new Set(["heuresis_create_topic_from_related_words"]);

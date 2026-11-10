@@ -16,7 +16,9 @@ import {
 } from "../lib/heuresis";
 import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSeenRecently, isWeakProduction, productionPerformance, reviewGradeCount, templateDirection, type DirectionTemplates } from "../lib/learningSignals";
 import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
-import { inLearning, inReview } from "../lib/learningStage";
+import { inReview } from "../lib/learningStage";
+import { isLearnCard, readOpenLearn, rememberOpenLearn } from "../lib/learnSession";
+import { packLanguage } from "../lib/learnExercises";
 import LearningSession from "./LearningSession";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import { openCosmosWindow } from "../lib/cosmosWindow";
@@ -253,6 +255,25 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
     };
   }, [pack.id]);
 
+  function openLearning() {
+    // Remembered for this tab only: a refresh mid-session reopens Learn at the same exercise.
+    rememberOpenLearn({ origin: "topic", packIds: [pack.id], title: pack.title });
+    setLearningOpen(true);
+  }
+  function closeLearning() {
+    rememberOpenLearn(null);
+    setLearningOpen(false);
+    void refreshAll();
+  }
+  useEffect(() => {
+    if (loadedPackId !== pack.id || learningOpen) return;
+    if (!readOpenLearn("topic")?.packIds.includes(pack.id)) return;
+    if (cards.some(isLearnCard)) setLearningOpen(true);
+    else rememberOpenLearn(null);
+  // Runs once the topic's cards have arrived.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedPackId, pack.id]);
+
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
@@ -298,7 +319,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
   const staleCards = useMemo(() => cards.filter((card) => isNotSeenRecently(card)).sort((a, b) => Date.parse(a.stats.last_encountered_at ?? "") - Date.parse(b.stats.last_encountered_at ?? "")), [cards]);
   const unsortedCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "unsorted"), [cards]);
   const learningCards = useMemo(() => cards.filter((card) => workflowStatus(card) === "learning"), [cards]);
-  const acquisitionCards = useMemo(() => learningCards.filter(inLearning), [learningCards]);
+  const acquisitionCards = useMemo(() => learningCards.filter(isLearnCard), [learningCards]);
   const reviewCards = useMemo(() => learningCards.filter(inReview), [learningCards]);
   const stageOf = (card: CardWithStats): ProgressStage => {
     const progress = cardBars.get(card.id);
@@ -549,7 +570,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
         <div className="topic-learning-actions">
           <div className="topic-session-control" role="group" aria-label="Card sessions">
             <button type="button" className="sort-command new-session-command topic-action-primary" disabled={!unsortedCards.length} onClick={() => setSortOpen(true)} title="Classify new cards"><BookOpen size={15} /> New <small>{unsortedCards.length}</small></button>
-            <button type="button" className="review-command topic-action-review" disabled={!acquisitionCards.length} onClick={() => setLearningOpen(true)} title="Initial Learning exercises"><Brain size={15} /> Learning <small>{acquisitionCards.length}</small></button>
+            <button type="button" className="review-command topic-action-review" disabled={!acquisitionCards.length} onClick={openLearning} title="Five exercises per card, then on to Review"><Brain size={15} /> Learn <small>{acquisitionCards.length}</small></button>
              <button type="button" className="review-command topic-action-review" disabled={!reviewCards.length} onClick={() => setStudyOpen(true)} title="Review prepared cards"><BookOpen size={15} /> Review <small>{reviewCards.length}</small></button>
           </div>
           <button type="button" className="secondary-button topic-action-browse" disabled={!cards.length} onClick={() => setBrowseOpen(true)}><Compass size={15} /> Browse</button>
@@ -712,8 +733,10 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       {editing ? <CardEditor pack={pack} card={editing} tags={tags} onClose={() => setEditing(null)} onSaved={() => void refreshAll(true)} onDeleted={() => void refreshAll(true)} onChanged={() => void refreshAll()} onConnections={() => setConnectionsCard(editing)} onRetention={(retention) => changeRetention(editing, retention)} /> : null}
       {connectionsCard ? <ConnectionsPanel pack={pack} card={connectionsCard} onClose={() => setConnectionsCard(null)} /> : null}
       {studyOpen ? <StudyModal pack={pack} cards={reviewCards} onClose={() => setStudyOpen(false)} onComplete={() => { reviewOpened.current = true; }} /> : null}
-      {learningOpen ? <LearningSession pack={pack} cards={acquisitionCards} onClose={() => { setLearningOpen(false); void refreshAll(); }} onChanged={() => void refreshAll()} /> : null}
-      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} onLearning={() => setLearningOpen(true)} /> : null}
+      {learningOpen ? <LearningSession topics={[{ pack, language: packLanguage(pack, collection?.title), cards }]}
+        title={[collection?.title, pack.title].filter(Boolean).join(" · ")}
+        onClose={closeLearning} onChanged={() => void refreshAll()} /> : null}
+      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} onLearning={openLearning} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
     </section>

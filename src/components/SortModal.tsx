@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
-import { bypassAcquisition, enterInitialLearning, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
+import { enterLearning, enterReview, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
 import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
@@ -192,7 +192,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       await saveQuickNote();
       const state = readAcquisition(card.data);
       // Phase is saved before sorting, so a partially completed action cannot leak into Review.
-      const next = destination === "learning" ? enterInitialLearning(state) : bypassAcquisition(state);
+      // "To Review" skips the exercises and changes the phase only: no review grade is recorded,
+      // so the card arrives in Review exactly as an unreviewed card.
+      const next = destination === "learning" ? enterLearning(state, "new") : enterReview(state, "direct");
       await patchCardData(card.id, { [LEARNING_STAGE_KEY]: serializeAcquisition(next) });
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
@@ -388,9 +390,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       <div className="sort-finished-actions">{onReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review</button> : null}<button type="button" className="is-quiet" onClick={onClose}>Return to topic</button></div></div> : null}
     {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
       <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
-      <p>{[toLearning ? `${toLearning} to Learning` : "", toReview ? `${toReview} to Review` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
+      <p>{[toLearning ? `${toLearning} to Learn` : "", toReview ? `${toReview} to Review` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
       {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
-      <div className="sort-finished-actions">{onLearning && toLearning ? <button type="button" onClick={() => { onClose(); onLearning(); }}><Brain size={15} /> Start Learning</button> : null}{onReview && toReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className="is-quiet" disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
+      <div className="sort-finished-actions">{onLearning && toLearning ? <button type="button" onClick={() => { onClose(); onLearning(); }}><Brain size={15} /> Start Learn</button> : null}{onReview && toReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className="is-quiet" disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
     </div> : null}
     {!filtersOpen && card ? <div className="sort-body">
       <div id="sort-editing-tools" className="sort-editing-tools"><SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} onBlockedChange={setEnrichmentBlocked} /></div>
@@ -463,7 +465,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13} /> Undo</button></div> : null}
       <div className="sort-footer-end">
         <button type="button" className="sort-footer-later" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}><SkipForward size={15} /> Later</button>
-        <button type="button" className="sort-footer-later" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "review"); }}>To Review <ArrowRight size={15} /></button><button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "learning"); }}>To Learning <Brain size={16} /></button>
+        <button type="button" className="sort-footer-later" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "review"); }}>To Review <ArrowRight size={15} /></button><button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "learning"); }}>To Learn <Brain size={16} /></button>
       </div>
     </footer> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
