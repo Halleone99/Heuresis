@@ -65,19 +65,33 @@ const scenarios = {
 
   async "study stages agree in Library, topic, Sort, Browse and Review"(page) {
     await addUnsortedCards();
+    // The fixture adds cards through SQL after the app has initially loaded.
+    // Reload to request fresh topic totals, exactly as a new visit would.
+    await page.reload();
+    await page.locator('.hw-sections button:has-text("Study")').waitFor();
     await page.click('.hw-sections button:has-text("Study")');
-    await page.waitForTimeout(1200);
+    await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').waitFor();
     const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
-    check(/2 UNSORTED/i.test(libraryRow), `Library counts the two unsorted cards (“${libraryRow}”)`);
+    const fixtureTotal = Number(await sql(`select count(*) from heuresis_cards where pack_id='${HSK}' and data->>'_discarded_at' is null`));
+    check(fixtureTotal === 7 && Number(libraryRow.match(/(\\d+)\\s+cards?/i)?.[1]) === fixtureTotal,
+      `Library shows the current topic total, including the two newly added cards (“${libraryRow}”)`);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator(".topic-browse-hub").waitFor();
     if (await page.locator('.topic-browse-actions button:has-text("Show all")').count()) await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-row").first().waitFor();
-    await page.waitForTimeout(400);
-    const [unsorted, learning, reference] = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];
-    check(unsorted === 2 && learning === 5 && reference === 0, `topic stages are Unsorted 2 → Learning 5 · Reference 0 (got ${unsorted} / ${learning} / ${reference})`);
+    const [unsorted, classified] = [await stageCount(page, "unsorted"), await stageCount(page, "learning")];
+    check(unsorted === 2 && classified === 5,
+      `topic classification counts are 2 to classify and 5 classified (got ${unsorted} / ${classified})`);
+    check(await page.locator('.inline-filter-state .topic-filter-states button:has-text("Reference")').count() === 1,
+      "Reference cards remain accessible through the State filter, not a separate stage tile");
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").waitFor();
+    check(/2 awaiting sorting/.test(await page.locator(".sort-modal").innerText()),
+      "New session offers the two unsorted cards for classification");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(/^1 \/ 2$/.test((await page.locator(".sort-topbar > span").innerText()).trim()), "Sort opens on the first of the two unsorted cards, never reviewed ones");
+    check(/^1 \/ 2$/.test((await page.locator(".sort-topbar > span").innerText()).trim()),
+      "Starting New opens the first of the two unsorted cards, never reviewed ones");
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("Browse")').first().click();
     await page.locator(".browse-status-grid").waitFor();
