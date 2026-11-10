@@ -545,7 +545,14 @@ const scenarios = {
     await page.reload();
     await page.locator(".today-study-switch").waitFor({ timeout: 20000 });
     await page.waitForTimeout(1500);
-    check(await stat(page, "Learning") === "3" && await stat(page, "Ready for Review") === "0", "all three are in Learn; the earlier Ready round of a relearned card no longer counts");
+    const learningCount = await stat(page, "Learning");
+    const readyCount = await stat(page, "Ready for Review");
+    if (learningCount !== "3" || readyCount !== "0") {
+      const phases = await sql("select data->>'term' || ':' || coalesce(data->'_acquisition_v1'->>'phase','none') || ':' || coalesce(data->'_acquisition_v1'->>'cycle','0') || ':' || coalesce(jsonb_array_length(data->'_acquisition_v1'->'completed')::text,'0') from heuresis_cards where data->>'term' in ('已经','以前','以后') order by data->>'term'");
+      const rounds = await sql("select c.data->>'term' || ':' || r.cycle || ':' || r.status || ':' || r.ready from heuresis_learn_rounds r join heuresis_cards c on c.id=r.card_id where c.data->>'term' in ('已经','以前','以后') order by c.data->>'term',r.cycle");
+      console.log("  relearn diagnosis:", JSON.stringify({ learningCount, readyCount, phases, rounds }));
+    }
+    check(learningCount === "3" && readyCount === "0", "all three are in Learn; the earlier Ready round of a relearned card no longer counts");
     await page.click(".today-study-start");
     await page.locator(".lrn").waitFor();
     await waitExercise(page, 1);
