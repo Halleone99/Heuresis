@@ -73,7 +73,7 @@ const scenarios = {
     await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').waitFor();
     const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
     const fixtureTotal = Number(await sql(`select count(*) from heuresis_cards where pack_id='${HSK}' and data->>'_discarded_at' is null`));
-    check(fixtureTotal === 7 && Number(libraryRow.match(/(\\d+)\\s+cards?/i)?.[1]) === fixtureTotal,
+    check(fixtureTotal === 7 && Number(libraryRow.match(/(\d+)\s+cards?/i)?.[1]) === fixtureTotal,
       `Library shows the current topic total, including the two newly added cards (“${libraryRow}”)`);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();
@@ -90,7 +90,7 @@ const scenarios = {
       "New session offers the two unsorted cards for classification");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(/^1 \/ 2$/.test((await page.locator(".sort-topbar > span").innerText()).trim()),
+    check(/^1 \/ 2$/.test((await page.locator(".sort-top-progress > span").innerText()).trim()),
       "Starting New opens the first of the two unsorted cards, never reviewed ones");
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("Browse")').first().click();
@@ -181,23 +181,30 @@ const scenarios = {
   async "sort keeps its four outcomes together and works from the keyboard"(page) {
     await addUnsortedCards();
     await openTopic(page);
-    await page.click(".sort-command");
+    await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").waitFor();
+    check(await page.locator(".sort-setup").count() === 1, "New begins with tag, quantity and order selection");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(true, "Sort opens straight into the queue (no setup step)");
-    const decision = page.locator(".sort-panel");
+    const decision = page.locator(".sort-modal");
     check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
-    check(await decision.getByRole("button", { name: "Learn as Core" }).count() === 1, "Core classification is available");
-    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is no longer a Sort action");
-    check(await decision.getByRole("button", { name: /^Later/ }).count() === 1, "Sort Later is available");
-    check(await decision.getByRole("button", { name: /Discard/ }).count() === 1, "Discard to Trash remains recoverable");
+    check(await decision.getByRole("button", { name: "Select Core importance" }).count() === 1, "Core classification is available");
+    check(await decision.locator(".sort-save-next:has-text('To Learn')").count() === 1, "A classified card can enter Learn");
+    check(await decision.locator(".sort-footer-end button:has-text('To Review')").count() === 1, "A classified card can bypass Learn");
+    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is not a Sort action");
+    check(await decision.locator(".sort-footer-later:has-text('Later')").count() === 1, "Sort Later is available");
+    check(await decision.locator(".sort-footer-discard:has-text('Discard')").count() === 1, "Discard to Trash remains recoverable");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("l");
     await page.waitForTimeout(350);
-    check(await sql(`select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='${first}'`) === "t", "Sort Later leaves the first card unsorted");
+    check(await sql("select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='" + first + "'") === "t", "Sort Later leaves the first card unsorted");
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("u");
-    await page.waitForTimeout(900);
-    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", "Active stores rank 3 and marks the card sorted");
+    check(await decision.getByRole("button", { name: "Select Useful importance" }).getAttribute("aria-pressed") === "true",
+      "U selects Useful importance without silently saving");
+    await page.keyboard.press("Enter");
+    await page.locator(".sort-finished").waitFor();
+    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true", "Useful stores rank 3 and marks the card sorted");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
