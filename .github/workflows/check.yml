@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install --ignore-scripts
+      - name: Syntax-check browser verification scripts
+        run: for test in verification/tests/*.mjs; do node --check "$test"; done
       - run: node scripts/check-architecture.mjs
       - run: node scripts/check-capture-parse.mjs
       - run: node scripts/check-pinyin-unicode.mjs
