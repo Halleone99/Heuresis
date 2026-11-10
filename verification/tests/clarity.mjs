@@ -100,7 +100,7 @@ const scenarios = {
     check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
     check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
     await page.keyboard.press("Escape");
-    await page.locator(".topic-session-control button[title="Review prepared cards"]").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     // Eligibility can change when historical grades arrive: mastered cards are excluded
     // unless requested. Assert against the *loaded* pool, not its transient initial count.
@@ -134,7 +134,7 @@ const scenarios = {
 
   async "selected review direction stays readable while hovered"(page) {
     await openTopic(page);
-    await page.locator(".topic-session-control button[title="Review prepared cards"]").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     const selected = page.locator('.study-order-toggle button[aria-pressed="true"]');
     await selected.hover();
