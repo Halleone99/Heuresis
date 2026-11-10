@@ -28,19 +28,20 @@ async function desktopStudy() {
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-command-bar").waitFor();
     await page.locator(".topic-browse-hub").waitFor();
-    await page.locator('.topic-browse-actions button:has-text("Show all")').click();
+    const showAll = page.locator('.topic-browse-actions button:has-text("Show all")');
+    if (await showAll.count()) await showAll.click();
     await page.locator(".modern-topic-table").waitFor(); // The tag-first topic only renders rows after Show all.
-    check(await page.locator(".topic-session-control > button").count() === 2 && await page.locator(".topic-learning-actions > button").count() === 2,
-      "Topic groups New and Review, with Browse and Add separate");
+    check(await page.locator(".topic-session-control > button").count() === 3 && await page.locator(".topic-learning-actions > button").count() === 2,
+      "Topic groups New, Learn and Review, with Browse and Add separate");
     check(await page.locator(".desktop-header-actions > .desktop-primary").count() === 0, "No redundant New card in the header of an open topic");
     await page.locator(".topic-more-menu > summary").click();
     check(await page.locator(".topic-more-popover button").count() === 3, "Settings, Import and Connections share one menu");
     await page.locator(".topic-more-menu > summary").click();
-    const learning = Number(await page.locator('[data-stage="learning"] strong').innerText());
-    const review = page.getByRole("button", { name: "Review", exact: true });
-    check(await review.isDisabled() === (learning === 0), "Review cannot open until a card is in Learning");
-    if (learning) {
-      await page.locator(".review-command").click();
+    const review = page.locator('.topic-session-control button[title="Review prepared cards"]');
+    const reviewCount = Number(await review.locator("small").innerText());
+    check(await review.isDisabled() === (reviewCount === 0), "Review is available only when cards are in its phase");
+    if (reviewCount) {
+      await review.click();
       await page.locator(".compact-study-launcher").waitFor();
       await page.locator(".review-controls").waitFor();
       check(await page.locator("#review-session-size").count() === 1, "Review uses one editable session-size field");
@@ -57,14 +58,15 @@ async function desktopStudy() {
       await page.locator(".sort-modal").waitFor();
       check(await page.locator(".sort-setup").count() === 1 && await page.locator(".sort-card").count() === 0, "New opens the tag and card-count selector before sorting");
       check(await page.locator(".sort-setup-tag-filter").count() === 1, "Tag selection is visible at setup");
-      check(await page.locator(".sort-setup-field input[type=number]").count() === 1, "The number of cards can be typed");
+      check(await page.locator("#sort-session-count").count() === 1, "The number of cards can be typed");
       check(await page.locator('[role="group"][aria-label="New card order"] button').count() === 2, "Sort retains topic or random order");
       check(await page.locator('[role="group"][aria-label="New card order"] button[aria-pressed="true"]').count() === 1, "Only one sort order selected");
-      await page.locator(".sort-setup-field input[type=number]").fill("1");
-      check(await page.locator(".sort-setup-start").innerText() === "Start sorting · 1 card", "Typed batch size updates the start action");
+      await page.locator("#sort-session-count").fill("1");
+      check((await page.locator(".sort-setup-selection").innerText()).includes("1 card selected") &&
+        (await page.locator(".sort-setup-start").innerText()).includes("Start sorting"), "Typed batch size updates the selected count and start action");
       await page.locator(".sort-setup-start").click();
       check(await page.locator(".sort-card").count() === 1, "Starting the selected pass opens a card");
-      check((await page.locator(".sort-topbar > span").innerText()).includes("1 / 1"), "The queue contains exactly the requested number of cards");
+      check((await page.locator(".sort-top-progress > span").innerText()).includes("1 / 1"), "The queue contains exactly the requested number of cards");
       await page.locator(".sort-filter-open").click();
       await page.keyboard.press("Escape");
       check(await page.locator(".sort-card").count() === 1, "Escape from re-selection returns to the active pass");
