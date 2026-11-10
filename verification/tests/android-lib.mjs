@@ -146,7 +146,8 @@ export async function openTopicByTouch(page, title = "HSK 2 — Time") {
   else await page.locator('.hw-sections button:has-text("Study")').tap();
   await page.waitForTimeout(800);
   await page.locator(`button:has-text("${title}")`).first().tap();
-  await page.locator('.topic-browse-actions button:has-text("Show all")').tap();
+  const showAll = page.locator('.topic-browse-actions button:has-text("Show all")');
+  if (await showAll.count()) await showAll.tap();
   await page.locator(".modern-topic-row").first().waitFor({ timeout: 15000 });
   await page.waitForTimeout(500);
 }
