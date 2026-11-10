@@ -547,12 +547,11 @@ const scenarios = {
     await page.waitForTimeout(1500);
     const learningCount = await stat(page, "Learning");
     const readyCount = await stat(page, "Ready for Review");
-    if (learningCount !== "3" || readyCount !== "0") {
-      const phases = await sql("select data->>'term' || ':' || coalesce(data->'_acquisition_v1'->>'phase','none') || ':' || coalesce(data->'_acquisition_v1'->>'cycle','0') || ':' || coalesce(jsonb_array_length(data->'_acquisition_v1'->'completed')::text,'0') from heuresis_cards where data->>'term' in ('已经','以前','以后') order by data->>'term'");
-      const rounds = await sql("select c.data->>'term' || ':' || r.cycle || ':' || r.status || ':' || r.ready from heuresis_learn_rounds r join heuresis_cards c on c.id=r.card_id where c.data->>'term' in ('已经','以前','以后') order by c.data->>'term',r.cycle");
-      console.log("  relearn diagnosis:", JSON.stringify({ learningCount, readyCount, phases, rounds }));
-    }
-    check(learningCount === "3" && readyCount === "0", "all three are in Learn; the earlier Ready round of a relearned card no longer counts");
+    // Manual Relearn may select the card that previously completed Learn ("已经").
+    // Count distinct card identities, not the three actions performed.
+    const expectedInLearn = new Set([manual, hard, "已经"]).size;
+    check(Number(learningCount) === expectedInLearn && readyCount === "0",
+      "each distinct relearned card counts once; an earlier Ready round never carries into a new cycle");
     await page.click(".today-study-start");
     await page.locator(".lrn").waitFor();
     await waitExercise(page, 1);
