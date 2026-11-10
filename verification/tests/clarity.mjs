@@ -149,6 +149,7 @@ const scenarios = {
     await openTopic(page);
     await page.locator(".sort-command").click();
     await page.locator(".sort-setup-start").click();
+    await page.locator(".sort-enrichment-toggle").click();
     await page.locator(".sort-enrichment").waitFor();
     const left = await page.locator(".sort-enrichment").boundingBox();
     const centre = await page.locator(".sort-card").boundingBox();
@@ -175,6 +176,7 @@ const scenarios = {
     await page.keyboard.press("Escape");
     await page.locator(".sort-command").click();
     await page.locator(".sort-setup-start").click();
+    await page.locator(".sort-enrichment-toggle").click();
     if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
       await page.locator('.sort-enrich-heading:has-text("Examples")').click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
