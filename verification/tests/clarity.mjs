@@ -382,8 +382,8 @@ const scenarios = {
     check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
     // Overview now reports Study activity; saved notes remain accessible from Notebook topics.
     await page.locator('.hw-sections button:has-text("Overview")').click();
-    await page.locator(".oh-overview .oh-coverage").waitFor();
-    check(await page.locator(".oh-overview .oh-coverage").count() === 1,
+    await page.locator(".oh-overview .oh-progress-track[role="progressbar"]").waitFor();
+    check(await page.locator(".oh-overview .oh-progress-track[role="progressbar"]").count() === 1,
       "Overview displays Study review coverage");
     await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
