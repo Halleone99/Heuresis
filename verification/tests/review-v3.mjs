@@ -396,7 +396,7 @@ const scenarios = {
 
   async "review remembers card count and one of three order choices"(page, context) {
     await openTopic(page);
-    await page.locator(".topic-session-control button[title="Review prepared cards"]").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     await page.locator("#review-session-size").fill("5");
     await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).click();
@@ -409,7 +409,7 @@ const scenarios = {
     check(launched.searchParams.get("order") === "random" && count > 0 && count <= 5,
       "Review launches with Random order and at most the selected five cards");
     await popup.close();
-    await page.locator(".topic-session-control button[title="Review prepared cards"]").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     check(await page.locator("#review-session-size").inputValue() === "5",
       "Five-card choice is remembered");
