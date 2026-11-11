@@ -1,12 +1,12 @@
 import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { NEW_CARD_QUOTA_EVENT, readNewCardQuota } from "../lib/newCardQuota";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
-import { inLearning } from "../lib/learningStage";
+import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
 import LearningSession from "./LearningSession";
 import ReviewCentre from "./ReviewCentre";
 import SortModal from "./SortModal";
@@ -52,9 +52,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [reviewRevision, setReviewRevision] = useState(0);
   const [newCardQuota, setNewCardQuota] = useState(readNewCardQuota);
   const [quickSort, setQuickSort] = useState<QuickSortSession | null>(null);
-  const [learningSession, setLearningSession] = useState<{
-    pack: PackWithType; cards: CardWithStats[]; packByCardId: Record<string, PackWithType>; scopeTitle?: string;
-  } | null>(null);
+  const [learningSession, setLearningSession] = useState<{ topics: LearnTopic[]; title: string } | null>(null);
   const [learningOpening, setLearningOpening] = useState(false);
   const [newOpening, setNewOpening] = useState(false);
   const [newError, setNewError] = useState("");
@@ -90,23 +88,19 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     setNewError("");
     try {
       const requestedPacks = Array.isArray(requested) ? requested : [requested];
-      const results = await Promise.all(requestedPacks.map(async (pack) => ({
-        pack, cards: (await listCards(pack.id)).filter((item) => cardHasCompletedSort(item) && inLearning(item)),
-      })));
-      const eligible = results.filter(({ cards }) => cards.length > 0);
-      if (!eligible.length) { refreshReviews(); setNewError("No cards are currently in Learning for this selection."); return; }
-      setLearningSession({
-        pack: eligible[0].pack,
-        cards: eligible.flatMap(({ cards }) => cards),
-        packByCardId: Object.fromEntries(eligible.flatMap(({ pack, cards }) => cards.map((card) => [card.id, pack]))),
-        scopeTitle,
-      });
+      const topics = await loadLearnTopics(requestedPacks, collections);
+      if (!topics.length) { rememberOpenLearn(null); refreshReviews(); setNewError("No cards are currently in Learn for this selection."); return; }
+      const title = scopeTitle || (topics.length === 1 ? topics[0].pack.title : "Learn");
+      // Remembered for this tab only: a refresh mid-session reopens Learn at the same exercise.
+      rememberOpenLearn({ origin: "library", packIds: topics.map((topic) => topic.pack.id), title });
+      setLearningSession({ topics, title });
     } catch (failure) {
-      setNewError(failure instanceof Error ? failure.message : "Could not open Learning.");
+      setNewError(failure instanceof Error ? failure.message : "Could not open Learn.");
     } finally { setLearningOpening(false); }
   }
 
   function closeLearning() {
+    rememberOpenLearn(null);
     setLearningSession(null);
     refreshReviews();
     window.dispatchEvent(new Event("heuresis:study-changed"));
@@ -179,6 +173,19 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
       window.removeEventListener("focus", syncTarget);
     };
   }, []);
+
+  // A Learn session that was open when the page was refreshed continues where it stopped.
+  const learnResumed = useRef(false);
+  useEffect(() => {
+    if (learnResumed.current || !packs.length) return;
+    learnResumed.current = true;
+    const open = readOpenLearn("library");
+    if (!open) return;
+    const wanted = packs.filter((pack) => open.packIds.includes(pack.id));
+    if (wanted.length) void startLearning(wanted, open.title);
+    else rememberOpenLearn(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packs]);
 
   useEffect(() => {
     let alive = true;
@@ -355,8 +362,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
         quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined}
         onLearning={() => void startLearning(quickSort.pack)} /> : null}
-      {learningSession ? <LearningSession key={learningSession.pack.id} pack={learningSession.pack} cards={learningSession.cards}
-        packByCardId={learningSession.packByCardId} scopeTitle={learningSession.scopeTitle}
+      {learningSession ? <LearningSession topics={learningSession.topics} title={learningSession.title}
         onClose={closeLearning} onChanged={refreshReviews} /> : null}
     </section>
   );

@@ -97,9 +97,11 @@ const scenarios = {
     await page.locator(".sort-card").waitFor();
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("c");
+    await page.locator(".sort-footer-end button:has-text('To Review')").click();
     await page.waitForTimeout(700);
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("p");
+    await page.locator(".sort-footer-end button:has-text('To Review')").click();
     await page.waitForTimeout(700);
     check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${first}'`) === "5", "Core is stored as rank 5");
     check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${second}'`) === "1", "Passive is stored as rank 1");
@@ -325,6 +327,7 @@ const scenarios = {
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await context.setOffline(true);
     await page.keyboard.press("c");
+    await page.keyboard.press("Enter");
     await page.waitForTimeout(900);
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("d");
@@ -393,7 +396,7 @@ const scenarios = {
 
   async "review remembers card count and one of three order choices"(page, context) {
     await openTopic(page);
-    await page.locator(".review-command").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     await page.locator("#review-session-size").fill("5");
     await page.getByRole("group", { name: "Review card order" }).getByRole("button", { name: "Random" }).click();
@@ -406,7 +409,7 @@ const scenarios = {
     check(launched.searchParams.get("order") === "random" && count > 0 && count <= 5,
       "Review launches with Random order and at most the selected five cards");
     await popup.close();
-    await page.locator(".review-command").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     check(await page.locator("#review-session-size").inputValue() === "5",
       "Five-card choice is remembered");
@@ -423,10 +426,11 @@ const scenarios = {
     await page.locator(".sort-card").waitFor();
     const later = (await page.locator(".sort-card > strong").innerText()).trim();
     const previousCardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    await page.locator('.sort-quiet-actions button:has-text("Later")').click();
+    await page.locator('.sort-footer-later:has-text("Later")').click();
     await page.waitForFunction((previous) => document.querySelector(".sort-card")?.getAttribute("data-card-id") !== previous, previousCardId);
     const active = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.locator(".sort-rating button:has-text('Active')").click();
+    await page.locator(".sort-save-next:has-text('To Learn')").click();
     await page.locator(".sort-finished").waitFor();
     await page.locator('.sort-finished-actions button:has-text("Return to topic")').click();
     await showAllIfAvailable(page);

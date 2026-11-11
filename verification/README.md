@@ -91,6 +91,44 @@ model v3, see `docs/SORT_REVIEW_V3.md`):
 Run one scenario with `node tests/review-v3.mjs <part of its name>`; screenshots go to
 `screenshots/review-v3/`.
 
+`tests/learn.mjs` (also in CI) covers Learn (five-exercise rounds, see `docs/LEARN.md`).
+Each scenario starts from a fresh copy of the v2 database, adds German and Russian cards
+to the Chinese and German ones, and checks the database as well as the screen:
+
+| Scenario | Proves |
+|---|---|
+| new card → learn → five exercises → ready → review | Sort's *To Learn*; one exercise on screen; five different exercises from recognition to recall; +10 for a right first answer, 0 for a wrong one; *Try again* awards nothing; summary 40/50 and 4/5; Ready for Review; *Move to Review* changes the phase only (no grade, statistics untouched, same card); New / Learn / Review counts and the success rate update without a reload |
+| points and readiness | 40/50 with the recall wrong is not ready; *Review mistakes* is practice; another round has different exercises; a hinted recall is correct but worth 0 and not ready; 30/50 is not ready; 50/50 is; every round keeps its own score; wrong Learning answers are neither reviews nor Mistake Log entries |
+| refresh midway | the same round at the same exercise after a reload; a closed session is not reopened; Start resumes the unfinished card; no duplicate round or answer |
+| duplicate scoring is impossible | double click; the same request again; a wrong answer re-sent as right; skipping ahead; a sixth exercise; direct insert / update / delete; a second start; another account; no session |
+| direct new → review | *To Review* creates no review event, no statistic, no Learning round; the card is due in Review |
+| review → relearn | manual Relearn (no grade, the card leaves the queue); the second mistake enters the Mistake Log and offers *Return to Learn*; review history kept; a relearned card starts a new cycle; every transition is in the card history |
+| subject and topic filtering, Start follows the mode | the chosen subject or topic limits New, Learn and Review alike; Start in Learn opens only that scope's cards; a topic with nothing in Learn disables Start; Start in New opens New and in Review opens Review |
+| german, russian and chinese on a phone, by touch | a 390 × 844 touch screen: every exercise fits without scrolling, the page behind does not scroll, targets ≥ 44 px; German preposition, Russian stress and inflected form, Chinese character and sentence |
+| android tablet (MagicPad) | the Android WebView stand-in from `tests/android-lib.mjs`, touch only, 1200 × 768 and 768 × 1200: Learn covers the app header and the touch navigation; five exercises fit without scrolling; Check and Continue are reached by a finger; with the on-screen keyboard open the answer field, Check and Continue stay reachable; no window is opened or closed |
+| keyboard only, reduced motion | every exercise answered from the keyboard; focus moves to Continue; no entrance animation; the app behind is inert; the end-of-session screen moves all ready cards |
+| answers given offline | exercises answered with the network off complete the round on the device and reach the server once after reconnecting |
+| earlier ten-exercise learning | a card that had all ten exercise types stays Ready; the others stay in Learn; earlier exercises still count as activity and stay in the card's history |
+| before the migration | Learn says a database update is needed; New and Review are unaffected |
+
+Run one scenario with `node tests/learn.mjs <part of its name>`; screenshots go to
+`screenshots/learn/`.
+
+`tests/learn-exercises.mjs` (also in CI) checks the exercise generator and answer checking
+without a browser or a database: German, Russian, Chinese and knowledge cards, a topic with
+one card and one with two, three rounds each. Every round has five different exercises in
+stage order, ends with independent recall, never shows its answer, and judges the right
+answer right; articles, prepositions, stress, tones and missing characters appear where the
+card supports them; legitimate variants are accepted (ae/oe/ue/ss, stress marks, numbered
+pinyin, either aspect of a pair) and real mistakes are explained.
+
+`tests/learn-migration.sh` (also in CI) applies the Learn migration to a database that
+already holds cards (including cards from the earlier Learning and one with a damaged
+phase value), review events and Notebook data, and proves that every existing table, row
+and policy is unchanged, that a second run changes nothing, that cards stay editable and
+phase changes are logged once (never as a review), and that Learn's rows can be written
+only through its functions, by their owner.
+
 `tests/android-tablet.mjs` (also in CI) runs the app the way the Android APK (MagicPad)
 runs it: Android WebView user agent, touch input only, a 1200×768 / 768×1200 / 1500×960
 tablet screen, and a stand-in for Tauri's Android runtime that records every IPC call and

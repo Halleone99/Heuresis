@@ -42,6 +42,17 @@ jobs:
           (cd verification && nohup node gateway.mjs > gateway.log 2>&1 &)
           nohup npx vite --port 1421 --strictPort > vite.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:1421/ >/dev/null && curl -sf http://localhost:54321/rest/v1/ >/dev/null && break; sleep 1; done
+      - name: Focused Learn relearn and Android Sort smoke
+        working-directory: verification
+        run: |
+          node tests/learn.mjs "review → relearn"
+          node tests/android-tablet.mjs "landscape: Sort by touch"
+      - name: Learn five-exercise integration checks
+        working-directory: verification
+        run: |
+          node tests/learn-exercises.mjs
+          node tests/learn.mjs
+          bash tests/learn-migration.sh
       - name: Regression scenarios
         working-directory: verification
         run: |

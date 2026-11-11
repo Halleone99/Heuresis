@@ -2,6 +2,7 @@ import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, ChevronRight, Clock3, 
 import { useEffect, useRef, useState } from "react";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import type { ReviewOverview } from "../lib/reviewOverview";
+import { LEARN_SETUP_MESSAGE } from "../lib/learnRounds";
 
 type Props = {
   collections: Collection[];
@@ -19,8 +20,22 @@ function plural(count: number, singular: string, pluralForm = singular + "s") {
   return count.toLocaleString() + " " + (count === 1 ? singular : pluralForm);
 }
 
+type StudyMode = "new" | "learn" | "review";
+const MODE_KEY = "heuresis.study.mode.v1";
+/** The chosen mode survives a refresh, so returning from a Learn session lands on Learn. */
+function readMode(): StudyMode {
+  try {
+    const value = sessionStorage.getItem(MODE_KEY);
+    return value === "learn" || value === "review" ? value : "new";
+  } catch { return "new"; }
+}
+
 export default function TodayStudyPanel({ collections, packs, overview, quota, opening, error, onReview, onStartNew, onStartLearning }: Props) {
-  const [mode, setMode] = useState<"new" | "learn" | "review">("new");
+  const [mode, setModeState] = useState<StudyMode>(readMode);
+  const setMode = (next: StudyMode) => {
+    setModeState(next);
+    try { sessionStorage.setItem(MODE_KEY, next); } catch { /* preference only */ }
+  };
   const [selection, setSelection] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -34,35 +49,42 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
   const collectionIds = selectedPack ? [selectedPack.collection_id] : selectedCollection
     ? [selectedCollection.id] : collections.map((c) => c.id);
   const scopePacks = selectedPack ? [selectedPack] : packs.filter((pack) => collectionIds.includes(pack.collection_id));
-  const total = (key: "ready" | "newReady" | "reviewedToday" | "newToday" | "newLast7" | "reviewsLast7" | "learningReady" | "learningPrepared" | "learningExercisesToday" | "learningExercisesLast7" | "reverseTomorrow") =>
-    scopePacks.reduce((sum, pack) => sum + (overview?.topics[pack.id]?.[key] ?? 0), 0);
+  type CountKey = "ready" | "newReady" | "reviewedToday" | "newToday" | "newLast7" | "reviewsLast7" | "reverseTomorrow"
+    | "learnCards" | "learnReady" | "learnExercisesToday" | "learnExercisesLast7" | "learnScoredLast7" | "learnCorrectLast7";
+  const total = (key: CountKey) => scopePacks.reduce((sum, pack) => sum + (overview?.topics[pack.id]?.[key] ?? 0), 0);
   const ready = total("ready"), newReady = total("newReady"), reviewedToday = total("reviewedToday"),
     newToday = total("newToday"), newLast7 = total("newLast7"), reviewsLast7 = total("reviewsLast7"),
-    learningReady = total("learningReady"), learningPrepared = total("learningPrepared"),
-    learningExercisesToday = total("learningExercisesToday"), learningExercisesLast7 = total("learningExercisesLast7");
+    learnCards = total("learnCards"), learnReady = total("learnReady"),
+    learnExercisesToday = total("learnExercisesToday"), learnExercisesLast7 = total("learnExercisesLast7"),
+    learnScoredLast7 = total("learnScoredLast7"), learnCorrectLast7 = total("learnCorrectLast7");
+  // New, Learning and Review never overlap: a card is counted in exactly one of them.
+  const learning = Math.max(0, learnCards - learnReady);
   const newTopics = scopePacks.filter((pack) => (overview?.topics[pack.id]?.newReady ?? 0) > 0)
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
   const nextTopic = newTopics[0] ?? null;
-  const learningPacks = scopePacks.filter((pack) => (overview?.topics[pack.id]?.learningReady ?? 0) > 0);
+  const learningPacks = scopePacks.filter((pack) => (overview?.topics[pack.id]?.learnCards ?? 0) > 0);
   const topicReady = nextTopic ? overview?.topics[nextTopic.id]?.newReady ?? 0 : 0;
   const glyph = selectedParent?.glyph || selectedCollection?.glyph;
   const scopeLabel = selectedPack ? (selectedParent?.title ?? "Collection") + " · " + selectedPack.title :
     selectedCollection ? selectedCollection.title + " · All topics" : "All subjects · All topics";
   const todayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const stats = mode === "new"
-    ? [{ label: "New available", value: newReady, icon: Layers3 },
+    ? [{ label: "New cards", value: newReady, icon: Layers3 },
        { label: "Introduced today", value: newToday, icon: CheckCircle2 },
-       { label: "In Learning", value: learningReady, icon: BookOpen }]
+       { label: "Learning", value: learning, icon: BookOpen }]
     : mode === "learn"
-      ? [{ label: "In Learning", value: learningReady, icon: BookOpen },
-         { label: "Ready for Review", value: learningPrepared, icon: CheckCircle2 },
-         { label: "Exercises today", value: learningExercisesToday, icon: Clock3 }]
+      ? [{ label: "Learning", value: learning, icon: BookOpen },
+         { label: "Ready for Review", value: learnReady, icon: CheckCircle2 },
+         { label: "Exercises today", value: learnExercisesToday, icon: Clock3 }]
       : [{ label: "Due now", value: ready, icon: Clock3 },
          { label: "Reviewed today", value: reviewedToday, icon: CheckCircle2 },
          { label: "Reverse tomorrow", value: total("reverseTomorrow"), icon: Layers3 }];
+  // Learning exercises and reviews are reported separately; an exercise is never a review.
+  const successRate = learnScoredLast7 ? Math.round((learnCorrectLast7 / learnScoredLast7) * 100) : null;
   const weeklyActivity = mode === "new" ? plural(newLast7, "new card")
-    : mode === "learn" ? plural(learningExercisesLast7, "exercise")
-    : plural(reviewsLast7, "review");
+    : mode === "learn" ? plural(learnExercisesLast7, "exercise") + (successRate === null ? "" : " · " + successRate + "% right first time")
+    : plural(reviewsLast7, "review completed", "reviews completed");
+  const learnBlocked = Boolean(overview) && !overview!.learnAvailable;
 
   useEffect(() => {
     if (!pickerOpen && !sessionOpen) return;
@@ -145,7 +167,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
               </div> : null}
             </div>
           </div>
-          <button type="button" className="today-study-start" disabled={!overview || opening || (mode === "new" ? !nextTopic : mode === "learn" ? !learningReady : !collectionIds.length)}
+          <button type="button" className="today-study-start" disabled={!overview || opening || (mode === "new" ? !nextTopic : mode === "learn" ? !learnCards : !collectionIds.length)}
             onClick={launch}><Play size={21} fill="currentColor" aria-hidden="true"/>{opening ? "Opening…" : "Start"}</button>
         </div>
         <aside className="today-study-statistics" aria-label="Statistics for the selected subject or topic">
@@ -155,6 +177,7 @@ export default function TodayStudyPanel({ collections, packs, overview, quota, o
           <div className="today-study-week"><TrendingUp size={16}/>{overview ? weeklyActivity : "—"} in the last 7 days</div>
         </aside>
         {error && (mode === "new" || mode === "learn") ? <p className="today-study-notice" role="alert">{error}</p> : null}
+        {mode === "learn" && learnBlocked && !error ? <p className="today-study-notice" role="status">{LEARN_SETUP_MESSAGE}</p> : null}
         {overview?.incomplete ? <p className="today-study-notice" role="status">Some topic counts are unavailable.</p> : null}
       </section>
 

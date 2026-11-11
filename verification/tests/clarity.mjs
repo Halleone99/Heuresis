@@ -65,19 +65,33 @@ const scenarios = {
 
   async "study stages agree in Library, topic, Sort, Browse and Review"(page) {
     await addUnsortedCards();
+    // The fixture adds cards through SQL after the app has initially loaded.
+    // Reload to request fresh topic totals, exactly as a new visit would.
+    await page.reload();
+    await page.locator('.hw-sections button:has-text("Study")').waitFor();
     await page.click('.hw-sections button:has-text("Study")');
-    await page.waitForTimeout(1200);
+    await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').waitFor();
     const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
-    check(/2 UNSORTED/i.test(libraryRow), `Library counts the two unsorted cards (“${libraryRow}”)`);
+    const fixtureTotal = Number(await sql(`select count(*) from heuresis_cards where pack_id='${HSK}' and data->>'_discarded_at' is null`));
+    check(fixtureTotal === 7 && Number(libraryRow.match(/(\d+)\s+cards?/i)?.[1]) === fixtureTotal,
+      `Library shows the current topic total, including the two newly added cards (“${libraryRow}”)`);
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator(".topic-browse-hub").waitFor();
     if (await page.locator('.topic-browse-actions button:has-text("Show all")').count()) await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-row").first().waitFor();
-    await page.waitForTimeout(400);
-    const [unsorted, learning, reference] = [await stageCount(page, "unsorted"), await stageCount(page, "learning"), await stageCount(page, "reference")];
-    check(unsorted === 2 && learning === 5 && reference === 0, `topic stages are Unsorted 2 → Learning 5 · Reference 0 (got ${unsorted} / ${learning} / ${reference})`);
+    const [unsorted, classified] = [await stageCount(page, "unsorted"), await stageCount(page, "learning")];
+    check(unsorted === 2 && classified === 5,
+      `topic classification counts are 2 to classify and 5 classified (got ${unsorted} / ${classified})`);
+    check(await page.locator('.inline-filter-state .topic-filter-states button:has-text("Reference")').count() === 1,
+      "Reference cards remain accessible through the State filter, not a separate stage tile");
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").waitFor();
+    check(/2 awaiting sorting/.test(await page.locator(".sort-modal").innerText()),
+      "New session offers the two unsorted cards for classification");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(/^1 \/ 2$/.test((await page.locator(".sort-topbar > span").innerText()).trim()), "Sort opens on the first of the two unsorted cards, never reviewed ones");
+    check(/^1 \/ 2$/.test((await page.locator(".sort-top-progress > span").innerText()).trim()),
+      "Starting New opens the first of the two unsorted cards, never reviewed ones");
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("Browse")').first().click();
     await page.locator(".browse-status-grid").waitFor();
@@ -86,7 +100,7 @@ const scenarios = {
     check(browseUnsorted === 2 && browseReviewed === 5, `Browse uses the same stages (${browseUnsorted} unsorted, ${browseReviewed} reviewed)`);
     check(await page.locator(".browse-importance-row button").count() === 3, "Browse filters by Core / Useful / Peripheral, not 1–5");
     await page.keyboard.press("Escape");
-    await page.locator(".review-command").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     // Eligibility can change when historical grades arrive: mastered cards are excluded
     // unless requested. Assert against the *loaded* pool, not its transient initial count.
@@ -107,6 +121,7 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.click(".sort-command");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     check(await topmostIs(page, 120, 300, ".sort-backdrop"), "Sort covers the sidebar instead of sitting under it");
     check(await topmostIs(page, 200, 100, ".sort-modal"), "the Sort title is visible (not hidden behind the sidebar)");
@@ -119,7 +134,7 @@ const scenarios = {
 
   async "selected review direction stays readable while hovered"(page) {
     await openTopic(page);
-    await page.locator(".review-command").click();
+    await page.locator(".topic-session-control button[title='Review prepared cards']").click();
     await page.locator(".review-controls").waitFor();
     const selected = page.locator('.study-order-toggle button[aria-pressed="true"]');
     await selected.hover();
@@ -133,6 +148,8 @@ const scenarios = {
     await addUnsortedCards();
     await openTopic(page);
     await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").click();
+    await page.locator(".sort-enrichment-toggle").click();
     await page.locator(".sort-enrichment").waitFor();
     const left = await page.locator(".sort-enrichment").boundingBox();
     const centre = await page.locator(".sort-card").boundingBox();
@@ -156,8 +173,14 @@ const scenarios = {
     const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
     check(persisted.includes("An example recorded while sorting."),
       "New knowledge is saved to the original flashcard data");
+    // First Escape collapses enrichment; the second closes the Sort dialog.
+    // Wait for the overlay to disappear before using the topic-level Sort control.
     await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await page.locator(".sort-modal").waitFor({ state: "detached" });
     await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").click();
+    await page.locator(".sort-enrichment-toggle").click();
     if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
       await page.locator('.sort-enrich-heading:has-text("Examples")').click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
@@ -167,23 +190,30 @@ const scenarios = {
   async "sort keeps its four outcomes together and works from the keyboard"(page) {
     await addUnsortedCards();
     await openTopic(page);
-    await page.click(".sort-command");
+    await page.locator(".sort-command").click();
+    await page.locator(".sort-setup-start").waitFor();
+    check(await page.locator(".sort-setup").count() === 1, "New begins with tag, quantity and order selection");
+    await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(true, "Sort opens straight into the queue (no setup step)");
-    const decision = page.locator(".sort-panel");
-    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Useful and Peripheral");
-    check(await decision.getByRole("button", { name: "Learn as Core" }).count() === 1, "Core classification is available");
-    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is no longer a Sort action");
-    check(await decision.getByRole("button", { name: /^Later/ }).count() === 1, "Sort Later is available");
-    check(await decision.getByRole("button", { name: /Discard/ }).count() === 1, "Discard to Trash remains recoverable");
+    const decision = page.locator(".sort-modal");
+    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Active and Passive");
+    check(await decision.getByRole("button", { name: "Select Core importance" }).count() === 1, "Core classification is available");
+    check(await decision.locator(".sort-save-next:has-text('To Learn')").count() === 1, "A classified card can enter Learn");
+    check(await decision.locator(".sort-footer-end button:has-text('To Review')").count() === 1, "A classified card can bypass Learn");
+    check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is not a Sort action");
+    check(await decision.locator(".sort-footer-later:has-text('Later')").count() === 1, "Sort Later is available");
+    check(await decision.locator(".sort-footer-discard:has-text('Discard')").count() === 1, "Discard to Trash remains recoverable");
     const first = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("l");
     await page.waitForTimeout(350);
-    check(await sql(`select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='${first}'`) === "t", "Sort Later leaves the first card unsorted");
+    check(await sql("select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='" + first + "'") === "t", "Sort Later leaves the first card unsorted");
     const second = (await page.locator(".sort-card > strong").innerText()).trim();
     await page.keyboard.press("u");
-    await page.waitForTimeout(900);
-    check(await sql(`select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='${second}'`) === "3|true", "Active stores rank 3 and marks the card sorted");
+    check(await decision.getByRole("button", { name: "Select Active importance" }).getAttribute("aria-pressed") === "true",
+      "U selects Active importance without silently saving");
+    await page.keyboard.press("Enter");
+    await page.locator(".sort-finished").waitFor();
+    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true", "Active stores rank 3 and marks the card sorted");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
@@ -356,8 +386,8 @@ const scenarios = {
     check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
     // Overview now reports Study activity; saved notes remain accessible from Notebook topics.
     await page.locator('.hw-sections button:has-text("Overview")').click();
-    await page.locator(".oh-overview .oh-coverage").waitFor();
-    check(await page.locator(".oh-overview .oh-coverage").count() === 1,
+    await page.locator(".oh-overview .oh-progress-track[role='progressbar']").waitFor();
+    check(await page.locator(".oh-overview .oh-progress-track[role='progressbar']").count() === 1,
       "Overview displays Study review coverage");
     await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();

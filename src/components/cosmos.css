@@ -487,6 +487,11 @@
   color:var(--paper); background:var(--ink); border-color:var(--ink); font-weight:600;
 }
 .cosmos-mistake-choices .cosmos-continue span { margin-left:10px; }
+/* Offered only after repeated mistakes: one click returns the card to Learn. */
+.cosmos-review-foot .cosmos-mistake-choices .cosmos-relearn-suggested {
+  border-color:var(--ws-warn); background:var(--ws-warn-soft); color:var(--ws-warn); font-weight:600;
+}
+.cosmos-review-foot .cosmos-mistake-choices .cosmos-relearn-suggested:hover { filter:brightness(1.06); }
 .cosmos-mistake-choices .cosmos-note-saved {
   margin-right:auto; color:var(--muted); font:11px/1.45 var(--sans);
 }

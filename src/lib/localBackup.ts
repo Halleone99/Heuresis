@@ -31,11 +31,12 @@ export const BACKUP_TABLES = [
 ] as const;
 
 /**
- * The Catalogue's publications (migration 20261030090000_catalogue_publications.sql).
- * Until that migration is applied on the server these tables do not exist; the backup then
+ * The Catalogue's publications (migration 20261030090000_catalogue_publications.sql) and
+ * Learn's rounds and answers (migration 20261110120000_heuresis_learn_rounds.sql).
+ * Until a migration is applied on the server its tables do not exist; the backup then
  * records them as absent instead of failing, so the rest of the library is still saved.
  */
-export const OPTIONAL_BACKUP_TABLES = ["catalogue_subjects", "catalogue_volumes", "catalogue_articles"] as const;
+export const OPTIONAL_BACKUP_TABLES = ["catalogue_subjects", "catalogue_volumes", "catalogue_articles", "heuresis_learn_rounds", "heuresis_learn_attempts"] as const;
 
 function isMissingTable(error: { code?: string; message?: string }): boolean {
   return error.code === "PGRST205" || error.code === "42P01" || /could not find the table|does not exist|schema cache/i.test(error.message ?? "");
@@ -80,6 +81,7 @@ async function entireTable(table: string, userId: string, optional = false): Pro
       heuresis_card_stats: ["card_id"],
       heuresis_pack_stats: ["pack_id"],
       page_backgrounds: ["page_key"],
+      heuresis_learn_attempts: ["round_id", "position"],
     };
     const keys = sortKeys[table] ?? ["id"];
     let ordered = query.order(keys[0], { ascending: true });
@@ -205,7 +207,9 @@ export function ensureDailyLocalBackup(userId: string): Promise<BackupResult> {
       if (rows) tables[table] = rows;
       else absentTables.push(table);
     }
-    const catalogueRows = absentTables.length ? null
+    // Only the Catalogue tables decide whether Catalogue media can be listed: the Learning
+    // tables (migration 20261110120000) may be absent without affecting it.
+    const catalogueRows = !tables.catalogue_volumes || !tables.catalogue_articles ? null
       : [...tables.catalogue_volumes, ...tables.catalogue_articles];
     const mediaPaths = await mediaPathsForAccount(userId, tables.heuresis_cards, tables.page_backgrounds, catalogueRows);
     const snapshot = {

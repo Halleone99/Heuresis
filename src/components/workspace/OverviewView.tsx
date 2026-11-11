@@ -266,7 +266,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
           <span className="oh-card-detail"><span><b>{added(cardAdded)}</b><small>Added (30 d)</small></span>
             <span><b>{number(cardReviewed)}</b><small>Reviewed (30 d)</small></span></span></span>
         <span className="oh-card-progress" title="Distinct learning cards reviewed in the last 30 days; not mastery">
-          <span className="oh-progress-track"><span style={{ width: cardReviewed !== null && learningTotal ? Math.min(100, cardReviewed / learningTotal * 100) + "%" : "0%" }}/></span>
+          <span className="oh-progress-track" role="progressbar" aria-label="Learning cards reviewed in the last 30 days" aria-valuemin={0} aria-valuemax={learningTotal ?? 0} aria-valuenow={cardReviewed !== null && learningTotal !== null ? Math.min(cardReviewed, learningTotal) : undefined}><span style={{ width: cardReviewed !== null && learningTotal ? Math.min(100, cardReviewed / learningTotal * 100) + "%" : "0%" }}/></span>
           <small>{cardReviewed !== null && learningTotal !== null ? number(cardReviewed) + " / " + number(learningTotal) : "—"}</small>
         </span>
       </button>

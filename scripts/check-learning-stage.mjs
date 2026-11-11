@@ -1,4 +1,5 @@
-// Acceptance tests for the real acquisition state implementation, without the Supabase network.
+// Acceptance checks for the current New → Learn → Review phase contract.
+// Scoring is now tested in the five-exercise round tests, not in card metadata.
 import assert from "node:assert/strict";
 import { loadTs } from "./lib/load-ts.mjs";
 
@@ -13,50 +14,65 @@ const stage = loadTs("src/lib/learningStage.ts", {
 });
 
 const {
-  readAcquisition, enterInitialLearning, bypassAcquisition, awardExercise,
-  acquisitionScore, acquisitionReady, finishAcquisition, suggestRelearning,
-  saveAcquisition, inLearning, inReview, LEARNING_STAGE_KEY, EXERCISE_IDS,
+  readAcquisition, enterLearning, enterReview, legacyReady,
+  legacyExerciseTimes, suggestRelearning, saveAcquisition,
+  inLearning, inReview, LEARNING_STAGE_KEY,
 } = stage;
 const card = { id: "same-card", data: { term: "die Entwicklung" } };
 
-assert.equal(inReview(card), true, "Legacy card remains in Review");
+assert.equal(inReview(card), true, "Existing cards remain in Review");
 assert.equal(inLearning(card), false);
-const bypassed = bypassAcquisition(readAcquisition(card.data));
-assert.equal(bypassed.phase, "review");
-assert.equal(bypassed.completed.length, 0);
-assert.equal(bypassed.history[0].kind, "enter_review", "A bypass is not a successful review grade");
+const initial = readAcquisition(card.data);
+assert.equal(initial.phase, "review");
+assert.equal(initial.cycle, 0);
 
-let learning = enterInitialLearning(readAcquisition(card.data));
+const learning = enterLearning(initial, "new");
 assert.equal(learning.phase, "learning");
-assert.equal(acquisitionScore(learning), 0);
 assert.equal(learning.cycle, 1);
-for (const exercise of EXERCISE_IDS) {
-  learning = awardExercise(learning, exercise, exercise === "typing" ? "automatic" : "self", "Completed sample");
-}
-assert.equal(EXERCISE_IDS.length, 10, "Ten exercise types offer a maximum of 100 points");
-assert.equal(acquisitionScore(learning), 100);
-assert.equal(acquisitionReady(learning), true);
-const duplicate = awardExercise(learning, "typing", "automatic", "Repeated");
-assert.deepEqual(duplicate, learning, "Each exercise type earns +10 only once per cycle");
-assert.equal(learning.history.filter((event) => event.kind === "exercise").length, 10);
-const readyCard = { ...card, data: { ...card.data, [LEARNING_STAGE_KEY]: JSON.stringify(learning) } };
-assert.equal(inLearning(readyCard), true);
-const savedCard = await saveAcquisition(readyCard, learning);
-assert.equal(savedCard.id, card.id, "Same card identity");
-assert.equal(typeof saved[LEARNING_STAGE_KEY], "string");
-assert.equal(acquisitionScore(readAcquisition(savedCard.data)), 100, "Progress survives serialisation");
+assert.deepEqual(learning.completed, [], "New rounds have no legacy completions");
+assert.equal(learning.history.at(-1).kind, "enter_learning");
+assert.equal(learning.history.at(-1).reason, "new");
 
-const graduated = finishAcquisition(learning);
+const learningCard = { ...card, data: { ...card.data, [LEARNING_STAGE_KEY]: JSON.stringify(learning) } };
+assert.equal(inLearning(learningCard), true);
+const savedCard = await saveAcquisition(learningCard, learning);
+assert.equal(savedCard.id, card.id, "The card keeps its identity");
+assert.equal(typeof saved[LEARNING_STAGE_KEY], "string");
+assert.equal(readAcquisition(savedCard.data).phase, "learning", "Phase survives serialisation");
+
+const graduated = enterReview(learning, "ready");
 assert.equal(graduated.phase, "review");
 assert.equal(graduated.history.at(-1).kind, "enter_review");
-assert.throws(() => finishAcquisition(enterInitialLearning(readAcquisition(card.data))), /Complete all ten/);
+assert.equal(graduated.history.at(-1).reason, "ready");
+assert.equal(graduated.history.length, learning.history.length + 1);
+const direct = enterReview(initial, "direct");
+assert.equal(direct.phase, "review");
+assert.equal(direct.history.at(-1).reason, "direct", "Direct New → Review is not a review grade");
 
-const returned = enterInitialLearning(graduated);
+const returned = enterLearning(graduated, "relearn");
 assert.equal(returned.cycle, 2);
 assert.equal(returned.phase, "learning");
-assert.equal(acquisitionScore(returned), 0, "Only current preparation points reset");
-assert.equal(returned.history.length, graduated.history.length + 1, "Earlier exercise/transition history preserved");
+assert.deepEqual(returned.completed, []);
+assert.equal(returned.history.length, graduated.history.length + 1);
+assert.equal(returned.history.at(-1).reason, "relearn");
+
+const legacyExercises = [
+  "typing", "handwriting", "reconstruct", "missing", "meaning",
+  "context", "pronunciation", "contrast", "sentence", "association",
+];
+const legacy = readAcquisition({
+  [LEARNING_STAGE_KEY]: JSON.stringify({
+    phase: "learning", cycle: 1, completed: legacyExercises,
+    history: legacyExercises.map((exercise) => ({
+      at: "2026-10-01T12:00:00.000Z", cycle: 1, kind: "exercise", exercise,
+    })),
+  }),
+});
+assert.equal(legacyReady(legacy), true, "Previously completed ten-exercise cards retain readiness");
+assert.equal(legacyExerciseTimes(legacy).length, 10, "Earlier exercise history remains readable");
+assert.equal(legacyReady(enterLearning(legacy, "relearn")), false, "A new cycle resets legacy readiness");
+
 assert.equal(suggestRelearning([{ grade: "good" }, { grade: "again" }, { grade: "hard" }]), true);
 assert.equal(suggestRelearning([{ grade: "good" }, { grade: "again" }]), false);
-assert.equal(stage.readAcquisition({ [LEARNING_STAGE_KEY]: "{bad json" }).phase, "review");
+assert.equal(readAcquisition({ [LEARNING_STAGE_KEY]: "{bad json" }).phase, "review");
 console.log("Learning stage invariants: passed");

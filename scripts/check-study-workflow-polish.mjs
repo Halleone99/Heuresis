@@ -31,7 +31,9 @@ assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount short
 assert.match(study, /requestedSize >= 1 && requestedSize <= 500/, "Review size validates positive amounts up to 500");
 
 assert.match(pack, /disabled=\{!acquisitionCards\.length\}/, "Learning opens only when some classified cards need initial acquisition");
-assert.match(pack, /onClick=\{\(\) => setLearningOpen\(true\)\}/, "Learning opens its dedicated exercise screen");
+assert.match(pack, /function openLearning\(\) \{[\s\S]*?setLearningOpen\(true\)/, "Learn remembers and opens its dedicated exercise screen");
+assert.match(pack, /onClick=\{openLearning\}/, "Learn button uses the resumable session opener");
+assert.match(pack, /\{learningOpen \? <LearningSession/, "The dedicated Learn exercise screen is rendered");
 assert.match(pack, /disabled=\{!reviewCards\.length\}/, "Review excludes cards awaiting initial Learning");
 assert.match(pack, /onClick=\{\(\) => setStudyOpen\(true\)\}[\s\S]{0,180}<BookOpen size=\{15\} \/> Review <small>\{reviewCards\.length\}<\/small><\/button>/, "Review opens the selection screen");
 assert.doesNotMatch(pack, /className="secondary-button review-adjust"/, "No redundant Adjust action");
