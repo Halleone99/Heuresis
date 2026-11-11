@@ -173,7 +173,11 @@ const scenarios = {
     const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
     check(persisted.includes("An example recorded while sorting."),
       "New knowledge is saved to the original flashcard data");
+    // First Escape collapses enrichment; the second closes the Sort dialog.
+    // Wait for the overlay to disappear before using the topic-level Sort control.
     await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await page.locator(".sort-modal").waitFor({ state: "detached" });
     await page.locator(".sort-command").click();
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-enrichment-toggle").click();
