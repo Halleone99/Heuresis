@@ -418,7 +418,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     {!filtersOpen && card ? <div className="sort-session-stage">
       <div id="sort-editing-tools" className={"sort-editing-tools" + (enrichmentOpen ? " is-open" : "")}>
         <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged}
-          onBlockedChange={setEnrichmentBlocked} onCountChange={setDetailsCount} />
+          onBlockedChange={setEnrichmentBlocked} onCountChange={setDetailsCount}
+          onDataChanged={(saved) => setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <article className="sort-card" data-card-id={card.id} aria-label="New flashcard">
         <div className="sort-new-card-header">
