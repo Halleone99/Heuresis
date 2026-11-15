@@ -132,6 +132,12 @@ export async function connectCards(sourceCardId: string, targetCardId: string, r
   return data ? String(data) : null;
 }
 
+/** Update only the relationship label; its UUID remains unchanged. */
+export async function setRelatedRelationType(relationId: string, relationType: "related" | "synonym" | "antonym") {
+  const { error } = await db().rpc("heuresis_set_relation_type", { p_relation_id: relationId, p_type: relationType });
+  if (error) throw error;
+}
+
 export async function removeRelatedRelation(relationId: string) {
   const { error } = await db().rpc("heuresis_remove_related_relation", { p_relation_id: relationId });
   if (error) throw error;
