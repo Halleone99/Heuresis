@@ -1250,33 +1250,39 @@ export default function CosmosWindow() {
       if (!value) return null;
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
-      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>{rule ? <i className="cosmos-rule" /> : null}<span>{value}</span></div>;
+      const termToPlay = redesignReview && revealed && recapField && key === term?.key;
+      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? " is-sentence" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
+        {rule ? <i className="cosmos-rule" /> : null}<span>{value}</span>
+        {termToPlay ? <button type="button" className="review-icon review-speak" aria-label="Hear term" title="Hear term" onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
+      </div>;
     };
 
     return <div className={revealed ? "cosmos-card-copy revealed" : "cosmos-card-copy"}>
       {!revealed && method === "hear" && canListen ? <div className="cosmos-audio-question">
-        <strong>Listening question</strong><p>Listen first; the written prompt appears after reveal.</p>
-        <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button>
+        {!redesignReview ? <strong>Listening question</strong> : null}
+        {redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question" title="Play question"><Play size={28}/></button> : null}
+        <p>{redesignReview ? "Listen, then answer." : "Listen first; the written prompt appears after reveal."}</p>
+        {!redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button> : null>
       </div> : <>
         {recap.map((key, position) => renderField(key, position, true))}
         {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
         {used.map((key, position) => renderField(key, position, false))}
       </>}
-      {revealed && chineseTerm ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
+      {revealed && chineseTerm && !redesignReview ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
       {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
-        <span>Answer by</span>
+        {!redesignReview ? <span>Answer by</span> : null}
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
           .map(([value,label]) =>
           <button key={value} type="button" aria-pressed={method === value} disabled={value === "hear" && !canListen}
             title={value === "hear" && !canListen ? "No spoken prompt available for this card" : undefined}
-            onClick={() => setMethod(value)}>{label} · {methodCounts[value]}×</button>)}
+            onClick={() => setMethod(value)}>{label}{!redesignReview ? ` · ${methodCounts[value]}×` : null}</button>)}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
-        placeholder="Type your answer here…" aria-label="Your typed answer" rows={2}
+        placeholder={redesignReview ? "your answer" : "Type your answer here…"} aria-label="Your typed answer" rows={redesignReview ? 1 : 2}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void reveal(); } }} /> : null}
       {!revealed && (method === "say" || method === "hear") ? <button type="button" className="cosmos-said-button" aria-pressed={saidAnswer}
-        onClick={() => setSaidAnswer((value) => !value)}>{saidAnswer ? "✓ Said aloud" : "Said aloud"}</button> : null}
+        onClick={() => setSaidAnswer((value) => !value)}>{redesignReview ? <span className="review-said-dot" aria-hidden="true"/> : null}{saidAnswer ? "Said aloud" : redesignReview ? "I said it aloud" : "Said aloud"}</button> : null}
       {method === "handwrite" ? <div className={revealed ? "cosmos-handwrite-compare" : "cosmos-handwrite-entry"}>
         <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} onHasWritingChange={setHasWriting} />
         {revealed ? <div className="cosmos-handwrite-reference"><strong>Answer</strong><div>{backKeys.map((key) => fieldText(card.data,key)).filter(Boolean).join(" · ") || fieldText(card.data,meaning?.key)}</div></div> : null}
@@ -1284,9 +1290,9 @@ export default function CosmosWindow() {
       {revealed && method === "type" && typed.trim() && difference ? <div className="cosmos-typed-compare">
         <div><strong>Yours</strong><p>{difference.before.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
         <div><strong>Reference answer</strong><p>{difference.after.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
-        <small>Differences are visual only; valid alternatives may differ.</small>
+        {!redesignReview ? <small>Differences are visual only; valid alternatives may differ.</small> : null}
       </div> : null}
-      {!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal answer <kbd>Space</kbd></button> : null}
+      {!revealed && !redesignReview ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal answer <kbd>Space</kbd></button> : null}
     </div>;
   };
 
