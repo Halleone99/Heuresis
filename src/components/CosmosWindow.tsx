@@ -1,5 +1,5 @@
-import { CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Plus, SkipForward, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeftRight, Check, CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Plus, SkipForward, Volume2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   fieldByRole,
   fieldText,
@@ -59,8 +59,10 @@ import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
-import { saveReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
+import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
+import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
 import "./cosmos.css";
+import "./review-card.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -75,6 +77,10 @@ type Source = "recommended" | "all" | "new" | "favourites" | "interesting" | "ag
 type Order = "pack" | "random" | "weakest" | "oldest";
 /** One step of a session: a card in one direction, with the reasons it was chosen. */
 type QueueItem = { cardId: string; templateId: string | null; reasons: string[]; state: KnowledgeState | null };
+type PendingMissedNote = {
+  id: string; cardId: string; packId: string; sessionId: string; templateId: string | null;
+  grade: ReviewCorrectionGrade; attempt: string; referenceAnswer: string; explanation: string; submitted: boolean;
+};
 type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null;
   barsBefore: number; barsAfter: number; masteredBefore: boolean; masteredAfter: boolean };
 
@@ -311,6 +317,12 @@ export default function CosmosWindow() {
   const [gradedMistake, setGradedMistake] = useState<ReviewCorrectionGrade | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionStatus, setCorrectionStatus] = useState<"synced" | "queued" | null>(null);
+  const [missNote, setMissNote] = useState("");
+  const [missNoteAdded, setMissNoteAdded] = useState(false);
+  const [lastCorrection, setLastCorrection] = useState<ReviewCorrection | null>(null);
+  const [noteToast, setNoteToast] = useState("");
+  const pendingCorrectionRef = useRef<PendingMissedNote | null>(null);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
   const routeAdvancing = useRef(false);
@@ -319,6 +331,18 @@ export default function CosmosWindow() {
 
   const mode = config.mode;
   const relatedReview = config.relatedReview;
+  const redesignReview = mode === "review" && !relatedReview;
+  const studyBackground = useHeuresisBackground("heuresis-study");
+  const sharedBackground = useHeuresisBackground("heuresis");
+  const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
+  const reviewBackgroundStyle = {
+    "--heuresis-background-image": selectedBackground.imageUrl && selectedBackground.settings.enabled ? `url("${selectedBackground.imageUrl}")` : "none",
+    "--heuresis-background-opacity": selectedBackground.imageUrl && selectedBackground.settings.enabled ? String(selectedBackground.settings.opacity) : "0",
+    "--heuresis-background-veil": selectedBackground.imageUrl && selectedBackground.settings.enabled ? String(selectedBackground.settings.veil) : "0",
+    "--heuresis-background-blur": `${selectedBackground.settings.blur}px`,
+    "--heuresis-background-position": selectedBackground.settings.position,
+    "--heuresis-background-fit": selectedBackground.settings.fit,
+  } as CSSProperties;
   const recommended = mode === "review" && !relatedReview && config.source === "recommended";
   const routeProgress = useMemo(() => {
     if (!config.reviewRouteToken) return null;
@@ -369,13 +393,47 @@ export default function CosmosWindow() {
     setCards((current) => current.map((entry) => entry.id === cardId ? updater(entry) : entry));
   }, []);
 
+  // A correction is queued once for the rated attempt, not every time Enter is pressed
+  // or the note is edited. saveReviewCorrection handles offline persistence and sync.
+  const flushPendingCorrection = useCallback(async () => {
+    const pending = pendingCorrectionRef.current;
+    if (!pending || pending.submitted || !pending.explanation.trim()) return;
+    pending.submitted = true;
+    try {
+      const { submitted: _submitted, ...payload } = pending;
+      void _submitted;
+      const status = await saveReviewCorrection(payload);
+      setCorrectionStatus(status);
+      setNoteToast(status === "queued" ? "Saved on this device · sync pending" : "Note saved");
+    } catch (failure) {
+      pending.submitted = false; // Same UUID on retry, never duplicate the correction.
+      setNoteToast(failure instanceof Error ? `Note not saved: ${failure.message}` : "Note could not be saved");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!noteToast) return;
+    const timer = window.setTimeout(() => setNoteToast(""), 2000);
+    return () => window.clearTimeout(timer);
+  }, [noteToast]);
+
+  useEffect(() => {
+    if (!redesignReview || !card || !template) { setLastCorrection(null); return; }
+    let live = true;
+    void loadReviewCorrections(card.id, template.id)
+      .then((rows) => { if (live) setLastCorrection(rows[0] ?? null); })
+      .catch(() => { if (live) setLastCorrection(null); });
+    return () => { live = false; };
+  }, [redesignReview, card?.id, template?.id]);
+
   const closeSession = useCallback(async () => {
+    await flushPendingCorrection();
     stopReviewAudio();
     const id = sessionRef.current;
     if (!id) return;
     sessionRef.current = null;
     await finishStudySession(id).catch(() => undefined);
-  }, []);
+  }, [flushPendingCorrection]);
 
   useEffect(() => {
     if (!config.valid) {
@@ -773,13 +831,14 @@ export default function CosmosWindow() {
   /** Records the next step's encounter (as Review always has) and moves on. */
   async function advance(nextQueue: QueueItem[], nextIndex: number) {
     if (!pack || !sessionRef.current) return;
+    void flushPendingCorrection(); // Do not hold up the next card for network synchronisation.
     const nextItem = nextQueue[nextIndex];
     if (nextItem) {
       await recordStudyEvent({ cardId: nextItem.cardId, packId: pack.id, sessionId: sessionRef.current, templateId: nextItem.templateId, eventType: "encountered" });
     }
     setIndex(nextIndex);
     setRevealed(false);
-    setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
+    setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setMissNote(""); setMissNoteAdded(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
     stopReviewAudio();
   }
 
@@ -812,6 +871,16 @@ export default function CosmosWindow() {
       if (grade === "again" || grade === "hard") {
         // Record the result immediately; the optional explanation never controls grading.
         setGradedMistake(grade);
+        if (redesignReview) {
+          setMissNote(""); setMissNoteAdded(false);
+          pendingCorrectionRef.current = {
+            id: crypto.randomUUID(), cardId: card.id, packId: pack.id,
+            sessionId: sessionRef.current, templateId: template.id, grade,
+            attempt: method === "type" ? typed : "",
+            referenceAnswer: answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
+            explanation: "", submitted: false,
+          };
+        }
       } else await advance(queue, index + 1);
       return true;
     } catch (answerError) {
@@ -826,6 +895,7 @@ export default function CosmosWindow() {
    */
   async function sendBackToLearning(reason: "relearn" | "repeated-mistakes" = "relearn") {
     if (!card || busy || !inReview(card)) return;
+    void flushPendingCorrection();
     setBusy(true); setNotice("");
     try {
       const updated = await saveAcquisition(card, enterLearning(readAcquisition(card.data), reason));
@@ -971,11 +1041,15 @@ export default function CosmosWindow() {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
       if (editOpen) return; // Never trigger review shortcuts while editing card content.
-      if (correctionOpen) {
+      if (correctionOpen && !redesignReview) {
         if (event.key === "Escape" && !busy) { event.preventDefault(); setCorrectionOpen(false); }
         return; // Do not grade again or close the review while recording a correction.
       }
       if (gradedMistake) {
+        if (redesignReview && target?.closest(".review-note-input")) {
+          if (event.key === "Escape") { event.preventDefault(); target.blur(); }
+          return; // Enter and Shift+Enter are handled in the textarea itself.
+        }
         // Let focused buttons handle Enter themselves; otherwise Enter advances.
         if (target?.closest("button,[role=button]") && (event.key === "Enter" || event.key === " ")) return;
         if (!typing && !busy && event.key === "Enter") { event.preventDefault(); void advance(queue, index + 1); }
