@@ -215,7 +215,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
             {field.role === "example" || field.role === "example_reading" || field.role === "example_translation"
               ? null : <small>{field.label}</small>}
             <InlineSortText value={field.value} label={field.label} multiline={field.role !== "example_reading"}
-              disabled={blocked} onEditingChange={setInlineBusy} onCommit={(value) => saveField(field.key, value)} />
+              disabled={busy || adding !== null} onEditingChange={setInlineBusy} onCommit={(value) => saveField(field.key, value)} />
           </div>)}
           {owned.map((block) => block.type === "text"
             ? <div className="sort-enrich-item editable" key={block.id}>
