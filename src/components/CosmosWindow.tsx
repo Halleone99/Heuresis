@@ -1354,11 +1354,28 @@ export default function CosmosWindow() {
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
-        {mode === "review" && reviewLanguage ? <span className="cosmos-review-language" aria-label={`Language: ${reviewLanguage}`} title={`${reviewLanguage} · ${pack.title}`}>{reviewLanguage}</span> : null}
+        {redesignReview ? <header className="review-card-head">
+          <span className="review-kicker">{reviewLanguage || "Review"}</span>
+          <span className="review-head-dot" aria-hidden="true"/>
+          <span className="review-direction">{directionName}
+            {sessionTemplates.length > 1 && !revealed && !currentBars?.pendingDirections?.length ? <button type="button" className="review-icon"
+              disabled={busy} aria-label="Switch direction" title="Switch direction"
+              onClick={() => setQueue(items=>items.map((entry,position)=>position===index
+                ? {...entry,templateId:sessionTemplates[(sessionTemplates.findIndex(candidate=>candidate.id===entry.templateId)+1)%sessionTemplates.length].id}
+                : entry))}><ArrowLeftRight size={14}/></button> : null}
+          </span>
+          <span className="review-head-spacer"/>
+          {currentBars ? <span className="review-bars" role="img" aria-label={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}
+            title={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}>
+            {[0,1,2,3].map(i=><i key={i} className={i<currentBars.bars?"filled":""}/>)}</span> : null}
+          {revealed ? <button type="button" className="review-icon" aria-label="Modify this card" title="Modify this card"
+            disabled={busy} onClick={()=>setEditOpen(true)}><Pencil size={15}/></button> : null}
+        </header> : null}
+        {mode === "review" && reviewLanguage && !redesignReview ? <span className="cosmos-review-language" aria-label={`Language: ${reviewLanguage}`} title={`${reviewLanguage} · ${pack.title}`}>{reviewLanguage}</span> : null}
         {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
           title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
           onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
-        {(mode === "sort" || revealed) ? <button type="button" className="cosmos-card-modify"
+        {(mode === "sort" || (revealed && !redesignReview)) ? <button type="button" className="cosmos-card-modify"
           onClick={() => setEditOpen(true)} disabled={busy} title="Modify this card without grading it">
           <Pencil size={13} aria-hidden="true" /> Modify
         </button> : null}
