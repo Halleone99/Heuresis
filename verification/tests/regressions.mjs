@@ -406,7 +406,7 @@ const scenarios = {
     const popupOpened = context.waitForEvent("page");
     await page.locator(".study-start").click();
     const popup = await popupOpened;
-    await popup.waitForSelector(".cosmos-count", { timeout: 15000 });
+    await popup.waitForSelector(".review-top-progress > span:first-child", { timeout: 15000 });
     await popup.keyboard.press(" ");
     await popup.waitForTimeout(500);
     await popup.keyboard.press("3");
