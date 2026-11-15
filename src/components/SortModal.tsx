@@ -203,7 +203,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       setLearned((value) => value + 1);
       if (phase === "learning") setToLearning((value) => value + 1);
       else setToReview((value) => value + 1);
-      setLastRemoval({ kind: "learn", card, phase, rank });
+      setLastRemoval({ kind: "learn", card: { ...card, note: noteDraft.trim() || null }, phase, rank });
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this decision."); }
@@ -217,7 +217,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       await saveQuickNote();
       await discardCard(card);
       setDiscarded((value) => value + 1);
-      setLastRemoval({ kind: "discard", card });
+      setLastRemoval({ kind: "discard", card: { ...card, note: noteDraft.trim() || null } });
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not discard this card."); }
@@ -260,7 +260,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setBusy(true); setMessage("");
     try {
       await saveQuickNote();
-      setLastRemoval({ kind: "later", card });
+      setLastRemoval({ kind: "later", card: { ...card, note: noteDraft.trim() || null } });
       setLeftForLater((value) => value + 1);
       setIndex((current) => current + 1);
       onChanged();
