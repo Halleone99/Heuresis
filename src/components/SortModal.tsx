@@ -8,6 +8,7 @@ import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCa
 import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
 import { InlineSortText } from "./InlineSortText";
+import { reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import "./sort.css";
 import "./sort-enrichment.css";
 import "./sort-refined.css";
@@ -308,23 +309,24 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked || editingCard} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
-  const languageLabel = pack.cardType?.name?.replace(/\\b(cards?|vocabulary|words?)\\b/gi, "").trim() || "CARD";
+  const languageLabel = pack.cardType?.name?.replace(/\b(cards?|vocabulary|words?)\b/gi, "").trim() || "CARD";
   const exampleField = fieldByRole(pack.cardType, "example");
   const translationField = fieldByRole(pack.cardType, "example_translation");
-  const firstBlock = card?.data._workspace_blocks?.find?.((value: string) => { try { const parsed = JSON.parse(value); return parsed.dim === "examples" && parsed.type === "text"; } catch { return false; } });
-  const firstExample = card ? fieldText(card.data, exampleField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\\n")[0] : "") : "";
-  const exampleTranslation = card ? fieldText(card.data, translationField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\\n").slice(2).join(" ") : "") : "";
+  const rawBlocks = card?.data["_workspace_blocks"];
+  const firstBlock = Array.isArray(rawBlocks) ? rawBlocks.find((value) => { try { const parsed = JSON.parse(value); return parsed.dim === "examples" && parsed.type === "text"; } catch { return false; } }) : undefined;
+  const firstExample = card ? fieldText(card.data, exampleField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\n")[0] : "") : "";
+  const exampleTranslation = card ? fieldText(card.data, translationField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\n").slice(2).join(" ") : "") : "";
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
-  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={filtersOpen && unsorted.length ? "sort-modal sort-modal--setup" : card ? `sort-modal sort-modal--session${enrichmentOpen ? " sort-modal--editing" : ""}` : "sort-modal"} role="dialog" aria-modal="true" aria-label="New cards">
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={filtersOpen && unsorted.length ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (enrichmentOpen ? " sort-modal--editing" : "")} role="dialog" aria-modal="true" aria-label="New cards">
 
     <header className="sort-topbar">
-      <div><span className="eyebrow">NEW CARDS</span><strong>{pack.title}</strong></div>
-      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={card ? `Card ${index + 1} of ${queue.length}` : `${decided} cards decided`}><span>{card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>{card ? <div className="sort-progress-track"><div style={{width: `${((index + 1) / queue.length) * 100}%`}} /></div> : null}</div>}
+      <div className="sort-new-heading"><span className="sort-stage-chip">● New</span><strong>{pack.title}</strong></div>
+      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={card ? `Card ${index + 1} of ${queue.length}` : `${decided} cards decided`}><span>{card ? `${index + 1} of ${queue.length}` : `${queue.length} of ${queue.length}`}</span>{card ? <div className="sort-progress-track"><div style={{width: `${((index + 1) / queue.length) * 100}%`}} /></div> : null}</div>}
       <div className="sort-topbar-actions">
         {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
-        {sessionStarted ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
+        {sessionStarted && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
         <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
@@ -395,87 +397,117 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         </button>
       </div>
     </div> : null}
-    {!filtersOpen && !unsorted.length && !queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">NO NEW CARDS</p><h2>All cards have been classified.</h2><p>New cards arrive here when you capture them.</p>
-      <div className="sort-finished-actions">{onReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review</button> : null}<button type="button" className="is-quiet" onClick={onClose}>Return to topic</button></div></div> : null}
-    {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
-      <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
-      <p>{[toLearning ? `${toLearning} to Learn` : "", toReview ? `${toReview} to Review` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
-      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
-      <div className="sort-finished-actions">{onLearning && toLearning ? <button type="button" onClick={() => { onClose(); onLearning(); }}><Brain size={15} /> Start Learn</button> : null}{onReview && toReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className="is-quiet" disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
+
+    {!filtersOpen && (!unsorted.length && !queue.length || finished) ? <div className="sort-finished">
+      <p className="eyebrow">{finished ? "SESSION COMPLETE" : "NO NEW CARDS"}</p>
+      <h2>{finished ? queue.length + " new " + (queue.length === 1 ? "card" : "cards") + " met" : "All cards have been classified."}</h2>
+      {finished ? <div className="sort-summary-stats">
+        <span><b>{toLearning}</b> to Learn</span><span><b>{toReview}</b> to Review</span>
+        <span><b>{discarded}</b> discarded</span><span><b>{leftForLater}</b> for later</span>
+      </div> : <p>New cards appear here when you capture them.</p>}
+      <div className="sort-finished-actions">
+        {onLearning && toLearning > 0 ? <button type="button" onClick={() => { onClose(); onLearning(); }}>Start Learning</button> : null}
+        {onReview && toReview > 0 ? <button type="button" onClick={() => { onClose(); onReview(); }}>Review now</button> : null}
+        <button type="button" className="is-quiet" onClick={onClose}>Back to Study</button>
+      </div>
+      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy} onClick={() => void undo()}>
+        Undo last ({fieldText(lastRemoval.card.data, term?.key) || "card"})
+      </button> : null}
     </div> : null}
-    {!filtersOpen && card ? <div className="sort-body">
-      <div id="sort-editing-tools" className="sort-editing-tools"><SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} onBlockedChange={setEnrichmentBlocked} /></div>
-      <div className="sort-card" data-card-id={card.id} aria-label="Complete flashcard">
-        {!editingCard ? <button type="button" className={`sort-enrichment-toggle${enrichmentOpen ? " active" : ""}`} aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy || enrichmentBlocked} onClick={() => setEnrichmentOpen((open) => !open)}><Pencil size={15} /> {enrichmentOpen ? "Done editing" : "Edit details"}</button> : null}
-        {editingCard ? <form className="sort-card-editor" onSubmit={(event) => { event.preventDefault(); void saveCardEdit(); }}>
-          <h3>Edit card</h3>
-          <p>Correct the card before deciding its importance.</p>
-          {editFields.map((field) => <label key={field.key}>
-            <span>{field.label}{field.required ? " *" : ""}</span>
-            {field.role === "meaning" ? <textarea rows={3} autoFocus={field.key === editFields[0]?.key}
-              value={cardDraft[field.key] ?? ""} onChange={(event) => setCardDraft((draft) => ({ ...draft, [field.key]: event.target.value }))} />
-              : <input autoFocus={field.key === editFields[0]?.key} value={cardDraft[field.key] ?? ""}
-                onChange={(event) => setCardDraft((draft) => ({ ...draft, [field.key]: event.target.value }))} />}
-          </label>)}
-          {cardEditError ? <p className="sort-card-editor-error" role="alert">{cardEditError}</p> : null}
-          <div className="sort-card-editor-actions">
-            <button type="button" disabled={busy} onClick={() => { setEditingCard(false); setCardEditError(""); }}>Cancel</button>
-            <button type="submit" className="primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+    {!filtersOpen && card ? <div className="sort-session-stage">
+      <div id="sort-editing-tools" className={"sort-editing-tools" + (enrichmentOpen ? " is-open" : "")}>
+        <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged}
+          onBlockedChange={setEnrichmentBlocked} onCountChange={setDetailsCount} />
+      </div>
+      <article className="sort-card" data-card-id={card.id} aria-label="New flashcard">
+        <div className="sort-new-card-header">
+          <span><small>{languageLabel.toUpperCase()}</small><i>·</i> New card</span>
+          <button type="button" className={"sort-new-details" + (enrichmentOpen ? " on" : "")}
+            aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy || enrichmentBlocked || editingCard}
+            onClick={() => setEnrichmentOpen((open) => !open)} title="Details (E)">
+            <PanelLeftOpen size={15} /> Details {detailsCount ? <b>{detailsCount}</b> : null}
+          </button>
+        </div>
+        <div className="sort-new-content">
+          <div className="sort-new-term">
+            {term ? <InlineSortText key={card.id + term.key} value={fieldText(card.data, term.key)}
+              label={term.label} placeholder="add the term" required={term.required} disabled={busy || enrichmentBlocked}
+              className="term" onEditingChange={setEditingCard}
+              onCommit={(value) => saveInlineField(term.key, value)} /> : null}
+            {fieldText(card.data, term?.key) ? <button type="button" className="sort-new-audio"
+              aria-label="Hear term" title="Hear term" onClick={() => void speakReviewText(
+                fieldText(card.data, term?.key), reviewSpeechLanguage(fieldText(card.data, term?.key), pack.title, pack.cardType?.name ?? "", "term"))}>
+              <Volume2 size={19} /></button> : null}
           </div>
-        </form> : <>
-          <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>
-          {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
-          {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
-          {enrichmentOpen ? <button type="button" className="sort-card-edit-trigger" disabled={busy || enrichmentBlocked || editingCard} onClick={beginCardEdit}>
-            <Pencil size={14} /> Edit card text
-          </button> : null}
-        </>}
-      </div>
-      <div className="sort-panel">
-        <div className="sort-interest-panel" role="group" aria-label="Learning importance">
-          <h3>Importance</h3>
-          <div className="sort-rating">{IMPORTANCE_ORDER.map((level) => {
-            const rank = IMPORTANCE_RANK[level];
-            return <button key={level} type="button"
-              aria-label={"Select " + IMPORTANCE_LABEL[level] + " importance"}
-              aria-pressed={selectedRank === rank}
-              className={selectedRank === rank ? "selected" : ""}
-              disabled={busy || enrichmentBlocked || editingCard}
-              onClick={() => setSelectedRank(rank)}>{IMPORTANCE_LABEL[level]}</button>;
-          })}</div>
-          <span className="sort-rating-caption">Select importance, then Save & Next · C / U / P</span>
+          <span className="sort-new-rule" aria-hidden="true" />
+          {reading ? <InlineSortText key={card.id + reading.key} value={fieldText(card.data, reading.key)}
+            label={reading.label} placeholder="add the reading" required={reading.required} disabled={busy || enrichmentBlocked}
+            className="reading" onEditingChange={setEditingCard}
+            onCommit={(value) => saveInlineField(reading.key, value)} /> : null}
+          {meaning ? <InlineSortText key={card.id + meaning.key} value={fieldText(card.data, meaning.key)}
+            label={meaning.label} placeholder="add the meaning" required={meaning.required} multiline
+            className="meaning" disabled={busy || enrichmentBlocked} onEditingChange={setEditingCard}
+            onCommit={(value) => saveInlineField(meaning.key, value)} /> : null}
+          <div className="sort-new-example">
+            {exampleField ? <InlineSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)}
+              label="Example sentence" placeholder="+ Example sentence" disabled={busy || enrichmentBlocked}
+              onEditingChange={setEditingCard} className="example"
+              onCommit={(value) => saveInlineField(exampleField.key, value)} />
+              : firstExample ? <button type="button" className="sort-new-example-link" onClick={() => setEnrichmentOpen(true)} title="Edit example in Details">{firstExample}</button>
+              : <button type="button" className="sort-new-add-example" onClick={() => setEnrichmentOpen(true)}>+ Example sentence</button>}
+            {translationField ? <InlineSortText key={card.id + translationField.key} value={fieldText(card.data, translationField.key)}
+              label="Example translation" placeholder="Translation" disabled={busy || enrichmentBlocked}
+              onEditingChange={setEditingCard} className="example-translation"
+              onCommit={(value) => saveInlineField(translationField.key, value)} />
+              : exampleTranslation ? <em>{exampleTranslation}</em> : null}
+          </div>
+          <div className="sort-new-tags">
+            {tags.filter((tag) => tagIds.includes(tag.id)).map((tag) => <button type="button" key={tag.id}
+              className={tag.is_badge ? "is-badge" : ""} disabled={busy || enrichmentBlocked || editingCard}
+              onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}>{tag.name} <X size={11}/></button>)}
+            <button type="button" className="sort-new-add-tag" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked || editingCard}
+              onClick={() => setTagsOpen((v) => !v)}>+ Tag</button>
+            {tagsOpen ? <div className="sort-new-tag-popover">
+              {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
+              {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}
+              {!tags.length ? <p>Create tags in Settings.</p> : null}
+            </div> : null}
+          </div>
+          <div className="sort-new-note">
+            {noteOpen ? <textarea rows={2} autoFocus aria-label="Quick note" placeholder="Something to remember…"
+              value={noteDraft} disabled={busy || enrichmentBlocked || editingCard}
+              onChange={(event) => setNoteDraft(event.target.value)} />
+              : <button type="button" onClick={() => setNoteOpen(true)}>+ Note</button>}
+          </div>
         </div>
-        <div className="sort-tags-control">
-          <div className="sort-side-heading"><h3><Tag size={15}/> Tags</h3>
-            <button type="button" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked || editingCard}
-              onClick={() => setTagsOpen((value) => !value)}>+ Add tag</button></div>
-          {selectedTagNames.length ? <div className="sort-selected-tags">
-            {tags.filter((tag) => tagIds.includes(tag.id)).map((tag) =>
-              <button type="button" key={tag.id} disabled={busy || enrichmentBlocked || editingCard} onClick={() => void toggleTag(tag.id)}
-                title={"Remove " + tag.name}>{tag.name} <X size={12}/></button>)}
-          </div> : <span className="sort-tags-empty">No tags on this card</span>}
-          {tagsOpen ? <div className="sort-tags">
-            {lessonTags.length ? <div className="sort-tag-group"><p>Lessons</p><div className="sort-lesson-tags">{lessonTags.map((tag) => renderTag(tag, true))}</div></div> : null}
-            {otherTags.length ? <div className="sort-tag-group"><p>Available tags</p><div>{otherTags.map((tag) => renderTag(tag))}</div></div> : null}
-            {!tags.length ? <small>No tags yet. Create them in Settings.</small> : null}
-          </div> : null}
+        <div className="sort-new-footer">
+          <div className="sort-new-decision-heading"><span>How important is it?</span>
+            <button type="button" onClick={switchDestination} disabled={busy || enrichmentBlocked || editingCard}
+              aria-label={"Goes to " + (destination === "learning" ? "Learn" : "Review") + "; change destination"}
+              title="Switch destination (R)">Goes to <b>{destination === "learning" ? "Learn" : "Review"}</b> <ArrowLeftRight size={14}/></button>
+          </div>
+          <div className="sort-new-ratings" role="group" aria-label="Learning importance">
+            {IMPORTANCE_ORDER.map((level, i) => <button type="button" key={level}
+              disabled={busy || enrichmentBlocked || editingCard} title={IMPORTANCE_HINT[level]}
+              onClick={() => void learn(IMPORTANCE_RANK[level])}>
+              <span className="sort-new-rating-top" /><span className="sort-new-rating-name">{IMPORTANCE_LABEL[level]} <kbd>{i + 1}</kbd></span>
+              <small>{IMPORTANCE_HINT[level]}</small>
+            </button>)}
+          </div>
+          <div className="sort-new-secondary">
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}>Later</button>
+            <span aria-hidden="true">·</span>
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}>Discard</button>
+          </div>
+          {message ? <p className="sort-error" role="alert">{message}</p> : null}
         </div>
-        <div className="sort-note-panel">
-          <h3>Quick note</h3>
-          <textarea rows={3} aria-label="Quick note" value={noteDraft} placeholder="A useful example or something to remember…"
-            disabled={busy || enrichmentBlocked || editingCard} onChange={(event) => setNoteDraft(event.target.value)} />
-        </div>
-        {message ? <div className="sort-error" role="alert">{message}</div> : null}
-      </div>
+      </article>
+      {lastRemoval ? <div className="sort-new-undo" role="status">
+        <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :
+          "→ " + (lastRemoval.phase === "review" ? "Review" : "Learn") + " · " +
+          (lastRemoval.rank === 5 ? "Core" : lastRemoval.rank === 3 ? "Active" : "Passive")}</span>
+        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13}/> Undo</button>
+      </div> : null}
     </div> : null}
-    {!filtersOpen && card ? <footer className="sort-session-footer">
-      <button type="button" className="sort-footer-discard" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}><Trash2 size={15} /> Discard</button>
-      {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {fieldText(lastRemoval.card.data, term?.key) || "Card"} · {lastRemoval.kind === "discard" ? "discarded" : "added to learning"}</span>
-        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13} /> Undo</button></div> : null}
-      <div className="sort-footer-end">
-        <button type="button" className="sort-footer-later" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}><SkipForward size={15} /> Later</button>
-        <button type="button" className="sort-footer-later" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "review"); }}>To Review <ArrowRight size={15} /></button><button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "learning"); }}>To Learn <Brain size={16} /></button>
-      </div>
-    </footer> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
 }
