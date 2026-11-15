@@ -14,8 +14,8 @@ type ImageBlock = { id: string; type: "image"; path: string; caption: string; di
 type Block = TextBlock | ImageBlock;
 const ids = new Set<Dimension>(["examples", "neighbours", "components", "structure", "origin", "facts", "notes"]);
 const languageLabels: Record<Dimension, string> = {
-  examples: "Examples", neighbours: "Words", components: "Parts", structure: "Grammar",
-  origin: "Origin", facts: "Facts", notes: "Notes",
+  examples: "In context", neighbours: "Nearby words", components: "Parts", structure: "Grammar",
+  origin: "Origin", facts: "Worth knowing", notes: "My note",
 };
 const conceptLabels: Record<Dimension, string> = {
   examples: "Instances", neighbours: "Related", components: "Parts", structure: "Structure",
@@ -64,9 +64,8 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   const conceptual = /philosoph|history|psycholog|concept|theor|politic|econom/i.test(pack.title + " " + (pack.cardType?.name ?? ""));
   const labels = conceptual ? conceptLabels : languageLabels;
   const structuredWords = !conceptual;
-  // Quick notes live on the right; retain a legacy Notes section only for existing saved blocks.
-  const order: Dimension[] = ["examples", "neighbours", "components", "structure", "origin", "facts",
-    ...(parseBlocks(card.data).some((block) => block.dim === "notes") ? ["notes" as Dimension] : [])];
+  // Keep all dimensions addable, but only display filled sections until the user adds content.
+  const order: Dimension[] = ["examples", "neighbours", "components", "structure", "origin", "facts", "notes"];
   const [data, setData] = useState(card.data);
   const blocks = useMemo(() => parseBlocks(data), [data]);
   const [expanded, setExpanded] = useState<Dimension[]>(["examples", "neighbours", "components", "structure", "origin", "facts", "notes"]);
