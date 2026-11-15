@@ -175,7 +175,7 @@ const scenarios = {
     await page.waitForTimeout(800);
     await page.keyboard.press("l");
     await page.waitForTimeout(400);
-    check(/1 discarded/.test(await page.locator(".sort-finished").innerText()), "the summary counts discarded cards");
+    check(/1\s+discarded/.test(await page.locator(".sort-finished").innerText()), "the summary counts discarded cards");
     await page.click('.sort-finished-actions button:has-text("Back to Study")');
     await page.waitForTimeout(800);
     check(await page.locator(`.modern-topic-row:has-text("${first}")`).count() === 0, "a discarded card leaves the topic");
@@ -429,7 +429,7 @@ const scenarios = {
     const active = (await page.locator(".sort-inline-text.term").inputValue()).trim();
     await page.locator(".sort-new-ratings button:nth-child(2)").click();
     await page.locator(".sort-finished").waitFor();
-    await page.locator('.sort-finished-actions button:has-text("Return to topic")').click();
+    await page.locator('.sort-finished-actions button:has-text("Back to Study")').click();
     await showAllIfAvailable(page);
     const row = page.locator(`.modern-topic-row:has-text("${active}")`);
     check(await row.locator(".importance-badge").innerText() === "Active", "Previously Useful is now displayed as Active");
