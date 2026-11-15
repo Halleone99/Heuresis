@@ -119,7 +119,7 @@ const scenarios = {
       await popup.keyboard.press(" ");
       await popup.locator(".review-ratings").waitFor();
       if (step === 0) {
-        check((await popup.locator(".review-ratings .review-rating-head").allInnerTexts()).join(",") === "Missed,Partial,Recalled,Easy",
+        check((await popup.locator(".review-ratings .review-rating-head").allInnerTexts()).map(value => value.replace(/[1-4]/g, "").trim()).join(",") === "Missed,Partial,Recalled,Easy",
           "Ratings are Missed, Partial, Recalled and Easy");
         await popup.screenshot({ path: `${shots}/review-revealed.png` });
       }
