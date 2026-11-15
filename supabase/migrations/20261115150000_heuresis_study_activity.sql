@@ -46,7 +46,7 @@ as $$
     where c.role = 'main' and c.retention = 'learning'
       and c.data ->> '_discarded_at' is null
       -- Sort writes valid ISO-8601 timestamps; ignore older/empty markers.
-      and c.data ->> '_sorted_at' ~ '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}'
+      and c.data ->> '_sorted_at' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'
     group by 1, 2
   )
   select d.local_day, p.id, coalesce(s.count, 0), coalesce(a.count, 0), coalesce(r.count, 0)
