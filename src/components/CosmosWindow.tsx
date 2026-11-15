@@ -1295,8 +1295,26 @@ export default function CosmosWindow() {
   const directionName = template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
-  return <main className="cosmos-shell">
-    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
+  return <main className="cosmos-shell" data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+    {redesignReview ? <header className="cosmos-topbar">
+      <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>
+      <div className="review-top-progress">
+        <span>{routeProgress ? Math.min(routeProgress.total,routeProgress.before+index+1) : index+1} of {routeProgress?.total ?? queue.length}</span>
+        <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
+      </div>
+      <div className="review-top-tools" role="group" aria-label="Review tools">
+        <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
+          aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
+          {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
+        <button type="button" className="review-icon" disabled={!revealed} aria-label="Notes (D)" title="Notes (D)"
+          aria-pressed={detailsOpen} onClick={() => setDetailsOpen(value=>!value)}>
+          {detailsOpen ? <PanelRightClose size={17}/> : <PanelRightOpen size={17}/>}</button>
+        <span className="review-top-separator" aria-hidden="true"/>
+        {item?.reasons.length ? <button type="button" className="review-icon" aria-label="Why this card"
+          title="Why this card" aria-expanded={whyOpen} onClick={()=>setWhyOpen(value=>!value)}><CircleHelp size={17}/></button> : null}
+        <button type="button" className="cosmos-close" aria-label="Close (Esc)" title="Close (Esc)" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18}/></button>
+      </div>
+    </header> : <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
       {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentBars ? ` · ${currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : currentBars.bars + "/4 bars"}` : ""}
         {sessionTemplates.length > 1 && !revealed && !currentBars?.pendingDirections?.length ? <button type="button" className="cosmos-extra-toggle" disabled={busy}
@@ -1317,16 +1335,16 @@ export default function CosmosWindow() {
         ? `${Math.min(routeProgress.total, routeProgress.before + index + 1)} / ${routeProgress.total}`
         : `${index + 1} / ${queue.length}`}</span>
       <button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button>
-    </header>
+    </header>}
     {whyOpen && item?.reasons.length ? <div className="cosmos-why-panel" role="dialog" aria-label="Why this card was recommended">
       <strong>Why this card</strong>
       <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-      <small>The selection follows your chosen ordering and filters. Cards have no compulsory review deadlines.</small>
+      <small>{redesignReview ? "Chosen for what is most useful now. Nothing here is due." : "The selection follows your chosen ordering and filters. Cards have no compulsory review deadlines."}</small>
     </div> : null}
-    <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((routeProgress
+    {!redesignReview ? <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((routeProgress
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
-      / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div>
+      / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
