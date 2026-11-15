@@ -1,5 +1,5 @@
-import { CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Plus, SkipForward, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeftRight, Check, CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Plus, SkipForward, Volume2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   fieldByRole,
   fieldText,
@@ -59,8 +59,10 @@ import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
-import { saveReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
+import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
+import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
 import "./cosmos.css";
+import "./review-card.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -75,6 +77,10 @@ type Source = "recommended" | "all" | "new" | "favourites" | "interesting" | "ag
 type Order = "pack" | "random" | "weakest" | "oldest";
 /** One step of a session: a card in one direction, with the reasons it was chosen. */
 type QueueItem = { cardId: string; templateId: string | null; reasons: string[]; state: KnowledgeState | null };
+type PendingMissedNote = {
+  id: string; cardId: string; packId: string; sessionId: string; templateId: string | null;
+  grade: ReviewCorrectionGrade; attempt: string; referenceAnswer: string; explanation: string; repeated: boolean; submitted: boolean;
+};
 type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null;
   barsBefore: number; barsAfter: number; masteredBefore: boolean; masteredAfter: boolean };
 
@@ -311,6 +317,12 @@ export default function CosmosWindow() {
   const [gradedMistake, setGradedMistake] = useState<ReviewCorrectionGrade | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionStatus, setCorrectionStatus] = useState<"synced" | "queued" | null>(null);
+  const [missNote, setMissNote] = useState("");
+  const [missNoteAdded, setMissNoteAdded] = useState(false);
+  const [lastCorrection, setLastCorrection] = useState<ReviewCorrection | null>(null);
+  const [noteToast, setNoteToast] = useState("");
+  const pendingCorrectionRef = useRef<PendingMissedNote | null>(null);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   const sessionRef = useRef<string | null>(null);
   const routeAdvancing = useRef(false);
@@ -319,6 +331,18 @@ export default function CosmosWindow() {
 
   const mode = config.mode;
   const relatedReview = config.relatedReview;
+  const redesignReview = mode === "review" && !relatedReview;
+  const studyBackground = useHeuresisBackground("heuresis-study");
+  const sharedBackground = useHeuresisBackground("heuresis");
+  const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
+  const reviewBackgroundStyle = {
+    "--heuresis-background-image": selectedBackground.imageUrl && selectedBackground.settings.enabled ? `url("${selectedBackground.imageUrl}")` : "none",
+    "--heuresis-background-opacity": selectedBackground.imageUrl && selectedBackground.settings.enabled ? String(selectedBackground.settings.opacity) : "0",
+    "--heuresis-background-veil": selectedBackground.imageUrl && selectedBackground.settings.enabled ? String(selectedBackground.settings.veil) : "0",
+    "--heuresis-background-blur": `${selectedBackground.settings.blur}px`,
+    "--heuresis-background-position": selectedBackground.settings.position,
+    "--heuresis-background-fit": selectedBackground.settings.fit,
+  } as CSSProperties;
   const recommended = mode === "review" && !relatedReview && config.source === "recommended";
   const routeProgress = useMemo(() => {
     if (!config.reviewRouteToken) return null;
@@ -369,13 +393,47 @@ export default function CosmosWindow() {
     setCards((current) => current.map((entry) => entry.id === cardId ? updater(entry) : entry));
   }, []);
 
+  // A correction is queued once for the rated attempt, not every time Enter is pressed
+  // or the note is edited. saveReviewCorrection handles offline persistence and sync.
+  const flushPendingCorrection = useCallback(async () => {
+    const pending = pendingCorrectionRef.current;
+    if (!pending || pending.submitted || !pending.explanation.trim()) return;
+    pending.submitted = true;
+    try {
+      const { submitted: _submitted, repeated, ...payload } = pending;
+      void _submitted;
+      const status = await saveReviewCorrection(payload);
+      setCorrectionStatus(status);
+      setNoteToast(status === "queued" ? "Saved on this device · sync pending" : repeated ? "Note saved · also in your Mistake Log" : "Note saved");
+    } catch (failure) {
+      pending.submitted = false; // Same UUID on retry, never duplicate the correction.
+      setNoteToast(failure instanceof Error ? `Note not saved: ${failure.message}` : "Note could not be saved");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!noteToast) return;
+    const timer = window.setTimeout(() => setNoteToast(""), 2000);
+    return () => window.clearTimeout(timer);
+  }, [noteToast]);
+
+  useEffect(() => {
+    if (!redesignReview || !card || !template) { setLastCorrection(null); return; }
+    let live = true;
+    void loadReviewCorrections(card.id, template.id)
+      .then((rows) => { if (live) setLastCorrection(rows[0] ?? null); })
+      .catch(() => { if (live) setLastCorrection(null); });
+    return () => { live = false; };
+  }, [redesignReview, card?.id, template?.id]);
+
   const closeSession = useCallback(async () => {
+    await flushPendingCorrection();
     stopReviewAudio();
     const id = sessionRef.current;
     if (!id) return;
     sessionRef.current = null;
     await finishStudySession(id).catch(() => undefined);
-  }, []);
+  }, [flushPendingCorrection]);
 
   useEffect(() => {
     if (!config.valid) {
@@ -773,13 +831,14 @@ export default function CosmosWindow() {
   /** Records the next step's encounter (as Review always has) and moves on. */
   async function advance(nextQueue: QueueItem[], nextIndex: number) {
     if (!pack || !sessionRef.current) return;
+    void flushPendingCorrection(); // Do not hold up the next card for network synchronisation.
     const nextItem = nextQueue[nextIndex];
     if (nextItem) {
       await recordStudyEvent({ cardId: nextItem.cardId, packId: pack.id, sessionId: sessionRef.current, templateId: nextItem.templateId, eventType: "encountered" });
     }
     setIndex(nextIndex);
     setRevealed(false);
-    setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
+    setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setMissNote(""); setMissNoteAdded(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
     stopReviewAudio();
   }
 
@@ -812,6 +871,16 @@ export default function CosmosWindow() {
       if (grade === "again" || grade === "hard") {
         // Record the result immediately; the optional explanation never controls grading.
         setGradedMistake(grade);
+        if (redesignReview) {
+          setMissNote(""); setMissNoteAdded(false);
+          pendingCorrectionRef.current = {
+            id: crypto.randomUUID(), cardId: card.id, packId: pack.id,
+            sessionId: sessionRef.current, templateId: template.id, grade,
+            attempt: method === "type" ? typed : "",
+            referenceAnswer: answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
+            explanation: "", repeated: suggestRelearning([...(events ?? []), graded].filter((entry) => entry.cardId === card.id)), submitted: false,
+          };
+        }
       } else await advance(queue, index + 1);
       return true;
     } catch (answerError) {
@@ -826,6 +895,7 @@ export default function CosmosWindow() {
    */
   async function sendBackToLearning(reason: "relearn" | "repeated-mistakes" = "relearn") {
     if (!card || busy || !inReview(card)) return;
+    void flushPendingCorrection();
     setBusy(true); setNotice("");
     try {
       const updated = await saveAcquisition(card, enterLearning(readAcquisition(card.data), reason));
@@ -971,11 +1041,15 @@ export default function CosmosWindow() {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
       if (editOpen) return; // Never trigger review shortcuts while editing card content.
-      if (correctionOpen) {
+      if (correctionOpen && !redesignReview) {
         if (event.key === "Escape" && !busy) { event.preventDefault(); setCorrectionOpen(false); }
         return; // Do not grade again or close the review while recording a correction.
       }
       if (gradedMistake) {
+        if (redesignReview && target?.closest(".review-note-input")) {
+          if (event.key === "Escape") { event.preventDefault(); target.blur(); }
+          return; // Enter and Shift+Enter are handled in the textarea itself.
+        }
         // Let focused buttons handle Enter themselves; otherwise Enter advances.
         if (target?.closest("button,[role=button]") && (event.key === "Enter" || event.key === " ")) return;
         if (!typing && !busy && event.key === "Enter") { event.preventDefault(); void advance(queue, index + 1); }
@@ -1176,33 +1250,39 @@ export default function CosmosWindow() {
       if (!value) return null;
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
-      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>{rule ? <i className="cosmos-rule" /> : null}<span>{value}</span></div>;
+      const termToPlay = redesignReview && revealed && recapField && key === term?.key;
+      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? " is-sentence" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
+        {rule ? <i className="cosmos-rule" /> : null}<span>{value}</span>
+        {termToPlay ? <button type="button" className="review-icon review-speak" aria-label="Hear term" title="Hear term" onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
+      </div>;
     };
 
     return <div className={revealed ? "cosmos-card-copy revealed" : "cosmos-card-copy"}>
       {!revealed && method === "hear" && canListen ? <div className="cosmos-audio-question">
-        <strong>Listening question</strong><p>Listen first; the written prompt appears after reveal.</p>
-        <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button>
+        {!redesignReview ? <strong>Listening question</strong> : null}
+        {redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question" title="Play question"><Play size={28}/></button> : null}
+        <p>{redesignReview ? "Listen, then answer." : "Listen first; the written prompt appears after reveal."}</p>
+        {!redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button> : null}
       </div> : <>
         {recap.map((key, position) => renderField(key, position, true))}
         {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
         {used.map((key, position) => renderField(key, position, false))}
       </>}
-      {revealed && chineseTerm ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
+      {revealed && chineseTerm && !redesignReview ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
       {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
-        <span>Answer by</span>
+        {!redesignReview ? <span>Answer by</span> : null}
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
           .map(([value,label]) =>
           <button key={value} type="button" aria-pressed={method === value} disabled={value === "hear" && !canListen}
             title={value === "hear" && !canListen ? "No spoken prompt available for this card" : undefined}
-            onClick={() => setMethod(value)}>{label} · {methodCounts[value]}×</button>)}
+            onClick={() => setMethod(value)}>{label}{!redesignReview ? ` · ${methodCounts[value]}×` : null}</button>)}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
-        placeholder="Type your answer here…" aria-label="Your typed answer" rows={2}
+        placeholder={redesignReview ? "your answer" : "Type your answer here…"} aria-label="Your typed answer" rows={redesignReview ? 1 : 2}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void reveal(); } }} /> : null}
       {!revealed && (method === "say" || method === "hear") ? <button type="button" className="cosmos-said-button" aria-pressed={saidAnswer}
-        onClick={() => setSaidAnswer((value) => !value)}>{saidAnswer ? "✓ Said aloud" : "Said aloud"}</button> : null}
+        onClick={() => setSaidAnswer((value) => !value)}>{redesignReview ? <span className="review-said-dot" aria-hidden="true"/> : null}{saidAnswer ? "Said aloud" : redesignReview ? "I said it aloud" : "Said aloud"}</button> : null}
       {method === "handwrite" ? <div className={revealed ? "cosmos-handwrite-compare" : "cosmos-handwrite-entry"}>
         <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} onHasWritingChange={setHasWriting} />
         {revealed ? <div className="cosmos-handwrite-reference"><strong>Answer</strong><div>{backKeys.map((key) => fieldText(card.data,key)).filter(Boolean).join(" · ") || fieldText(card.data,meaning?.key)}</div></div> : null}
@@ -1210,9 +1290,9 @@ export default function CosmosWindow() {
       {revealed && method === "type" && typed.trim() && difference ? <div className="cosmos-typed-compare">
         <div><strong>Yours</strong><p>{difference.before.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
         <div><strong>Reference answer</strong><p>{difference.after.map((part,i) => <mark key={i} data-kind={part.kind}>{part.text}</mark>)}</p></div>
-        <small>Differences are visual only; valid alternatives may differ.</small>
+        {!redesignReview ? <small>Differences are visual only; valid alternatives may differ.</small> : null}
       </div> : null}
-      {!revealed ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal answer <kbd>Space</kbd></button> : null}
+      {!revealed && !redesignReview ? <button className="cosmos-inline-reveal" disabled={busy} onClick={() => void reveal()}>Reveal answer <kbd>Space</kbd></button> : null}
     </div>;
   };
 
@@ -1221,8 +1301,26 @@ export default function CosmosWindow() {
   const directionName = template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
-  return <main className="cosmos-shell">
-    <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
+  return <main className="cosmos-shell" data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+    {redesignReview ? <header className="cosmos-topbar">
+      <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>
+      <div className="review-top-progress">
+        <span>{routeProgress ? Math.min(routeProgress.total,routeProgress.before+index+1) : index+1} of {routeProgress?.total ?? queue.length}</span>
+        <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
+      </div>
+      <div className="review-top-tools" role="group" aria-label="Review tools">
+        <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
+          aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
+          {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
+        <button type="button" className="review-icon" disabled={!revealed} aria-label="Notes (D)" title="Notes (D)"
+          aria-pressed={detailsOpen} onClick={() => setDetailsOpen(value=>!value)}>
+          {detailsOpen ? <PanelRightClose size={17}/> : <PanelRightOpen size={17}/>}</button>
+        <span className="review-top-separator" aria-hidden="true"/>
+        {item?.reasons.length ? <button type="button" className="review-icon" aria-label="Why this card"
+          title="Why this card" aria-expanded={whyOpen} onClick={()=>setWhyOpen(value=>!value)}><CircleHelp size={17}/></button> : null}
+        <button type="button" className="cosmos-close" aria-label="Close (Esc)" title="Close (Esc)" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18}/></button>
+      </div>
+    </header> : <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
       {mode === "review" && directionName ? <span className="cosmos-mode-note">{directionName}{currentBars ? ` · ${currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : currentBars.bars + "/4 bars"}` : ""}
         {sessionTemplates.length > 1 && !revealed && !currentBars?.pendingDirections?.length ? <button type="button" className="cosmos-extra-toggle" disabled={busy}
@@ -1243,29 +1341,91 @@ export default function CosmosWindow() {
         ? `${Math.min(routeProgress.total, routeProgress.before + index + 1)} / ${routeProgress.total}`
         : `${index + 1} / ${queue.length}`}</span>
       <button className="cosmos-close" aria-label="Close" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18} /></button>
-    </header>
+    </header>}
     {whyOpen && item?.reasons.length ? <div className="cosmos-why-panel" role="dialog" aria-label="Why this card was recommended">
       <strong>Why this card</strong>
       <ul>{item.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-      <small>The selection follows your chosen ordering and filters. Cards have no compulsory review deadlines.</small>
+      <small>{redesignReview ? "Chosen for what is most useful now. Nothing here is due." : "The selection follows your chosen ordering and filters. Cards have no compulsory review deadlines."}</small>
     </div> : null}
-    <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((routeProgress
+    {!redesignReview ? <div className="cosmos-progress"><i style={{ width: `${Math.min(100, ((routeProgress
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
-      / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div>
+      / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
-        {mode === "review" && reviewLanguage ? <span className="cosmos-review-language" aria-label={`Language: ${reviewLanguage}`} title={`${reviewLanguage} · ${pack.title}`}>{reviewLanguage}</span> : null}
+        {redesignReview ? <header className="review-card-head">
+          <span className="review-kicker">{reviewLanguage || "Review"}</span>
+          <span className="review-head-dot" aria-hidden="true"/>
+          <span className="review-direction">{directionName}
+            {sessionTemplates.length > 1 && !revealed && !currentBars?.pendingDirections?.length ? <button type="button" className="review-icon"
+              disabled={busy} aria-label="Switch direction" title="Switch direction"
+              onClick={() => setQueue(items=>items.map((entry,position)=>position===index
+                ? {...entry,templateId:sessionTemplates[(sessionTemplates.findIndex(candidate=>candidate.id===entry.templateId)+1)%sessionTemplates.length].id}
+                : entry))}><ArrowLeftRight size={14}/></button> : null}
+          </span>
+          <span className="review-head-spacer"/>
+          {currentBars ? <span className="review-bars" role="img" aria-label={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}
+            title={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}>
+            {[0,1,2,3].map(i=><i key={i} className={i<currentBars.bars?"filled":""}/>)}</span> : null}
+          {revealed ? <button type="button" className="review-icon" aria-label="Modify this card" title="Modify this card"
+            disabled={busy} onClick={()=>setEditOpen(true)}><Pencil size={15}/></button> : null}
+        </header> : null}
+        {mode === "review" && reviewLanguage && !redesignReview ? <span className="cosmos-review-language" aria-label={`Language: ${reviewLanguage}`} title={`${reviewLanguage} · ${pack.title}`}>{reviewLanguage}</span> : null}
         {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
           title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
           onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
-        {(mode === "sort" || revealed) ? <button type="button" className="cosmos-card-modify"
+        {(mode === "sort" || (revealed && !redesignReview)) ? <button type="button" className="cosmos-card-modify"
           onClick={() => setEditOpen(true)} disabled={busy} title="Modify this card without grading it">
           <Pencil size={13} aria-hidden="true" /> Modify
         </button> : null}
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
-        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
+        {redesignReview ? <footer className="cosmos-review-foot">
+          {!revealed ? <button type="button" className="review-reveal" title="Reveal (Space)" disabled={busy}
+            onClick={() => void reveal()}>Reveal</button>
+          : gradedMistake ? <div className="review-missed" data-grade={gradedMistake} role="status">
+              <div className="review-missed-line">
+                <span className="review-missed-dot" aria-hidden="true"/>
+                <span className="review-missed-label">{RESULT_LABEL[gradedMistake]}</span>
+                <span className="review-missed-grow"/>
+                <button type="button" className={suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "review-text-btn suggested" : "review-text-btn"}
+                  disabled={busy}
+                  title={suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "Missed several times recently" : "Relearn this card"}
+                  onClick={() => void sendBackToLearning(suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "repeated-mistakes" : "relearn")}>
+                  {suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "Return to Learn" : "Relearn"}</button>
+                <button type="button" className="review-next" disabled={busy} onClick={() => void advance(queue,index+1)}>Next</button>
+              </div>
+              {lastCorrection ? <p className="review-last-note" title={lastCorrection.explanation}><span>Last time</span><em>{lastCorrection.explanation}</em></p> : null}
+              {missNoteAdded ? <div className="review-note-added"><Check size={14} aria-hidden="true"/>
+                <p>{missNote}</p><button type="button" className="review-text-btn" onClick={()=>{setMissNoteAdded(false);window.requestAnimationFrame(()=>{noteInputRef.current?.focus();noteInputRef.current?.setSelectionRange(missNote.length,missNote.length);});}}>Edit</button></div>
+              : <textarea ref={noteInputRef} className="review-note-input" rows={1} maxLength={3000}
+                  aria-label="What went wrong?" placeholder="What went wrong? Enter to add (optional)"
+                  value={missNote} onChange={(event)=>{ const text=event.target.value;setMissNote(text);if(pendingCorrectionRef.current)pendingCorrectionRef.current.explanation=text; }}
+                  onKeyDown={(event)=>{
+                    if(event.key==="Escape"){event.preventDefault();event.stopPropagation();event.currentTarget.blur();}
+                    else if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){
+                      event.preventDefault();event.stopPropagation();event.currentTarget.blur();
+                      if(missNote.trim())setMissNoteAdded(true);
+                    }
+                  }}/>}
+            </div>
+          : <>
+              {suggestion ? <p className="cosmos-suggestion" role="status">Looks like <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} Your call.</p> : null}
+              {sentenceCard && !suggestion ? <p className="cosmos-suggestion">Judge the meaning and the grammar, not the exact wording.</p> : null}
+              <div className="review-ratings" role="group" aria-label="How did it go?">
+                {RESULT_ORDER.map((grade,position)=><button key={grade} type="button" data-grade={grade}
+                  className={suggestion?.grade===grade?"is-suggested":""} disabled={busy} title={RESULT_HINT[grade]}
+                  onClick={()=>selectGrade(grade)}>
+                  <span className="review-rating-head">{RESULT_LABEL[grade]}<kbd>{position+1}</kbd></span>
+                  <span className="review-rating-hint">{sentenceCard?sentenceRatings[grade]:RESULT_HINT[grade]}</span>
+                </button>)}
+              </div>
+              <div className="review-links"><button type="button" disabled={busy} onClick={()=>void sendBackToLearning()}>Relearn</button>
+                <span aria-hidden="true">·</span><button type="button" onClick={()=>setConnectionsOpen(true)}>Connections</button>
+              </div>
+            </>}
+          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={()=>setConnectionsOpen(false)}/> : null}
+        </footer> : mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
           {gradedMistake ? <div className="cosmos-mistake-followup" role="status">
@@ -1308,7 +1468,7 @@ export default function CosmosWindow() {
         </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
-    </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
+    </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}{noteToast ? <div className="review-toast" role="status">{noteToast}</div> : null}</section>
     {editOpen && card ? <ReviewCardEditor key={card.id} pack={pack} card={card}
       onRelationsChanged={() => { void listRelatedCatalogue(pack.id, card.id).then(setRelatedRows).catch(() => undefined); }}
       onClose={() => setEditOpen(false)}
