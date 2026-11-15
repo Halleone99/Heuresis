@@ -654,7 +654,7 @@ const scenarios = {
     await page.locator(".sh-session-options button:last-child").click();
     await page.locator(".sh-session-confirm").click();
     const reviewPage = await reviewPagePromise;
-    await reviewPage.locator(".cosmos-count").waitFor();
+    await reviewPage.locator(".review-top-progress > span:first-child").waitFor();
     check(await page.locator(".lrn").count() === 0, "Start in Review opens the Review window directly, not Learn");
     await reviewPage.close();
     check(await sql("select count(*) from heuresis_learn_rounds") === "1" && await gradeCount() === 0, "only the one Learning round was created; no review was recorded");
