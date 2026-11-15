@@ -381,21 +381,22 @@ const scenarios = {
     await page.locator('button:has-text("HSK 2 — Time")').first().click();
     await page.waitForTimeout(1200);
     await page.click("button.sort-command");
-    // Sort opens straight into the queue; narrowing it is behind Filter.
-    await page.waitForSelector(".sort-card");
-    await page.click(".sort-filter-open");
-    await page.fill(".sort-setup-search input", "再见");
-    check(await page.locator(".sort-setup-start").innerText() === "Open 1 card", "New card queue button tells the user exactly how many cards are prepared");
+    await page.locator(".sort-setup").waitFor();
+    await page.fill(".sort-setup-search-row input", "再见");
+    check(/1 card selected/.test(await page.locator(".sort-setup-selection").innerText()),
+      "New session selects only the captured card");
     await page.click(".sort-setup-start");
-    await page.waitForTimeout(400);
-    const disclosure = page.locator('.sort-enrich-heading:has-text("Examples")');
-    await disclosure.focus();
-    const initiallyExpanded = await disclosure.getAttribute("aria-expanded");
-    await page.keyboard.press("Enter");
-    check(await disclosure.getAttribute("aria-expanded") !== initiallyExpanded, "Enter toggles the editable Examples dimension");
-    await page.keyboard.press("Space");
-    check(await disclosure.getAttribute("aria-expanded") === initiallyExpanded, "Space toggles the Examples dimension back");
-    await page.keyboard.press("c");
+    await page.locator(".sort-card").waitFor();
+    await page.click(".sort-new-details");
+    check(await page.locator(".sort-editing-tools.is-open").count() === 1,
+      "Details opens without covering the card");
+    check(await page.locator('.sort-enrich-add-empty button:has-text("In context")').count() >= 1,
+      "The empty In context section can be added from Details");
+    await page.click(".sort-new-details");
+    // The selected Review destination persists through the one-click Core decision.
+    if (!/Review/.test((await page.locator(".sort-new-decision-heading button").innerText())))
+      await page.locator(".sort-new-decision-heading button").click();
+    await page.locator(".sort-new-ratings button:nth-child(1)").click();
     await page.waitForTimeout(1200);
     // Core is stored on the existing 1–5 scale as 5.
     check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='再见'") === "5|true", "sorting stores importance (Core) and completion");
