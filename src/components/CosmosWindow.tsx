@@ -79,7 +79,7 @@ type Order = "pack" | "random" | "weakest" | "oldest";
 type QueueItem = { cardId: string; templateId: string | null; reasons: string[]; state: KnowledgeState | null };
 type PendingMissedNote = {
   id: string; cardId: string; packId: string; sessionId: string; templateId: string | null;
-  grade: ReviewCorrectionGrade; attempt: string; referenceAnswer: string; explanation: string; submitted: boolean;
+  grade: ReviewCorrectionGrade; attempt: string; referenceAnswer: string; explanation: string; repeated: boolean; submitted: boolean;
 };
 type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null;
   barsBefore: number; barsAfter: number; masteredBefore: boolean; masteredAfter: boolean };
@@ -400,11 +400,11 @@ export default function CosmosWindow() {
     if (!pending || pending.submitted || !pending.explanation.trim()) return;
     pending.submitted = true;
     try {
-      const { submitted: _submitted, ...payload } = pending;
+      const { submitted: _submitted, repeated, ...payload } = pending;
       void _submitted;
       const status = await saveReviewCorrection(payload);
       setCorrectionStatus(status);
-      setNoteToast(status === "queued" ? "Saved on this device · sync pending" : "Note saved");
+      setNoteToast(status === "queued" ? "Saved on this device · sync pending" : repeated ? "Note saved · also in your Mistake Log" : "Note saved");
     } catch (failure) {
       pending.submitted = false; // Same UUID on retry, never duplicate the correction.
       setNoteToast(failure instanceof Error ? `Note not saved: ${failure.message}` : "Note could not be saved");
@@ -878,7 +878,7 @@ export default function CosmosWindow() {
             sessionId: sessionRef.current, templateId: template.id, grade,
             attempt: method === "type" ? typed : "",
             referenceAnswer: answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
-            explanation: "", submitted: false,
+            explanation: "", repeated: suggestRelearning([...(events ?? []), graded].filter((entry) => entry.cardId === card.id)), submitted: false,
           };
         }
       } else await advance(queue, index + 1);
