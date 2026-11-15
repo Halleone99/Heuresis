@@ -607,18 +607,12 @@ const scenarios = {
       "every transition is in the card history: New → Learn, Learn → Review, Review → Learn");
   },
 
-  async "subject and topic filtering, and Start follows the selected mode"(page) {
+  async "subject and topic filtering, and Start follows the selected mode"(page, context) {
     await sendToLearn("以前", "anrufen", "говорить");
     await sql(`update heuresis_cards set data = data || jsonb_build_object('_sorted_at', now()::text, '_acquisition_v1',
       '{"phase":"review","cycle":0,"completed":[],"history":[]}'), interest_rank = 3 where data->>'term' = '以后'`);
     await openStudy(page);
-    const pick = async (subject, topic) => {
-      await page.locator(".sh-picker-trigger").click();
-      if (!subject) { await page.locator('.sh-pane-subject:has-text("All subjects")').click(); return; }
-      const group = page.locator(`.today-study-picker-group:has(.today-study-picker-subject-name:text-is("${subject}"))`);
-      if (await group.locator(".today-study-picker-topics").count() === 0) await group.locator(".today-study-picker-subject button").click();
-      await group.locator(`.today-study-picker-topics button:has-text("${topic ?? "All topics"}")`).click();
-    };
+    const pick = (subject, topic) => pickScope(page, subject, topic);
     await chooseStage(page, "learn");
     check(await stat(page, "Learning") === "3", "All subjects: three cards are in Learn");
     await pick("German");
@@ -640,9 +634,11 @@ const scenarios = {
     await page.waitForTimeout(1200);
     // A topic with nothing in Learn: Start is disabled rather than opening an empty session.
     await pick("Chinese", "Everyday sentences");
-    check(await stat(page, "Learning") === "0" && await page.locator(".sh-start").isDisabled(), "a topic with nothing in Learn: 0 learning and Start disabled");
+    check(await stat(page, "Learning") === "0" && await page.locator(".sh-stage.tone-learn").isDisabled(),
+      "a topic with nothing in Learn: Learn is disabled");
     await pick("Chinese", "HSK 2 — Time");
-    check(await stat(page, "Learning") === "1" && await page.locator(".sh-start").isEnabled(), "the Chinese topic with a card in Learn: 1 learning");
+    check(await stat(page, "Learning") === "1" && await page.locator(".sh-stage.tone-learn").isEnabled(),
+      "the Chinese topic with a card in Learn: 1 learning");
     // The same Start button follows the mode.
     await chooseStage(page, "new");
     await page.click(".sh-start");
@@ -651,9 +647,15 @@ const scenarios = {
     await page.keyboard.press("Escape");
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "1", "Chinese · HSK 2 — Time: one card due in Review");
+    const reviewPagePromise = context.waitForEvent("page");
     await page.click(".sh-start");
-    await page.locator(".reviews-centre").waitFor();
-    check(await page.locator(".lrn").count() === 0, "Start in Review opens Review, not Learn");
+    await page.locator(".sh-session-pop").waitFor();
+    await page.locator(".sh-session-options button:last-child").click();
+    await page.locator(".sh-session-confirm").click();
+    const reviewPage = await reviewPagePromise;
+    await reviewPage.locator(".cosmos-count").waitFor();
+    check(await page.locator(".lrn").count() === 0, "Start in Review opens the Review window directly, not Learn");
+    await reviewPage.close();
     check(await sql("select count(*) from heuresis_learn_rounds") === "1" && await gradeCount() === 0, "only the one Learning round was created; no review was recorded");
   },
 
@@ -822,7 +824,7 @@ const scenarios = {
     check(await gradeCount() === 0, "and no review was recorded");
     await page.click('.lrn-actions button:has-text("Return to Learn")');
     await page.waitForTimeout(1200);
-    check(await page.locator(".sh-start").isDisabled(), "Learn's Start is disabled once nothing is in Learn");
+    check(await page.locator(".sh-stage.tone-learn").isDisabled(), "Learn is disabled once nothing is in Learn");
   },
 
   async "answers given offline reach the server once"(page, context) {
