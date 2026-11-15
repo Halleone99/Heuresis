@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Layers3, Link2, Pencil, Play, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Link2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
@@ -6,6 +6,7 @@ import { listCards, listTags, type CardWithStats, type Collection, type Heuresis
 import { NEW_CARD_QUOTA_EVENT, readNewCardQuota } from "../lib/newCardQuota";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
+import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
 import LearningSession from "./LearningSession";
 import ReviewCentre from "./ReviewCentre";
@@ -55,6 +56,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [learningSession, setLearningSession] = useState<{ topics: LearnTopic[]; title: string } | null>(null);
   const [learningOpening, setLearningOpening] = useState(false);
   const [newOpening, setNewOpening] = useState(false);
+  const [reviewOpening, setReviewOpening] = useState(false);
   const [newError, setNewError] = useState("");
   const [reviewLaunchIds, setReviewLaunchIds] = useState<string[] | null>(null);
   const [reviewLaunchTopicId, setReviewLaunchTopicId] = useState<string | null>(null);
@@ -64,7 +66,6 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [relatedCounts, setRelatedCounts] = useState<Record<string, number>>({});
   const [captureRevision, setCaptureRevision] = useState(0);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
-  const totalCards = packs.reduce((sum, pack) => sum + pack.card_count, 0);
   const filteredReviewIds = reviewLaunchIds ?? collections.map((item) => item.id);
   const refreshReviews = () => setReviewRevision((previous) => previous + 1);
 
@@ -80,6 +81,34 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
     } finally { setNewOpening(false); }
+  }
+
+  async function startReview(size: number, scopedPacks: PackWithType[]) {
+    if (!reviewOverview || reviewOpening || !Number.isInteger(size) || size < 1) return;
+    let remaining = size;
+    const entries: Array<{ packId: string; cardIds: string[] }> = [];
+    // The scope and topic order come directly from the subject picker.
+    for (const pack of scopedPacks) {
+      if (remaining <= 0) break;
+      const cards = (reviewOverview.topics[pack.id]?.readyCardIds ?? []).slice(0, remaining);
+      if (!cards.length) continue;
+      entries.push({ packId: pack.id, cardIds: cards });
+      remaining -= cards.length;
+    }
+    if (!entries.length) return;
+    setReviewOpening(true);
+    setNewError("");
+    try {
+      const reviewRouteToken = createReviewRoute(entries);
+      await openCosmosWindow({
+        mode: "review", packId: entries[0].packId,
+        source: "all", order: "weakest", count: "all",
+        cardIds: entries[0].cardIds, reviewRouteToken,
+      });
+      refreshReviews();
+    } catch (failure) {
+      setNewError(failure instanceof Error ? failure.message : "Could not open Review.");
+    } finally { setReviewOpening(false); }
   }
 
   async function startLearning(requested: PackWithType | PackWithType[], scopeTitle?: string) {
@@ -285,9 +314,6 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
 
   const selectedCards = selectedPacks.reduce((sum, pack) => sum + pack.card_count, 0);
   const selectedSeen = selectedPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-  const selectedNewWords = selectedCollection ? relatedCounts[selectedCollection.id] ?? 0 : 0;
-  const lastOpened = newestOpen(selectedPacks);
-  const resumePack = selectedPacks.find((pack) => pack.last_opened_at === lastOpened) ?? selectedPacks[0];
   const recentPacks = selectedPacks.slice().sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01")).slice(0, 2);
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
 
@@ -295,18 +321,14 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     <section className="library-page intelligent-library">
       <header className="intelligent-library-head">
         <div className="library-head-copy">
-          <h1>Heuresis<span>.</span></h1>
-          
-          <div className="library-home-totals" aria-label="Library totals">
-            <span><BookOpen size={15} aria-hidden="true" /><strong>{totalCards.toLocaleString()}</strong> cards</span>
-            <span><Layers3 size={15} aria-hidden="true" /><strong>{collections.length.toLocaleString()}</strong> collections</span>
-          </div>
+          <h1>Study<span>.</span></h1>
         </div>
       </header>
 
       {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
-        quota={newCardQuota} opening={newOpening || learningOpening} error={newError}
+        quota={newCardQuota} opening={newOpening || learningOpening || reviewOpening} error={newError}
         onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
+        onStartReview={(count, scopedPacks) => void startReview(count, scopedPacks)}
         onStartNew={(pack, count) => void startNewCards(pack, count)}
         onStartLearning={(eligible, scopeTitle) => void startLearning(eligible, scopeTitle)} /> : null}
 
@@ -329,14 +351,6 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
               <ChevronRight size={16} className="library-topic-chevron" aria-hidden="true" />
             </button>)}
           </div> : <button type="button" className="library-resume-empty" onClick={() => onNewTopic(selectedCollection.id)}>Create your first topic <ArrowRight size={14} /></button>}
-          <div className="library-resume-actions">
-            {resumePack ? <button type="button" className="library-resume-primary" onClick={() => onOpen(resumePack)} title={"Continue " + resumePack.title}><Play size={14} fill="currentColor" aria-hidden="true" /> Continue last topic</button>
-              : <button type="button" className="library-resume-primary" onClick={() => onNewTopic(selectedCollection.id)}><Plus size={14} aria-hidden="true" /> New topic</button>}
-            <button type="button" className="library-resume-secondary" onClick={() => openCollection(selectedCollection.id)}>View all topics</button>
-          </div>
-          {selectedNewWords > 0 ? <button type="button" className="library-resume-discoveries" onClick={() => onOpenNewWords(selectedCollection)}>
-            <Sparkles size={14} aria-hidden="true" /> {plural(selectedNewWords, "uncatalogued discovery")} <ArrowRight size={13} aria-hidden="true" />
-          </button> : null}
         </section>
         <aside className="library-stack" aria-label="Collections">
           <div className="library-stack-head">
