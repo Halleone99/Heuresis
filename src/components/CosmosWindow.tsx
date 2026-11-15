@@ -1262,7 +1262,7 @@ export default function CosmosWindow() {
         {!redesignReview ? <strong>Listening question</strong> : null}
         {redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question" title="Play question"><Play size={28}/></button> : null}
         <p>{redesignReview ? "Listen, then answer." : "Listen first; the written prompt appears after reveal."}</p>
-        {!redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button> : null>
+        {!redesignReview ? <button type="button" onClick={() => spokenPrompt && playAudio(spokenPrompt.text, spokenPrompt.key)} aria-label="Play question">▶ Play / replay</button> : null}
       </div> : <>
         {recap.map((key, position) => renderField(key, position, true))}
         {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
