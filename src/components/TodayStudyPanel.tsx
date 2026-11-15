@@ -420,7 +420,7 @@ export default function TodayStudyPanel({
 
       {view === "quality" ? <div className="sh-quality-grid">{quality}</div> : null}
     </div>
-    {error ? <p className="sh-notice" role="alert">{error}</p> : null}
+    {error && (mode === "new" || mode === "learn") ? <p className="sh-notice" role="alert">{error}</p> : null}
     {mode === "learn" && overview?.learnAvailable === false && !error
       ? <p className="sh-notice" role="status">{LEARN_SETUP_MESSAGE}</p> : null}
     {overview?.incomplete ? <p className="sh-notice" role="status">Some topic counts are unavailable.</p> : null}
