@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { KeyboardEvent } from "react";
 
 type Props = {
@@ -19,7 +19,6 @@ export function InlineSortText({ value, label, placeholder, required, multiline,
   const [error, setError] = useState("");
   const original = useRef(value);
   const cancelled = useRef(false);
-  const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
   useEffect(() => { setDraft(value); original.current = value; }, [value]);
 
@@ -53,8 +52,8 @@ export function InlineSortText({ value, label, placeholder, required, multiline,
     }
   }
 
-  const attrs = { ref: field, "aria-label": label, "aria-invalid": Boolean(error), disabled, className: "sort-inline-text " + className,
-    placeholder, value: draft, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(event.target.value),
+  const attrs = { "aria-label": label, "aria-invalid": Boolean(error), disabled, className: "sort-inline-text " + className,
+    placeholder, value: draft, onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(event.target.value),
     onFocus: focus, onBlur: () => { void blur(); }, onKeyDown: keyDown };
   return <span className="sort-inline-wrap">
     {multiline ? <textarea {...attrs} rows={2} /> : <input {...attrs} type="text" />}
