@@ -250,7 +250,7 @@ const scenarios = {
 
   async "review keeps the prompt visible after reveal"(page) {
     await page.goto(`${BASE}?cosmos=1&mode=review&pack=${HSK}&source=all&order=pack&count=3`);
-    await page.locator(".cosmos-count").waitFor({ timeout: 15000 });
+    await page.locator(".review-top-progress > span:first-child").waitFor({ timeout: 15000 });
     const prompt = (await page.locator(".cosmos-card-copy").innerText()).trim();
     await page.keyboard.press(" ");
     await page.locator(".cosmos-card-copy.revealed").waitFor();
