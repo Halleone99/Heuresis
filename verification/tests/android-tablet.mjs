@@ -66,7 +66,7 @@ async function sortByTouch(page, name) {
   const current = async () => (await page.locator(".sort-inline-text.term").inputValue()).trim();
   tapped(await fingerTap(page, ".sort-new-decision-heading button", { label: "To Review preference" }),
     "Review is selected once for this session");
-  check(/Goes to Review/.test(await page.locator(".sort-new-decision-heading").innerText()),
+  check(/Goes to Review/.test(await page.locator(".sort-new-decision-heading button").getAttribute("aria-label") ?? ""),
     "the destination changes to Review without classifying");
   const first = await current();
   tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(1)", { label: "Core" }),
