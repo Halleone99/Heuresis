@@ -17,6 +17,8 @@ export PGOPTIONS="-c client_min_messages=warning"
 P="psql -h $PGHOST -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q -At"
 DB=heuresis_learn_migration
 LEARN=../supabase/migrations/20261110120000_heuresis_learn_rounds.sql
+# Study activity depends on Learn tables, so apply it after the Learn migration.
+STUDY=../supabase/migrations/20261115150000_heuresis_study_activity.sql
 V2=20261012090000_knowledge_workspace_v2.sql
 fail() { echo "✗ $1"; exit 1; }
 pass() { echo "  ✓ $1"; }
@@ -27,7 +29,7 @@ $P -c "create database $DB template heuresis_v1_baseline"
 for f in ../supabase/migrations/*.sql; do
   name="$(basename "$f")"
   [[ "$name" < "$V2" ]] && continue
-  [[ "$name" == "$(basename "$LEARN")" ]] && continue
+  [[ "$name" == "$(basename "$LEARN")" || "$name" == "$(basename "$STUDY")" ]] && continue
   $P -d "$DB" -1 -f "$f" >/dev/null 2>&1 || fail "migration failed: $name"
 done
 $P -d "$DB" -f sql/20_showcase.sql >/dev/null
@@ -60,6 +62,9 @@ fingerprint() {
 }
 before="$(fingerprint)"
 $P -d "$DB" -1 -f "$LEARN" >/dev/null || fail "the Learn migration failed"
+# This function reads heuresis_learn_attempts, absent until Learn is installed.
+$P -d "$DB" -1 -f "$STUDY" >/dev/null || fail "the Study activity migration failed after Learn"
+$P -d "$DB" -c "select count(*) from public.heuresis_study_activity(array[]::uuid[], current_date - 13, current_date, 'UTC')" >/dev/null || fail "the Study activity function cannot run"
 after="$(fingerprint)"
 [ "$before" = "$after" ] || { diff <(echo "$before") <(echo "$after"); fail "existing data or policies changed"; }
 pass "every existing table, row and policy is unchanged ($(echo "$before" | wc -l) tables and the policy list compared)"

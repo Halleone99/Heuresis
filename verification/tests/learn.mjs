@@ -213,9 +213,8 @@ const scenarios = {
     // from the scoped batch, leaving the other New cards for another session.
     await startAllNew(page);
     await page.locator(".sort-card").waitFor();
-    const term = await page.locator(".sort-card strong").innerText();
-    await page.keyboard.press("u");
-    await page.click('.sort-save-next:has-text("To Learn")');
+    const term = await page.locator(".sort-inline-text.term").inputValue();
+    await page.locator(".sort-new-ratings button:nth-child(2)").click();
     await page.waitForTimeout(500);
     const afterSort = await phaseOf(term);
     check(afterSort.phase === "learning" && afterSort.cycle === 1, `New → Learn: “${term}” is in Learn, first cycle`);
@@ -505,9 +504,9 @@ const scenarios = {
     await pickScope(page, "Chinese", "HSK 2 — Time");
     await startAllNew(page);
     await page.locator(".sort-card").waitFor();
-    const term = await page.locator(".sort-card strong").innerText();
-    await page.keyboard.press("c");
-    await page.click('.sort-footer-later:has-text("To Review")');
+    const term = await page.locator(".sort-inline-text.term").inputValue();
+    await page.locator(".sort-new-decision-heading button").click();
+    await page.locator(".sort-new-ratings button:nth-child(1)").click();
     await page.waitForTimeout(500);
     const id = await cardId(term);
     const state = await phaseOf(term);
@@ -655,7 +654,7 @@ const scenarios = {
     await page.locator(".sh-session-options button:last-child").click();
     await page.locator(".sh-session-confirm").click();
     const reviewPage = await reviewPagePromise;
-    await reviewPage.locator(".cosmos-count").waitFor();
+    await reviewPage.locator(".review-top-progress > span:first-child").waitFor();
     check(await page.locator(".lrn").count() === 0, "Start in Review opens the Review window directly, not Learn");
     await reviewPage.close();
     check(await sql("select count(*) from heuresis_learn_rounds") === "1" && await gradeCount() === 0, "only the one Learning round was created; no review was recorded");

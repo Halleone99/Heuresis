@@ -1,15 +1,18 @@
-import { ArrowRight, Brain, Check, ChevronDown, Pencil, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Brain, Check, ChevronDown, PanelLeftOpen, Search, Shuffle, Tag, Undo2, Volume2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { enterLearning, enterReview, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
-import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
+import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
+import { InlineSortText } from "./InlineSortText";
+import { reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import "./sort.css";
 import "./sort-enrichment.css";
 import "./sort-refined.css";
+import "./sort-session.css";
 
 type Props = {
   pack: PackWithType;
@@ -25,8 +28,12 @@ type Props = {
   onLearning?: () => void;
 };
 
-type Removal = { kind: "learn" | "discard"; card: CardWithStats; phase?: AcquisitionPhase };
+type Removal = { kind: "learn" | "discard" | "later"; card: CardWithStats; phase?: AcquisitionPhase; rank?: number };
 const ORDER_KEY = "heuresis.sort.order.v1";
+const DESTINATION_KEY = "heuresis.sort.destination.v1";
+function readDestination(): AcquisitionPhase {
+  try { return localStorage.getItem(DESTINATION_KEY) === "review" ? "review" : "learning"; } catch { return "learning"; }
+}
 
 function readOrder(): "topic" | "random" {
   try { return localStorage.getItem(ORDER_KEY) === "random" ? "random" : "topic"; } catch { return "topic"; }
@@ -94,6 +101,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     try { localStorage.setItem(ORDER_KEY, randomOrder ? "random" : "topic"); } catch { /* preference only */ }
     setQueue(selection.slice(0, selectedCount));
     setIndex(0);
+    setLearned(0); setToLearning(0); setToReview(0); setDiscarded(0); setLeftForLater(0); setLastRemoval(null);
     setSessionStarted(true);
     setFiltersOpen(false);
   }
@@ -104,9 +112,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [noteDraft, setNoteDraft] = useState("");
   const [editingCard, setEditingCard] = useState(false);
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
-  const [selectedRank, setSelectedRank] = useState<number | null>(null);
-  const [cardDraft, setCardDraft] = useState<Record<string, string>>({});
-  const [cardEditError, setCardEditError] = useState("");
+  const [detailsCount, setDetailsCount] = useState(0);
+  const [destination, setDestination] = useState<AcquisitionPhase>(readDestination);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -114,6 +122,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [toLearning, setToLearning] = useState(0);
   const [toReview, setToReview] = useState(0);
   const [discarded, setDiscarded] = useState(0);
+  const [leftForLater, setLeftForLater] = useState(0);
   const [lastRemoval, setLastRemoval] = useState<Removal | null>(null);
 
   const card = queue[index] ?? null;
@@ -131,8 +140,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   useEffect(() => {
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
-    setEditingCard(false); setCardEditError("");
-    setEnrichmentOpen(false); setSelectedRank(null);
+    setEditingCard(false); setNoteOpen(Boolean(card?.note));
+    setEnrichmentOpen(false); setDetailsCount(0);
     setMessage("");
   }, [card?.id]);
 
@@ -145,29 +154,23 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     finally { setBusy(false); }
   }
 
-  function beginCardEdit() {
+  async function saveInlineField(fieldKey: string, value: string) {
     if (!card || busy || enrichmentBlocked) return;
-    setEnrichmentOpen(true);
-    setCardDraft(Object.fromEntries(editFields.map((field) => [field.key, fieldText(card.data, field.key)])));
-    setCardEditError("");
-    setEditingCard(true);
-  }
-
-  async function saveCardEdit() {
-    if (!card || !editingCard || busy || enrichmentBlocked) return;
-    const missing = editFields.find((field) => field.required && !cardDraft[field.key]?.trim());
-    if (missing) { setCardEditError(`${missing.label} is required.`); return; }
-    setBusy(true); setCardEditError("");
+    setBusy(true); setMessage("");
     try {
-      const patch = Object.fromEntries(editFields.map((field) => [field.key, (cardDraft[field.key] ?? "").trim()]));
-      const savedData = await patchCardData(card.id, patch);
-      // A sorting pass holds its own queue; refresh it immediately as well as the topic list.
-      setQueue((current) => current.map((item) => item.id === card.id ? { ...item, data: savedData } : item));
-      setEditingCard(false);
+      const saved = await patchCardData(card.id, { [fieldKey]: value });
+      setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item));
       onChanged();
     } catch (error) {
-      setCardEditError(error instanceof Error ? error.message : "Could not save the card.");
+      const message = error instanceof Error ? error.message : "Could not save the card.";
+      setMessage(message); throw error;
     } finally { setBusy(false); }
+  }
+
+  function switchDestination() {
+    const next: AcquisitionPhase = destination === "learning" ? "review" : "learning";
+    setDestination(next);
+    try { localStorage.setItem(DESTINATION_KEY, next); } catch { /* preference only */ }
   }
 
   async function saveQuickNote() {
@@ -184,7 +187,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     } else onClose();
   }
 
-  async function learn(rank: number, destination: AcquisitionPhase = "learning") {
+  async function learn(rank: number, phase: AcquisitionPhase = destination) {
     if (!card || busy || enrichmentBlocked || editingCard) return;
     setBusy(true); setMessage("");
     try {
@@ -194,13 +197,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // Phase is saved before sorting, so a partially completed action cannot leak into Review.
       // "To Review" skips the exercises and changes the phase only: no review grade is recorded,
       // so the card arrives in Review exactly as an unreviewed card.
-      const next = destination === "learning" ? enterLearning(state, "new") : enterReview(state, "direct");
+      const next = phase === "learning" ? enterLearning(state, "new") : enterReview(state, "direct");
       await patchCardData(card.id, { [LEARNING_STAGE_KEY]: serializeAcquisition(next) });
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
-      if (destination === "learning") setToLearning((value) => value + 1);
+      if (phase === "learning") setToLearning((value) => value + 1);
       else setToReview((value) => value + 1);
-      setLastRemoval({ kind: "learn", card, phase: destination });
+      setLastRemoval({ kind: "learn", card: { ...card, note: noteDraft.trim() || null }, phase, rank });
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this decision."); }
@@ -214,7 +217,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       await saveQuickNote();
       await discardCard(card);
       setDiscarded((value) => value + 1);
-      setLastRemoval({ kind: "discard", card });
+      setLastRemoval({ kind: "discard", card: { ...card, note: noteDraft.trim() || null } });
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not discard this card."); }
@@ -228,12 +231,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setBusy(true); setMessage("");
     try {
       if (kind === "discard") await restoreDiscardedCard(restored.id);
-      else {
+      else if (kind === "learn") {
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
         await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: restored.data[LEARNING_STAGE_KEY] ?? null });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
+      else if (kind === "later") setLeftForLater((value) => Math.max(0, value - 1));
       else {
         setLearned((value) => Math.max(0, value - 1));
         if (lastRemoval.phase === "learning") setToLearning((value) => Math.max(0, value - 1));
@@ -256,7 +260,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setBusy(true); setMessage("");
     try {
       await saveQuickNote();
-      setLastRemoval(null);
+      setLastRemoval({ kind: "later", card: { ...card, note: noteDraft.trim() || null } });
+      setLeftForLater((value) => value + 1);
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the quick note."); }
@@ -277,7 +282,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // Escape works from the filter's search field too (it closes the filter first),
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
-        if (editingCard && !busy) { event.preventDefault(); setEditingCard(false); setCardEditError(""); return; }
         if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setEnrichmentOpen(false); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
@@ -289,14 +293,15 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       const key = event.key.toLowerCase();
       // Retain older Sort keyboard actions for existing users, without
       // crowding the new interface with shortcut labels.
-      if (key === "c" || key === "u" || key === "p") {
-        event.preventDefault(); setSelectedRank(key === "c" ? 5 : key === "u" ? 3 : 1); return;
+      if (["1", "2", "3", "c", "u", "p"].includes(key)) {
+        event.preventDefault(); void learn(key === "1" || key === "c" ? 5 : key === "2" || key === "u" ? 3 : 1); return;
       }
-      if (event.key === "Enter" && selectedRank !== null) { event.preventDefault(); void learn(selectedRank); return; }
+      if (key === "r") { event.preventDefault(); switchDestination(); return; }
       if (key === "e") { event.preventDefault(); setEnrichmentOpen((open) => !open); return; }
       if (key === "d" || event.key === "Delete") { event.preventDefault(); void discard(); return; }
       if (key === "l" || key === "s") { event.preventDefault(); later(); return; }
-      if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); }
+      if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); return; }
+      if (key === "n") { event.preventDefault(); setNoteOpen(true); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -305,17 +310,24 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked || editingCard} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
+  const languageLabel = pack.cardType?.name?.replace(/\b(cards?|vocabulary|words?)\b/gi, "").trim() || "CARD";
+  const exampleField = fieldByRole(pack.cardType, "example");
+  const translationField = fieldByRole(pack.cardType, "example_translation");
+  const rawBlocks = card?.data["_workspace_blocks"];
+  const firstBlock = Array.isArray(rawBlocks) ? rawBlocks.find((value) => { try { const parsed = JSON.parse(value); return parsed.dim === "examples" && parsed.type === "text"; } catch { return false; } }) : undefined;
+  const firstExample = card ? fieldText(card.data, exampleField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\n")[0] : "") : "";
+  const exampleTranslation = card ? fieldText(card.data, translationField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\n").slice(2).join(" ") : "") : "";
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
-  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={filtersOpen && unsorted.length ? "sort-modal sort-modal--setup" : card ? `sort-modal sort-modal--session${enrichmentOpen ? " sort-modal--editing" : ""}` : "sort-modal"} role="dialog" aria-modal="true" aria-label="New cards">
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={filtersOpen && unsorted.length ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (enrichmentOpen ? " sort-modal--editing" : "")} role="dialog" aria-modal="true" aria-label="New cards">
 
     <header className="sort-topbar">
-      <div><span className="eyebrow">NEW CARDS</span><strong>{pack.title}</strong></div>
-      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={card ? `Card ${index + 1} of ${queue.length}` : `${decided} cards decided`}><span>{card ? `${index + 1} / ${queue.length}` : `${decided} decided`}</span>{card ? <div className="sort-progress-track"><div style={{width: `${((index + 1) / queue.length) * 100}%`}} /></div> : null}</div>}
+      <div className="sort-new-heading"><span className="sort-stage-chip">● New</span><strong>{pack.title}</strong></div>
+      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={card ? `Card ${index + 1} of ${queue.length}` : `${decided} cards decided`}><span>{card ? `${index + 1} of ${queue.length}` : `${queue.length} of ${queue.length}`}</span>{card ? <div className="sort-progress-track"><div style={{width: `${((index + 1) / queue.length) * 100}%`}} /></div> : null}</div>}
       <div className="sort-topbar-actions">
         {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
-        {sessionStarted ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
+        {sessionStarted && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
         <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
@@ -386,87 +398,119 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         </button>
       </div>
     </div> : null}
-    {!filtersOpen && !unsorted.length && !queue.length ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">NO NEW CARDS</p><h2>All cards have been classified.</h2><p>New cards arrive here when you capture them.</p>
-      <div className="sort-finished-actions">{onReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review</button> : null}<button type="button" className="is-quiet" onClick={onClose}>Return to topic</button></div></div> : null}
-    {!filtersOpen && finished ? <div className="sort-finished"><Check size={27} /><p className="eyebrow">PASS COMPLETE</p>
-      <h2>{decided} {decided === 1 ? "card" : "cards"} decided.</h2>
-      <p>{[toLearning ? `${toLearning} to Learn` : "", toReview ? `${toReview} to Review` : "", discarded ? `${discarded} discarded (in Trash)` : ""].filter(Boolean).join(" · ") || "Nothing decided."}{remaining || queue.length - decided > 0 ? " Cards left for later stay unsorted." : ""}</p>
-      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={14} /> Undo {lastRemoval.kind === "discard" ? "discard" : "learn"}</button> : null}
-      <div className="sort-finished-actions">{onLearning && toLearning ? <button type="button" onClick={() => { onClose(); onLearning(); }}><Brain size={15} /> Start Learn</button> : null}{onReview && toReview ? <button type="button" onClick={() => { onClose(); onReview(); }}><Brain size={15} /> Review now</button> : null}<button type="button" className="is-quiet" disabled={busy || enrichmentBlocked || editingCard} onClick={onClose}>Return to topic</button></div>
+
+    {!filtersOpen && (!unsorted.length && !queue.length || finished) ? <div className="sort-finished">
+      <p className="eyebrow">{finished ? "SESSION COMPLETE" : "NO NEW CARDS"}</p>
+      <h2>{finished ? queue.length + " new " + (queue.length === 1 ? "card" : "cards") + " met" : "All cards have been classified."}</h2>
+      {finished ? <div className="sort-summary-stats">
+        <span><b>{toLearning}</b> to Learn</span><span><b>{toReview}</b> to Review</span>
+        <span><b>{discarded}</b> discarded</span><span><b>{leftForLater}</b> for later</span>
+      </div> : <p>New cards appear here when you capture them.</p>}
+      <div className="sort-finished-actions">
+        {onLearning && toLearning > 0 ? <button type="button" onClick={() => { onClose(); onLearning(); }}>Start Learning</button> : null}
+        {onReview && toReview > 0 ? <button type="button" onClick={() => { onClose(); onReview(); }}>Review now</button> : null}
+        <button type="button" className="is-quiet" onClick={onClose}>Back to Study</button>
+      </div>
+      {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy} onClick={() => void undo()}>
+        Undo last ({fieldText(lastRemoval.card.data, term?.key) || "card"})
+      </button> : null}
     </div> : null}
-    {!filtersOpen && card ? <div className="sort-body">
-      <div id="sort-editing-tools" className="sort-editing-tools"><SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} onBlockedChange={setEnrichmentBlocked} /></div>
-      <div className="sort-card" data-card-id={card.id} aria-label="Complete flashcard">
-        {!editingCard ? <button type="button" className={`sort-enrichment-toggle${enrichmentOpen ? " active" : ""}`} aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy || enrichmentBlocked} onClick={() => setEnrichmentOpen((open) => !open)}><Pencil size={15} /> {enrichmentOpen ? "Done editing" : "Edit details"}</button> : null}
-        {editingCard ? <form className="sort-card-editor" onSubmit={(event) => { event.preventDefault(); void saveCardEdit(); }}>
-          <h3>Edit card</h3>
-          <p>Correct the card before deciding its importance.</p>
-          {editFields.map((field) => <label key={field.key}>
-            <span>{field.label}{field.required ? " *" : ""}</span>
-            {field.role === "meaning" ? <textarea rows={3} autoFocus={field.key === editFields[0]?.key}
-              value={cardDraft[field.key] ?? ""} onChange={(event) => setCardDraft((draft) => ({ ...draft, [field.key]: event.target.value }))} />
-              : <input autoFocus={field.key === editFields[0]?.key} value={cardDraft[field.key] ?? ""}
-                onChange={(event) => setCardDraft((draft) => ({ ...draft, [field.key]: event.target.value }))} />}
-          </label>)}
-          {cardEditError ? <p className="sort-card-editor-error" role="alert">{cardEditError}</p> : null}
-          <div className="sort-card-editor-actions">
-            <button type="button" disabled={busy} onClick={() => { setEditingCard(false); setCardEditError(""); }}>Cancel</button>
-            <button type="submit" className="primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+    {!filtersOpen && card ? <div className="sort-session-stage">
+      <div id="sort-editing-tools" className={"sort-editing-tools" + (enrichmentOpen ? " is-open" : "")}>
+        <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged}
+          onBlockedChange={setEnrichmentBlocked} onCountChange={setDetailsCount}
+          onDataChanged={(saved) => setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item))} />
+      </div>
+      <article className="sort-card" data-card-id={card.id} aria-label="New flashcard">
+        <div className="sort-new-card-header">
+          <span><small>{languageLabel.toUpperCase()}</small><i>·</i> New card</span>
+          <button type="button" className={"sort-new-details" + (enrichmentOpen ? " on" : "")}
+            aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy || enrichmentBlocked || editingCard}
+            onClick={() => setEnrichmentOpen((open) => !open)} title="Details (E)">
+            <PanelLeftOpen size={15} /> Details {detailsCount ? <b>{detailsCount}</b> : null}
+          </button>
+        </div>
+        <div className="sort-new-content">
+          <div className="sort-new-term">
+            {term ? <InlineSortText key={card.id + term.key} value={fieldText(card.data, term.key)}
+              label={term.label} placeholder="add the term" required={term.required} disabled={busy || enrichmentBlocked}
+              className="term" onEditingChange={setEditingCard}
+              onCommit={(value) => saveInlineField(term.key, value)} /> : null}
+            {fieldText(card.data, term?.key) ? <button type="button" className="sort-new-audio"
+              aria-label="Hear term" title="Hear term" onClick={() => void speakReviewText(
+                fieldText(card.data, term?.key), reviewSpeechLanguage(fieldText(card.data, term?.key), pack.title, pack.cardType?.name ?? "", "term"))}>
+              <Volume2 size={19} /></button> : null}
           </div>
-        </form> : <>
-          <strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>
-          {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
-          {meaning ? <p>{fieldText(card.data, meaning.key)}</p> : null}
-          {enrichmentOpen ? <button type="button" className="sort-card-edit-trigger" disabled={busy || enrichmentBlocked || editingCard} onClick={beginCardEdit}>
-            <Pencil size={14} /> Edit card text
-          </button> : null}
-        </>}
-      </div>
-      <div className="sort-panel">
-        <div className="sort-interest-panel" role="group" aria-label="Learning importance">
-          <h3>Importance</h3>
-          <div className="sort-rating">{IMPORTANCE_ORDER.map((level) => {
-            const rank = IMPORTANCE_RANK[level];
-            return <button key={level} type="button"
-              aria-label={"Select " + IMPORTANCE_LABEL[level] + " importance"}
-              aria-pressed={selectedRank === rank}
-              className={selectedRank === rank ? "selected" : ""}
-              disabled={busy || enrichmentBlocked || editingCard}
-              onClick={() => setSelectedRank(rank)}>{IMPORTANCE_LABEL[level]}</button>;
-          })}</div>
-          <span className="sort-rating-caption">Select importance, then Save & Next · C / U / P</span>
+          <span className="sort-new-rule" aria-hidden="true" />
+          {reading ? <InlineSortText key={card.id + reading.key} value={fieldText(card.data, reading.key)}
+            label={reading.label} placeholder="add the reading" required={reading.required} disabled={busy || enrichmentBlocked}
+            className="reading" onEditingChange={setEditingCard}
+            onCommit={(value) => saveInlineField(reading.key, value)} /> : null}
+          {meaning ? <InlineSortText key={card.id + meaning.key} value={fieldText(card.data, meaning.key)}
+            label={meaning.label} placeholder="add the meaning" required={meaning.required} multiline
+            className="meaning" disabled={busy || enrichmentBlocked} onEditingChange={setEditingCard}
+            onCommit={(value) => saveInlineField(meaning.key, value)} /> : null}
+          <div className="sort-new-example">
+            {exampleField ? <InlineSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)}
+              label="Example sentence" placeholder="+ Example sentence" disabled={busy || enrichmentBlocked}
+              onEditingChange={setEditingCard} className="example"
+              onCommit={(value) => saveInlineField(exampleField.key, value)} />
+              : firstExample ? <button type="button" className="sort-new-example-link" onClick={() => setEnrichmentOpen(true)} title="Edit example in Details">{firstExample}</button>
+              : <button type="button" className="sort-new-add-example" onClick={() => setEnrichmentOpen(true)}>+ Example sentence</button>}
+            {translationField ? <InlineSortText key={card.id + translationField.key} value={fieldText(card.data, translationField.key)}
+              label="Example translation" placeholder="Translation" disabled={busy || enrichmentBlocked}
+              onEditingChange={setEditingCard} className="example-translation"
+              onCommit={(value) => saveInlineField(translationField.key, value)} />
+              : exampleTranslation ? <em>{exampleTranslation}</em> : null}
+          </div>
+          <div className="sort-new-tags">
+            {tags.filter((tag) => tagIds.includes(tag.id)).map((tag) => <button type="button" key={tag.id}
+              className={tag.is_badge ? "is-badge" : ""} disabled={busy || enrichmentBlocked || editingCard}
+              onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}>{tag.name} <X size={11}/></button>)}
+            <button type="button" className="sort-new-add-tag" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked || editingCard}
+              onClick={() => setTagsOpen((v) => !v)}>+ Tag</button>
+            {tagsOpen ? <div className="sort-new-tag-popover">
+              {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
+              {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}
+              {!tags.length ? <p>Create tags in Settings.</p> : null}
+            </div> : null}
+          </div>
+          <div className="sort-new-note">
+            {noteOpen ? <textarea rows={2} autoFocus aria-label="Quick note" placeholder="Something to remember…"
+              value={noteDraft} disabled={busy || enrichmentBlocked || editingCard}
+              onChange={(event) => setNoteDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); event.preventDefault(); setNoteOpen(false); } }} />
+              : <button type="button" onClick={() => setNoteOpen(true)}>+ Note</button>}
+          </div>
         </div>
-        <div className="sort-tags-control">
-          <div className="sort-side-heading"><h3><Tag size={15}/> Tags</h3>
-            <button type="button" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked || editingCard}
-              onClick={() => setTagsOpen((value) => !value)}>+ Add tag</button></div>
-          {selectedTagNames.length ? <div className="sort-selected-tags">
-            {tags.filter((tag) => tagIds.includes(tag.id)).map((tag) =>
-              <button type="button" key={tag.id} disabled={busy || enrichmentBlocked || editingCard} onClick={() => void toggleTag(tag.id)}
-                title={"Remove " + tag.name}>{tag.name} <X size={12}/></button>)}
-          </div> : <span className="sort-tags-empty">No tags on this card</span>}
-          {tagsOpen ? <div className="sort-tags">
-            {lessonTags.length ? <div className="sort-tag-group"><p>Lessons</p><div className="sort-lesson-tags">{lessonTags.map((tag) => renderTag(tag, true))}</div></div> : null}
-            {otherTags.length ? <div className="sort-tag-group"><p>Available tags</p><div>{otherTags.map((tag) => renderTag(tag))}</div></div> : null}
-            {!tags.length ? <small>No tags yet. Create them in Settings.</small> : null}
-          </div> : null}
+        <div className="sort-new-footer">
+          <div className="sort-new-decision-heading"><span>How important is it?</span>
+            <button type="button" onClick={switchDestination} disabled={busy || enrichmentBlocked || editingCard}
+              aria-label={"Goes to " + (destination === "learning" ? "Learn" : "Review") + "; change destination"}
+              title="Switch destination (R)">Goes to <b>{destination === "learning" ? "Learn" : "Review"}</b> <ArrowLeftRight size={14}/></button>
+          </div>
+          <div className="sort-new-ratings" role="group" aria-label="Learning importance">
+            {IMPORTANCE_ORDER.map((level, i) => <button type="button" key={level}
+              disabled={busy || enrichmentBlocked || editingCard} title={IMPORTANCE_HINT[level]}
+              onClick={() => void learn(IMPORTANCE_RANK[level])}>
+              <span className="sort-new-rating-top" /><span className="sort-new-rating-name">{IMPORTANCE_LABEL[level]} <kbd>{i + 1}</kbd></span>
+              <small>{IMPORTANCE_HINT[level]}</small>
+            </button>)}
+          </div>
+          <div className="sort-new-secondary">
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}>Later</button>
+            <span aria-hidden="true">·</span>
+            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}>Discard</button>
+          </div>
+          {message ? <p className="sort-error" role="alert">{message}</p> : null}
         </div>
-        <div className="sort-note-panel">
-          <h3>Quick note</h3>
-          <textarea rows={3} aria-label="Quick note" value={noteDraft} placeholder="A useful example or something to remember…"
-            disabled={busy || enrichmentBlocked || editingCard} onChange={(event) => setNoteDraft(event.target.value)} />
-        </div>
-        {message ? <div className="sort-error" role="alert">{message}</div> : null}
-      </div>
+      </article>
+      {lastRemoval ? <div className="sort-new-undo" role="status">
+        <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :
+          "→ " + (lastRemoval.phase === "review" ? "Review" : "Learn") + " · " +
+          (lastRemoval.rank === 5 ? "Core" : lastRemoval.rank === 3 ? "Active" : "Passive")}</span>
+        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13}/> Undo</button>
+      </div> : null}
     </div> : null}
-    {!filtersOpen && card ? <footer className="sort-session-footer">
-      <button type="button" className="sort-footer-discard" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}><Trash2 size={15} /> Discard</button>
-      {lastRemoval ? <div className="sort-undo" role="status"><span>Previous card: {fieldText(lastRemoval.card.data, term?.key) || "Card"} · {lastRemoval.kind === "discard" ? "discarded" : "added to learning"}</span>
-        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13} /> Undo</button></div> : null}
-      <div className="sort-footer-end">
-        <button type="button" className="sort-footer-later" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}><SkipForward size={15} /> Later</button>
-        <button type="button" className="sort-footer-later" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "review"); }}>To Review <ArrowRight size={15} /></button><button type="button" className="sort-save-next" disabled={selectedRank === null || busy || enrichmentBlocked || editingCard} onClick={() => { if (selectedRank !== null) void learn(selectedRank, "learning"); }}>To Learn <Brain size={16} /></button>
-      </div>
-    </footer> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
 }
