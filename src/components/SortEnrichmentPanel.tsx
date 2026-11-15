@@ -182,6 +182,13 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
     finally { setInlineBusy(false); }
   }
 
+  async function saveImageCaption(id: string, caption: string) {
+    setInlineBusy(true); setError("");
+    try { await writeBlocks(blocks.map((block) => block.id === id && block.type === "image" ? { ...block, caption } : block)); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not save the caption."); throw err; }
+    finally { setInlineBusy(false); }
+  }
+
   async function unlink(row: RelatedCatalogueRow) {
     if (blocked) return;
     setBusy(true); setError("");
@@ -191,6 +198,29 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
       onChanged();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not remove this relation."); }
     finally { setBusy(false); }
+  }
+
+  function richEditorFor(dim: Dimension) {
+    return <div className="sort-enrich-editor sort-enrich-inline-editor"
+      onBlurCapture={(event) => {
+        const next = event.relatedTarget;
+        if (next && event.currentTarget.contains(next as Node)) return;
+        if (busy) return;
+        const text = detailEditor.current?.getMarkdown() || draft;
+        if (text.trim()) void saveText();
+        else stopAdding();
+      }}>
+      <RichEditor ref={detailEditor} resetKey={editingId ?? card.id + ":" + dim}
+        value={draft} compactToolbar ariaLabel={"Edit " + labels[dim].toLowerCase()}
+        placeholder={dim === "examples" ? "Sentence, pinyin, translation…" : "Add a useful detail…"}
+        onChange={setDraft} onSave={() => void saveText()} onDone={() => void saveText()}
+        onEscape={stopAdding} autoFocus />
+      <div className="sort-enrich-editor-actions">
+        <button type="button" disabled={busy} onClick={stopAdding}>Cancel</button>
+        <button type="button" className="primary" disabled={busy || !(detailEditor.current?.getMarkdown() || draft).trim()}
+          onClick={() => void saveText()}>Save</button>
+      </div>
+    </div>;
   }
 
   return <aside className="sort-enrichment" aria-label="Enrich this flashcard">
@@ -220,14 +250,15 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
               disabled={busy || adding !== null} onEditingChange={setInlineBusy} onCommit={(value) => saveField(field.key, value)} />
           </div>)}
           {owned.map((block) => block.type === "text"
-            ? <div className="sort-enrich-item editable" key={block.id}>
+            ? editingId === block.id && adding === dim ? <div key={block.id}>{richEditorFor(dim)}</div>
+            : <div className="sort-enrich-item editable" key={block.id}>
               <button type="button" className="sort-enrich-text-open" disabled={blocked} onClick={() => openAdd(dim, "text", block)} title="Edit formatted text"><RichText text={block.text} className="sort-enrich-rich" /></button>
               <div className="sort-enrich-item-tools">
                 <button type="button" disabled={blocked} onClick={() => openAdd(dim, "text", block)} aria-label="Edit detail" title="Edit detail"><Pencil size={13}/></button>
                 <button type="button" disabled={blocked} onClick={() => void removeText(block.id)} aria-label="Remove detail" title="Remove detail"><X size={13}/></button>
               </div>
             </div>
-            : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
+            : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}<figcaption><InlineSortText value={block.caption} label="Image caption" placeholder="Add a caption" disabled={busy || adding !== null} onEditingChange={setInlineBusy} onCommit={(value) => saveImageCaption(block.id, value)} /></figcaption></figure>)}
           {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item sort-enrich-related">
             <InlineSortText value={row.term} label="Related word" required disabled={busy || adding !== null}
               onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "term", value)} />
@@ -241,7 +272,14 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
               <button type="button" disabled={blocked} onClick={() => void unlink(row)} aria-label="Remove related word"><X size={13} /></button>
             </div>
           </div>)}
-          {adding === dim ? <div className="sort-enrich-editor">
+          {adding === dim && !editingId ? <div className="sort-enrich-editor" onBlurCapture={(event) => {
+            const next = event.relatedTarget;
+            if (next && event.currentTarget.contains(next as Node)) return;
+            if (busy) return;
+            if (mode === "text" && (detailEditor.current?.getMarkdown() || draft).trim()) void saveText();
+            else if (mode === "word" && word.trim() && meaning.trim()) void saveWord();
+            else stopAdding();
+          }}>
             {mode === "word" ? <>
               <input autoFocus aria-label="Related word" placeholder="Word or expression" value={word} onChange={(event) => setWord(event.target.value)} />
               <input aria-label="Reading" placeholder="Reading / pinyin (optional)" value={reading} onChange={(event) => setReading(event.target.value)} />
@@ -252,13 +290,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
               value={draft} compactToolbar ariaLabel={"Write " + labels[dim].toLowerCase()}
               placeholder={dim === "examples" ? "Sentence, pinyin, translation…" : "Add a useful detail…"}
               onChange={setDraft} onSave={() => void saveText()} onDone={() => void saveText()}
-              onEscape={() => {
-                const entered = detailEditor.current?.getMarkdown() || draft;
-                // getMarkdown flushes the editor's pending debounce. Reflect its
-                // contents in React state so Save cannot stay disabled on Escape.
-                if (entered.trim()) setDraft(entered);
-                else stopAdding();
-              }} autoFocus />}
+              onEscape={stopAdding} autoFocus />}
             <div className="sort-enrich-editor-actions"><button type="button" disabled={busy} onClick={stopAdding}>Cancel</button><button type="button" className="primary" disabled={busy || (mode === "word" ? !word.trim() || !meaning.trim() : !(detailEditor.current?.getMarkdown() || draft).trim())} onClick={() => void (mode === "word" ? saveWord() : saveText())}>Save</button></div>
           </div> : <div className="sort-enrich-add-actions">
             <button type="button" onClick={() => openAdd(dim, "text")} disabled={blocked}><Plus size={13} /> {dim === "examples" ? "Add example" : dim === "components" ? "Add part" : "Add detail"}</button>
