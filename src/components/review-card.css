@@ -177,3 +177,23 @@
 @media(prefers-reduced-motion:reduce){
   .cosmos-shell[data-mode="review"] *, .cosmos-shell[data-mode="review"] *::before,.cosmos-shell[data-mode="review"] *::after {animation:none!important;transition:none!important}
 }
+
+/* Both vertical and horizontal centre guides repeat within each 田字格 square. */
+.cosmos-shell[data-mode="review"] .review-answer-pad-grid {position:relative}
+.cosmos-shell[data-mode="review"] .review-answer-pad-grid::after {
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:
+    repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
+    repeating-linear-gradient(to right,var(--ws-line-strong) 0 4px,transparent 4px 8px);
+  background-size:1px 100%,100% 1px;
+  background-position:16.6667% 0,0 50%;
+  background-repeat:repeat-x,repeat-y;
+}
+.cosmos-shell[data-mode="review"] .review-answer-pad.is-revealed .review-answer-pad-grid {width:252px}
+.cosmos-shell[data-mode="review"] .cosmos-typed-compare mark[data-kind="corrected"] {background:color-mix(in srgb,var(--c-sage) 24%,transparent)}
+.cosmos-shell[data-mode="review"] .cosmos-core-field.role-term.is-recap {display:flex;justify-content:center;align-items:center;gap:10px}
+.cosmos-shell[data-mode="review"] .review-toast {
+  position:fixed;left:50%;bottom:22px;z-index:90;transform:translateX(-50%);
+  border-radius:10px;padding:9px 14px;background:var(--ws-ink);color:var(--ws-page);
+  font:12px/1.35 var(--sans);white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.22);
+}
