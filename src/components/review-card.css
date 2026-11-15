@@ -184,10 +184,12 @@
   content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
   background-image:
     repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
+    repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
+    repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
     repeating-linear-gradient(to right,var(--ws-line-strong) 0 4px,transparent 4px 8px);
-  background-size:1px 100%,100% 1px;
-  background-position:16.6667% 0,0 50%;
-  background-repeat:repeat-x,repeat-y;
+  background-size:1px 100%,1px 100%,1px 100%,100% 1px;
+  background-position:16.6667% 0,50% 0,83.3333% 0,0 50%;
+  background-repeat:no-repeat;
 }
 .cosmos-shell[data-mode="review"] .review-answer-pad.is-revealed .review-answer-pad-grid {width:252px}
 .cosmos-shell[data-mode="review"] .cosmos-typed-compare mark[data-kind="corrected"] {background:color-mix(in srgb,var(--c-sage) 24%,transparent)}
