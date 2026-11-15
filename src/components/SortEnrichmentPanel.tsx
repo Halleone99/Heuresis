@@ -229,11 +229,11 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
             </div>
             : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
           {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item sort-enrich-related">
-            <InlineSortText value={row.term} label="Related word" required disabled={blocked}
+            <InlineSortText value={row.term} label="Related word" required disabled={busy || adding !== null}
               onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "term", value)} />
-            <InlineSortText value={row.reading} label="Related reading" placeholder="Reading" disabled={blocked}
+            <InlineSortText value={row.reading} label="Related reading" placeholder="Reading" disabled={busy || adding !== null}
               onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "reading", value)} />
-            <InlineSortText value={row.meaning} label="Related meaning" placeholder="Meaning" disabled={blocked}
+            <InlineSortText value={row.meaning} label="Related meaning" placeholder="Meaning" disabled={busy || adding !== null}
               onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "meaning", value)} />
             <div className="sort-enrich-related-tools">
               <button type="button" className={"relation-" + row.relation_type}
