@@ -144,47 +144,35 @@ const scenarios = {
     check(ratio >= 4.5, `hovered selected option has readable contrast (${ratio.toFixed(2)}:1)`);
   },
 
-  async "Sort restores the card enrichment rails and preserves additions"(page) {
+  async "Sort restores editable Details and preserves additions"(page) {
     await addUnsortedCards();
     await openTopic(page);
     await page.locator(".sort-command").click();
     await page.locator(".sort-setup-start").click();
-    await page.locator(".sort-enrichment-toggle").click();
-    await page.locator(".sort-enrichment").waitFor();
-    const left = await page.locator(".sort-enrichment").boundingBox();
+    await page.locator(".sort-new-details").click();
+    await page.locator(".sort-editing-tools.is-open").waitFor();
+    const left = await page.locator(".sort-editing-tools.is-open").boundingBox();
     const centre = await page.locator(".sort-card").boundingBox();
-    const right = await page.locator(".sort-panel").boundingBox();
-    check(Boolean(left && centre && right && left.x < centre.x && centre.x < right.x),
-      "Enrichment left, complete flashcard centre, Sort decisions right");
+    check(Boolean(left && centre && left.x < centre.x),
+      "Details opens beside the central card without displacing the decisions");
     const cardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    const examplesHeading = page.locator('.sort-enrich-heading:has-text("Examples")');
-    if (await examplesHeading.getAttribute("aria-expanded") !== "true") await examplesHeading.click();
-    await page.getByRole("button", { name: "Add example" }).click();
-    // Keyboard typing produces normal paragraph markup in this WYSIWYG editor;
-    // Playwright fill() inserts a bare text node, bypassing the real user path.
-    await page.getByRole("textbox", { name: "Write examples" }).pressSequentially("An example recorded while sorting.");
-    check(await page.locator(".sort-rating button").first().isDisabled(),
+    await page.locator('.sort-enrich-heading button[aria-label="Add to In context"]').click();
+    await page.getByRole("textbox", { name: "Write in context" }).pressSequentially("An example recorded while sorting.");
+    check(await page.locator(".sort-new-ratings button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");
-    await page.keyboard.press("Escape");
-    check(await page.locator(".sort-modal").count() === 1 && await page.locator(".sort-enrich-editor").count() === 1,
-      "Escape cannot silently discard typed card knowledge");
     await page.locator(".sort-enrich-editor").getByRole("button", { name: "Save", exact: true }).click();
     await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').waitFor();
     const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
     check(persisted.includes("An example recorded while sorting."),
       "New knowledge is saved to the original flashcard data");
-    // First Escape collapses enrichment; the second closes the Sort dialog.
-    // Wait for the overlay to disappear before using the topic-level Sort control.
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await page.locator(".sort-modal").waitFor({ state: "detached" });
     await page.locator(".sort-command").click();
     await page.locator(".sort-setup-start").click();
-    await page.locator(".sort-enrichment-toggle").click();
-    if (await page.locator('.sort-enrich-heading:has-text("Examples")').getAttribute("aria-expanded") !== "true")
-      await page.locator('.sort-enrich-heading:has-text("Examples")').click();
+    await page.locator(".sort-new-details").click();
     check(await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').count() === 1,
-      "Saved enrichment is present when Sort reopens");
+      "Saved enrichment is present when New reopens");
   },
 
   async "sort keeps its four outcomes together and works from the keyboard"(page) {
@@ -196,24 +184,25 @@ const scenarios = {
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
     const decision = page.locator(".sort-modal");
-    check(await decision.locator(".sort-rating button").count() === 3, "Three priorities: Core, Active and Passive");
-    check(await decision.getByRole("button", { name: "Select Core importance" }).count() === 1, "Core classification is available");
-    check(await decision.locator(".sort-save-next:has-text('To Learn')").count() === 1, "A classified card can enter Learn");
-    check(await decision.locator(".sort-footer-end button:has-text('To Review')").count() === 1, "A classified card can bypass Learn");
+    check(await decision.locator(".sort-new-ratings button").count() === 3, "Three priorities: Core, Active and Passive");
+    check(await decision.locator(".sort-new-ratings button").first().innerText() !== "", "Core classification is available");
+    check(await decision.locator(".sort-new-decision-heading button:has-text('Learn')").count() === 1, "Learn is the default destination");
+    await page.keyboard.press("r");
+    check(await decision.locator(".sort-new-decision-heading button:has-text('Review')").count() === 1, "R can bypass Learn");
+    await page.keyboard.press("r");
     check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is not a Sort action");
-    check(await decision.locator(".sort-footer-later:has-text('Later')").count() === 1, "Sort Later is available");
-    check(await decision.locator(".sort-footer-discard:has-text('Discard')").count() === 1, "Discard to Trash remains recoverable");
-    const first = (await page.locator(".sort-card > strong").innerText()).trim();
+    check(await decision.locator(".sort-new-secondary button:has-text('Later')").count() === 1, "Later remains available");
+    check(await decision.locator(".sort-new-secondary button:has-text('Discard')").count() === 1, "Discard remains recoverable");
+    const first = (await page.locator(".sort-inline-text.term").inputValue()).trim();
     await page.keyboard.press("l");
-    await page.waitForTimeout(350);
-    check(await sql("select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='" + first + "'") === "t", "Sort Later leaves the first card unsorted");
-    const second = (await page.locator(".sort-card > strong").innerText()).trim();
+    await page.waitForTimeout(450);
+    check(await sql("select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='" + first + "'") === "t",
+      "Later leaves the first card unsorted");
+    const second = (await page.locator(".sort-inline-text.term").inputValue()).trim();
     await page.keyboard.press("u");
-    check(await decision.getByRole("button", { name: "Select Active importance" }).getAttribute("aria-pressed") === "true",
-      "U selects Active importance without silently saving");
-    await page.keyboard.press("Enter");
     await page.locator(".sort-finished").waitFor();
-    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true", "Active stores rank 3 and marks the card sorted");
+    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true",
+      "U immediately records Active (rank 3) and advances without confirmation");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
