@@ -19,6 +19,17 @@ import { loadStudySetup, type StudyTemplate } from "./study";
 type Counts = {
   /** Review: cards due now. */
   ready: number;
+  /** All sorted cards currently in Review, whether ready or not. */
+  reviewCards: number;
+  strongCards: number;
+  /** Review first-try recall groups for the past seven local days. */
+  reviewFirstTryLast7: number;
+  reviewGradedLast7: number;
+  movedToReviewLast7: number;
+  returnedToLearnLast7: number;
+  /** Learning-entry cohorts 14–42 days ago and those subsequently reaching Review. */
+  learnEnteredCohort: number;
+  learnSucceededCohort: number;
   /** Learn: every card currently in Learn (including those ready for Review). */
   learnCards: number;
   /** Learn: cards that met the Review criteria and wait to be moved. */
@@ -52,7 +63,8 @@ export type ReviewOverview = Counts & {
 };
 
 const COUNT_KEYS: Array<keyof Counts> = [
-  "ready", "learnCards", "learnReady", "learnExercisesToday", "learnExercisesLast7", "learnScoredLast7", "learnCorrectLast7",
+  "ready", "reviewCards", "strongCards", "reviewFirstTryLast7", "reviewGradedLast7",
+  "movedToReviewLast7", "returnedToLearnLast7", "learnEnteredCohort", "learnSucceededCohort", "learnCards", "learnReady", "learnExercisesToday", "learnExercisesLast7", "learnScoredLast7", "learnCorrectLast7",
   "reviewedToday", "reverseTomorrow", "newReady", "newToday", "newLast7", "reviewsLast7",
 ];
 
@@ -100,15 +112,43 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
     const groups = eventsByCard(history);
     const activity = learn.packs.get(pack.id);
     const summary: TopicReviewSummary = {
-      packId: pack.id, ready: 0, learnCards: 0, learnReady: 0,
+      packId: pack.id, ready: 0, reviewCards: 0, strongCards: 0,
+      reviewFirstTryLast7: 0, reviewGradedLast7: 0, movedToReviewLast7: 0,
+      returnedToLearnLast7: 0, learnEnteredCohort: 0, learnSucceededCohort: 0,
+      learnCards: 0, learnReady: 0,
       learnExercisesToday: activity?.attemptsToday ?? 0, learnExercisesLast7: activity?.attemptsWeek ?? 0,
       learnScoredLast7: activity?.attemptsWeek ?? 0, learnCorrectLast7: activity?.correctWeek ?? 0,
       reviewedToday: 0, reverseTomorrow: 0, newReady: 0, newToday: 0, newLast7: 0, reviewsLast7: 0, readyCardIds: [],
     };
 
     for (const card of cards) {
+      const acquisition = readAcquisition(card.data);
+      const transitions = acquisition.history;
+      for (const event of transitions) {
+        const at = Date.parse(event.at);
+        if (!Number.isFinite(at) || at > now) continue;
+        if (at >= sevenDayStart.getTime()) {
+          if (event.kind === "enter_review" && event.reason === "ready") summary.movedToReviewLast7 += 1;
+          if (event.kind === "enter_learning" &&
+            (event.reason === "relearn" || event.reason === "repeated-mistakes")) summary.returnedToLearnLast7 += 1;
+        }
+        // A matured cohort counts entries, rather than distinct card identities.
+        const cohortEnd = new Date(now);
+        cohortEnd.setHours(0, 0, 0, 0);
+        cohortEnd.setDate(cohortEnd.getDate() - 13);
+        const cohortStart = new Date(now);
+        cohortStart.setHours(0, 0, 0, 0);
+        cohortStart.setDate(cohortStart.getDate() - 42);
+        if (event.kind === "enter_learning" && at >= cohortStart.getTime() && at < cohortEnd.getTime()) {
+          summary.learnEnteredCohort += 1;
+          if (transitions.some((later) => later.kind === "enter_review" && later.reason === "ready" &&
+              later.cycle === event.cycle && Date.parse(later.at) > at && Date.parse(later.at) <= now)) {
+            summary.learnSucceededCohort += 1;
+          }
+        }
+      }
       // Exercises recorded by the earlier Learning remain visible as activity (they carried no right/wrong).
-      for (const at of legacyExerciseTimes(readAcquisition(card.data))) {
+      for (const at of legacyExerciseTimes(acquisition)) {
         if (at > now) continue;
         if (at >= sevenDayStart.getTime()) summary.learnExercisesLast7 += 1;
         if (new Date(at).toDateString() === today) summary.learnExercisesToday += 1;
@@ -123,9 +163,20 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       }
       const grades = history ? groups.get(card.id) ?? [] : null;
       if (grades) {
-        const distinctDays = new Set(grades.filter((grade) => grade.at >= sevenDayStart.getTime() && grade.at <= now)
-          .map((grade) => new Date(grade.at).toDateString()));
+        const recent = grades.filter((grade) => grade.at >= sevenDayStart.getTime() && grade.at <= now);
+        const distinctDays = new Set(recent.map((grade) => new Date(grade.at).toDateString()));
         summary.reviewsLast7 += distinctDays.size;
+        // First graded attempt per card, direction and local day.
+        const firstBySideAndDay = new Map<string, GradeEvent>();
+        for (const grade of recent) {
+          const key = (grade.templateId ?? "") + "|" + new Date(grade.at).toDateString();
+          const first = firstBySideAndDay.get(key);
+          if (!first || grade.at < first.at) firstBySideAndDay.set(key, grade);
+        }
+        summary.reviewGradedLast7 += firstBySideAndDay.size;
+        for (const first of firstBySideAndDay.values()) {
+          if (first.grade === "good" || first.grade === "easy") summary.reviewFirstTryLast7 += 1;
+        }
         if (reviewedSuccessfullyToday(grades, now)) summary.reviewedToday += 1;
       }
       if (isLearnCard(card)) {
@@ -133,9 +184,12 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
         if (learnStatus(card, learn.cards.get(card.id)) === "ready") summary.learnReady += 1;
         continue;
       }
-      if (!inReview(card) || !directions.length) continue;
+      if (!inReview(card)) continue;
+      summary.reviewCards += 1;
+      if (!directions.length) continue;
       const oldState = assessState(directionEvidence(card, null, grades)).state;
       const progress = cardBarProgress(card, grades, oldState, pair, now);
+      if (oldState === "strong" || progress.mastered) summary.strongCards += 1;
       if (reviewEligible(progress, grades, card.stats.last_encountered_at, false, now, directions)) summary.readyCardIds.push(card.id);
       if (grades && reviewedSuccessfullyToday(grades, now) && pair.length && progress.pendingDirections?.length === 1) {
         summary.reverseTomorrow += 1;
