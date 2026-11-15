@@ -6,7 +6,7 @@ const pack = read("src/components/PackView.tsx");
 const review = read("src/components/StudyModal.tsx");
 const sort = read("src/components/SortModal.tsx");
 const enrichment = read("src/components/SortEnrichmentPanel.tsx");
-const enrichmentCss = read("src/components/sort-enrichment.css");
+const sessionCss = read("src/components/sort-session.css");
 
 assert.match(pack, /<SortModal\s+pack=/, "Topic must open the Sort workflow");
 assert.match(pack, /onClick=\{\(\) => setSortOpen\(true\)\}/, "Topic needs a working Sort action");
@@ -20,7 +20,9 @@ assert.match(review, /mode: "review"/, "Review session must still launch");
 assert.match(sort, /completeCardSort\(/, "Keep interest scoring");
 assert.match(sort, /setSortTags\(/, "Keep per-card tag editing");
 assert.doesNotMatch(sort, /setCardRetention\(card\.id, "reference"\)|keepReference\(/, "Sorting has no redundant Reference action");
-assert.match(sort, /<SkipForward size=\{15\} \/> Later/, "New cards retains a later decision");
+assert.match(sort, /onClick=\{\(\) => void later\(\)\}>Later<\/button>/, "New cards retains a Later decision");
+assert.match(sort, /onClick=\{\(\) => void learn\(IMPORTANCE_RANK\[level\]\)\}/, "One importance click must classify and advance");
+assert.match(sort, /DESTINATION_KEY = "heuresis.sort.destination.v1"/, "Learn or Review preference persists");
 assert.match(sort, /Discard/, "Sorting retains recoverable Discard");
 assert.match(sort, /function beginSort\(/, "One sort setup must select its queue");
 assert.match(sort, /useState\(!startCardId && !fastStart\)/, "Normal New opens setup; daily quota quick-start bypasses it");
@@ -38,14 +40,15 @@ assert.match(pack, /if \(favouriteOnly && !card\.favourite\)/, "Favourites must 
 assert.match(pack, /setFavouriteOnly\(false\)/, "Clear filters must clear Favourites too");
 
 assert.match(sort, /<SortEnrichmentPanel key=/, "Sort must show the enrichment rail for each card");
-assert.match(sort, /aria-label="Complete flashcard"/, "Sort must retain the central flashcard");
+assert.match(sort, /aria-label="New flashcard"/, "Sort must retain the central flashcard");
 assert.match(sort, /onBlockedChange=/, "Sort must guard unsaved enrichment");
 assert.match(enrichment, /patchCardData/, "Enrichment must save to the original card");
 assert.match(enrichment, /_workspace_blocks/, "Enrichment must reuse the Cosmos card knowledge format");
 assert.match(enrichment, /addRelatedWord/, "Sort must still add linked vocabulary");
 assert.match(enrichment, /removeRelatedRelation/, "Sort must still unlink vocabulary");
-assert.match(enrichmentCss, /grid-template-columns/, "Sort needs a three-column desktop layout");
-assert.match(enrichmentCss, /max-width: 600px/, "Sort must adapt to phones");
+assert.match(sessionCss, /width:min\(780px/, "New cards must have a centred, readable card");
+assert.match(sessionCss, /max-width:1180px/, "Details must adapt to narrow screens");
+assert.match(sessionCss, /max-width:760px/, "New decisions must adapt to phones");
 
 assert.match(pack, /aria-label="Card sessions"/, "New and Review share one compact control");
 assert.match(pack, /<Plus size=\{15\} \/> Add/, "Creating a card is labelled Add");
