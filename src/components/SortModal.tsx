@@ -101,6 +101,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     try { localStorage.setItem(ORDER_KEY, randomOrder ? "random" : "topic"); } catch { /* preference only */ }
     setQueue(selection.slice(0, selectedCount));
     setIndex(0);
+    setLearned(0); setToLearning(0); setToReview(0); setDiscarded(0); setLeftForLater(0); setLastRemoval(null);
     setSessionStarted(true);
     setFiltersOpen(false);
   }
@@ -476,7 +477,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
           <div className="sort-new-note">
             {noteOpen ? <textarea rows={2} autoFocus aria-label="Quick note" placeholder="Something to remember…"
               value={noteDraft} disabled={busy || enrichmentBlocked || editingCard}
-              onChange={(event) => setNoteDraft(event.target.value)} />
+              onChange={(event) => setNoteDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); event.preventDefault(); setNoteOpen(false); } }} />
               : <button type="button" onClick={() => setNoteOpen(true)}>+ Note</button>}
           </div>
         </div>
