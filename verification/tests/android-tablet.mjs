@@ -109,7 +109,7 @@ async function startReviewByTouch(page) {
   await page.locator(".study-start").waitFor({ timeout: 15000 });
   check(await reachableNow(page, ".study-close"), "Review setup has a reachable close button");
   tapped(await fingerTap(page, ".study-start", { label: "Start review" }), "Review starts from its setup with a tap");
-  await page.locator(".cosmos-count").waitFor({ timeout: 15000 });
+  await page.locator(".review-top-progress > span:first-child").waitFor({ timeout: 15000 });
 }
 
 /** A whole recommended Review by touch, then Done returns to the topic. */
@@ -121,7 +121,7 @@ async function reviewByTouch(page, name, { start = "topic" } = {}) {
   await startReviewByTouch(page);
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${shots}/${name}-review-front.png` });
-  const total = Number((await page.locator(".cosmos-count").innerText()).split("/")[1]);
+  const total = Number((await page.locator(".review-top-progress > span:first-child").innerText()).split(" of ")[1]);
   check(total > 0, `Review opens in the app with ${total} cards`);
   check(await reachableNow(page, ".cosmos-close"), "Review's close button is on screen");
   const layout = await page.evaluate(() => {
