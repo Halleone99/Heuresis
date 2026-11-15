@@ -1,15 +1,17 @@
-import { ArrowRight, Brain, Check, ChevronDown, Pencil, Search, Shuffle, SkipForward, Tag, Trash2, Undo2, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Brain, Check, ChevronDown, PanelLeftOpen, Search, Shuffle, Tag, Undo2, Volume2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { enterLearning, enterReview, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
-import { IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
+import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
+import { InlineSortText } from "./InlineSortText";
 import "./sort.css";
 import "./sort-enrichment.css";
 import "./sort-refined.css";
+import "./sort-session.css";
 
 type Props = {
   pack: PackWithType;
@@ -25,8 +27,12 @@ type Props = {
   onLearning?: () => void;
 };
 
-type Removal = { kind: "learn" | "discard"; card: CardWithStats; phase?: AcquisitionPhase };
+type Removal = { kind: "learn" | "discard" | "later"; card: CardWithStats; phase?: AcquisitionPhase; rank?: number };
 const ORDER_KEY = "heuresis.sort.order.v1";
+const DESTINATION_KEY = "heuresis.sort.destination.v1";
+function readDestination(): AcquisitionPhase {
+  try { return localStorage.getItem(DESTINATION_KEY) === "review" ? "review" : "learning"; } catch { return "learning"; }
+}
 
 function readOrder(): "topic" | "random" {
   try { return localStorage.getItem(ORDER_KEY) === "random" ? "random" : "topic"; } catch { return "topic"; }
@@ -104,9 +110,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [noteDraft, setNoteDraft] = useState("");
   const [editingCard, setEditingCard] = useState(false);
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
-  const [selectedRank, setSelectedRank] = useState<number | null>(null);
-  const [cardDraft, setCardDraft] = useState<Record<string, string>>({});
-  const [cardEditError, setCardEditError] = useState("");
+  const [detailsCount, setDetailsCount] = useState(0);
+  const [destination, setDestination] = useState<AcquisitionPhase>(readDestination);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -114,6 +120,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [toLearning, setToLearning] = useState(0);
   const [toReview, setToReview] = useState(0);
   const [discarded, setDiscarded] = useState(0);
+  const [leftForLater, setLeftForLater] = useState(0);
   const [lastRemoval, setLastRemoval] = useState<Removal | null>(null);
 
   const card = queue[index] ?? null;
@@ -131,8 +138,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   useEffect(() => {
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
-    setEditingCard(false); setCardEditError("");
-    setEnrichmentOpen(false); setSelectedRank(null);
+    setEditingCard(false); setNoteOpen(Boolean(card?.note));
+    setEnrichmentOpen(false); setDetailsCount(0);
     setMessage("");
   }, [card?.id]);
 
@@ -145,29 +152,23 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     finally { setBusy(false); }
   }
 
-  function beginCardEdit() {
+  async function saveInlineField(fieldKey: string, value: string) {
     if (!card || busy || enrichmentBlocked) return;
-    setEnrichmentOpen(true);
-    setCardDraft(Object.fromEntries(editFields.map((field) => [field.key, fieldText(card.data, field.key)])));
-    setCardEditError("");
-    setEditingCard(true);
-  }
-
-  async function saveCardEdit() {
-    if (!card || !editingCard || busy || enrichmentBlocked) return;
-    const missing = editFields.find((field) => field.required && !cardDraft[field.key]?.trim());
-    if (missing) { setCardEditError(`${missing.label} is required.`); return; }
-    setBusy(true); setCardEditError("");
+    setBusy(true); setMessage("");
     try {
-      const patch = Object.fromEntries(editFields.map((field) => [field.key, (cardDraft[field.key] ?? "").trim()]));
-      const savedData = await patchCardData(card.id, patch);
-      // A sorting pass holds its own queue; refresh it immediately as well as the topic list.
-      setQueue((current) => current.map((item) => item.id === card.id ? { ...item, data: savedData } : item));
-      setEditingCard(false);
+      const saved = await patchCardData(card.id, { [fieldKey]: value });
+      setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item));
       onChanged();
     } catch (error) {
-      setCardEditError(error instanceof Error ? error.message : "Could not save the card.");
+      const message = error instanceof Error ? error.message : "Could not save the card.";
+      setMessage(message); throw error;
     } finally { setBusy(false); }
+  }
+
+  function switchDestination() {
+    const next: AcquisitionPhase = destination === "learning" ? "review" : "learning";
+    setDestination(next);
+    try { localStorage.setItem(DESTINATION_KEY, next); } catch { /* preference only */ }
   }
 
   async function saveQuickNote() {
@@ -184,7 +185,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     } else onClose();
   }
 
-  async function learn(rank: number, destination: AcquisitionPhase = "learning") {
+  async function learn(rank: number, phase: AcquisitionPhase = destination) {
     if (!card || busy || enrichmentBlocked || editingCard) return;
     setBusy(true); setMessage("");
     try {
@@ -194,13 +195,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // Phase is saved before sorting, so a partially completed action cannot leak into Review.
       // "To Review" skips the exercises and changes the phase only: no review grade is recorded,
       // so the card arrives in Review exactly as an unreviewed card.
-      const next = destination === "learning" ? enterLearning(state, "new") : enterReview(state, "direct");
+      const next = phase === "learning" ? enterLearning(state, "new") : enterReview(state, "direct");
       await patchCardData(card.id, { [LEARNING_STAGE_KEY]: serializeAcquisition(next) });
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
-      if (destination === "learning") setToLearning((value) => value + 1);
+      if (phase === "learning") setToLearning((value) => value + 1);
       else setToReview((value) => value + 1);
-      setLastRemoval({ kind: "learn", card, phase: destination });
+      setLastRemoval({ kind: "learn", card, phase, rank });
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this decision."); }
@@ -228,12 +229,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setBusy(true); setMessage("");
     try {
       if (kind === "discard") await restoreDiscardedCard(restored.id);
-      else {
+      else if (kind === "learn") {
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
         await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: restored.data[LEARNING_STAGE_KEY] ?? null });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
+      else if (kind === "later") setLeftForLater((value) => Math.max(0, value - 1));
       else {
         setLearned((value) => Math.max(0, value - 1));
         if (lastRemoval.phase === "learning") setToLearning((value) => Math.max(0, value - 1));
@@ -256,7 +258,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setBusy(true); setMessage("");
     try {
       await saveQuickNote();
-      setLastRemoval(null);
+      setLastRemoval({ kind: "later", card });
+      setLeftForLater((value) => value + 1);
       setIndex((current) => current + 1);
       onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the quick note."); }
@@ -277,7 +280,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // Escape works from the filter's search field too (it closes the filter first),
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
-        if (editingCard && !busy) { event.preventDefault(); setEditingCard(false); setCardEditError(""); return; }
         if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setEnrichmentOpen(false); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
@@ -289,14 +291,15 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       const key = event.key.toLowerCase();
       // Retain older Sort keyboard actions for existing users, without
       // crowding the new interface with shortcut labels.
-      if (key === "c" || key === "u" || key === "p") {
-        event.preventDefault(); setSelectedRank(key === "c" ? 5 : key === "u" ? 3 : 1); return;
+      if (["1", "2", "3", "c", "u", "p"].includes(key)) {
+        event.preventDefault(); void learn(key === "1" || key === "c" ? 5 : key === "2" || key === "u" ? 3 : 1); return;
       }
-      if (event.key === "Enter" && selectedRank !== null) { event.preventDefault(); void learn(selectedRank); return; }
+      if (key === "r") { event.preventDefault(); switchDestination(); return; }
       if (key === "e") { event.preventDefault(); setEnrichmentOpen((open) => !open); return; }
       if (key === "d" || event.key === "Delete") { event.preventDefault(); void discard(); return; }
       if (key === "l" || key === "s") { event.preventDefault(); later(); return; }
-      if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); }
+      if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); return; }
+      if (key === "n") { event.preventDefault(); setNoteOpen(true); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -305,6 +308,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked || editingCard} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
+  const languageLabel = pack.cardType?.name?.replace(/\\b(cards?|vocabulary|words?)\\b/gi, "").trim() || "CARD";
+  const exampleField = fieldByRole(pack.cardType, "example");
+  const translationField = fieldByRole(pack.cardType, "example_translation");
+  const firstBlock = card?.data._workspace_blocks?.find?.((value: string) => { try { const parsed = JSON.parse(value); return parsed.dim === "examples" && parsed.type === "text"; } catch { return false; } });
+  const firstExample = card ? fieldText(card.data, exampleField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\\n")[0] : "") : "";
+  const exampleTranslation = card ? fieldText(card.data, translationField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\\n").slice(2).join(" ") : "") : "";
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
