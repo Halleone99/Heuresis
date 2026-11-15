@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
+import { InlineSortText } from "./InlineSortText";
 import { RichText } from "./workspace/RichText";
 import { RichEditor, type RichEditorHandle } from "./workspace/RichEditor";
 import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
-import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
+import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, setRelatedRelationType, type RelatedCatalogueRow, type RelationType } from "../lib/related";
 import { signHeuresisCardImages } from "../lib/cardMedia";
 
 const BLOCKS_KEY = "_workspace_blocks";
@@ -52,11 +53,12 @@ function parseBlocks(data: CardWithStats["data"]): Block[] {
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onChanged }: {
+export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onChanged, onCountChange }: {
   pack: PackWithType;
   card: CardWithStats;
   onBlockedChange: (blocked: boolean) => void;
   onChanged: () => void;
+  onCountChange?: (count: number) => void;
 }) {
   const conceptual = /philosoph|history|psycholog|concept|theor|politic|econom/i.test(pack.title + " " + (pack.cardType?.name ?? ""));
   const labels = conceptual ? conceptLabels : languageLabels;
@@ -66,7 +68,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
     ...(parseBlocks(card.data).some((block) => block.dim === "notes") ? ["notes" as Dimension] : [])];
   const [data, setData] = useState(card.data);
   const blocks = useMemo(() => parseBlocks(data), [data]);
-  const [expanded, setExpanded] = useState<Dimension[]>(["examples", "neighbours"]);
+  const [expanded, setExpanded] = useState<Dimension[]>(["examples", "neighbours", "components", "structure", "origin", "facts", "notes"]);
   const detailEditor = useRef<RichEditorHandle>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState<Dimension | null>(null);
@@ -81,9 +83,15 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // Keep the session in place while an editor is open, even before the first keystroke.
-  const blocked = busy || adding !== null;
+  const [inlineBusy, setInlineBusy] = useState(false);
+  const blocked = busy || inlineBusy || adding !== null;
   useLayoutEffect(() => { onBlockedChange(blocked); }, [blocked, onBlockedChange]);
   useEffect(() => () => onBlockedChange(false), [onBlockedChange]);
+  useEffect(() => {
+    const visibleFields = (pack.cardType?.field_schema ?? []).filter((field) =>
+      dimensionForField(field) !== null && Boolean(fieldText(data, field.key).trim())).length;
+    onCountChange?.(visibleFields + blocks.length + related.length);
+  }, [data, blocks, related, pack.cardType, onCountChange]);
 
   useEffect(() => {
     if (!structuredWords) return;
@@ -146,6 +154,32 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
     } catch (err) { setError(err instanceof Error ? err.message : "Could not link this word."); }
     finally { setBusy(false); }
   }
+  async function saveField(fieldKey: string, value: string) {
+    setInlineBusy(true); setError("");
+    try { setData(await patchCardData(card.id, { [fieldKey]: value })); onChanged(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not update the detail."); throw err; }
+    finally { setInlineBusy(false); }
+  }
+
+  async function saveRelatedField(row: RelatedCatalogueRow, fieldKey: "term" | "reading" | "meaning", value: string) {
+    setInlineBusy(true); setError("");
+    try {
+      await patchCardData(row.target_card_id, { [fieldKey]: value });
+      setRelated(await listRelatedCatalogue(pack.id, card.id)); onChanged();
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not update the related card."); throw err; }
+    finally { setInlineBusy(false); }
+  }
+
+  async function cycleRelation(row: RelatedCatalogueRow) {
+    if (blocked) return;
+    const choices = ["related", "synonym", "antonym"] as const;
+    const next = choices[(choices.indexOf(row.relation_type as typeof choices[number]) + 1) % choices.length];
+    setInlineBusy(true); setError("");
+    try { await setRelatedRelationType(row.relation_id, next); setRelated(await listRelatedCatalogue(pack.id, card.id)); onChanged(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not change the relation."); }
+    finally { setInlineBusy(false); }
+  }
+
   async function unlink(row: RelatedCatalogueRow) {
     if (blocked) return;
     setBusy(true); setError("");
@@ -168,33 +202,42 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
       const rows = dim === "neighbours" && structuredWords ? related : [];
       const count = fields.length + owned.length + rows.length;
       const open = expanded.includes(dim);
+      if (!count && adding !== dim) return null;
       return <section className="sort-enrich-section" key={dim}>
-        <button type="button" className="sort-enrich-heading" aria-expanded={open} onClick={() => setExpanded((items) => open ? items.filter((item) => item !== dim) : [...items, dim])} disabled={Boolean(adding && blocked)}>
-          <span>{labels[dim]}</span>{count > 0 ? <b>{count}</b> : null}<ChevronDown size={14} className={open ? "open" : ""} />
-        </button>
+        <div className="sort-enrich-heading"><span>{labels[dim]}</span>
+          <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
+            disabled={blocked} onClick={() => openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>
+            <Plus size={14} />
+          </button>
+        </div>
         {open ? <div className="sort-enrich-contents">
-          {dim === "examples" && fields.some((field) => field.role === "example")
-            ? <div className="sort-enrich-example">
-              {["example", "example_reading", "example_translation"].flatMap((role) => fields.filter((field) => field.role === role)).map((field) =>
-                <p key={field.key}>{field.value}</p>)}
-              {fields.filter((field) => !["example", "example_reading", "example_translation"].includes(field.role)).map((field) =>
-                <p key={field.key}><small>{field.label}</small>{field.value}</p>)}
-            </div>
-            : fields.map((field) => <div key={field.key} className="sort-enrich-item sort-enrich-field">
-              <small>{field.label}</small><p>{field.value}</p>
-            </div>)}
+          {fields.map((field) => <div key={field.key} className="sort-enrich-item sort-enrich-field">
+            {field.role === "example" || field.role === "example_reading" || field.role === "example_translation"
+              ? null : <small>{field.label}</small>}
+            <InlineSortText value={field.value} label={field.label} multiline={field.role !== "example_reading"}
+              disabled={blocked} onEditingChange={setInlineBusy} onCommit={(value) => saveField(field.key, value)} />
+          </div>)}
           {owned.map((block) => block.type === "text"
             ? <div className="sort-enrich-item editable" key={block.id}>
-              <RichText text={block.text} className="sort-enrich-rich" />
+              <button type="button" className="sort-enrich-text-open" disabled={blocked} onClick={() => openAdd(dim, "text", block)} title="Edit formatted text"><RichText text={block.text} className="sort-enrich-rich" /></button>
               <div className="sort-enrich-item-tools">
                 <button type="button" disabled={blocked} onClick={() => openAdd(dim, "text", block)} aria-label="Edit detail" title="Edit detail"><Pencil size={13}/></button>
                 <button type="button" disabled={blocked} onClick={() => void removeText(block.id)} aria-label="Remove detail" title="Remove detail"><X size={13}/></button>
               </div>
             </div>
             : <figure className="sort-enrich-item" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}{block.caption ? <figcaption>{block.caption}</figcaption> : null}</figure>)}
-          {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item editable">
-            <p><strong>{row.term}</strong>{row.reading ? " · " + row.reading : ""}<small>{row.relation_type} · {row.meaning}</small></p>
-            <button type="button" disabled={blocked} onClick={() => void unlink(row)} aria-label="Remove related word"><X size={13} /></button>
+          {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item sort-enrich-related">
+            <InlineSortText value={row.term} label="Related word" required disabled={blocked}
+              onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "term", value)} />
+            <InlineSortText value={row.reading} label="Related reading" placeholder="Reading" disabled={blocked}
+              onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "reading", value)} />
+            <InlineSortText value={row.meaning} label="Related meaning" placeholder="Meaning" disabled={blocked}
+              onEditingChange={setInlineBusy} onCommit={(value) => saveRelatedField(row, "meaning", value)} />
+            <div className="sort-enrich-related-tools">
+              <button type="button" className={"relation-" + row.relation_type}
+                title="Change relation type" disabled={blocked} onClick={() => void cycleRelation(row)}>{row.relation_type}</button>
+              <button type="button" disabled={blocked} onClick={() => void unlink(row)} aria-label="Remove related word"><X size={13} /></button>
+            </div>
           </div>)}
           {adding === dim ? <div className="sort-enrich-editor">
             {mode === "word" ? <>
@@ -222,6 +265,15 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
         </div> : null}
       </section>;
     })}</div>
+    <div className="sort-enrich-add-empty">
+      <small>ADD</small>
+      {order.filter((dim) => {
+        const fields = (pack.cardType?.field_schema ?? []).filter((field) => dimensionForField(field) === dim && Boolean(fieldText(data, field.key).trim()));
+        return !fields.length && !blocks.some((block) => block.dim === dim) && !(dim === "neighbours" && related.length);
+      }).map((dim) => <button key={dim} type="button" disabled={blocked}
+        onClick={() => openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>+ {labels[dim]}</button>)}
+    </div>
+    <p className="sort-enrich-hint">Click text to edit · Enter keeps it · Esc undoes</p>
     {error ? <p className="sort-enrich-error" role="alert">{error}</p> : null}
   </aside>;
 }
