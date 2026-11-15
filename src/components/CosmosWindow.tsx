@@ -1380,7 +1380,52 @@ export default function CosmosWindow() {
           <Pencil size={13} aria-hidden="true" /> Modify
         </button> : null}
         <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
-        {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
+        {redesignReview ? <footer className="cosmos-review-foot">
+          {!revealed ? <button type="button" className="review-reveal" title="Reveal (Space)" disabled={busy}
+            onClick={() => void reveal()}>Reveal</button>
+          : gradedMistake ? <div className="review-missed" data-grade={gradedMistake} role="status">
+              <div className="review-missed-line">
+                <span className="review-missed-dot" aria-hidden="true"/>
+                <span className="review-missed-label">{RESULT_LABEL[gradedMistake]}</span>
+                <span className="review-missed-grow"/>
+                <button type="button" className={suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "review-text-btn suggested" : "review-text-btn"}
+                  disabled={busy}
+                  title={suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "Missed several times recently" : "Relearn this card"}
+                  onClick={() => void sendBackToLearning(suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "repeated-mistakes" : "relearn")}>
+                  {suggestRelearning((events??[]).filter(event=>event.cardId===card.id)) ? "Return to Learn" : "Relearn"}</button>
+                <button type="button" className="review-next" disabled={busy} onClick={() => void advance(queue,index+1)}>Next</button>
+              </div>
+              {lastCorrection ? <p className="review-last-note" title={lastCorrection.explanation}><span>Last time</span><em>{lastCorrection.explanation}</em></p> : null}
+              {missNoteAdded ? <div className="review-note-added"><Check size={14} aria-hidden="true"/>
+                <p>{missNote}</p><button type="button" className="review-text-btn" onClick={()=>{setMissNoteAdded(false);window.requestAnimationFrame(()=>{noteInputRef.current?.focus();noteInputRef.current?.setSelectionRange(missNote.length,missNote.length);});}}>Edit</button></div>
+              : <textarea ref={noteInputRef} className="review-note-input" rows={1} maxLength={3000}
+                  aria-label="What went wrong?" placeholder="What went wrong? Enter to add (optional)"
+                  value={missNote} onChange={(event)=>{ const text=event.target.value;setMissNote(text);if(pendingCorrectionRef.current)pendingCorrectionRef.current.explanation=text; }}
+                  onKeyDown={(event)=>{
+                    if(event.key==="Escape"){event.preventDefault();event.stopPropagation();event.currentTarget.blur();}
+                    else if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){
+                      event.preventDefault();event.stopPropagation();event.currentTarget.blur();
+                      if(missNote.trim())setMissNoteAdded(true);
+                    }
+                  }}/>}
+            </div>
+          : <>
+              {suggestion ? <p className="cosmos-suggestion" role="status">Looks like <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} Your call.</p> : null}
+              {sentenceCard && !suggestion ? <p className="cosmos-suggestion">Judge the meaning and the grammar, not the exact wording.</p> : null}
+              <div className="review-ratings" role="group" aria-label="How did it go?">
+                {RESULT_ORDER.map((grade,position)=><button key={grade} type="button" data-grade={grade}
+                  className={suggestion?.grade===grade?"is-suggested":""} disabled={busy} title={RESULT_HINT[grade]}
+                  onClick={()=>selectGrade(grade)}>
+                  <span className="review-rating-head">{RESULT_LABEL[grade]}<kbd>{position+1}</kbd></span>
+                  <span className="review-rating-hint">{sentenceCard?sentenceRatings[grade]:RESULT_HINT[grade]}</span>
+                </button>)}
+              </div>
+              <div className="review-links"><button type="button" disabled={busy} onClick={()=>void sendBackToLearning()}>Relearn</button>
+                <span aria-hidden="true">·</span><button type="button" onClick={()=>setConnectionsOpen(true)}>Connections</button>
+              </div>
+            </>}
+          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={()=>setConnectionsOpen(false)}/> : null}
+        </footer> : {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
           {gradedMistake ? <div className="cosmos-mistake-followup" role="status">
@@ -1423,7 +1468,7 @@ export default function CosmosWindow() {
         </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
-    </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}</section>
+    </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}{noteToast ? <div className="review-toast" role="status">{noteToast}</div> : null}</section>
     {editOpen && card ? <ReviewCardEditor key={card.id} pack={pack} card={card}
       onRelationsChanged={() => { void listRelatedCatalogue(pack.id, card.id).then(setRelatedRows).catch(() => undefined); }}
       onClose={() => setEditOpen(false)}
