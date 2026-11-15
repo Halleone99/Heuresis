@@ -167,9 +167,8 @@ const scenarios = {
     await page.fill(".library-study-v2-custom input", "1");
     await page.click(".library-study-v2-confirm");
     await page.locator(".sort-card").waitFor();
-    const term = await page.locator(".sort-card strong").innerText();
-    await page.keyboard.press("u");
-    await page.click('.sort-save-next:has-text("To Learn")');
+    const term = await page.locator(".sort-inline-text.term").inputValue();
+    await page.locator(".sort-new-ratings button:nth-child(2)").click();
     await page.locator(".sort-finished").waitFor();
     const afterSort = await phaseOf(term);
     check(afterSort.phase === "learning" && afterSort.cycle === 1, `New → Learn: “${term}” is in Learn, first cycle`);
@@ -179,7 +178,7 @@ const scenarios = {
     await page.screenshot({ path: `${shots}/01-sort-finished.png` });
 
     // LEARN: opens from the end of the Sort pass, one exercise per screen.
-    await page.click('.sort-finished-actions button:has-text("Start Learn")');
+    await page.click('.sort-finished-actions button:has-text("Start Learning")');
     await page.locator(".lrn").waitFor();
     await waitExercise(page, 1);
     check(await points(page) === "0/50 points", "the points indicator starts at 0/50");
@@ -458,9 +457,9 @@ const scenarios = {
     await page.fill(".library-study-v2-custom input", "1");
     await page.click(".library-study-v2-confirm");
     await page.locator(".sort-card").waitFor();
-    const term = await page.locator(".sort-card strong").innerText();
-    await page.keyboard.press("c");
-    await page.click('.sort-footer-later:has-text("To Review")');
+    const term = await page.locator(".sort-inline-text.term").inputValue();
+    await page.locator(".sort-new-decision-heading button").click();
+    await page.locator(".sort-new-ratings button:nth-child(1)").click();
     await page.locator(".sort-finished").waitFor();
     const id = await cardId(term);
     const state = await phaseOf(term);
@@ -606,7 +605,18 @@ const scenarios = {
     await page.click('.today-study-switch button:has-text("Review")');
     check(await stat(page, "Due now") === "1", "Chinese · HSK 2 — Time: one card due in Review");
     await page.click(".today-study-start");
-    await page.locator(".reviews-centre").waitFor();
+    try { await page.locator(".reviews-centre").waitFor({ timeout: 8000 }); }
+    catch (error) {
+      console.error("Review Start diagnostic", await page.evaluate(() => ({
+        url: location.href,
+        headings: [...document.querySelectorAll("h1,h2")].map((node) => node.textContent?.trim()).slice(0,15),
+        reviewCentre: document.querySelectorAll(".reviews-centre").length,
+        studyControls: document.querySelectorAll(".review-controls").length,
+        visibleDialog: document.querySelector('[role="dialog"]')?.textContent?.slice(0,180),
+        studyMode: document.querySelector(".today-study-switch button[aria-pressed='true']")?.textContent?.trim(),
+      })));
+      throw error;
+    }
     check(await page.locator(".lrn").count() === 0, "Start in Review opens Review, not Learn");
     check(await sql("select count(*) from heuresis_learn_rounds") === "1" && await gradeCount() === 0, "only the one Learning round was created; no review was recorded");
   },
