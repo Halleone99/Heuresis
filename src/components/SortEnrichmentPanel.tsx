@@ -53,12 +53,13 @@ function parseBlocks(data: CardWithStats["data"]): Block[] {
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onChanged, onCountChange }: {
+export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onChanged, onCountChange, onDataChanged }: {
   pack: PackWithType;
   card: CardWithStats;
   onBlockedChange: (blocked: boolean) => void;
   onChanged: () => void;
   onCountChange?: (count: number) => void;
+  onDataChanged?: (data: CardWithStats["data"]) => void;
 }) {
   const conceptual = /philosoph|history|psycholog|concept|theor|politic|econom/i.test(pack.title + " " + (pack.cardType?.name ?? ""));
   const labels = conceptual ? conceptLabels : languageLabels;
@@ -123,6 +124,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   async function writeBlocks(next: Block[]) {
     const saved = await patchCardData(card.id, { [BLOCKS_KEY]: next.map((block) => JSON.stringify(block)) });
     setData(saved);
+    onDataChanged?.(saved);
     onChanged();
   }
   async function saveText() {
@@ -156,7 +158,7 @@ export default function SortEnrichmentPanel({ pack, card, onBlockedChange, onCha
   }
   async function saveField(fieldKey: string, value: string) {
     setInlineBusy(true); setError("");
-    try { setData(await patchCardData(card.id, { [fieldKey]: value })); onChanged(); }
+    try { const saved = await patchCardData(card.id, { [fieldKey]: value }); setData(saved); onDataChanged?.(saved); onChanged(); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not update the detail."); throw err; }
     finally { setInlineBusy(false); }
   }
