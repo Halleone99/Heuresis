@@ -90,7 +90,7 @@ const scenarios = {
       "New session offers the two unsorted cards for classification");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(/^1 \/ 2$/.test((await page.locator(".sort-top-progress > span").innerText()).trim()),
+    check(/^1 of 2$/.test((await page.locator(".sort-top-progress > span").innerText()).trim()),
       "Starting New opens the first of the two unsorted cards, never reviewed ones");
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("Browse")').first().click();
