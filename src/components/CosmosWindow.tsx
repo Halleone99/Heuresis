@@ -1425,7 +1425,7 @@ export default function CosmosWindow() {
               </div>
             </>}
           {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={()=>setConnectionsOpen(false)}/> : null}
-        </footer> : {mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
+        </footer> : mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
           {gradedMistake ? <div className="cosmos-mistake-followup" role="status">
