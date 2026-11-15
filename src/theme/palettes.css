@@ -405,3 +405,13 @@
 :root[data-theme="dark"] .cosmos-card {
   box-shadow:var(--ws-shadow-2) !important;
 }
+
+/* Shared Study / Review colours. Values are intentionally independent of palette accents. */
+:root[data-theme="dark"] {
+  --c-review:#c5aae5; --go-fill:#3d5e8f; --go-fill-hover:#46699d;
+  --go-ink:#f1f5fb;
+}
+:root[data-theme="light"] {
+  --c-review:#77538d; --go-fill:#3b5f8f; --go-fill-hover:#34557f;
+  --go-ink:#f1f5fb;
+}
