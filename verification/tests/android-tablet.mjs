@@ -38,22 +38,19 @@ function tapped(result, message) {
   return check(result.ok, result.ok ? message : `${message} (${result.reason})`);
 }
 
-/** Sort a full pass using the current Core / Active / Passive decisions.
- * Choosing an importance prepares the decision; To Review or To Learn saves it.
- * The right-hand panel can scroll on a tablet, so test actual finger reachability.
- */
+/** New offers one-tap Core / Active / Passive choices, even with the on-screen keyboard. */
 async function sortByTouch(page, name) {
   await addUnsortedCards();
   await openTopicByTouch(page);
-  tapped(await fingerTap(page, ".sort-command", { label: "Sort" }), "Sort opens with a tap");
+  tapped(await fingerTap(page, ".sort-command", { label: "New" }), "New opens with a tap");
   await page.locator(".sort-setup-start").waitFor({ timeout: 10000 });
   tapped(await fingerTap(page, ".sort-setup-start", { label: "Start New" }), "New selection starts by touch");
   await page.locator(".sort-card").waitFor({ timeout: 10000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${shots}/${name}-sort.png` });
-  check(await reachableNow(page, ".sort-topbar-actions button:last-child"), "Sort's close button is on screen and not covered");
-  check(await reachableNow(page, ".sort-top-progress > span"), "Sort progress is on screen and not covered");
-  check(await reachableNow(page, ".sort-card > strong"), "the card itself is on screen");
+  check(await reachableNow(page, ".sort-topbar-actions button:last-child"), "New close is reachable");
+  check(await reachableNow(page, ".sort-top-progress > span"), "New progress is visible");
+  check(await reachableNow(page, ".sort-inline-text.term"), "the editable card term is on screen");
   const bottomNavCovers = await page.evaluate(() => {
     const modal = document.querySelector(".sort-modal");
     if (!modal) return true;
@@ -64,43 +61,47 @@ async function sortByTouch(page, name) {
       return Boolean(top && element.contains(top));
     });
   });
-  check(!bottomNavCovers, "no app navigation or Capture handle floats over Sort");
+  check(!bottomNavCovers, "no app navigation or Capture handle floats above New");
 
-  const first = (await page.locator(".sort-card > strong").innerText()).trim();
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Core importance"]', { label: "Core" }), "Core importance is selected by touch");
-  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review" }), "Core classification is saved explicitly");
+  const current = async () => (await page.locator(".sort-inline-text.term").inputValue()).trim();
+  tapped(await fingerTap(page, ".sort-new-decision-heading button", { label: "To Review preference" }),
+    "Review is selected once for this session");
+  check(/Goes to Review/.test(await page.locator(".sort-new-decision-heading").innerText()),
+    "the destination changes to Review without classifying");
+  const first = await current();
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(1)", { label: "Core" }),
+    "Core is classified with one tap");
   await page.waitForTimeout(700);
-  const second = (await page.locator(".sort-card > strong").innerText()).trim();
+  const second = await current();
   check(second !== first, "choosing Core advances to the next card");
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Passive importance"]', { label: "Passive" }), "Passive importance is selected");
-  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review" }), "Passive classification is saved explicitly");
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(3)", { label: "Passive" }),
+    "Passive is classified with one tap");
   await page.waitForTimeout(700);
-  tapped(await fingerTap(page, '.sort-undo button', { label: "Undo" }), "Undo restores the last sorted card");
+  tapped(await fingerTap(page, ".sort-new-undo button", { label: "Undo" }), "Undo restores the last sorted card");
   await page.waitForTimeout(700);
-  check((await page.locator(".sort-card > strong").innerText()).trim() === second, "Undo brings the second card back");
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Passive importance"]', { label: "Passive again" }), "Passive is reselected after Undo");
-  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review" }), "Restored card is classified again");
+  check(await current() === second, "Undo brings the second card back");
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(3)", { label: "Passive again" }),
+    "Passive is classified again after Undo");
   await page.waitForTimeout(700);
-  const third = (await page.locator(".sort-card > strong").innerText()).trim();
+  const third = await current();
   const full = page.viewportSize();
-  tapped(await fingerTap(page, ".sort-note-panel textarea", { label: "Quick note" }), "the quick note field takes a tap");
+  tapped(await fingerTap(page, ".sort-new-note button", { label: "Add a quick note" }), "the quick note opens by touch");
   await page.setViewportSize({ width: full.width, height: Math.round(full.height * 0.55) });
   await page.waitForTimeout(400);
-  await page.locator(".sort-note-panel textarea").fill("seen in lesson 4");
-  tapped(await fingerTap(page, ".sort-note-panel textarea", { label: "Quick note (keyboard open)" }), "the quick note remains reachable with the keyboard open");
+  await page.locator(".sort-new-note textarea").fill("seen in lesson 4");
+  tapped(await fingerTap(page, ".sort-new-note textarea", { label: "Quick note (keyboard open)" }), "the note is reachable with the keyboard open");
   await page.screenshot({ path: `${shots}/${name}-sort-keyboard.png` });
-  tapped(await fingerTap(page, '.sort-rating button[aria-label="Select Active importance"]', { label: "Active (keyboard open)" }), "Active importance is selectable with the keyboard open");
-  tapped(await fingerTap(page, '.sort-footer-end button:has-text("To Review")', { label: "To Review (keyboard open)" }), "The decision remains reachable with the keyboard open");
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(2)", { label: "Active (keyboard open)" }),
+    "Active remains reachable and classifies with one tap");
   await page.setViewportSize(full);
-  await page.waitForTimeout(800);
   await page.locator(".sort-finished").waitFor({ timeout: 8000 });
-  check(/3 cards decided/.test(await page.locator(".sort-finished").innerText()), "the pass ends with its summary");
+  check(/3 new cards met/.test(await page.locator(".sort-finished").innerText()), "the pass ends with its redesigned summary");
   const expected = [[first, `${first}:5:learning:true:`], [second, `${second}:1:learning:true:`], [third, `${third}:3:learning:true:seen in lesson 4`]]
     .sort((a, b) => a[0] < b[0] ? -1 : 1).map((entry) => entry[1]).join(",");
   check(await sql(`select string_agg(data->>'term' || ':' || interest_rank || ':' || retention || ':' || ((data->>'_sorted_at') is not null) || ':' || coalesce(note,''), ',' order by data->>'term') from heuresis_cards where data->>'term' in ('${first}','${second}','${third}')`) === expected,
-    "all three importance decisions and the quick note persist");
+    "all three one-tap decisions and the quick note persist");
   await page.screenshot({ path: `${shots}/${name}-sort-finished.png` });
-  check(await reachableNow(page, '.sort-finished-actions button:has-text("Review now")'), "Review now is on screen");
+  check(await reachableNow(page, '.sort-finished-actions button:has-text("Review now")'), "Review now is reachable");
 }
 
 /** The redesign opens a Review setup before launching the in-app Cosmos session. */
