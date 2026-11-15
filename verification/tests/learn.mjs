@@ -208,18 +208,15 @@ const scenarios = {
     await openStudy(page);
     check(await stat(page, "New cards") === "17", "New counts every unsorted card (17)");
     // NEW: classify one German card and send it to Learn.
-    await page.locator('.sh-picker-trigger').click();
-    await page.locator('.sh-pane-subject:has-text("German")').click();
-    await page.locator('.sh-pane-topic:has-text("B1.2 — Lesson 7")').click();
-    await page.click(".sh-start");
-    await page.locator(".sh-session-pop").waitFor();
-    await page.fill(".library-study-v2-custom input", "1");
-    await page.click(".sh-session-confirm");
+    await pickScope(page, "German", "B1.2 — Lesson 7");
+    // The new menu offers 5/10/15/20 or All N. We classify the first card
+    // from the scoped batch, leaving the other New cards for another session.
+    await startAllNew(page);
     await page.locator(".sort-card").waitFor();
     const term = await page.locator(".sort-card strong").innerText();
     await page.keyboard.press("u");
     await page.click('.sort-save-next:has-text("To Learn")');
-    await page.locator(".sort-finished").waitFor();
+    await page.waitForTimeout(500);
     const afterSort = await phaseOf(term);
     check(afterSort.phase === "learning" && afterSort.cycle === 1, `New → Learn: “${term}” is in Learn, first cycle`);
     check(await gradeCount() === 0, "sending a card to Learn records no review grade");
@@ -228,8 +225,9 @@ const scenarios = {
     await page.screenshot({ path: `${shots}/01-sort-finished.png` });
 
     // LEARN: opens from the end of the Sort pass, one exercise per screen.
-    await page.click('.sort-finished-actions button:has-text("Start Learn")');
-    await page.locator(".lrn").waitFor();
+    await page.keyboard.press("Escape");
+    await page.locator(".sort-modal").waitFor({ state: "detached" });
+    await startLearn(page);
     await waitExercise(page, 1);
     check(await points(page) === "0/50 points", "the points indicator starts at 0/50");
     check(await page.locator(".lrn-stage").count() === 1 && await page.locator(".lrn-prompt").count() === 1, "exactly one exercise is on screen");
@@ -294,13 +292,13 @@ const scenarios = {
     await page.click('.lrn-actions button:has-text("Return to Learn")');
     await page.locator(".lrn").waitFor({ state: "detached" });
     await page.waitForTimeout(1500);
-    await page.locator('.sh-picker-trigger').click();
-    await page.locator('.sh-pane-subject:has-text("All subjects")').click();
+    await pickScope(page);
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "1", "Review now has the card due; the interface updated without a reload");
     await chooseStage(page, "learn");
     check(await stat(page, "Learning") === "0" && await stat(page, "Exercises today") === "5", "Learn shows 0 cards learning and 5 exercises today");
-    check(/5 exercises · 80% right first time/.test(await page.locator(".today-study-week").innerText()), "the learning success rate (80%) is shown with the week's exercises");
+    check(await sql("select count(*)::text || '|' || count(*) filter (where points > 0)::text from heuresis_learn_attempts") === "5|4",
+      "Learning activity preserves five graded exercises and four first-try successes");
     await chooseStage(page, "new");
     check(await stat(page, "New cards") === "16" && await stat(page, "Introduced today") === "1", "New shows 16 cards left and 1 introduced today");
     await page.screenshot({ path: `${shots}/07-library-after.png` });
@@ -392,9 +390,12 @@ const scenarios = {
     await chooseStage(page, "learn");
     check(await stat(page, "Learning") === "2" && await stat(page, "Ready for Review") === "1", "Learn shows 2 cards learning and 1 ready for Review");
     check(await stat(page, "Exercises today") === "20", "20 learning exercises today");
-    check(/20 exercises · 80% right first time/.test(await page.locator(".today-study-week").innerText()), "success rate: 16 of 20 right first time (80%)");
+    await chooseStage(page, "learn");
+    await chooseView(page, "Quality");
+    check((await page.locator('.sh-quality:has-text("Right first time") .sh-quality-head strong').innerText()).trim() === "80%",
+      "Learning quality shows 16 of 20 right first time (80%)");
     await chooseStage(page, "review");
-    check(await stat(page, "Due now") === "0" && await stat(page, "Reviewed today") === "0" && /0 reviews completed/.test(await page.locator(".today-study-week").innerText()),
+    check(await stat(page, "Due now") === "0" && await stat(page, "Reviewed today") === "0" && await gradeCount() === 0,
       "none of this counts as a review");
     await page.screenshot({ path: `${shots}/13-library-learn-stats.png` });
   },
@@ -431,7 +432,7 @@ const scenarios = {
     await page.locator(".sh-stage-bar").waitFor({ timeout: 20000 });
     await page.waitForTimeout(1200);
     check(await page.locator(".lrn").count() === 0, "a session that was closed is not reopened by a refresh");
-    check(await page.locator('.sh-stage.on').innerText() === "Learn", "the mode selector is still on Learn");
+    check(await page.locator('.sh-stage.tone-learn.on').count() === 1, "the mode selector is still on Learn");
     await page.click(".sh-start");
     await page.locator(".lrn").waitFor();
     await waitExercise(page, 4);
@@ -499,18 +500,13 @@ const scenarios = {
 
   async "direct new → review bypasses learn without a fabricated review"(page) {
     await openStudy(page);
-    await page.locator('.sh-picker-trigger').click();
-    await page.locator('.sh-pane-subject:has-text("Chinese")').click();
-    await page.locator('.sh-pane-topic:has-text("HSK 2 — Time")').click();
-    await page.click(".sh-start");
-    await page.locator(".sh-session-pop").waitFor();
-    await page.fill(".library-study-v2-custom input", "1");
-    await page.click(".sh-session-confirm");
+    await pickScope(page, "Chinese", "HSK 2 — Time");
+    await startAllNew(page);
     await page.locator(".sort-card").waitFor();
     const term = await page.locator(".sort-card strong").innerText();
     await page.keyboard.press("c");
     await page.click('.sort-footer-later:has-text("To Review")');
-    await page.locator(".sort-finished").waitFor();
+    await page.waitForTimeout(500);
     const id = await cardId(term);
     const state = await phaseOf(term);
     check(state.phase === "review" && state.history.at(-1).reason === "direct", `New → Review: “${term}” goes straight to Review`);
@@ -519,12 +515,13 @@ const scenarios = {
       "its review statistics are all zero: it arrives as an unreviewed card");
     check(await sql(`select count(*) from heuresis_learn_rounds where card_id = '${id}'`) === "0", "no learning round or points are invented");
     check(await sql(`select to_state from heuresis_card_state_changes where card_id = '${id}' and state_kind = 'learning_phase'`) === "review", "the transition is recorded as New → Review");
-    await page.click('.sort-finished-actions button.is-quiet');
+    await page.keyboard.press("Escape");
+    await page.locator(".sort-modal").waitFor({ state: "detached" });
     await page.waitForTimeout(1500);
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "1", "Review has it due");
     await chooseStage(page, "learn");
-    check(await stat(page, "Learning") === "0" && await page.locator(".sh-start").isDisabled(), "Learn has nothing and its Start is disabled");
+    check(await stat(page, "Learning") === "0" && await page.locator(".sh-stage.tone-learn").isDisabled(), "Learn has nothing and its stage is disabled");
   },
 
   async "review → relearn, and repeated mistakes return a card to learn"(page, context) {
