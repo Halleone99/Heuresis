@@ -883,8 +883,10 @@ const scenarios = {
     check(explained && /database update/.test(await page.locator(".lrn-state").innerText()), "starting Learn explains it instead of failing");
     await page.screenshot({ path: `${shots}/60-before-migration.png` });
     await page.click('.lrn-state button:has-text("Return to Learn")');
-    await chooseStage(page, "review");
-    check(await stat(page, "Due now") === "0" && await page.locator(".sh-notice").count() === 0, "Review is unaffected");
+    // A zero-card Review stage is now disabled; it cannot be selected just
+    // to hide a Learn setup notice. Verify its independent count instead.
+    check(await stat(page, "Due now") === "0" && await page.locator(".sh-stage.tone-review").isDisabled(),
+      "Review remains empty and disabled without the Learning tables");
   },
 };
 
