@@ -493,13 +493,13 @@ const scenarios = {
     const REC = "00000000-0000-4000-8000-000000000101";
     const popup = await context.newPage();
     await popup.goto(`${BASE}?cosmos=1&mode=review&pack=${HSK}&source=all&count=3&order=pack&mastered=1&templates=${REC}`);
-    await popup.locator(".cosmos-count").waitFor({ timeout: 15000 });
+    await popup.locator(".review-top-progress > span:first-child").waitFor({ timeout: 15000 });
     const shown = async () => sql(`select data->>'term' from heuresis_cards where id = '${await popup.locator(".cosmos-card").getAttribute("data-card-id")}'`);
 
     // Manual Relearn: available on any revealed card, without grading it.
     const manual = await shown();
     await popup.keyboard.press(" ");
-    await popup.locator('.cosmos-secondary-actions button:has-text("Relearn")').click();
+    await popup.locator('.review-links button:has-text("Relearn")').click();
     await popup.waitForTimeout(900);
     const relearned = await phaseOf(manual);
     check(relearned.phase === "learning" && relearned.history.at(-1).reason === "relearn", `manual Relearn sends “${manual}” back to Learn`);
@@ -509,28 +509,28 @@ const scenarios = {
     // Repeated mistakes: Missed twice → the card is offered back to Learn.
     const hard = await shown();
     await popup.keyboard.press(" ");
-    await popup.locator(".cosmos-results button:has-text('Missed')").click();
+    await popup.locator(".review-ratings button:has-text('Missed')").click();
     await popup.waitForTimeout(500);
-    check(await popup.locator(".cosmos-relearn-suggested").count() === 0, "one mistake does not suggest Learn");
-    await popup.locator(".cosmos-continue").click();
+    check(await popup.locator(".review-missed .review-text-btn.suggested").count() === 0, "one mistake does not suggest Learn");
+    await popup.locator(".review-next").click();
     await popup.waitForTimeout(500);
     await popup.close();
     const again = await context.newPage();
     await again.goto(`${BASE}?cosmos=1&mode=review&pack=${HSK}&source=all&count=3&order=pack&mastered=1&templates=${REC}`);
-    await again.locator(".cosmos-count").waitFor({ timeout: 15000 });
+    await again.locator(".review-top-progress > span:first-child").waitFor({ timeout: 15000 });
     for (let guard = 0; guard < 4; guard += 1) {
       const term = await sql(`select data->>'term' from heuresis_cards where id = '${await again.locator(".cosmos-card").getAttribute("data-card-id")}'`);
       await again.keyboard.press(" ");
       if (term === hard) break;
-      await again.locator(".cosmos-results button:has-text('Known')").click();
+      await again.locator(".review-ratings button:has-text('Recalled')").click();
       await again.waitForTimeout(600);
     }
-    await again.locator(".cosmos-results button:has-text('Missed')").click();
-    await again.locator(".cosmos-relearn-suggested").waitFor();
+    await again.locator(".review-ratings button:has-text('Missed')").click();
+    await again.locator(".review-missed .review-text-btn.suggested").waitFor();
     await again.screenshot({ path: `${shots}/30-review-missed-repeatedly.png` });
     const before = await gradeCount(`and card_id = '${await cardId(hard)}'`);
     check(before === 2 && await sql(`select count(*) from heuresis_review_mistakes where card_id = '${await cardId(hard)}'`) === "1", "the second mistake enters the Mistake Log, as before (and only then)");
-    await again.locator(".cosmos-relearn-suggested").click();
+    await again.locator(".review-missed .review-text-btn.suggested").click();
     await again.waitForTimeout(900);
     const returned = await phaseOf(hard);
     check(returned.phase === "learning" && returned.history.at(-1).reason === "repeated-mistakes", `after repeated mistakes “${hard}” returns to Learn in one click`);
