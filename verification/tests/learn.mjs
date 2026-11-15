@@ -224,9 +224,11 @@ const scenarios = {
       "the transition is in the card's server-side history, with its time");
     await page.screenshot({ path: `${shots}/01-sort-finished.png` });
 
-    // LEARN: opens from the end of the Sort pass, one exercise per screen.
-    await page.keyboard.press("Escape");
-    await page.locator(".sort-modal").waitFor({ state: "detached" });
+    // The New size popover intentionally offers presets rather than a custom
+    // single-card input. Leave the other cards unsorted and open Learn from Study.
+    await page.locator('.sort-topbar-actions button[aria-label="Close New cards"]').click();
+    await page.locator(".sort-modal").waitFor({ state: "detached", timeout: 12000 });
+    await page.locator(".sh-stage.tone-learn:not([disabled])").waitFor({ timeout: 12000 });
     await startLearn(page);
     await waitExercise(page, 1);
     check(await points(page) === "0/50 points", "the points indicator starts at 0/50");
