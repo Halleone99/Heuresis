@@ -22,7 +22,8 @@ assert.match(mistakes, /<h1>\{title\}<\/h1>/, "Mistake Log heading reflects the 
 assert.match(mistakes, /aria-label="Mistake Log location"/, "Breadcrumbs retain a clear home location");
 assert.doesNotMatch(mistakes, /Mistake → Correction → Practice → Progress/, "No developer-style headings");
 assert.doesNotMatch(overview, /Objectives from Personal OS appear here/, "No technical objective empty-state copy");
-assert.match(overview, /onClick=\{navigation\.flashcards\}/, "Overview opens Study through the Flashcards card");
+assert.match(overview, /open:\s*onOpenStudy/, "Overview wires the Flashcards card to Study");
+assert.match(overview, /className="ov-card-link"[^\n]+onClick=\{open\}/, "Overview card overlay invokes its navigation callback");
 assert.doesNotMatch(overview, /<button[^>]*>Open lesson <ArrowRight/, "No duplicate primary action in active lesson");
 assert.doesNotMatch(notebook, /action=\{workspace\.writable && fallbackTopic \? <div className="ws-empty-actions"/, "Notebook empty state relies on header action");
 

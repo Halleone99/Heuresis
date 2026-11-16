@@ -284,6 +284,12 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
       loading: articleLoading, error: articleError, open: () => workspace.goTo("reference") },
   ];
 
+  const retrySection = (section: ActivityKind) => {
+    if (section === "notes") { void workspace.reload().catch(() => undefined); return; }
+    if (section === "quotes") { void reading.reload().catch(() => undefined); return; }
+    setRetry((value) => value + 1);
+  };
+
   const activeDays = calendar.days.filter((day) => !day.future);
   const totalActivity = activeDays.reduce((sum, day) => sum + (selected.get(day.key) ?? 0), 0);
   const daysWithActivity = activeDays.filter((day) => (selected.get(day.key) ?? 0) > 0).length;
@@ -319,7 +325,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
               title={(!loading && !failed ? day.value : 0) + " " + unit + " · " + day.label} />)}
           </div>
           <div className="ov-card-foot">
-            {failed ? <><span>Could not load</span><button type="button" className="ov-retry" onClick={() => setRetry((value) => value + 1)}>Retry</button></>
+            {failed ? <><span>Could not load</span><button type="button" className="ov-retry" onClick={() => retrySection(key as ActivityKind)}>Retry</button></>
               : loading ? <span>Loading…</span>
               : <><span>{lastLabel}</span><span><b>{toDate(last)}</b> · {relative(last)}</span></>}
           </div>
@@ -339,7 +345,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
       <div className="ov-activity-body">
         <div className="ov-heat-wrap">
           {selectedLoading ? <div className="ov-heat-status" role="status">Loading activity…</div>
-            : selectedError ? <div className="ov-heat-status" role="alert">Activity unavailable. <button type="button" className="ov-retry" onClick={() => setRetry((value) => value + 1)}>Retry</button></div>
+            : selectedError ? <div className="ov-heat-status" role="alert">Activity unavailable. <button type="button" className="ov-retry" onClick={() => retrySection(kind)}>Retry</button></div>
             : <div className="ov-heat">
               <div className="ov-months" aria-hidden="true">{calendar.weeks.map((week) => <span key={week.key}>{week.label}</span>)}</div>
               <div className="ov-weekdays" aria-hidden="true"><span>Mon</span><span/><span>Wed</span><span/><span>Fri</span><span/><span/></div>
