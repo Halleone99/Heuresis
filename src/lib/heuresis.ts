@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import type { KnowledgeMode } from "./studyKnowledgeMode";
 
 export const CARD_PAGE_SIZE = 200;
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
@@ -33,6 +34,7 @@ export type Collection = {
   accent: AccentKey;
   glyph: string | null;
   sort_order: number;
+  study_mode: KnowledgeMode;
 };
 
 export type CardType = {
@@ -202,7 +204,7 @@ export function fieldText(data: CardWithStats["data"], key: string | undefined) 
 export async function listCollections(): Promise<Collection[]> {
   const { data, error } = await db()
     .from("heuresis_collections")
-    .select("id,title,description,accent,glyph,sort_order")
+    .select("id,title,description,accent,glyph,sort_order,study_mode")
     .is("archived_at", null)
     .order("sort_order")
     .order("created_at");
