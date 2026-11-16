@@ -36,7 +36,6 @@ type Props = {
 
 type Removal = { kind: "learn" | "discard" | "later"; card: CardWithStats; phase?: AcquisitionPhase; rank?: number };
 const ORDER_KEY = "heuresis.sort.order.v1";
-const DESTINATION_KEY = "heuresis.sort.destination.v1";
 const IMPORTANCE_KEY = "heuresis.sort.lastImportance.v1";
 const EXAMPLES_KEY = "heuresis.cards.showExamples.v1";
 function readImportance(): Importance {
@@ -45,9 +44,6 @@ function readImportance(): Importance {
 }
 function readExamples() {
   try { return localStorage.getItem(EXAMPLES_KEY) === "true"; } catch { return false; }
-}
-function readDestination(): AcquisitionPhase {
-  try { return localStorage.getItem(DESTINATION_KEY) === "review" ? "review" : "learning"; } catch { return "learning"; }
 }
 
 function readOrder(): "topic" | "random" {
@@ -142,7 +138,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [editingCard, setEditingCard] = useState(false);
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
   const [detailsCount, setDetailsCount] = useState(0);
-  const [destination, setDestination] = useState<AcquisitionPhase>(readDestination);
   const [importance, setImportance] = useState<Importance>(readImportance);
   const [showExamples, setShowExamples] = useState(readExamples);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -265,12 +260,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     });
     trackSave(save);
   }
-  function switchDestination() {
-    const next: AcquisitionPhase = destination === "learning" ? "review" : "learning";
-    setDestination(next);
-    try { localStorage.setItem(DESTINATION_KEY, next); } catch { /* preference only */ }
-  }
-
   async function saveQuickNote() {
     if (card && noteDraft.trim() !== (card.note ?? "").trim()) await saveCardNote(card.id, noteDraft);
   }
@@ -291,7 +280,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     } else exitSort();
   }
 
-  async function learn(rank: number, phase: AcquisitionPhase = destination) {
+  async function learn(rank: number, phase: AcquisitionPhase = "learning") {
     if (!card || busy) return;
     setBusy(true); setMessage("");
     try {
@@ -619,7 +608,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
               </button>
               : <button type="button" className="sort-new-add-example" disabled={busy}
                 onClick={() => openDetailsFor({ dim: "examples" })}>+ Example sentence</button>}
-          </div>
           </div> : null}
           <div className="sort-new-tags sort-badge-row">
             {tags.filter(tag => tag.is_badge).map(tag =>
