@@ -64,6 +64,7 @@ export type HeuresisTag = {
   is_badge: boolean;
   shortcut: string | null;
   sort_order: number;
+  color?: string | null;
 };
 
 export type CardStats = {
@@ -264,12 +265,14 @@ export async function listPacks(): Promise<PackWithType[]> {
 }
 
 export async function listTags(): Promise<HeuresisTag[]> {
-  const { data, error } = await db()
-    .from("heuresis_tags")
-    .select("id,name,is_badge,shortcut,sort_order")
-    .order("is_badge", { ascending: false })
-    .order("sort_order")
-    .order("name");
+  // A deployed client can precede the additive badge-colour migration.
+  const query = (fields: string) => db().from("heuresis_tags").select(fields)
+    .order("is_badge", { ascending: false }).order("sort_order").order("name");
+  let { data, error } = await query("id,name,is_badge,shortcut,sort_order,color");
+  if (error && /color|42703|PGRST204/i.test(error.message)) {
+    const fallback = await query("id,name,is_badge,shortcut,sort_order");
+    data = fallback.data; error = fallback.error;
+  }
   if (error) throw error;
   return (data ?? []) as HeuresisTag[];
 }
