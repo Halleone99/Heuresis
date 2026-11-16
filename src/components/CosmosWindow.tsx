@@ -25,6 +25,7 @@ import {
 import { reviewGradeCount, templateDirection } from "../lib/learningSignals";
 import { languageFromCollection, languageFromName, languageFromScript, languageName } from "../lib/languages";
 import FormattingRail from "./FormattingRail";
+import FormattingRuleList from "./FormattingRuleList";
 import {
   addRelatedWord,
   listRelatedCards,
@@ -1244,6 +1245,9 @@ export default function CosmosWindow() {
           : <>
             {filled.map(renderDimension)}
             {!filled.length ? <p className="cosmos-empty cosmos-details-empty">{mode === "review" ? "No saved context for this card." : "Nothing recorded yet. Add what helps you remember this card."}</p> : null}
+            {split && revealed && side === "right" && pack ? <FormattingRuleList language={
+              languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
+              ?? languageFromScript(fieldText(card.data, term?.key)) ?? "en"} /> : null}
             {mode === "sort" && empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
           </>}
       </div>
