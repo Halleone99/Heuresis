@@ -430,7 +430,7 @@ const scenarios = {
     await page.locator(".lrn").waitFor({ timeout: 20000 });
     await waitExercise(page, 3);
     check(await page.locator(".lrn-prompt").innerText() === prompt, "after a refresh Learn reopens on the same exercise (3/5), unchanged");
-    check(await points(page) === "10/50 points", "the points earned so far are still there (10/50)");
+    check(await points(page) === "10/100 points", "the first 10 points survive the refresh");
     check(await page.locator('.lrn-progress i[data-state="right"]').count() === 1 && await page.locator('.lrn-progress i[data-state="wrong"]').count() === 1, "the progress bar shows one right and one wrong");
     check(await sql("select count(*) from heuresis_learn_rounds") === "1" && (await activeRound(term)).id === round.id, "it is the same round: none was created by the refresh");
     await answer(page, round.plan[2], true); await proceed(page);
@@ -447,7 +447,7 @@ const scenarios = {
     await page.click(".sh-start");
     await page.locator(".lrn").waitFor();
     await waitExercise(page, 4);
-    check(await points(page) === "20/50 points", "Start resumes the unfinished card first, at exercise 4 with 20/50");
+    check(await points(page) === "20/100 points", "Start resumes the unfinished card with 20 cumulative points");
     await answer(page, round.plan[3], true); await proceed(page);
     await waitExercise(page, 5);
     await answer(page, round.plan[4], true); await proceed(page);
@@ -471,7 +471,7 @@ const scenarios = {
     await page.locator(".lrn-feedback").waitFor();
     await page.waitForTimeout(500);
     check(await sql(`select count(*) || '|' || sum(points) from heuresis_learn_attempts where round_id = '${round.id}'`) === "1|10", "a double click records one answer and 10 points");
-    check(await points(page).then((text) => /10\/50 points$/.test(text)), "the indicator shows 10/50, not 20");
+    check(await points(page).then((text) => /10\/100 points$/.test(text)), "the indicator shows 10/100, not 20");
 
     // The same request again, as a retry or an offline replay would send it.
     const again = await rpc("heuresis_learn_record_attempt", { p_round_id: round.id, p_position: 1, p_stage: "recognition", p_exercise_type: "choose-meaning", p_correct: true, p_assisted: false, p_response: "x", p_expected: "x" });
