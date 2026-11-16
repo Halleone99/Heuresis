@@ -86,3 +86,24 @@
 @media (max-width: 1179px) {
   :root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details { top: 58px; width: min(340px, 86vw); }
 }
+
+/* The tablet's one Details control opens a combined, closable Context + Notes drawer. */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-details {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:44px;padding:0 12px;border:1px solid var(--ws-line);
+  border-radius:10px;background:transparent;color:var(--ws-muted);
+  font:600 12px var(--sans);cursor:pointer;
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-details[aria-expanded="true"] {
+  border-color:var(--c-review);color:var(--ws-ink);
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-details b {
+  font:600 10px var(--sans);color:var(--ws-muted);
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details-right .cosmos-details-head {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 20px;border-bottom:1px solid var(--ws-line);
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-details-right .cosmos-details-head button {
+  min-width:44px;min-height:44px;
+}

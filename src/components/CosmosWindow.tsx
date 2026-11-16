@@ -1103,7 +1103,7 @@ export default function CosmosWindow() {
         if (revealed && grade) { event.preventDefault(); selectGrade(grade); return; }
         if (revealed && event.key === "Enter" && suggestion) { event.preventDefault(); selectGrade(suggestion.grade); return; }
         if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
-        if (event.key.toLowerCase() === "e") { event.preventDefault(); setLeftContextOpen((value) => !value); }
+        if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
       } else {
         if (/^[1-5]$/.test(event.key)) { event.preventDefault(); void setInterest(Number(event.key)); }
         else if (event.key === "ArrowRight" || event.key === "Enter") { event.preventDefault(); void nextSort(); }
@@ -1218,16 +1218,17 @@ export default function CosmosWindow() {
     const split = mode === "review";
     const open = side === "left" ? leftContextOpen : detailsOpen;
     if (!open || (split && !revealed) || (!split && !detailsAvailable)) return null;
+    const combinedAndroidDetails = split && side === "right" && isAndroidRuntime();
     const chosen = split
-      ? dimensions.filter((def) => side === "left"
+      ? dimensions.filter((def) => combinedAndroidDetails || (side === "left"
         ? ["examples", "neighbours", "components", "structure"].includes(def.id)
-        : ["origin", "facts", "notes"].includes(def.id))
+        : ["origin", "facts", "notes"].includes(def.id)))
       : dimensions;
     const filled = chosen.filter((def) => countFor(def.id) > 0 || (mode === "sort" && addingDim === def.id));
     const empty = mode === "sort" ? chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id) : [];
-    return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
+    return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={combinedAndroidDetails ? "Details: context and notes" : split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
       <header className="cosmos-details-head">
-        <strong>{!split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
+        <strong>{combinedAndroidDetails ? "Details" : !split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
         {!split ? <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card" : "Keep open for every card"}
           onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button> : null}
         <button type="button" aria-label={side === "left" ? "Close examples and connections" : "Close facts and notes"}
@@ -1342,12 +1343,14 @@ export default function CosmosWindow() {
         <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
       </div>
       <div className="review-top-tools" role="group" aria-label="Review tools">
-        <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
-          aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
-          {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
-        <button type="button" className="review-icon" disabled={!revealed} aria-label="Notes (D)" title="Notes (D)"
-          aria-pressed={detailsOpen} onClick={() => setDetailsOpen(value=>!value)}>
-          {detailsOpen ? <PanelRightClose size={17}/> : <PanelRightOpen size={17}/>}</button>
+        {!isAndroidRuntime() ? <>
+          <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
+            aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
+            {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
+          <button type="button" className="review-icon" disabled={!revealed} aria-label="Notes (D)" title="Notes (D)"
+            aria-pressed={detailsOpen} onClick={() => setDetailsOpen(value=>!value)}>
+            {detailsOpen ? <PanelRightClose size={17}/> : <PanelRightOpen size={17}/>}</button>
+        </> : null}
         <span className="review-top-separator" aria-hidden="true"/>
         {item?.reasons.length ? <button type="button" className="review-icon" aria-label="Why this card"
           title="Why this card" aria-expanded={whyOpen} onClick={()=>setWhyOpen(value=>!value)}><CircleHelp size={17}/></button> : null}
@@ -1401,6 +1404,11 @@ export default function CosmosWindow() {
           {currentBars ? <span className="review-bars" role="img" aria-label={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}
             title={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}>
             {[0,1,2,3].map(i=><i key={i} className={i<currentBars.bars?"filled":""}/>)}</span> : null}
+          {redesignReview && isAndroidRuntime() && revealed ? <button type="button" className="review-card-details"
+            aria-label="Details: examples, connections, facts and notes" aria-expanded={detailsOpen}
+            onClick={() => { setLeftContextOpen(false); setDetailsOpen((value) => !value); }}>
+            {detailsOpen ? <PanelRightClose size={16}/> : <PanelRightOpen size={16}/>} Details{detailsTotal ? <b>{detailsTotal}</b> : null}
+          </button> : null}
           {revealed ? <button type="button" className="review-icon" aria-label="Modify this card" title="Modify this card"
             disabled={busy} onClick={()=>setEditOpen(true)}><Pencil size={15}/></button> : null}
         </header> : null}
