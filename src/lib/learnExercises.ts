@@ -256,7 +256,8 @@ function pickRivals(card: LearnCard, pool: LearnCard[], random: () => number, fi
 
 type Context = { card: LearnCard; pool: LearnCard[]; round: number };
 type Draft = Omit<ChoiceExercise, "position" | "stage" | "v"> | Omit<BuildExercise, "position" | "stage" | "v">
-  | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">;
+  | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">
+  | Omit<ComposeExercise, "position" | "stage" | "v">;
 type Builder = (context: Context, random: () => number) => Draft | null;
 
 const tag = (card: LearnCard) => (card.language ? BCP[card.language] : undefined) ?? (card.han ? "zh-Hans" : undefined);
@@ -609,7 +610,7 @@ const choosePreposition: Builder = ({ card }, random) => {
 };
 
 const STOP = new Set(["der", "die", "das", "den", "dem", "des", "ein", "eine", "sich", "to", "the", "a", "an", "se", "le", "la", "les", "el", "los", "las", ...DE_PREPOSITIONS]);
-const SEPARABLE = ["zurück", "heraus", "herein", "hinaus", "weiter", "ab", "an", "auf", "aus", "bei", "ein", "mit", "nach", "vor", "weg", "zu"];
+const SEPARABLE = ["fest", "zurück", "heraus", "herein", "hinaus", "weiter", "ab", "an", "auf", "aus", "bei", "ein", "mit", "nach", "vor", "weg", "zu"];
 
 function fold(text: string) {
   return text.normalize("NFD").replace(/́/g, "").normalize("NFC").toLocaleLowerCase();
@@ -865,7 +866,7 @@ export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: n
     if (stage === "recall" && longAnswer(card)) preferred = ["recall-build", "recall-type"];
     const fitting = preferred.filter((kind) => !used.has(kind)).map((kind) => attempt(kind, position, stage)).filter((item): item is Exercise => Boolean(item));
     let chosen: Exercise | null = fitting.length
-      ? fitting[stage === "recall" ? 0 : (round - 1) % fitting.length] : null;
+      ? fitting[stage === "recall" ? 0 : (round >= 2 ? round - 2 : round - 1) % fitting.length] : null;
     if (!chosen) {
       for (const kind of SUBSTITUTES) {
         if (used.has(kind)) continue;
@@ -941,7 +942,7 @@ export function checkExercise(exercise: Exercise, input: ExerciseInput): Verdict
     const isChinese = exercise.language === "zh" || exercise.language === "ja";
     const enoughContext = isChinese
       ? Array.from(response).length >= Array.from(exercise.target).length + 6
-      : response.split(/\\s+/u).filter(Boolean).length >= 5;
+      : response.split(/\s+/u).filter(Boolean).length >= 5;
     const match = locateInSentence({ form: exercise.target, han: isChinese, language: exercise.language ?? null }, response);
     const target = normaliseAnswer(exercise.target);
     const plainMatch = Boolean(target && normaliseAnswer(response).includes(target));
