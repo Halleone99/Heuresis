@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import type { KnowledgeMode } from "./studyKnowledgeMode";
 import { listCardTypes, type AccentKey, type CardType, type PackWithType, type HeuresisTag } from "./heuresis";
 
 export type SearchCardResult = {
@@ -83,19 +84,19 @@ export async function listArchivedPacks(): Promise<PackWithType[]> {
   return mapPackRows((data ?? []) as any[]);
 }
 
-export async function createCollection(input: { title: string; description?: string; accent: AccentKey; glyph?: string }) {
+export async function createCollection(input: { title: string; description?: string; accent: AccentKey; glyph?: string; study_mode?: KnowledgeMode }) {
   const { data: last, error: lastError } = await db().from("heuresis_collections").select("sort_order").is("archived_at", null).order("sort_order", { ascending: false }).limit(1);
   if (lastError) throw lastError;
   const sortOrder = Number(last?.[0]?.sort_order ?? -1) + 1;
   const { data, error } = await db().from("heuresis_collections").insert({
     title: input.title.trim(), description: input.description?.trim() || null, accent: input.accent,
-    glyph: input.glyph?.trim() || null, sort_order: sortOrder,
+    glyph: input.glyph?.trim() || null, sort_order: sortOrder, study_mode: input.study_mode ?? "languages",
   }).select("id").single();
   if (error) throw error;
   return data.id;
 }
 
-export async function updateCollection(collectionId: string, patch: { title?: string; description?: string | null; accent?: AccentKey; glyph?: string | null; sort_order?: number }) {
+export async function updateCollection(collectionId: string, patch: { title?: string; description?: string | null; accent?: AccentKey; glyph?: string | null; sort_order?: number; study_mode?: KnowledgeMode }) {
   const next = { ...patch, title: patch.title === undefined ? undefined : patch.title.trim(), description: patch.description === undefined ? undefined : patch.description?.trim() || null, glyph: patch.glyph === undefined ? undefined : patch.glyph?.trim() || null };
   const { error } = await db().from("heuresis_collections").update(next).eq("id", collectionId);
   if (error) throw error;

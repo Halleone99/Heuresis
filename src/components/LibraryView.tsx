@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Link2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronRight, Link2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
@@ -8,6 +8,7 @@ import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import { readOpenStudy, rememberOpenStudy, type OpenStudySession } from "../lib/studySessionMemory";
 import { relativeOpened } from "../lib/relativeTime";
+import { KNOWLEDGE_MODES, readKnowledgeMode, studySelectionKey, writeKnowledgeMode, type KnowledgeMode } from "../lib/studyKnowledgeMode";
 import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
 import LearningSession from "./LearningSession";
@@ -25,7 +26,7 @@ type Props = {
   onEditPack: (pack: PackWithType) => void;
   onOpenNewWords: (collection: Collection) => void;
   onArchive: () => void;
-  onNewCollection: () => void;
+  onNewCollection: (mode: KnowledgeMode) => void;
 };
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
@@ -51,6 +52,7 @@ function newestOpen(packs: PackWithType[]) {
 
 export default function LibraryView({ collections, packs, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [knowledgeMode, setKnowledgeMode] = useState<KnowledgeMode>(readKnowledgeMode);
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [reviewOverview, setReviewOverview] = useState<ReviewOverview | null>(null);
   const [reviewRevision, setReviewRevision] = useState(0);
@@ -67,18 +69,27 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
   const [selection, setSelection] = useState<string>(() => {
-    try { return sessionStorage.getItem(STUDY_SELECTION_KEY) ?? ""; } catch { return ""; }
+    try {
+      return sessionStorage.getItem(studySelectionKey(readKnowledgeMode()))
+        ?? (readKnowledgeMode() === "languages" ? sessionStorage.getItem(STUDY_SELECTION_KEY) : null)
+        ?? "all";
+    } catch { return "all"; }
   });
   const [launchRequest, setLaunchRequest] = useState<{ topicId: string; nonce: number } | null>(null);
   const [showAllCollections, setShowAllCollections] = useState(false);
   const [relatedCounts, setRelatedCounts] = useState<Record<string, number>>({});
   const [captureRevision, setCaptureRevision] = useState(0);
-  const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
-  const filteredReviewIds = reviewLaunchIds ?? collections.map((item) => item.id);
+  const modeCollections = useMemo(() => collections.filter((collection) => collection.study_mode === knowledgeMode), [collections, knowledgeMode]);
+  const modePacks = useMemo(() => {
+    const visible = new Set(modeCollections.map((collection) => collection.id));
+    return packs.filter((pack) => visible.has(pack.collection_id));
+  }, [packs, modeCollections]);
+  const activeCollection = useMemo(() => modeCollections.find((collection) => collection.id === collectionId) ?? null, [collectionId, modeCollections]);
+  const filteredReviewIds = reviewLaunchIds ?? modeCollections.map((item) => item.id);
   const refreshReviews = () => setReviewRevision((previous) => previous + 1);
 
   async function startNewCards(pack: PackWithType, count: number, resume?: OpenStudySession) {
-    if (!Number.isInteger(count) || count < 1 || newOpening) return;
+    if (!Number.isInteger(count) || count < 1 || newOpening || !modePacks.some((item) => item.id === pack.id)) return;
     setNewOpening(true);
     setNewError("");
     try {
@@ -103,6 +114,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
 
   async function startReview(size: number, scopedPacks: PackWithType[]) {
     if (!reviewOverview || reviewOpening || !Number.isInteger(size) || size < 1) return;
+    scopedPacks = scopedPacks.filter((pack) => modePacks.some((item) => item.id === pack.id));
     let remaining = size;
     const entries: Array<{ packId: string; cardIds: string[] }> = [];
     // The scope and topic order come directly from the subject picker.
@@ -134,7 +146,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     setLearningOpening(true);
     setNewError("");
     try {
-      const requestedPacks = Array.isArray(requested) ? requested : [requested];
+      const requestedPacks = (Array.isArray(requested) ? requested : [requested]).filter((pack) => modePacks.some((item) => item.id === pack.id));
       const topics = await loadLearnTopics(requestedPacks, collections);
       if (!topics.length) { rememberOpenLearn(null); refreshReviews(); setNewError("No cards are currently in Learn for this selection."); return; }
       const title = scopeTitle || (topics.length === 1 ? topics[0].pack.title : "Learn");
@@ -160,34 +172,33 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   }
 
   const latestCollection = useMemo(() => {
-    if (!collections.length) return null;
-    const ranked = collections.map((collection) => {
-      const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
+    if (!modeCollections.length) return null;
+    const ranked = modeCollections.map((collection) => {
+      const collectionPacks = modePacks.filter((pack) => pack.collection_id === collection.id);
       return { collection, hasPacks: collectionPacks.length > 0, last: newestOpen(collectionPacks) };
     }).sort((a, b) => {
       if (a.hasPacks !== b.hasPacks) return Number(b.hasPacks) - Number(a.hasPacks);
       return Date.parse(b.last ?? "1970-01-01") - Date.parse(a.last ?? "1970-01-01");
     });
-    return ranked[0]?.collection ?? collections[0];
-  }, [collections, packs]);
+    return ranked[0]?.collection ?? modeCollections[0];
+  }, [modeCollections, modePacks]);
 
   const selectedCollection = useMemo(() => {
     const id = selection.startsWith("collection:") ? selection.slice(11)
-      : selection.startsWith("topic:") ? packs.find((pack) => pack.id === selection.slice(6))?.collection_id
+      : selection.startsWith("topic:") ? modePacks.find((pack) => pack.id === selection.slice(6))?.collection_id
       : selectedCollectionId;
-    return collections.find((collection) => collection.id === id) ?? latestCollection;
-  }, [collections, packs, latestCollection, selectedCollectionId, selection]);
+    return modeCollections.find((collection) => collection.id === id) ?? latestCollection;
+  }, [modeCollections, modePacks, latestCollection, selectedCollectionId, selection]);
   useEffect(() => {
-    if (!latestCollection) return;
     const valid = selection === "all" ||
-      (selection.startsWith("collection:") && collections.some((c) => c.id === selection.slice(11))) ||
-      (selection.startsWith("topic:") && packs.some((p) => p.id === selection.slice(6)));
+      (selection.startsWith("collection:") && modeCollections.some((c) => c.id === selection.slice(11))) ||
+      (selection.startsWith("topic:") && modePacks.some((p) => p.id === selection.slice(6)));
     if (valid) return;
-    const next = "collection:" + latestCollection.id;
+    const next = latestCollection ? "collection:" + latestCollection.id : "all";
     setSelection(next);
-    setSelectedCollectionId(latestCollection.id);
-    try { sessionStorage.setItem(STUDY_SELECTION_KEY, next); sessionStorage.setItem(LAST_COLLECTION_KEY, latestCollection.id); } catch { /* navigation only */ }
-  }, [collections, packs, selection, latestCollection]);
+    setSelectedCollectionId(latestCollection?.id ?? null);
+    try { sessionStorage.setItem(studySelectionKey(knowledgeMode), next); } catch { /* navigation only */ }
+  }, [modeCollections, modePacks, knowledgeMode, selection, latestCollection]);
 
   useEffect(() => {
     let alive = true;
@@ -233,15 +244,15 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   // A Learn session that was open when the page was refreshed continues where it stopped.
   const learnResumed = useRef(false);
   useEffect(() => {
-    if (learnResumed.current || !packs.length) return;
+    if (learnResumed.current || !modePacks.length) return;
     learnResumed.current = true;
     const open = readOpenLearn("library");
     if (!open) return;
-    const wanted = packs.filter((pack) => open.packIds.includes(pack.id));
+    const wanted = modePacks.filter((pack) => open.packIds.includes(pack.id));
     if (wanted.length) void startLearning(wanted, open.title);
     else rememberOpenLearn(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packs]);
+  }, [modePacks]);
 
   useEffect(() => {
     let alive = true;
@@ -266,14 +277,30 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     try { sessionStorage.setItem(LAST_COLLECTION_KEY, id); } catch { /* navigation preference only */ }
   }
 
+  function chooseKnowledgeMode(next: KnowledgeMode) {
+    if (next === knowledgeMode) return;
+    writeKnowledgeMode(next);
+    setKnowledgeMode(next);
+    let saved = "all";
+    try { saved = sessionStorage.getItem(studySelectionKey(next)) ?? "all"; } catch { /* optional */ }
+    setSelection(saved);
+    setSelectedCollectionId(null);
+    setCollectionId(null);
+    setLaunchRequest(null);
+    setShowAllCollections(false);
+    setNewError("");
+  }
+
   function chooseStudyScope(value: string) {
     const id = value.startsWith("collection:") ? value.slice(11)
-      : value.startsWith("topic:") ? packs.find((pack) => pack.id === value.slice(6))?.collection_id : null;
+      : value.startsWith("topic:") ? modePacks.find((pack) => pack.id === value.slice(6))?.collection_id : null;
+    if (value !== "all" && (!id || !modeCollections.some((collection) => collection.id === id))) return;
     if (id) selectCollection(id);
     setSelection(value);
-    try { sessionStorage.setItem(STUDY_SELECTION_KEY, value); } catch { /* navigation only */ }
+    try { sessionStorage.setItem(studySelectionKey(knowledgeMode), value); } catch { /* navigation only */ }
   }
   function openCollection(id: string) {
+    if (!modeCollections.some((collection) => collection.id === id)) return;
     selectCollection(id);
     setCollectionId(id);
   }
@@ -290,11 +317,11 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     setCollectionId(null);
   }
 
-  if (reviewsOpen) return <ReviewCentre collections={collections} packs={packs} overview={reviewOverview}
+  if (reviewsOpen) return <ReviewCentre collections={modeCollections} packs={modePacks} overview={reviewOverview}
     initialCollectionIds={filteredReviewIds} initialTopicId={reviewLaunchTopicId} onBack={() => { setReviewsOpen(false); refreshReviews(); }} onRefresh={refreshReviews} />;
 
   if (activeCollection) {
-    const collectionPacks = packs.filter((pack) => pack.collection_id === activeCollection.id);
+    const collectionPacks = modePacks.filter((pack) => pack.collection_id === activeCollection.id);
     const collectionCards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
     const newWordsCount = relatedCounts[activeCollection.id] ?? 0;
     void captureRevision;
@@ -354,23 +381,33 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     );
   }
 
-  const selectedPacks = selectedCollection ? packs.filter((pack) => pack.collection_id === selectedCollection.id) : [];
+  const selectedPacks = selectedCollection ? modePacks.filter((pack) => pack.collection_id === selectedCollection.id) : [];
   const sortedTopics = selectedPacks.slice().sort((a, b) =>
     Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01") || a.title.localeCompare(b.title));
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
-  const otherCollections = collections.filter((collection) => collection.id !== selectedCollection?.id)
-    .sort((a, b) => Date.parse(newestOpen(packs.filter((p) => p.collection_id === b.id)) ?? "1970-01-01")
-       - Date.parse(newestOpen(packs.filter((p) => p.collection_id === a.id)) ?? "1970-01-01"));
+  const otherCollections = modeCollections.filter((collection) => collection.id !== selectedCollection?.id)
+    .sort((a, b) => Date.parse(newestOpen(modePacks.filter((p) => p.collection_id === b.id)) ?? "1970-01-01")
+       - Date.parse(newestOpen(modePacks.filter((p) => p.collection_id === a.id)) ?? "1970-01-01"));
 
   return (
     <section className="library-page intelligent-library">
       <header className="intelligent-library-head">
         <div className="library-head-copy">
-          <h1>Study<span>.</span></h1>
+          <div className="study-knowledge-heading">
+            <h1>Study<span>.</span></h1>
+            <label className="study-knowledge-select">
+              <span className="study-knowledge-dot" aria-hidden="true" />
+              <select aria-label="Choose knowledge mode" value={knowledgeMode}
+                onChange={(event) => chooseKnowledgeMode(event.target.value as KnowledgeMode)}>
+                {KNOWLEDGE_MODES.map((mode) => <option value={mode.id} key={mode.id}>{mode.label}</option>)}
+              </select>
+              <ChevronDown size={13} aria-hidden="true" />
+            </label>
+          </div>
         </div>
       </header>
 
-      {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
+      {modeCollections.length ? <TodayStudyPanel collections={modeCollections} packs={modePacks} overview={reviewOverview}
         selection={selection} onSelectionChange={chooseStudyScope} launchRequest={launchRequest}
         quota={newCardQuota} opening={newOpening || learningOpening || reviewOpening} error={newError}
         onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
@@ -423,7 +460,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
           <span className="study-desk-eyebrow">OTHER COLLECTIONS</span>
           <div className="study-desk-others">
             {(showAllCollections ? otherCollections : otherCollections.slice(0, 3)).map((collection) => {
-              const topicPacks = packs.filter((p) => p.collection_id === collection.id);
+              const topicPacks = modePacks.filter((p) => p.collection_id === collection.id);
               const total = topicPacks.reduce((n, pack) => n + pack.card_count, 0);
               const counts = topicPacks.reduce((acc, pack) => {
                 const stats = reviewOverview?.topics[pack.id];
@@ -444,12 +481,12 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
                 </span><ChevronRight size={14} aria-hidden="true" />
               </button>;
             })}
-            <button type="button" className="study-desk-new" onClick={onNewCollection}><Plus size={13} /> New collection</button>
+            <button type="button" className="study-desk-new" onClick={() => onNewCollection(knowledgeMode)}><Plus size={13} /> New collection</button>
           </div>
           {otherCollections.length > 3 ? <button type="button" className="study-desk-all"
             onClick={() => setShowAllCollections((value) => !value)}>{showAllCollections ? "Show fewer" : "All collections"}</button> : null}
         </aside>
-      </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
+      </div> : <div className="library-empty study-knowledge-empty"><BookOpen size={22} /><strong>{knowledgeMode === "applied" ? "Applied knowledge starts here." : "No language collections yet."}</strong><p>{knowledgeMode === "applied" ? "Create a collection for customs, Incoterms, compliance or another practical subject. Your language decks stay in Languages." : "Create your first language collection to begin studying."}</p><button type="button" className="library-new-collection" onClick={() => onNewCollection(knowledgeMode)}><Plus size={14} /> New {knowledgeMode === "applied" ? "Applied" : "Languages"} collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
         quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds }} onClose={closeQuickSort} onChanged={() => undefined}
         onLearning={() => void startLearning(quickSort.pack)} /> : null}
