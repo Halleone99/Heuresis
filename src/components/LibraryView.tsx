@@ -408,8 +408,8 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
                     </span>)}
                 </div>
                 <button type="button" className={"study-desk-action" + (resume ? " resume" : "")}
-                  disabled={newOpening || learningOpening || reviewOpening || (Boolean(stats) && !stats!.newReady && !stats!.learnCards && !stats!.reviewCards)}
-                  title={stats && !stats.newReady && !stats.learnCards && !stats.reviewCards ? "Nothing to study in this topic right now" : undefined}
+                  disabled={newOpening || learningOpening || reviewOpening || (Boolean(stats) && !stats!.newReady && !stats!.learnCards && !stats!.ready)}
+                  title={stats && !stats.newReady && !stats.learnCards && !stats.ready ? "Nothing to study in this topic right now" : undefined}
                   onClick={() => resume ? resumeTopic(pack, resume) : studyTopic(pack)}>{resume ? "Resume" : "Study"}</button>
               </div>;
             })}
