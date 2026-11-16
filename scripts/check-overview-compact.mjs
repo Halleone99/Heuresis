@@ -27,7 +27,7 @@ assert.match(overview, /role="tablist" aria-label="Activity type"/, "Activity us
 assert.match(overview, /aria-selected=\{kind === value\}/, "Current tab is announced to assistive technology");
 assert.match(overview, /Last 26 weeks/, "Overview retains 26-week calendar");
 assert.match(overview, /role="img"/, "Mini bars and heatmap have descriptions");
-assert.match(overview, /className="ov-card-link"[^\\n]+onClick=\{open\}/, "Cards use accessible navigation buttons");
+assert.match(overview, /className="ov-card-link"[^\n]+onClick=\{open\}/, "Cards use accessible navigation buttons");
 assert.match(overview, /open: onOpenStudy/, "Flashcards card opens Study");
 assert.match(overview, /goTo\("notebook"\)/, "Notes card opens Notebook");
 assert.match(overview, /goTo\("quotations"\)/, "Quotations card opens quotation section");
