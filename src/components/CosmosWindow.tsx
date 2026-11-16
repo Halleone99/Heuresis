@@ -23,7 +23,9 @@ import {
   type LearningCounts,
 } from "../lib/learning";
 import { reviewGradeCount, templateDirection } from "../lib/learningSignals";
-import { languageFromCollection, languageName } from "../lib/languages";
+import { languageFromCollection, languageFromName, languageFromScript, languageName } from "../lib/languages";
+import FormattingRail from "./FormattingRail";
+import FormattingRuleList from "./FormattingRuleList";
 import {
   addRelatedWord,
   listRelatedCards,
@@ -298,6 +300,7 @@ export default function CosmosWindow() {
   const [manualRest, setManualRest] = useState<QueueItem[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const reviewCardRef = useRef<HTMLElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
@@ -1242,6 +1245,9 @@ export default function CosmosWindow() {
           : <>
             {filled.map(renderDimension)}
             {!filled.length ? <p className="cosmos-empty cosmos-details-empty">{mode === "review" ? "No saved context for this card." : "Nothing recorded yet. Add what helps you remember this card."}</p> : null}
+            {split && revealed && side === "right" && pack ? <FormattingRuleList language={
+              languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
+              ?? languageFromScript(fieldText(card.data, term?.key)) ?? "en"} /> : null}
             {mode === "sort" && empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
           </>}
       </div>
@@ -1287,7 +1293,9 @@ export default function CosmosWindow() {
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
       const termToPlay = redesignReview && revealed && recapField && key === term?.key;
       return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
-        {rule ? <i className="cosmos-rule" /> : null}<span>{value}</span>
+        {rule ? <i className="cosmos-rule" /> : null}
+        <span data-hl={revealed ? "" : undefined} lang={field?.role === "meaning" || field?.role === "example_translation" ? "en" :
+          languageFromScript(value) ?? languageFromName(pack.title) ?? "en"}>{value}</span>
         {termToPlay ? <button type="button" className="review-icon review-speak" aria-label="Hear term" title="Hear term" onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
       </div>;
     };
@@ -1391,7 +1399,7 @@ export default function CosmosWindow() {
       / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
-      <article className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
+      <article ref={reviewCardRef} className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
         {redesignReview ? <header className="review-card-head">
           <span className="review-kicker">{reviewLanguage || "Review"}</span>
           <span className="review-head-dot" aria-hidden="true"/>
@@ -1509,6 +1517,11 @@ export default function CosmosWindow() {
           </div>}
           {connectionsOpen ? createPortal(<ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} />, document.body) : null}
         </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
+        {redesignReview && revealed ? <FormattingRail rootRef={reviewCardRef} cardId={card.id}
+          language={languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
+            ?? languageFromScript(fieldText(card.data, term?.key))}
+          textVersion={JSON.stringify(card.data) + ":" + revealed}
+          onOpenFormatting={() => setDetailsOpen(true)} /> : null}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}
     </div>{notice ? <div className="cosmos-notice">{notice}</div> : null}{noteToast ? <div className="review-toast" role="status">{noteToast}</div> : null}</section>

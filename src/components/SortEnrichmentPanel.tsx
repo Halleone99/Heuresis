@@ -6,6 +6,8 @@ import { RichEditor, type RichEditorHandle } from "./workspace/RichEditor";
 import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, setRelatedRelationType, type RelatedCatalogueRow, type RelationType } from "../lib/related";
 import { removeHeuresisCardImage, signHeuresisCardImages, uploadHeuresisCardImage } from "../lib/cardMedia";
+import { languageFromName, languageFromScript } from "../lib/languages";
+import { deleteHighlightRule, listHighlightRules, type HighlightRule } from "../lib/highlights";
 
 const BLOCKS_KEY = "_workspace_blocks";
 export type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "hook" | "picture" | "notes";
@@ -108,6 +110,24 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   const [relation, setRelation] = useState<RelationType>("related");
   const [related, setRelated] = useState<RelatedCatalogueRow[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [formatRules, setFormatRules] = useState<HighlightRule[]>([]);
+  const selectedLang = languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
+    ?? languageFromScript(fieldText(data, schema.find(f => f.role === "term")?.key)) ?? "en";
+  useEffect(() => {
+    if (side === "language") return;
+    let active = true;
+    const load = () => { void listHighlightRules().then(rules => { if (active) setFormatRules(rules); }).catch(() => undefined); };
+    load();
+    window.addEventListener("heuresis-highlights-updated", load);
+    return () => { active = false; window.removeEventListener("heuresis-highlights-updated", load); };
+  }, [side]);
+  async function removeFormatting(id: string) {
+    try {
+      await deleteHighlightRule(id);
+      setFormatRules(rules => rules.filter(rule => rule.id !== id));
+      window.dispatchEvent(new Event("heuresis-highlights-updated"));
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not remove formatting."); }
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -396,6 +416,15 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
       <div>{emptyDims.map((dim) => <button key={dim} type="button" disabled={blocked}
         onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>+ {labels[dim]}</button>)}</div>
     </div> : null}
+    {side === "knowledge" ? <section id="sort-formatting-section" className="sort-enrich-section sort-panel-formatting">
+      <div className="sort-enrich-heading"><span>Formatting</span></div>
+      {formatRules.filter(rule => rule.lang === selectedLang).length
+        ? <ul>{formatRules.filter(rule => rule.lang === selectedLang).map(rule =>
+            <li key={rule.id}><span>{rule.text} · {rule.style} · {rule.card_id ? "Card" : "All"}</span>
+              <button type="button" aria-label={"Remove formatting for " + rule.text}
+                onClick={() => void removeFormatting(rule.id)}>×</button></li>)}</ul>
+        : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
+    </section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>
       <p>Pack: {pack.title}</p>
