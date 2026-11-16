@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, GraduationCap, Play, Plus, Search, Trash2, X } from "lucide-react";
 import { comparableCorrection, friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { Kbd, MOD_KEY, Portal, TopicPicker, useConfirm } from "./ui";
@@ -128,7 +128,7 @@ function FlippingCard({ item, selecting, selected, highlighted, onSelect, onEdit
     item.status === "recalled" ? "Recalled" : "Not practised yet";
   const place = item.glyph + " " + item.topic + (rule ? " · " + rule : "");
   const toggle = () => selecting && entry ? onSelect() : setFlipped((value) => !value);
-  const press = (event: React.KeyboardEvent<HTMLElement>) => {
+  const press = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
   };
@@ -336,7 +336,7 @@ export function MistakeLog() {
       : [item.study?.title, item.study?.reference, item.study?.attempt, item.study?.explanation, item.study?.direction];
     return !searchTerm || [...values, item.topic, item.subject].some((text) => normalise(text ?? "").includes(searchTerm));
   }).sort((a, b) => Number(b.pinned) - Number(a.pinned) ||
-    (sort === "most" ? b.misses - a.misses : sort === "fresh" ? Number(a.status === "fresh") - Number(b.status === "fresh") :
+    (sort === "most" ? b.misses - a.misses : sort === "fresh" ? Number(b.status === "fresh") - Number(a.status === "fresh") :
       sort === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)) ||
     b.date.localeCompare(a.date));
   const visibleLogged = filtered.filter((item) => item.entry?.correction.trim()).map((item) => item.entry!);
