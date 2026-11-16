@@ -17,6 +17,7 @@ import "./sort-enrichment.css";
 import "./sort-refined.css";
 import "./sort-session.css";
 import "./sort-handoff.css";
+import "./sort-details-wings.css";
 
 type Props = {
   pack: PackWithType;
@@ -136,15 +137,21 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [tagsOpen, setTagsOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [editingCard, setEditingCard] = useState(false);
-  const [enrichmentOpen, setEnrichmentOpen] = useState(false);
-  const [detailsCount, setDetailsCount] = useState(0);
+  const [leftOpen, setLeftOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
+  const enrichmentOpen = leftOpen || rightOpen;
+  const [leftCount, setLeftCount] = useState(0);
+  const [rightCount, setRightCount] = useState(0);
+  const detailsCount = leftCount + rightCount;
   const [importance, setImportance] = useState<Importance>(readImportance);
   const [showExamples, setShowExamples] = useState(readExamples);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [addingLabel, setAddingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
-  const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
+  const [leftBlocked, setLeftBlocked] = useState(false);
+  const [rightBlocked, setRightBlocked] = useState(false);
+  const enrichmentBlocked = leftBlocked || rightBlocked;
   const [detailsRequest, setDetailsRequest] = useState<DetailsRequest | null>(null);
   // Once the example sentence is touched, its translation line stays visible for this card.
   const [exampleActive, setExampleActive] = useState(false);
@@ -195,7 +202,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
     setEditingCard(false); setNoteOpen(Boolean(card?.note));
-    setEnrichmentOpen(false); setDetailsCount(0);
+    setLeftOpen(false); setRightOpen(false); setLeftCount(0); setRightCount(0);
     setDetailsRequest(null); setExampleActive(false);
     setConfirmDiscard(false); setAddingLabel(false); setLabelDraft("");
     setMessage("");
@@ -226,6 +233,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     return save;
   }
 
+  function toggleBothDetails() {
+    const next = !(leftOpen && rightOpen);
+    setLeftOpen(next); setRightOpen(next);
+  }
   function chooseImportance(level: Importance) {
     setImportance(level);
     try { localStorage.setItem(IMPORTANCE_KEY, level); } catch { /* preference only */ }
@@ -379,7 +390,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && confirmDiscard) { event.preventDefault(); setConfirmDiscard(false); return; }
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
-        if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setEnrichmentOpen(false); return; }
+        if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setLeftOpen(false); setRightOpen(false); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
       }
@@ -401,7 +412,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       }
       if (key === "enter") { event.preventDefault(); void learn(IMPORTANCE_RANK[importance], "learning"); return; }
       if (key === "r") { event.preventDefault(); void learn(IMPORTANCE_RANK[importance], "review"); return; }
-      if (key === "e") { event.preventDefault(); setEnrichmentOpen((open) => !open); return; }
+      if (key === "e") { event.preventDefault(); toggleBothDetails(); return; }
+      if (key === "[") { event.preventDefault(); setLeftOpen(open => !open); return; }
+      if (key === "]") { event.preventDefault(); setRightOpen(open => !open); return; }
       if (key === "d" || event.key === "Delete") { event.preventDefault(); setConfirmDiscard(true); return; }
       if (key === "i") { event.preventDefault(); setAddingLabel(true); return; }
       if (key === "l" || key === "s") { event.preventDefault(); later(); return; }
@@ -424,7 +437,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const blockExample = card && !exampleText ? firstExampleBlock(card.data) : null;
   const decisionWaiting = saving > 0;
   function openDetailsFor(request: Omit<DetailsRequest, "nonce">) {
-    setEnrichmentOpen(true);
+    if (["examples","neighbours","components","structure","origin"].includes(request.dim)) setLeftOpen(true);
+    else setRightOpen(true);
     setDetailsRequest({ ...request, nonce: Date.now() });
   }
 
@@ -526,10 +540,19 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       </button> : null}
     </div> : null}
     {!filtersOpen && card ? <div className="sort-session-stage">
-      <div id="sort-editing-tools" className={"sort-editing-tools" + (enrichmentOpen ? " is-open" : "")}>
-        <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} request={detailsRequest} trackSave={trackSave}
-          onBlockedChange={setEnrichmentBlocked} onCountChange={setDetailsCount}
-          onDataChanged={(saved) => setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item))} />
+      <div id="sort-language-details" className={"sort-editing-tools sort-editing-tools--left" + (leftOpen ? " is-open" : "")}>
+        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => setLeftOpen(false)}>×</button>
+        <SortEnrichmentPanel key={card.id + "-language"} pack={pack} card={card} side="language" onChanged={onChanged}
+          request={detailsRequest && ["examples","neighbours","components","structure","origin"].includes(detailsRequest.dim) ? detailsRequest : null}
+          trackSave={trackSave} onBlockedChange={setLeftBlocked} onCountChange={setLeftCount}
+          onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
+      </div>
+      <div id="sort-knowledge-details" className={"sort-editing-tools sort-editing-tools--right" + (rightOpen ? " is-open" : "")}>
+        <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => setRightOpen(false)}>×</button>
+        <SortEnrichmentPanel key={card.id + "-knowledge"} pack={pack} card={card} side="knowledge" onChanged={onChanged}
+          request={detailsRequest && !["examples","neighbours","components","structure","origin"].includes(detailsRequest.dim) ? detailsRequest : null}
+          trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
+          onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <article className="sort-card" data-card-id={card.id} aria-label="New flashcard">
         <div className="sort-new-card-header">
@@ -560,8 +583,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
             <button type="button" className={"sort-header-icon" + (showExamples ? " on" : "")}
               aria-label="Show examples" aria-pressed={showExamples} title="Examples" onClick={toggleExamples}><Quote size={17}/></button>
             <button type="button" className={"sort-new-details" + (enrichmentOpen ? " on" : "")}
-              aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy}
-              onClick={() => setEnrichmentOpen(open => !open)} title="Details (E)">
+              aria-expanded={enrichmentOpen} aria-controls="sort-language-details sort-knowledge-details" disabled={busy}
+              onClick={toggleBothDetails} title="Details (E)">
               <PanelLeftOpen size={15}/> Details {detailsCount ? <b>{detailsCount}</b> : null}
             </button>
           </div>
