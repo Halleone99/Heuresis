@@ -200,3 +200,8 @@
   .lrn-stage, .lrn-feedback, .lrn-points b { animation: none; }
   .lrn-choice, .lrn-tile, .lrn-progress i, .lrn-primary { transition: none; }
 }
+
+/* Short free-writing task in later Learning rounds; kept within the existing card view. */
+.lrn button:focus-visible, .lrn textarea:focus-visible { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lrn-compose .lrn-input { box-sizing: border-box; width: 100%; min-height: 112px; height: auto; resize: vertical; font-family: inherit; font-size: 17px; line-height: 1.5; }
+.lrn-example-note { margin: -6px 0 0; color: var(--ws-muted); font-size: 12px; }
