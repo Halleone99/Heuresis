@@ -275,6 +275,9 @@ export function MistakeLog() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const mistakes = useMemo(() => snapshot.entries.filter((entry) => entry.kind === "mistake"), [snapshot.entries]);
+  // Reuse the Study collection glyph whenever a Notebook subject shares its name.
+  const studyGlyphs = useMemo(() => new Map(study.items.map((item) =>
+    [normalise(item.subject), item.glyph])), [study.items]);
   const practiceStatus = useMemo(() => {
     const map = new Map<string, { last: { outcome: string; created_at: string } | null; repeated: number; missed: number }>();
     for (const event of snapshot.practice) {
@@ -295,7 +298,7 @@ export function MistakeLog() {
       const name = subject?.name ?? "Unsorted";
       const state = practiceStatus.get(entry.id);
       return { id: "log:" + entry.id, source: "logged", subject: name, subjectKey: normalise(name),
-        glyph: name.slice(0, 1), topic: isNotFiled(entry, workspace.topicById, workspace.subjectById)
+        glyph: studyGlyphs.get(normalise(name)) ?? name.slice(0, 1), topic: isNotFiled(entry, workspace.topicById, workspace.subjectById)
           ? "Not filed" : topic?.name ?? "Not filed",
         topicKey: isNotFiled(entry, workspace.topicById, workspace.subjectById) ? "__not-filed__" : normalise(topic?.name ?? "Not filed"),
         date: entry.created_at, misses: (state?.missed ?? 0) + (state?.repeated ?? 0),
@@ -308,7 +311,7 @@ export function MistakeLog() {
       date: item.lastWrongAt, misses: item.missCount, status: "missed", pinned: false, repeated: 0, study: item,
     }));
     return [...own, ...linked];
-  }, [mistakes, practiceStatus, workspace.topicById, workspace.subjectById, study.items]);
+  }, [mistakes, practiceStatus, workspace.topicById, workspace.subjectById, study.items, studyGlyphs]);
   const base = allItems.filter((item) => item.source === (showStudy ? "study" : "logged"));
   // Previously saved Notebook UUIDs continue to resolve after the chips adopt shared subject-name keys.
   const subjectKey = selectedSubjectId ? normalise(workspace.subjectById.get(selectedSubjectId)?.name ?? selectedSubjectId) : null;
