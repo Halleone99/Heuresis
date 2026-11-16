@@ -1,5 +1,6 @@
 import { ArrowLeftRight, Check, CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Plus, SkipForward, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import {
   fieldByRole,
   fieldText,
@@ -51,18 +52,21 @@ import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
-import { prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
+import { isAndroidRuntime, prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
-import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
+import { reviewSpeechLanguage, reviewSpokenPrompt, canSpeak, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
+import { useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import "./cosmos.css";
 import "./review-card.css";
+// Android APK only (MagicPad). Loaded after review-card.css so it wins ties; see the file header.
+import "./review-card-android.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -245,6 +249,18 @@ function isConceptualPack(pack: PackWithType) {
   return /philosoph|history|psycholog|concept|theor|politic|econom/i.test(`${pack.title} ${pack.cardType?.name ?? ""}`);
 }
 
+/** Display only: a short list of meanings ("before; previously") is not a sentence, even though
+ * isWordSized() treats the semicolon as one for answer checking. */
+function isGloss(value: string) {
+  const text = value.trim();
+  if (!text || text.length > 48 || /[.!?。！？]$/u.test(text) || /\p{Script=Han}/u.test(text)) return false;
+  const parts = text.split(/\s*[;；,，/]\s*/u).filter(Boolean);
+  return parts.length > 1 && parts.length <= 4 && parts.every((part) => part.split(/\s+/u).length <= 4);
+}
+
+/** The Android tablet has room for four 田字格 squares; desktop keeps three. */
+const PAD_CELLS = isAndroidRuntime() ? 4 : 3;
+
 /** An empty selection is not a failure: the window explains it calmly. */
 class EmptySelection extends Error {}
 
@@ -286,10 +302,24 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
+  const [speechAvailabilityVersion, refreshSpeechAvailability] = useState(0);
+  useEffect(() => {
+    const onReady = () => refreshSpeechAvailability((value) => value + 1);
+    window.addEventListener("heuresis-speech-ready", onReady);
+    return () => window.removeEventListener("heuresis-speech-ready", onReady);
+  }, []);
   const [routeError, setRouteError] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [leftContextOpen, setLeftContextOpen] = useState(false);
   const [detailsPinned, setDetailsPinned] = useState(() => { try { return localStorage.getItem(DETAILS_PIN_KEY) === "1"; } catch { return false; } });
+  // Android tablet below 1400 px: one side panel at a time, so the card keeps a readable width.
+  const lastPanel = useRef<"left" | "right" | null>(null);
+  useEffect(() => { if (leftContextOpen) lastPanel.current = "left"; }, [leftContextOpen]);
+  useEffect(() => { if (detailsOpen) lastPanel.current = "right"; }, [detailsOpen]);
+  useEffect(() => {
+    if (!leftContextOpen || !detailsOpen || !isAndroidRuntime() || window.innerWidth >= 1400) return;
+    if (lastPanel.current === "left") setDetailsOpen(false); else setLeftContextOpen(false);
+  }, [leftContextOpen, detailsOpen]);
   const [whyOpen, setWhyOpen] = useState(false);
   const [addingDim, setAddingDim] = useState<DimensionId | null>(null);
   const [addingText, setAddingText] = useState("");
@@ -330,6 +360,7 @@ export default function CosmosWindow() {
   const learningInFlightRef = useRef(new Set<string>());
 
   const mode = config.mode;
+  useAndroidStudyWakeLock(mode === "review");
   const relatedReview = config.relatedReview;
   const redesignReview = mode === "review" && !relatedReview;
   const studyBackground = useHeuresisBackground("heuresis-study");
@@ -683,15 +714,17 @@ export default function CosmosWindow() {
     const termKey = fieldByRole(pack.cardType, "term")?.key;
     const meaningKey = fieldByRole(pack.cardType, "meaning")?.key;
     const role: ReviewSpeechRole = spoken.key === termKey ? "term" : spoken.key === meaningKey ? "meaning" : "other";
-    if (speakReviewText(spoken.text, reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role))) {
+    const speechLocale = reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role);
+    // Do not discard a persisted Hear preference while the native TTS engine initialises.
+    if (window.HeuresisAndroidSpeech && !window.HeuresisAndroidSpeech.isReady()) return;
+    if (speakReviewText(spoken.text, speechLocale, () => { void markLearning(["hear"]); })) {
       lastAutoAudioRef.current = marker;
-      void markLearning(["hear"]);
     } else {
       setMethodState("think");
       writeReviewMethod("think");
       setNotice("Audio is unavailable on this device. Switched to Think.");
     }
-  }, [method, mode, revealed, card?.id, pack?.id, template?.id, index]);
+  }, [method, mode, revealed, card?.id, pack?.id, template?.id, index, speechAvailabilityVersion]);
 
   // Keep both Review side panels visible as the session progresses; only legacy Sort uses the pinned drawer.
   useEffect(() => {
@@ -1072,7 +1105,7 @@ export default function CosmosWindow() {
         if (revealed && grade) { event.preventDefault(); selectGrade(grade); return; }
         if (revealed && event.key === "Enter" && suggestion) { event.preventDefault(); selectGrade(suggestion.grade); return; }
         if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
-        if (event.key.toLowerCase() === "e") { event.preventDefault(); setLeftContextOpen((value) => !value); }
+        if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
       } else {
         if (/^[1-5]$/.test(event.key)) { event.preventDefault(); void setInterest(Number(event.key)); }
         else if (event.key === "ArrowRight" || event.key === "Enter") { event.preventDefault(); void nextSort(); }
@@ -1187,16 +1220,17 @@ export default function CosmosWindow() {
     const split = mode === "review";
     const open = side === "left" ? leftContextOpen : detailsOpen;
     if (!open || (split && !revealed) || (!split && !detailsAvailable)) return null;
+    const combinedAndroidDetails = split && side === "right" && isAndroidRuntime();
     const chosen = split
-      ? dimensions.filter((def) => side === "left"
+      ? dimensions.filter((def) => combinedAndroidDetails || (side === "left"
         ? ["examples", "neighbours", "components", "structure"].includes(def.id)
-        : ["origin", "facts", "notes"].includes(def.id))
+        : ["origin", "facts", "notes"].includes(def.id)))
       : dimensions;
     const filled = chosen.filter((def) => countFor(def.id) > 0 || (mode === "sort" && addingDim === def.id));
     const empty = mode === "sort" ? chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id) : [];
-    return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
+    return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={combinedAndroidDetails ? "Details: context and notes" : split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
       <header className="cosmos-details-head">
-        <strong>{!split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
+        <strong>{combinedAndroidDetails ? "Details" : !split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
         {!split ? <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card" : "Keep open for every card"}
           onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button> : null}
         <button type="button" aria-label={side === "left" ? "Close examples and connections" : "Close facts and notes"}
@@ -1219,8 +1253,9 @@ export default function CosmosWindow() {
     if (!pack) return;
     const spokenRole: ReviewSpeechRole = fieldKey === term?.key ? "term" : fieldKey === meaning?.key ? "meaning" : "other";
     const locale = reviewSpeechLanguage(text, pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenRole);
-    if (!speakReviewText(text, locale)) { setNotice("Audio playback is not available on this device."); return; }
-    void markLearning(["hear"]);
+    if (!speakReviewText(text, locale, () => { void markLearning(["hear"]); })) {
+      setNotice("No voice installed for " + locale + " on this device.");
+    }
   }
 
   const renderReviewCore = () => {
@@ -1235,7 +1270,7 @@ export default function CosmosWindow() {
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
     const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !recap.includes(key));
     const spokenPrompt = reviewSpokenPrompt(promptKeys, card.data, reading?.key);
-    const canListen = Boolean(spokenPrompt);
+    const canListen = Boolean(spokenPrompt) && canSpeak(reviewSpeechLanguage(spokenPrompt?.text ?? "", pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenPrompt?.key === term?.key ? "term" : spokenPrompt?.key === meaning?.key ? "meaning" : "other"));
     const chineseTerm = fieldText(card.data, term?.key);
     const expected = answerValues().map((item) => typeof item === "string" ? item : item.value);
     const enteredHan = /\p{Script=Han}/u.test(typed);
@@ -1251,7 +1286,7 @@ export default function CosmosWindow() {
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
       const termToPlay = redesignReview && revealed && recapField && key === term?.key;
-      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? " is-sentence" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
+      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
         {rule ? <i className="cosmos-rule" /> : null}<span>{value}</span>
         {termToPlay ? <button type="button" className="review-icon review-speak" aria-label="Hear term" title="Hear term" onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
       </div>;
@@ -1275,16 +1310,17 @@ export default function CosmosWindow() {
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
           .map(([value,label]) =>
           <button key={value} type="button" aria-pressed={method === value} disabled={value === "hear" && !canListen}
-            title={value === "hear" && !canListen ? "No spoken prompt available for this card" : undefined}
+            title={value === "hear" && !canListen ? "No voice installed for this card’s language on this device" : undefined}
             onClick={() => setMethod(value)}>{label}{!redesignReview ? ` · ${methodCounts[value]}×` : null}</button>)}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
+        autoCorrect="off" autoCapitalize="none" spellCheck={false} autoComplete="off" enterKeyHint="done"
         placeholder={redesignReview ? "your answer" : "Type your answer here…"} aria-label="Your typed answer" rows={redesignReview ? 1 : 2}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void reveal(); } }} /> : null}
       {!revealed && (method === "say" || method === "hear") ? <button type="button" className="cosmos-said-button" aria-pressed={saidAnswer}
         onClick={() => setSaidAnswer((value) => !value)}>{redesignReview ? <span className="review-said-dot" aria-hidden="true"/> : null}{saidAnswer ? "Said aloud" : redesignReview ? "I said it aloud" : "Said aloud"}</button> : null}
       {method === "handwrite" ? <div className={revealed ? "cosmos-handwrite-compare" : "cosmos-handwrite-entry"}>
-        <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} onHasWritingChange={setHasWriting} />
+        <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} cells={PAD_CELLS} onHasWritingChange={setHasWriting} />
         {revealed ? <div className="cosmos-handwrite-reference"><strong>Answer</strong><div>{backKeys.map((key) => fieldText(card.data,key)).filter(Boolean).join(" · ") || fieldText(card.data,meaning?.key)}</div></div> : null}
       </div> : null}
       {revealed && method === "type" && typed.trim() && difference ? <div className="cosmos-typed-compare">
@@ -1309,12 +1345,14 @@ export default function CosmosWindow() {
         <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
       </div>
       <div className="review-top-tools" role="group" aria-label="Review tools">
-        <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
-          aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
-          {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
-        <button type="button" className="review-icon" disabled={!revealed} aria-label="Notes (D)" title="Notes (D)"
-          aria-pressed={detailsOpen} onClick={() => setDetailsOpen(value=>!value)}>
-          {detailsOpen ? <PanelRightClose size={17}/> : <PanelRightOpen size={17}/>}</button>
+        {!isAndroidRuntime() ? <>
+          <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
+            aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
+            {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
+          <button type="button" className="review-icon" disabled={!revealed} aria-label="Notes (D)" title="Notes (D)"
+            aria-pressed={detailsOpen} onClick={() => setDetailsOpen(value=>!value)}>
+            {detailsOpen ? <PanelRightClose size={17}/> : <PanelRightOpen size={17}/>}</button>
+        </> : null}
         <span className="review-top-separator" aria-hidden="true"/>
         {item?.reasons.length ? <button type="button" className="review-icon" aria-label="Why this card"
           title="Why this card" aria-expanded={whyOpen} onClick={()=>setWhyOpen(value=>!value)}><CircleHelp size={17}/></button> : null}
@@ -1368,6 +1406,11 @@ export default function CosmosWindow() {
           {currentBars ? <span className="review-bars" role="img" aria-label={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}
             title={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}>
             {[0,1,2,3].map(i=><i key={i} className={i<currentBars.bars?"filled":""}/>)}</span> : null}
+          {redesignReview && isAndroidRuntime() && revealed ? <button type="button" className="review-card-details"
+            aria-label="Details: examples, connections, facts and notes" aria-expanded={detailsOpen}
+            onClick={() => { setLeftContextOpen(false); setDetailsOpen((value) => !value); }}>
+            {detailsOpen ? <PanelRightClose size={16}/> : <PanelRightOpen size={16}/>} Details{detailsTotal ? <b>{detailsTotal}</b> : null}
+          </button> : null}
           {revealed ? <button type="button" className="review-icon" aria-label="Modify this card" title="Modify this card"
             disabled={busy} onClick={()=>setEditOpen(true)}><Pencil size={15}/></button> : null}
         </header> : null}
@@ -1424,7 +1467,7 @@ export default function CosmosWindow() {
                 <span aria-hidden="true">·</span><button type="button" onClick={()=>setConnectionsOpen(true)}>Connections</button>
               </div>
             </>}
-          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={()=>setConnectionsOpen(false)}/> : null}
+          {/* Portalled: the card's backdrop-filter would otherwise trap this fixed overlay inside the card. */}{connectionsOpen ? createPortal(<ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} />, document.body) : null}
         </footer> : mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
@@ -1464,7 +1507,7 @@ export default function CosmosWindow() {
             <button type="button" className="cosmos-extra-toggle" disabled={busy} onClick={() => void sendBackToLearning()}>Relearn</button>
             <button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button>
           </div>}
-          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
+          {connectionsOpen ? createPortal(<ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} />, document.body) : null}
         </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}

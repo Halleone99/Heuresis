@@ -141,19 +141,20 @@ async function reviewByTouch(page, name, { start = "topic" } = {}) {
   const before = await gradeCount();
   let failures = 0;
   for (let step = 0; step < total; step += 1) {
-    const reveal = await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer", scroll: false });
+    const reveal = await fingerTap(page, ".review-reveal", { label: "Show answer", scroll: false });
     if (!reveal.ok) { failures += 1; console.log("   ", reveal.reason); break; }
-    await page.locator(".cosmos-results").waitFor({ timeout: 5000 });
+    await page.locator(".review-ratings").waitFor({ timeout: 5000 });
     if (step === 0) {
       await page.screenshot({ path: `${shots}/${name}-review-revealed.png` });
-      const size = await page.locator(".cosmos-results button").first().boundingBox();
+      const size = await page.locator(".review-ratings button").first().boundingBox();
       check(Boolean(size && size.height >= 44), `result buttons are finger-sized (${Math.round(size?.height ?? 0)}px)`);
     }
-    const grade = await fingerTap(page, `.cosmos-results button:nth-child(${step === 0 ? 1 : 3})`, { label: "result", scroll: false });
+    const grade = await fingerTap(page, `.review-ratings button:nth-child(${step === 0 ? 1 : 3})`, { label: "result", scroll: false });
     if (!grade.ok) { failures += 1; console.log("   ", grade.reason); break; }
-    if (step === 0 && await page.locator(".cosmos-mistake-followup").count()) {
-      await page.locator(".cosmos-continue").waitFor();
-      tapped(await fingerTap(page, ".cosmos-continue", { label: "Continue after Missed" }), "Missed feedback advances by touch");
+    // Missed and Partial open the note line; it renders after the grade is recorded.
+    if (step === 0 && await page.locator(".review-missed").waitFor({ timeout: 3000 }).then(() => true).catch(() => false)) {
+      await page.locator(".review-missed .review-next").waitFor();
+      tapped(await fingerTap(page, ".review-missed .review-next", { label: "Continue after Missed" }), "Missed feedback advances by touch");
     }
     await page.waitForTimeout(250);
   }
@@ -184,8 +185,8 @@ const scenarios = {
     await openTopicByTouch(page);
     tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
-    tapped(await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer" }), "Show answer");
-    tapped(await fingerTap(page, ".cosmos-results button:nth-child(3)", { label: "Recalled" }), "Recalled");
+    tapped(await fingerTap(page, ".review-reveal", { label: "Show answer" }), "Show answer");
+    tapped(await fingerTap(page, ".review-ratings button:nth-child(3)", { label: "Recalled" }), "Recalled");
     await page.waitForTimeout(400);
     tapped(await fingerTap(page, ".cosmos-close", { label: "Close" }), "the close button is tapped");
     await page.waitForTimeout(1500);
@@ -198,24 +199,24 @@ const scenarios = {
     await openTopicByTouch(page);
     tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
-    tapped(await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer" }), "Show answer");
-    for (const label of ["Context", "Notes"]) {
-      const toggle = `.cosmos-panel-toggles button:has-text("${label}")`;
-      const wasOpen = (await page.locator(toggle).getAttribute("aria-pressed")) === "true";
-      tapped(await fingerTap(page, toggle, { label }), `${label} toggles with a tap`);
-      await page.waitForTimeout(300);
-      check(((await page.locator(toggle).getAttribute("aria-pressed")) === "true") === !wasOpen, `${label} changed state`);
-      if (!wasOpen) {
-        check(await reachableNow(page, ".cosmos-results button:nth-child(3)"), `with ${label} open, the results stay reachable`);
-        tapped(await fingerTap(page, toggle, { label }), `${label} closes again`);
-        await page.waitForTimeout(300);
-      }
-    }
-    tapped(await fingerTap(page, '.cosmos-secondary-actions button:has-text("Connections")', { label: "Connections" }), "the card's connections open from Review");
+    tapped(await fingerTap(page, ".review-reveal", { label: "Show answer" }), "Show answer");
+    const toggle = ".review-card-details";
+    check(await reachableNow(page, toggle), "the combined Details control is finger-reachable on the card");
+    tapped(await fingerTap(page, toggle, { label: "Details" }), "Details opens the combined drawer");
+    await page.waitForTimeout(300);
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "open", "combined Details opens on the right");
+    check(await page.locator(".cosmos-work").getAttribute("data-left") !== "open", "no second panel squeezes the card");
+    check(await page.locator(".cosmos-details-right").getAttribute("aria-label") === "Details: context and notes",
+      "examples, connections, facts and notes belong to one drawer");
+    check(await reachableNow(page, ".review-ratings button:nth-child(3)"), "the ratings remain reachable with Details open");
+    tapped(await fingerTap(page, toggle, { label: "Close Details" }), "Details closes by touch");
+    await page.waitForTimeout(300);
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "closed", "combined Details closes");
+    tapped(await fingerTap(page, '.review-links button:has-text("Connections")', { label: "Connections" }), "the card's connections open from Review");
     await page.locator(".connections-panel").waitFor({ timeout: 10000 });
     check(await reachableNow(page, ".connections-close"), "the connections tree's close button is on screen and not covered");
     tapped(await fingerTap(page, ".connections-close", { label: "Close connections" }), "the connections tree closes");
-    tapped(await fingerTap(page, ".cosmos-results button:nth-child(3)", { label: "Recalled" }), "the card is still answerable");
+    tapped(await fingerTap(page, ".review-ratings button:nth-child(3)", { label: "Recalled" }), "the card is still answerable");
   },
   async "landscape: a card's connections open from the topic"(page) {
     await openTopicByTouch(page);
@@ -224,18 +225,20 @@ const scenarios = {
     check(await reachableNow(page, ".connections-close"), "the close button is on screen and not covered");
     tapped(await fingerTap(page, ".connections-close", { label: "Close connections" }), "they close again");
   },
-  async "portrait: Notes drawer opens over the card and closes"(page) {
+  async "portrait: combined Details drawer opens and closes"(page) {
     await openTopicByTouch(page);
     tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
-    tapped(await fingerTap(page, ".cosmos-inline-reveal", { label: "Show answer" }), "Show answer");
-    tapped(await fingerTap(page, '.cosmos-panel-toggles button:nth-child(2)', { label: "Notes" }), "Notes opens");
+    tapped(await fingerTap(page, ".review-reveal", { label: "Show answer" }), "Show answer");
+    tapped(await fingerTap(page, ".review-card-details", { label: "Details" }), "Details opens");
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${shots}/portrait-details-drawer.png` });
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "open", "the Details drawer is open");
+    check(await reachableNow(page, '.cosmos-details-right .cosmos-details-head button[aria-label^="Close"]'), "the drawer's close control is reachable");
+    tapped(await fingerTap(page, '.cosmos-details-right .cosmos-details-head button[aria-label^="Close"]', { label: "Close drawer" }), "the drawer closes");
     await page.waitForTimeout(300);
-    await page.screenshot({ path: `${shots}/portrait-notes-drawer.png` });
-    check(await reachableNow(page, ".cosmos-details-right .cosmos-details-head button"), "the drawer's close button is reachable");
-    tapped(await fingerTap(page, ".cosmos-details-right .cosmos-details-head button", { label: "Close drawer" }), "the drawer closes");
-    await page.waitForTimeout(300);
-    tapped(await fingerTap(page, ".cosmos-results button:nth-child(3)", { label: "Recalled" }), "the card is answerable again");
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "closed", "the Details drawer closes in portrait");
+    tapped(await fingerTap(page, ".review-ratings button:nth-child(3)", { label: "Recalled" }), "the card is answerable again");
   },
   async "landscape: Adjust → Start review, by touch"(page) {
     await openTopicByTouch(page);
@@ -265,14 +268,18 @@ const scenarios = {
     await input.fill("recently");
     tapped(await fingerTap(page, input, { label: "Answer field (keyboard open)" }), "with the keyboard open the answer field can be brought into view");
     await page.screenshot({ path: `${shots}/landscape-typed-keyboard.png` });
-    tapped(await fingerTap(page, ".cosmos-inline-reveal, .cosmos-card button:has-text('Show')", { label: "Show answer (keyboard open)" }), "Show answer is reachable with the keyboard open");
-    await page.locator(".cosmos-results").waitFor({ timeout: 5000 });
+    tapped(await fingerTap(page, ".review-reveal, .cosmos-card button:has-text('Show')", { label: "Show answer (keyboard open)" }), "Show answer is reachable with the keyboard open");
+    await page.locator(".review-ratings").waitFor({ timeout: 5000 });
     await page.setViewportSize(full);
     await page.waitForTimeout(300);
-    check(await page.locator(".cosmos-results button.is-suggested").count() === 1, "typed answer has a suggested rating");
-    tapped(await fingerTap(page, ".cosmos-results button.is-suggested", { label: "suggested result" }), "the suggested result can be tapped");
-    // Saving the grade is asynchronous; wait for the next question or the summary.
-    await page.waitForFunction(() => Boolean(document.querySelector(".cosmos-summary, .cosmos-recall-methods")), null, { timeout: 10000 });
+    check(await page.locator(".review-ratings button.is-suggested").count() === 1, "typed answer has a suggested rating");
+    tapped(await fingerTap(page, ".review-ratings button.is-suggested", { label: "suggested result" }), "the suggested result can be tapped");
+    // Saving the grade is asynchronous; wait for the next question, the summary, or the Missed/Partial note line.
+    await page.waitForFunction(() => Boolean(document.querySelector(".cosmos-summary, .cosmos-recall-methods, .review-missed")), null, { timeout: 10000 });
+    if (await page.locator(".review-missed").count()) {
+      tapped(await fingerTap(page, ".review-missed .review-next", { label: "Next after Missed/Partial" }), "Missed/Partial advances with Next by touch");
+      await page.waitForFunction(() => Boolean(document.querySelector(".cosmos-summary, .cosmos-recall-methods")), null, { timeout: 10000 });
+    }
     if (await page.locator('.cosmos-recall-methods button:has-text("Think")').count()) {
       tapped(await fingerTap(page, '.cosmos-recall-methods button:has-text("Think")', { label: "Think" }), "the next card can use Think");
     } else check(await page.locator(".cosmos-summary").count() === 1, "a one-card typed review finishes cleanly");

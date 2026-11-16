@@ -37,26 +37,91 @@ export function reviewSpokenPrompt(
   return null;
 }
 
-export function speakReviewText(text: string, language: string): boolean {
-  if (!text.trim() || typeof window === "undefined" || !("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return false;
+
+type AndroidSpeech = {
+  isAvailable(locale: string): boolean;
+  isReady(): boolean;
+  speak(text: string, locale: string, rate: number, utteranceId: string): boolean;
+  stop(): void;
+  keepScreenOn(on: boolean): void;
+};
+declare global {
+  interface Window {
+    HeuresisAndroidSpeech?: AndroidSpeech;
+    heuresisSpeechStarted?: (utteranceId: string) => void;
+    heuresisSpeechFailed?: (utteranceId: string) => void;
+  }
+}
+
+let currentAudioId = "";
+let currentOnStart: (() => void) | undefined;
+let sequence = 0;
+
+/** Check the *requested language* before exposing Hear on the Android WebView. */
+export function canSpeak(language: string): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.HeuresisAndroidSpeech) {
+    try { return window.HeuresisAndroidSpeech.isAvailable(language); } catch { return false; }
+  }
+  return "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+}
+
+/** A successful queue request is not playback. onStarted runs only when speech actually begins. */
+export function speakReviewText(text: string, language: string, onStarted?: () => void): boolean {
+  if (!text.trim() || typeof window === "undefined") return false;
+  stopReviewAudio();
+  const utteranceId = `heuresis-${++sequence}`;
+  currentAudioId = utteranceId;
+  currentOnStart = onStarted;
+
+  const native = window.HeuresisAndroidSpeech;
+  if (native) {
+    try {
+      // Register before requesting speech: short utterances may start immediately.
+      window.heuresisSpeechStarted = (id) => {
+        if (id !== currentAudioId) return;
+        const callback = currentOnStart;
+        currentOnStart = undefined;
+        callback?.();
+      };
+      window.heuresisSpeechFailed = (id) => {
+        if (id === currentAudioId) { currentAudioId = ""; currentOnStart = undefined; }
+      };
+      if (!native.isAvailable(language) || !native.speak(text.trim(), language, 0.9, utteranceId)) {
+        currentAudioId = ""; currentOnStart = undefined; return false;
+      }
+      return true;
+    } catch {
+      currentAudioId = ""; currentOnStart = undefined; return false;
+    }
+  }
+
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) return false;
   try {
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.trim());
     utterance.lang = language;
     utterance.rate = 0.9;
-    // Browsers otherwise sometimes pick an English voice for a German prompt.
-    const available = window.speechSynthesis.getVoices();
+    const voices = window.speechSynthesis.getVoices();
     const locale = language.toLowerCase();
-    utterance.voice = available.find((voice) => voice.lang.toLowerCase() === locale)
-      ?? available.find((voice) => voice.lang.toLowerCase().split("-")[0] === locale.split("-")[0])
+    utterance.voice = voices.find((voice) => voice.lang.toLowerCase() === locale)
+      ?? voices.find((voice) => voice.lang.toLowerCase().split("-")[0] === locale.split("-")[0])
       ?? null;
+    utterance.onstart = () => {
+      if (currentAudioId !== utteranceId) return;
+      const callback = currentOnStart; currentOnStart = undefined; callback?.();
+    };
+    utterance.onerror = () => { if (currentAudioId === utteranceId) currentAudioId = ""; };
     window.speechSynthesis.speak(utterance);
     return true;
   } catch {
-    return false;
+    currentAudioId = ""; currentOnStart = undefined; return false;
   }
 }
 
 export function stopReviewAudio() {
-  if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  currentAudioId = "";
+  currentOnStart = undefined;
+  if (typeof window === "undefined") return;
+  try { window.HeuresisAndroidSpeech?.stop(); } catch { /* device may be stopping */ }
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }

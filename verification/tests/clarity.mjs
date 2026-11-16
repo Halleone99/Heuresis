@@ -156,7 +156,8 @@ const scenarios = {
     check(Boolean(left && centre && left.x < centre.x),
       "Details opens beside the central card without displacing the decisions");
     const cardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    await page.locator('.sort-enrich-heading button[aria-label="Add to In context"]').click();
+    // Empty detail sections are presented in the ADD list until the first item is saved.
+    await page.locator('.sort-enrich-add-empty button:has-text("+ In context")').click();
     await page.getByRole("textbox", { name: "Write in context" }).pressSequentially("An example recorded while sorting.");
     check(await page.locator(".sort-new-ratings button").first().isDisabled(),
       "An unfinished enrichment draft blocks moving to the next card");

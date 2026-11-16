@@ -146,10 +146,6 @@
 .cosmos-shell[data-mode="review"] .cosmos-details .cosmos-related strong {font:400 19px var(--serif)}
 .cosmos-shell[data-mode="review"] .cosmos-details .cosmos-related em {font:italic 13px var(--serif)}
 .cosmos-shell[data-mode="review"] .cosmos-details .cosmos-related p {font:14.5px/1.45 var(--serif)}
-.cosmos-shell[data-mode="review"] .review-answer-pad {max-width:100%;margin:30px auto 0}
-.cosmos-shell[data-mode="review"] .review-answer-pad-grid {width:354px;max-width:100%;aspect-ratio:3/1;background-image:repeating-linear-gradient(to right,transparent 0,transparent calc(33.333% - 1px),var(--ws-line-strong) calc(33.333% - 1px),var(--ws-line-strong) 33.333%),repeating-linear-gradient(to right,transparent 0,transparent 33.333%);background-color:color-mix(in srgb,var(--ws-sunken) 22%,transparent);border-radius:12px}
-.cosmos-shell[data-mode="review"] .review-answer-pad-grid canvas {background-image:linear-gradient(to right,transparent 49.9%,transparent 50.1%)}
-.cosmos-shell[data-mode="review"] .review-answer-pad-tools button:last-child {border:0;background:none}
 .cosmos-shell[data-mode="review"] .cosmos-notice {z-index:80}
 @media(max-width:1179px){
   .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details {
@@ -178,20 +174,6 @@
   .cosmos-shell[data-mode="review"] *, .cosmos-shell[data-mode="review"] *::before,.cosmos-shell[data-mode="review"] *::after {animation:none!important;transition:none!important}
 }
 
-/* Both vertical and horizontal centre guides repeat within each 田字格 square. */
-.cosmos-shell[data-mode="review"] .review-answer-pad-grid {position:relative}
-.cosmos-shell[data-mode="review"] .review-answer-pad-grid::after {
-  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
-  background-image:
-    repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
-    repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
-    repeating-linear-gradient(to bottom,var(--ws-line-strong) 0 4px,transparent 4px 8px),
-    repeating-linear-gradient(to right,var(--ws-line-strong) 0 4px,transparent 4px 8px);
-  background-size:1px 100%,1px 100%,1px 100%,100% 1px;
-  background-position:16.6667% 0,50% 0,83.3333% 0,0 50%;
-  background-repeat:no-repeat;
-}
-.cosmos-shell[data-mode="review"] .review-answer-pad.is-revealed .review-answer-pad-grid {width:252px}
 .cosmos-shell[data-mode="review"] .cosmos-typed-compare mark[data-kind="corrected"] {background:color-mix(in srgb,var(--c-sage) 24%,transparent)}
 .cosmos-shell[data-mode="review"] .cosmos-core-field.role-term.is-recap {display:flex;justify-content:center;align-items:center;gap:10px}
 .cosmos-shell[data-mode="review"] .review-toast {
@@ -199,3 +181,26 @@
   border-radius:10px;padding:9px 14px;background:var(--ws-ink);color:var(--ws-page);
   font:12px/1.35 var(--sans);white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.22);
 }
+
+/* Write: the pad is centred under the methods, tools underneath (15 November design). */
+.cosmos-shell[data-mode="review"] .cosmos-handwrite-entry {display:flex;justify-content:center;margin-top:30px}
+.cosmos-shell[data-mode="review"] .review-answer-pad {margin:0 auto}
+.cosmos-shell[data-mode="review"] .review-answer-pad-grid {border-color:var(--ws-line-strong);border-radius:12px;background-color:color-mix(in srgb,var(--ws-sunken) 22%,transparent)}
+.cosmos-shell[data-mode="review"] .review-answer-pad-cells > i {border-color:var(--ws-line-strong)}
+.cosmos-shell[data-mode="review"] .review-answer-pad-cells > i::before,.cosmos-shell[data-mode="review"] .review-answer-pad-cells > i::after {border-color:var(--ws-line-strong);opacity:.5}
+.cosmos-shell[data-mode="review"] .review-answer-pad-grid canvas {color:var(--ws-ink)}
+.cosmos-shell[data-mode="review"] .review-answer-pad-tools button {color:var(--ws-muted)}
+.cosmos-shell[data-mode="review"] .review-answer-pad-tools button[aria-pressed="true"] {color:var(--ws-ink);background:color-mix(in srgb,var(--c-review) 14%,transparent)}
+.cosmos-shell[data-mode="review"] .cosmos-handwrite-compare {display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:18px 34px;margin-top:22px}
+.cosmos-shell[data-mode="review"] .cosmos-handwrite-reference {flex:0 1 auto;text-align:center}
+.cosmos-shell[data-mode="review"] .cosmos-handwrite-reference > strong {color:var(--ws-muted);font:600 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase}
+.cosmos-shell[data-mode="review"] .cosmos-handwrite-reference > div {font:clamp(30px,3.4vw,46px)/1.25 var(--serif);color:var(--ws-ink)}
+
+/* A prompt shown before reveal is the question, whatever its field: a meaning used as the prompt
+   (English → Chinese) was drawn at the small 24–32 px meaning size. Glosses such as
+   "before; previously" are short meanings, not sentences, so they get a size between the two. */
+.cosmos-shell[data-mode="review"] .cosmos-card-copy:not(.revealed) .cosmos-core-field.role-meaning {font:400 clamp(58px,7.2vw,104px)/1.08 var(--serif);color:var(--ws-ink)}
+.cosmos-shell[data-mode="review"] .cosmos-card-copy:not(.revealed) .cosmos-core-field.is-sentence {max-width:18ch;font-size:clamp(34px,3.9vw,50px);line-height:1.28}
+.cosmos-shell[data-mode="review"] .cosmos-card-copy:not(.revealed) .cosmos-core-field.is-sentence.is-gloss {max-width:16ch;font-size:clamp(42px,5vw,66px);line-height:1.15}
+/* After reveal the card already shows the answer in full; the pad's own "Answer" copy only repeated it. */
+.cosmos-shell[data-mode="review"] .cosmos-handwrite-compare .cosmos-handwrite-reference {display:none}

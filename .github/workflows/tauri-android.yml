@@ -68,6 +68,21 @@ jobs:
           test -n "$MAIN_ACTIVITY"
           PACKAGE_LINE="$(grep -m1 '^package ' "$MAIN_ACTIVITY")"
           test -n "$PACKAGE_LINE"
+          # Android 11+ package visibility: TextToSpeech cannot discover engines without
+          # this manifest query (Android SDK TextToSpeech documentation).
+          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          python3 - "$MANIFEST" <<'PY'
+          from pathlib import Path
+          import sys
+          manifest = Path(sys.argv[1])
+          xml = manifest.read_text()
+          if "android.intent.action.TTS_SERVICE" not in xml:
+              marker = "<application"
+              if marker not in xml:
+                  raise RuntimeError("AndroidManifest.xml has no <application> element")
+              xml = xml.replace(marker, '<queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n    </queries>\n    <application', 1)
+              manifest.write_text(xml)
+          PY
           cat > "$MAIN_ACTIVITY" <<EOF
           $PACKAGE_LINE
 
@@ -76,6 +91,10 @@ jobs:
           import android.os.Bundle
           import android.os.Environment
           import android.provider.MediaStore
+          import android.speech.tts.TextToSpeech
+          import android.speech.tts.UtteranceProgressListener
+          import org.json.JSONObject
+          import java.util.Locale
           import android.util.Base64
           import android.view.View
           import android.view.WindowManager
@@ -88,6 +107,10 @@ jobs:
           import java.io.File
 
           class MainActivity : TauriActivity() {
+            private var speechEngine: TextToSpeech? = null
+            @Volatile private var speechReady = false
+            @Volatile private var speechInitialised = false
+
             override fun onCreate(savedInstanceState: Bundle?) {
               super.onCreate(savedInstanceState)
               hideSystemBars()
@@ -99,6 +122,64 @@ jobs:
             override fun onWebViewCreate(webView: WebView) {
               super.onWebViewCreate(webView)
               webView.addJavascriptInterface(HeuresisFiles(), "HeuresisAndroidFiles")
+              speechEngine = TextToSpeech(this) { status ->
+                speechReady = status == TextToSpeech.SUCCESS
+                speechInitialised = true
+                webView.post {
+                  webView.evaluateJavascript("window.dispatchEvent(new Event('heuresis-speech-ready'))", null)
+                }
+              }
+              speechEngine?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String) {
+                  webView.post {
+                    webView.evaluateJavascript("window.heuresisSpeechStarted?.(" + JSONObject.quote(utteranceId) + ")", null)
+                  }
+                }
+                override fun onDone(utteranceId: String) {}
+                override fun onError(utteranceId: String) {
+                  webView.post {
+                    webView.evaluateJavascript("window.heuresisSpeechFailed?.(" + JSONObject.quote(utteranceId) + ")", null)
+                  }
+                }
+              })
+              webView.addJavascriptInterface(HeuresisSpeech(), "HeuresisAndroidSpeech")
+            }
+
+            inner class HeuresisSpeech {
+              @JavascriptInterface
+              fun isReady(): Boolean = speechInitialised
+
+              @JavascriptInterface
+              fun isAvailable(locale: String): Boolean {
+                val engine = speechEngine ?: return false
+                return speechReady && engine.isLanguageAvailable(Locale.forLanguageTag(locale)) >= TextToSpeech.LANG_AVAILABLE
+              }
+
+              @JavascriptInterface
+              fun speak(text: String, locale: String, rate: Float, utteranceId: String): Boolean {
+                val engine = speechEngine ?: return false
+                if (!isAvailable(locale)) return false
+                engine.language = Locale.forLanguageTag(locale)
+                engine.setSpeechRate(rate)
+                return engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS
+              }
+
+              @JavascriptInterface
+              fun stop() { speechEngine?.stop() }
+
+              @JavascriptInterface
+              fun keepScreenOn(on: Boolean) {
+                runOnUiThread {
+                  if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                  else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+              }
+            }
+
+            override fun onDestroy() {
+              speechEngine?.stop()
+              speechEngine?.shutdown()
+              super.onDestroy()
             }
 
             inner class HeuresisFiles {

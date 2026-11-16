@@ -1,0 +1,109 @@
+/* Review (flashcards) on the Android APK (MagicPad), for the 15 November card design.
+ *
+ * Why a separate file: CosmosWindow is lazy-loaded, so its CSS (cosmos.css, review-card.css) is
+ * injected AFTER the main stylesheet, including src/android-tablet.css. Android overrides of
+ * the Review card written there lose every specificity tie. This file is imported by CosmosWindow
+ * right after review-card.css, so its rules apply. Every rule needs :root[data-platform="android"],
+ * which only markAndroidRuntime() sets; the Windows app never matches them.
+ */
+
+/* ---------------------------------------------------------------------------
+   The card: ratings always visible; only the answer area scrolls if it is long
+   (on long cards in landscape the rating row used to collapse to an empty strip)
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-stage {
+  padding: 6px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-review-foot { flex: none; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-nucleus {
+  min-height: 0;
+  padding: 18px 44px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-items: safe center; /* the nucleus is a row: this is its vertical axis. Plain centre made the top unreachable when the answer overflowed */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+}
+/* Portrait: the card is very tall. Centred, the question floated in the middle with a large empty
+   band above it. Anchor it near the top instead, like a sheet of paper; the space left below is
+   where the hand rests while writing. */
+@media (orientation: portrait) {
+  :root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-nucleus {
+    align-items: flex-start;
+    padding-top: clamp(32px, 7vh, 110px);
+  }
+  :root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-card-copy:not(.revealed) .cosmos-core-field.is-sentence.is-gloss { font-size: clamp(44px, 6.4vw, 60px); }
+}
+
+/* ---------------------------------------------------------------------------
+   Write: a real writing surface for the pen (four 田字格 squares, set in CosmosWindow)
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-answer-pad { --pad-cell: 150px; gap: 8px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-answer-pad.is-revealed { --pad-cell: 92px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-handwrite-entry { margin-top: 26px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-answer-pad-tools { gap: 8px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-answer-pad-tools button { min-height: 44px; padding: 0 14px; font-size: 13.5px; }
+
+/* ---------------------------------------------------------------------------
+   Finger-sized controls; the look stays the same, only the hit area grows
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-top-tools .cosmos-close,
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-top-tools .review-icon { width: 44px; height: 44px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-recall-methods { gap: 10px; margin-top: 34px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-recall-methods button { min-height: 44px; padding: 0 10px; font-size: 14px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-recall-methods button[aria-pressed="true"]::after { left: 10px; right: 10px; bottom: 6px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-direction .review-icon,
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-head > .review-icon,
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-term-row .review-icon,
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-speak { width: 42px; height: 42px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-said-button { min-height: 44px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-inline-typing { font-size: 26px; }
+
+/* The footer: undo the old rule in android-tablet.css (".cosmos-review-foot button", 124 px wide,
+   50 px tall), which also turned the Relearn · Connections links into 50 px rows. */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-review-foot button { min-width: 0; border-radius: 12px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-review-foot .review-reveal { height: 52px; min-height: 0; font-size: 15px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-ratings button { min-height: 0; border-radius: 0; padding: 16px 16px 15px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-links { margin-top: 4px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-links button { min-height: 44px; padding: 0 12px; font-size: 13px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-missed .review-text-btn,
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-missed .review-next { min-height: 44px; height: 44px; padding: 0 18px; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-note-input { font-size: 16px; }
+
+/* Keyboard digits only when a hardware keyboard is in use (platform.ts sets data-keyboard). */
+:root[data-platform="android"]:not([data-keyboard="1"]) .cosmos-shell[data-mode="review"] .review-ratings kbd { display: none; }
+
+/* No hover on a touch screen: Android keeps :hover on the last tapped cell, which then looked
+   like the suggested grade on the next card. Show a press instead. */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-ratings button:hover:not(.is-suggested) { background: transparent; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-ratings button:hover:not(.is-suggested)::before { opacity: .32; }
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-ratings button:active { background: color-mix(in srgb, var(--tone) 16%, transparent); }
+
+/* ---------------------------------------------------------------------------
+   Side panels: at 1180–1399 px only one opens at a time (CosmosWindow), so the card keeps ~760 px
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns[data-left="open"] .cosmos-details-left,
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns[data-right="open"] .cosmos-details-right { flex-basis: 300px; width: 300px; }
+@media (max-width: 1179px) {
+  :root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details { top: 58px; width: min(340px, 86vw); }
+}
+
+/* The tablet's one Details control opens a combined, closable Context + Notes drawer. */
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-details {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:44px;padding:0 12px;border:1px solid var(--ws-line);
+  border-radius:10px;background:transparent;color:var(--ws-muted);
+  font:600 12px var(--sans);cursor:pointer;
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-details[aria-expanded="true"] {
+  border-color:var(--c-review);color:var(--ws-ink);
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .review-card-details b {
+  font:600 10px var(--sans);color:var(--ws-muted);
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details-right .cosmos-details-head {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 20px;border-bottom:1px solid var(--ws-line);
+}
+:root[data-platform="android"] .cosmos-shell[data-mode="review"] .cosmos-details-right .cosmos-details-head button {
+  min-width:44px;min-height:44px;
+}

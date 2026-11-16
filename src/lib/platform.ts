@@ -26,6 +26,15 @@ function homePath() {
 export function markAndroidRuntime() {
   if (!isAndroidRuntime()) return;
   document.documentElement.dataset.platform = "android";
+  // Keyboard hints (1–4, Space) only make sense with a hardware keyboard, such as a keyboard cover.
+  // On-screen keyboards report keyCode 229 for characters, so a printable key with a real code
+  // means a physical keyboard.
+  const onKey = (event: KeyboardEvent) => {
+    if (event.isComposing || event.keyCode === 229 || event.key.length !== 1) return;
+    document.documentElement.dataset.keyboard = "1";
+    window.removeEventListener("keydown", onKey, true);
+  };
+  window.addEventListener("keydown", onKey, true);
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) window.dispatchEvent(new Event("heuresis:study-changed"));
   });
