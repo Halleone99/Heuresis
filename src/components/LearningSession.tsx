@@ -101,7 +101,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const answering = useRef(false);
   const opening = useRef(false);
   const shell = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const exampleInput = useRef<HTMLTextAreaElement>(null);
   const primary = useRef<HTMLButtonElement>(null);
   const changed = useRef(onChanged); changed.current = onChanged;
 
@@ -392,7 +393,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   // A button that is still disabled (while an answer is being saved) cannot take focus, so this
   // runs again when saving or moving ends; until then the screen itself holds the keyboard.
   useEffect(() => {
-    const target = screen === "exercise" && !shown && (exercise?.format === "type" || exercise?.format === "compose") ? input.current
+    const target = screen === "exercise" && !shown && (exercise?.format === "type" || exercise?.format === "compose") ? (exercise.format === "compose" ? exampleInput.current : input.current)
       : (screen === "exercise" && shown) || screen === "summary" || screen === "finished" ? primary.current : null;
     if (target && !target.disabled) target.focus({ preventScroll: true });
     else if (!shell.current?.contains(document.activeElement)) shell.current?.focus({ preventScroll: true });
@@ -480,7 +481,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       </div>;
     }
     if (item.format === "compose") return <div className="lrn-type lrn-compose">
-      <textarea ref={input} className="lrn-input" value={text} lang={item.lang} disabled={locked}
+      <textarea ref={exampleInput} className="lrn-input" value={text} lang={item.lang} disabled={locked}
         rows={3} placeholder="Write your own example…" aria-label="Your example sentence"
         autoCapitalize="sentences" spellCheck={true} onChange={(event) => setText(event.target.value)} />
       <p className="lrn-example-note">Checks vocabulary and sentence length, not grammar · Ctrl+Enter to check</p>
