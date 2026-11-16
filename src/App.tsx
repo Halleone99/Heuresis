@@ -53,7 +53,7 @@ import { readSection, writeSection, type WorkspaceSection } from "./lib/workspac
 // Catalogue publications are an independent store and a large editor: load on first use.
 const CatalogueSection = lazy(() => import("./components/catalogue/CatalogueSection"));
 /** Sections whose content does not depend on the Notebook having loaded. */
-const NOTEBOOK_INDEPENDENT: WorkspaceSection[] = ["overview", "study", "reading", "reference"];
+const NOTEBOOK_INDEPENDENT: WorkspaceSection[] = ["overview", "study", "reading", "quotations", "reference"];
 
 type View = "library" | "pack" | "catalogue" | "related" | "capture-inbox";
 type SidebarMode = "full" | "rail" | "hidden";
@@ -684,7 +684,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
           <nav className="hw-sections">
-            {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined}
+            {SECTIONS.map(({ id, label, icon: Icon, key }) => <button key={id} type="button" className={section === id || (section === "quotations" && id === "reading") ? "active" : ""} aria-current={section === id || (section === "quotations" && id === "reading") ? "page" : undefined}
               onClick={() => navigateSection(id)} title={`${label} (Alt+${key})`}>
               {id === "queue" ? <span className="capture-mark" aria-hidden="true">C</span> : <Icon size={16}/>}<span>{label}</span>{id === "queue" && qCount > 0 ? <span className="q-nav-badge">{qCount}</span> : null}
             </button>)}
@@ -715,7 +715,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
-          {section === "reading" ? <ReadingView userId={session.user.id} /> : null}
+          {(section === "reading" || section === "quotations") ? <ReadingView key={section} userId={session.user.id} initialArea={section === "quotations" ? "quotations" : "library"} /> : null}
           {section === "reference" ? <Suspense fallback={<div className="ws-loading" role="status"><span className="ws-spinner" /> Opening the Catalogue…</div>}>
             <CatalogueSection userId={session.user.id} />
           </Suspense> : null}
@@ -731,7 +731,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
         <div className="q-mobile-scroll">
           {SECTIONS.filter((item) => item.id !== "queue").map(({ id, label, icon: Icon }) => <button type="button" key={id}
-            aria-current={section === id ? "page" : undefined} className={section === id ? "is-active" : ""}
+            aria-current={section === id || (section === "quotations" && id === "reading") ? "page" : undefined} className={section === id || (section === "quotations" && id === "reading") ? "is-active" : ""}
             onClick={() => navigateSection(id)}>
             <Icon size={20} aria-hidden="true" /><span>{label === "Mistake Log" ? "Mistakes" : label}</span>
           </button>)}

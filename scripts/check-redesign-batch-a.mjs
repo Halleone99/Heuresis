@@ -24,6 +24,10 @@ assert.doesNotMatch(mistakes, /Mistake → Correction → Practice → Progress/
 assert.doesNotMatch(overview, /Objectives from Personal OS appear here/, "No technical objective empty-state copy");
 assert.match(overview, /open:\s*onOpenStudy/, "Overview wires the Flashcards card to Study");
 assert.match(overview, /className="ov-card-link"[^\n]+onClick=\{open\}/, "Overview card overlay invokes its navigation callback");
+const app = read("src/App.tsx");
+const readingView = read("src/components/workspace/ReadingView.tsx");
+assert.match(app, /section === "quotations" \? "quotations" : "library"/, "Quotations card navigates to the Reading quotation view");
+assert.match(readingView, /useState<ReadingArea>\(initialArea\)/, "Reading starts in the requested sub-section");
 assert.doesNotMatch(overview, /<button[^>]*>Open lesson <ArrowRight/, "No duplicate primary action in active lesson");
 assert.doesNotMatch(notebook, /action=\{workspace\.writable && fallbackTopic \? <div className="ws-empty-actions"/, "Notebook empty state relies on header action");
 

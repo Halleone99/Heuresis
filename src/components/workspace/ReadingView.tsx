@@ -26,9 +26,9 @@ function BookCover({ book, index }: { book: ReadingBook; index: number }) {
   </div>;
 }
 
-export function ReadingView({ userId }: { userId: string }) {
+export function ReadingView({ userId, initialArea = "library" }: { userId: string; initialArea?: ReadingArea }) {
   const api = useReadingLibrary(userId);
-  const [area, setArea] = useState<ReadingArea>("library");
+  const [area, setArea] = useState<ReadingArea>(initialArea);
   const [quoteSourceBookId, setQuoteSourceBookId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("current");
   const [query, setQuery] = useState("");
