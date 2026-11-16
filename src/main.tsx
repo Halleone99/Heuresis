@@ -57,6 +57,7 @@ import "./components/workspace/workspace.css";
 import "./components/workspace/literary.css";
 // Loaded last to resolve legacy and workspace colours with one shared palette.
 import "./theme/palettes.css";
+import "./theme/card-tokens.css";
 import "./components/workspace/note-window.css";
 import "./components/workspace/note-formatting.css";
 import "./components/workspace/note-reading-views.css";
