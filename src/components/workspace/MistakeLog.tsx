@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronRight, GraduationCap, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, GraduationCap, Play, Plus, Search, Trash2, X } from "lucide-react";
 import { comparableCorrection, friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
-import { EmptyState, Kbd, MOD_KEY, Portal, TopicPicker, useConfirm } from "./ui";
+import { Kbd, MOD_KEY, Portal, TopicPicker, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
-import { SubjectCard } from "./SubjectCard";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 import { RichText } from "./RichText";
-import { ReviewMistakes } from "./ReviewMistakes";
 import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
 import { parseCaptureLine } from "../../lib/captureParse";
+import { createReviewRoute, openCosmosWindow } from "../../lib/cosmosWindow";
+import { useStudyMistakes, type StudyMistake } from "./useStudyMistakes";
+import "./mistake-cards.css";
 
 function DiffLine({ parts }: { parts: DifferencePart[] }) {
   return <>{parts.map((part, index) => <span key={index}
@@ -55,21 +56,215 @@ function isNotFiled(entry: KnowledgeEntry, topicById: ReturnType<typeof useWorks
     || subjectById.get(topic.subject_id)?.name.trim().toLowerCase() === "unsorted";
 }
 
-/** Three familiar Notebook levels, without a second subject/topic hierarchy. */
+
+type CardStatus = "missed" | "fresh" | "recalled";
+type SortKind = "newest" | "most" | "fresh" | "oldest";
+type MistakeCardItem = {
+  id: string; source: "logged" | "study"; subject: string; subjectKey: string; glyph: string;
+  topic: string; topicKey: string; date: string; misses: number; status: CardStatus;
+  pinned: boolean; repeated: number; entry?: KnowledgeEntry; study?: StudyMistake;
+};
+const normalise = (value: string) => value.trim().toLocaleLowerCase();
+const SHOW_OPTIONS = [
+  { value: "all", label: "Everything" }, { value: "missed", label: "Missed last time" },
+  { value: "fresh", label: "Not practised yet" }, { value: "recalled", label: "Recalled" },
+];
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" }, { value: "most", label: "Most missed" },
+  { value: "fresh", label: "Not practised first" }, { value: "oldest", label: "Oldest first" },
+];
+
+/** A compact keyboard-accessible dropdown; closes on Escape and outside clicks. */
+function CardFilter({ label, value, options, onChange }: {
+  label: string; value: string; options: Array<{ value: string; label: string; count?: number }>;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => { if (!ref.current?.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  const current = options.find((option) => option.value === value)?.label ?? options[0]?.label ?? "All";
+  return <div className="hc-dropdown" ref={ref}>
+    <button type="button" className={"hc-filter" + (value !== options[0]?.value ? " is-set" : "")}
+      aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((shown) => !shown)}
+      onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
+      {label}: <strong>{current}</strong><ChevronDown size={13}/>
+    </button>
+    {open ? <div role="menu" aria-label={label} className="hc-menu" onKeyDown={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); setOpen(false); ref.current?.querySelector("button")?.focus(); }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const buttons = [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])];
+        const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+      }
+    }}>
+      {options.map((option) => <button type="button" role="menuitemradio" key={option.value}
+        aria-checked={value === option.value} onClick={() => { onChange(option.value); setOpen(false); }}>
+        <span className="hc-menu-check">{value === option.value ? "✓" : ""}</span>{option.label}
+        {option.count !== undefined ? <small>{option.count}</small> : null}
+      </button>)}
+    </div> : null}
+  </div>;
+}
+
+function FlippingCard({ item, selecting, selected, highlighted, onSelect, onEdit, onPractise, onReview, onLog }: {
+  item: MistakeCardItem; selecting: boolean; selected: boolean; highlighted: boolean;
+  onSelect: () => void; onEdit: () => void; onPractise: () => void;
+  onReview: () => void; onLog: () => void;
+}) {
+  const [flipped, setFlipped] = useState(false);
+  const entry = item.entry;
+  const card = item.study;
+  const idea = Boolean(entry && isIdeaStyle(entry));
+  const diff = entry && !idea ? mistakeDifference(entry.attempt, entry.correction) : null;
+  const chinese = Boolean(entry && /[\u3400-\u9FFF]/u.test(entry.attempt + entry.correction));
+  const rule = entry?.title ? ruleParts(entry.title).rule : "";
+  const statusText = item.status === "missed" ? "Missed last time" :
+    item.status === "recalled" ? "Recalled" : "Not practised yet";
+  const place = item.glyph + " " + item.topic + (rule ? " · " + rule : "");
+  const toggle = () => selecting && entry ? onSelect() : setFlipped((value) => !value);
+  const press = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
+  };
+  return <article className={"hc-card" + (flipped ? " is-flipped" : "") +
+    (card ? " is-study" : "") + (selected ? " is-selected" : "") + (highlighted ? " is-highlighted" : "")}
+    role="button" tabIndex={0} aria-pressed={selecting ? selected : flipped}
+    aria-label={(selecting ? "Select " : "Flip ") + (entry?.attempt ?? card?.title ?? "mistake")}
+    data-mistake={entry?.id} onClick={(event) => {
+      if ((event.target as HTMLElement).closest("button, input, a")) return;
+      toggle();
+    }} onKeyDown={press}>
+    <div className="hc-face hc-front">
+      <div className="hc-card-top">
+        <span className="hc-card-place">{place}</span>
+        {entry ? <span className={"hc-status is-" + item.status}>
+          <i/>{statusText}{item.repeated ? " · Made again " + item.repeated + "×" : ""}{item.pinned ? " · Pinned" : ""}
+        </span> : <span className="hc-status is-study"><Copy size={12}/> Missed {item.misses}× in Review</span>}
+      </div>
+      <div className={"hc-main" + (idea ? " is-idea" : "")}>
+        {entry ? diff ? <MistakeDisplay parts={diff.before} chinese={chinese}/> : entry.attempt || "Not recorded"
+          : card?.title}
+      </div>
+      <span className="hc-hint">{card ? "What does it mean?" : "What's right?"}</span>
+      {selecting && entry ? <span aria-hidden="true" className="hc-select-mark">{selected ? "✓" : "○"}</span> : null}
+    </div>
+    <div className="hc-face hc-back">
+      <div className="hc-card-top"><span className="hc-card-place">{place}</span><span className="hc-success">✓</span></div>
+      <div className={"hc-main" + (idea ? " is-idea" : "")}>
+        {entry ? entry.correction ? diff ? <MistakeDisplay parts={diff.after} chinese={chinese}/> : entry.correction
+          : <span className="hc-missing">Add the correct version</span> : card?.reference || "No answer recorded"}
+      </div>
+      {entry?.explanation ? <RichText text={entry.explanation} className="hc-explanation is-compact"/> : null}
+      {card ? <div className="hc-explanation">
+        {card.attempt ? <span className="hc-wrong">You wrote {card.attempt}. </span> : null}
+        {card.direction}{card.explanation ? " · " + card.explanation : ""}
+      </div> : null}
+      <div className="hc-card-actions">
+        {entry ? <>
+          <button type="button" disabled={!entry.correction.trim()} onClick={onPractise}>Practise</button>
+          <button type="button" className="is-quiet" onClick={onEdit}>Edit</button>
+        </> : <>
+          <button type="button" onClick={onReview}>Review this card</button>
+          <button type="button" className="is-quiet" onClick={onLog}>Add to my log</button>
+        </>}
+      </div>
+    </div>
+  </article>;
+}
+
+function AddMistakeTile({ initialTopicId, prefill, onCancel, onSaved }: {
+  initialTopicId: string; prefill: { attempt: string; correction: string; explanation: string } | null;
+  onCancel: () => void; onSaved: (id: string) => void;
+}) {
+  const workspace = useWorkspace();
+  const [topicId, setTopicId] = useState(initialTopicId);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [attempt, setAttempt] = useState(prefill?.attempt ?? "");
+  const [correction, setCorrection] = useState(prefill?.correction ?? "");
+  const [explanation, setExplanation] = useState(prefill?.explanation ?? "");
+  const [duplicate, setDuplicate] = useState<KnowledgeEntry | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const input = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { input.current?.focus(); }, []);
+  const clear = () => { setAttempt(""); setCorrection(""); setExplanation(""); setDuplicate(null); input.current?.focus(); };
+  async function save(forceSeparate = false) {
+    if (!attempt.trim() || busy) return;
+    if (!topicId || !workspace.topicById.has(topicId)) { setPickerOpen(true); setError("Choose a subject and topic."); return; }
+    if (!forceSeparate) {
+      const repeated = findRepeatedMistake(workspace.snapshot.entries, workspace.topicById, topicId, attempt, correction);
+      if (repeated) { setDuplicate(repeated); return; }
+    }
+    setBusy(true); setError(""); setDuplicate(null);
+    try {
+      const saved = await workspace.addEntry({ kind: "mistake", topicId, attempt: attempt.trim(),
+        correction: correction.trim(), explanation: explanation.trim() });
+      onSaved(saved.id); clear();
+    } catch (reason) { setError(friendlyError(reason)); } finally { setBusy(false); }
+  }
+  async function madeAgain() {
+    if (!duplicate || busy) return;
+    setBusy(true);
+    try { await workspace.recordRepeated(duplicate.id); onSaved(duplicate.id);
+      workspace.toast("Recorded as made again."); clear();
+    } catch (reason) { setError(friendlyError(reason)); } finally { setBusy(false); }
+  }
+  return <div className="hc-addform">
+    <form onSubmit={(event) => { event.preventDefault(); void save(); }}
+      onKeyDown={(event) => { if (event.key === "Escape" && !pickerOpen) { event.preventDefault(); onCancel(); } }}>
+      <textarea ref={input} rows={2} maxLength={5000} aria-label="What you wrote" placeholder="What you wrote"
+        value={attempt} onChange={(event) => { setAttempt(event.target.value); setDuplicate(null); }}/>
+      <textarea rows={2} maxLength={5000} aria-label="What's right" placeholder="What's right"
+        value={correction} onFocus={() => {
+          if (!correction.trim() && attempt.trim().split(/\s+/u).length < 30) setCorrection(attempt.split("\n")[0]);
+        }} onChange={(event) => { setCorrection(event.target.value); setDuplicate(null); }}/>
+      <textarea rows={2} maxLength={5000} aria-label="Why (optional)" placeholder="Why (optional)"
+        value={explanation} onChange={(event) => setExplanation(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault(); void save(); } }}/>
+      <button type="button" className="hc-destination" onClick={() => setPickerOpen(true)}>
+        Saved to {topicId ? workspace.pathLabel(topicId) : "Choose a topic"} <ChevronDown size={12}/>
+      </button>
+      {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
+      {duplicate ? <div className="hc-duplicate" role="status">
+        You logged this before.
+        <button type="button" disabled={busy} onClick={() => void madeAgain()}>Made again</button>
+        <button type="button" disabled={busy} onClick={() => void save(true)}>Keep separately</button>
+      </div> : null}
+      <div className="hc-add-actions"><button type="button" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="hc-primary" disabled={busy || !attempt.trim()}>{busy ? "Saving…" : "Add"}</button></div>
+    </form>
+    {topicId ? <MistakeBulkAdd topicId={topicId}/> : null}
+    {pickerOpen ? <Portal><div className="ws-dialog-backdrop" role="presentation"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) setPickerOpen(false); }}>
+      <TopicPicker value={topicId || null} onClose={() => setPickerOpen(false)}
+        onChange={(id) => { setTopicId(id); setError(""); setPickerOpen(false); }}/>
+    </div></Portal> : null}
+  </div>;
+}
+
 export function MistakeLog() {
   const workspace = useWorkspace();
   const { snapshot, focusMistake, clearFocusMistake } = workspace;
+  const study = useStudyMistakes();
+  const stored = workspace.memory.mistakes;
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(stored.subjectId);
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(stored.topicId);
+  const [status, setStatus] = useState<CardStatus | "all">(stored.status ?? "all");
+  const [sort, setSort] = useState<SortKind>(stored.sort ?? "newest");
+  const [showStudy, setShowStudy] = useState(Boolean(stored.study));
+  const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
+  const [prefill, setPrefill] = useState<{ attempt: string; correction: string; explanation: string } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [session, setSession] = useState<string[] | null>(null);
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(() => workspace.memory.mistakes.subjectId);
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(() => workspace.memory.mistakes.topicId);
-  const [notFiledOnly, setNotFiledOnly] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(60);
-  const [search, setSearch] = useState("");
-  const [chosenThemeIds, setChosenThemeIds] = useState<string[]>([]);
-  const [browsingAll, setBrowsingAll] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkPicker, setBulkPicker] = useState(false);
@@ -77,154 +272,182 @@ export function MistakeLog() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmElement, confirm] = useConfirm();
   const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const mistakes = useMemo(() => snapshot.entries
-    .filter((entry) => entry.kind === "mistake")
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.created_at.localeCompare(a.created_at)), [snapshot.entries]);
-  const isUnfiled = useCallback((entry: KnowledgeEntry) =>
-    isNotFiled(entry, workspace.topicById, workspace.subjectById), [workspace.topicById, workspace.subjectById]);
-
-  const select = useCallback((subjectId: string | null, topicId: string | null, unfiled = false) => {
-    setSelectedSubjectId(subjectId);
-    setSelectedTopicId(topicId);
-    setNotFiledOnly(unfiled);
-    setVisibleCount(60);
-    setSearch("");
-    setBrowsingAll(false);
-    setAdding(false);
-    setEditingId(null);
-    setSelectedIds([]);
-    setSelecting(false);
-    workspace.updateMemory((current) => ({ ...current, mistakes: { subjectId, topicId } }));
-  }, [workspace.updateMemory]);
-
-  // Preserve external links from Review and Notebook, opening the actual entry.
+  const mistakes = useMemo(() => snapshot.entries.filter((entry) => entry.kind === "mistake"), [snapshot.entries]);
+  const practiceStatus = useMemo(() => {
+    const map = new Map<string, { last: { outcome: string; created_at: string } | null; repeated: number; missed: number }>();
+    for (const event of snapshot.practice) {
+      const row = map.get(event.record_id) ?? { last: null, repeated: 0, missed: 0 };
+      if (event.source === "repeated") row.repeated++;
+      else {
+        if (event.outcome === "incorrect") row.missed++;
+        if (!row.last || event.created_at > row.last.created_at) row.last = event;
+      }
+      map.set(event.record_id, row);
+    }
+    return map;
+  }, [snapshot.practice]);
+  const allItems = useMemo((): MistakeCardItem[] => {
+    const own = mistakes.map((entry): MistakeCardItem => {
+      const topic = workspace.topicById.get(entry.topic_id);
+      const subject = topic ? workspace.subjectById.get(topic.subject_id) : undefined;
+      const name = subject?.name ?? "Unsorted";
+      const state = practiceStatus.get(entry.id);
+      return { id: "log:" + entry.id, source: "logged", subject: name, subjectKey: normalise(name),
+        glyph: name.slice(0, 1), topic: isNotFiled(entry, workspace.topicById, workspace.subjectById)
+          ? "Not filed" : topic?.name ?? "Not filed",
+        topicKey: isNotFiled(entry, workspace.topicById, workspace.subjectById) ? "__not-filed__" : normalise(topic?.name ?? "Not filed"),
+        date: entry.created_at, misses: (state?.missed ?? 0) + (state?.repeated ?? 0),
+        status: state?.last?.outcome === "incorrect" ? "missed" : state?.last ? "recalled" : "fresh",
+        pinned: Boolean(entry.pinned), repeated: state?.repeated ?? 0, entry };
+    });
+    const linked = study.items.map((item): MistakeCardItem => ({
+      id: "study:" + item.cardId, source: "study", subject: item.subject, subjectKey: normalise(item.subject),
+      glyph: item.glyph, topic: item.topic, topicKey: normalise(item.topic),
+      date: item.lastWrongAt, misses: item.missCount, status: "missed", pinned: false, repeated: 0, study: item,
+    }));
+    return [...own, ...linked];
+  }, [mistakes, practiceStatus, workspace.topicById, workspace.subjectById, study.items]);
+  const base = allItems.filter((item) => item.source === (showStudy ? "study" : "logged"));
+  // Previously saved Notebook UUIDs continue to resolve after the chips adopt shared subject-name keys.
+  const subjectKey = selectedSubjectId ? normalise(workspace.subjectById.get(selectedSubjectId)?.name ?? selectedSubjectId) : null;
+  const topicKey = selectedTopicId ? normalise(workspace.topicById.get(selectedTopicId)?.name ?? selectedTopicId) : null;
+  const bySubject = subjectKey ? base.filter((item) => item.subjectKey === subjectKey) : base;
+  const subjectMap = new Map<string, { value: string; label: string; glyph: string; count: number }>();
+  for (const item of base) {
+    const existing = subjectMap.get(item.subjectKey);
+    if (existing) { existing.count++; if (item.source === "study") existing.glyph = item.glyph; }
+    else subjectMap.set(item.subjectKey, { value: item.subjectKey, label: item.subject, glyph: item.glyph, count: 1 });
+  }
+  const subjects = [...subjectMap.values()].sort((a, b) => a.label.localeCompare(b.label));
+  const topicMap = new Map<string, { value: string; label: string; count: number }>();
+  for (const item of bySubject) {
+    const found = topicMap.get(item.topicKey);
+    if (found) found.count++;
+    else topicMap.set(item.topicKey, { value: item.topicKey, label: item.topic, count: 1 });
+  }
+  const topics = [...topicMap.values()].sort((a, b) => a.label.localeCompare(b.label));
+  const searchTerm = normalise(search);
+  const filtered = bySubject.filter((item) => {
+    if (topicKey && item.topicKey !== topicKey) return false;
+    if (!showStudy && status !== "all" && item.status !== status) return false;
+    const values = item.entry ? [item.entry.attempt, item.entry.correction, item.entry.explanation, item.entry.title]
+      : [item.study?.title, item.study?.reference, item.study?.attempt, item.study?.explanation, item.study?.direction];
+    return !searchTerm || [...values, item.topic, item.subject].some((text) => normalise(text ?? "").includes(searchTerm));
+  }).sort((a, b) => Number(b.pinned) - Number(a.pinned) ||
+    (sort === "most" ? b.misses - a.misses : sort === "fresh" ? Number(a.status === "fresh") - Number(b.status === "fresh") :
+      sort === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)) ||
+    b.date.localeCompare(a.date));
+  const visibleLogged = filtered.filter((item) => item.entry?.correction.trim()).map((item) => item.entry!);
+  const activeFilters = Boolean(subjectKey || topicKey || searchTerm || (!showStudy && status !== "all"));
+  function remember(patch: Partial<typeof stored>) {
+    workspace.updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, ...patch } }));
+  }
+  function chooseSubject(key: string | null) {
+    setSelectedSubjectId(key); setSelectedTopicId(null); setSelectedIds([]);
+    remember({ subjectId: key, topicId: null });
+  }
+  function chooseTopic(key: string | null) { setSelectedTopicId(key); remember({ topicId: key }); }
+  function chooseStatus(next: CardStatus | "all") { setStatus(next); remember({ status: next }); }
+  function chooseSort(next: SortKind) { setSort(next); remember({ sort: next }); }
+  function switchStudy() {
+    const next = !showStudy; setShowStudy(next); setSelectedTopicId(null); setStatus("all");
+    setSelectedIds([]); setSelecting(false); setAdding(false); setEditingId(null);
+    remember({ study: next, topicId: null, status: "all" });
+    listRef.current?.scrollIntoView({ block: "start" });
+  }
+  function clearFilters() {
+    setSelectedSubjectId(null); setSelectedTopicId(null); setSearch(""); setStatus("all");
+    remember({ subjectId: null, topicId: null, status: "all" });
+  }
+  useEffect(() => {
+    const keys = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.metaKey || event.ctrlKey || event.altKey || target?.closest("input, textarea, select, [contenteditable]")) return;
+      if (event.key === "/") { event.preventDefault(); searchRef.current?.focus(); }
+      if (!showStudy && workspace.writable && event.key.toLowerCase() === "n") {
+        event.preventDefault(); setAdding(true); setPrefill(null); setEditingId(null);
+      }
+    };
+    document.addEventListener("keydown", keys); return () => document.removeEventListener("keydown", keys);
+  }, [showStudy, workspace.writable]);
   useEffect(() => {
     if (!focusMistake) return;
-    const entry = mistakes.find((item) => item.id === focusMistake.id);
     clearFocusMistake();
+    if (focusMistake.practise) { setSession(focusMistake.ids?.length ? focusMistake.ids : [focusMistake.id]); return; }
+    const entry = mistakes.find((item) => item.id === focusMistake.id);
     if (!entry) return;
-    if (focusMistake.practise) {
-      setSession(focusMistake.ids?.length ? focusMistake.ids : [entry.id]);
-      return;
-    }
     const topic = workspace.topicById.get(entry.topic_id);
-    select(topic?.subject_id ?? null, entry.topic_id);
-    const scope = new Set(workspace.subtreeIds(entry.topic_id));
-    const position = mistakes.filter((item) => scope.has(item.topic_id)).findIndex((item) => item.id === entry.id);
-    setVisibleCount(Math.max(60, position + 1));
-    setHighlightId(entry.id);
-  }, [focusMistake, clearFocusMistake, mistakes, select, workspace.topicById, workspace.subtreeIds]);
-
+    const subject = topic ? workspace.subjectById.get(topic.subject_id) : undefined;
+    setShowStudy(false); setSelectedSubjectId(subject ? normalise(subject.name) : null);
+    setSelectedTopicId(null); setStatus("all"); setHighlightId(entry.id);
+    remember({ study: false, subjectId: subject ? normalise(subject.name) : null, topicId: null, status: "all" });
+  }, [focusMistake, clearFocusMistake, mistakes, workspace.topicById, workspace.subjectById]);
   useEffect(() => {
     if (!highlightId) return;
-    const scroll = window.setTimeout(() => {
-      listRef.current?.querySelector<HTMLElement>('[data-mistake="' + highlightId + '"]')
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 60);
-    const clear = window.setTimeout(() => setHighlightId(null), 2600);
+    const scroll = window.setTimeout(() => listRef.current?.querySelector<HTMLElement>('[data-mistake="' + highlightId + '"]')
+      ?.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+    const clear = window.setTimeout(() => setHighlightId(null), 2500);
     return () => { window.clearTimeout(scroll); window.clearTimeout(clear); };
   }, [highlightId]);
 
-  const selectedSubject = selectedSubjectId ? workspace.subjectById.get(selectedSubjectId) : null;
-  const selectedTopic = selectedTopicId ? workspace.topicById.get(selectedTopicId) : null;
-  const topicIds = useMemo(() => selectedTopicId ? new Set(workspace.subtreeIds(selectedTopicId)) : null,
-    [selectedTopicId, workspace.subtreeIds]);
-
-  const visibleMistakes = useMemo(() => mistakes.filter((entry) => {
-    const topic = workspace.topicById.get(entry.topic_id);
-    if (selectedSubjectId && topic?.subject_id !== selectedSubjectId) return false;
-    if (topicIds && !topicIds.has(entry.topic_id)) return false;
-    if (notFiledOnly && !isUnfiled(entry)) return false;
-    const query = search.trim().toLocaleLowerCase();
-    return !query || [entry.attempt, entry.correction, entry.explanation, entry.title]
-      .some((value) => value.toLocaleLowerCase().includes(query));
-  }), [mistakes, selectedSubjectId, topicIds, notFiledOnly, isUnfiled, workspace.topicById, search]);
-
-  const countInTopic = useCallback((topicId: string) => {
-    const ids = new Set(workspace.subtreeIds(topicId));
-    return mistakes.filter((entry) => ids.has(entry.topic_id)).length;
-  }, [workspace.subtreeIds, mistakes]);
-
-  const childTopics = selectedSubjectId && !notFiledOnly ? workspace.childrenOf(selectedTopicId, selectedSubjectId)
-    .filter((topic) => topic.name.trim().toLowerCase() !== "inbox" && countInTopic(topic.id) > 0) : [];
-  const subjectCards = !selectedSubjectId && !notFiledOnly ? snapshot.subjects
-    .filter((subject) => subject.name.trim().toLowerCase() !== "unsorted"
-      && mistakes.some((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === subject.id))
-    .sort((a, b) => {
-      const last = (id: string) => mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === id)
-        .reduce((date, entry) => entry.created_at > date ? entry.created_at : date, "");
-      return last(b.id).localeCompare(last(a.id));
-    }) : [];
-  const unfiledCount = mistakes.filter(isUnfiled).length;
-  const currentUnfiledCount = selectedSubjectId ? mistakes.filter((entry) =>
-    workspace.topicById.get(entry.topic_id)?.subject_id === selectedSubjectId && isUnfiled(entry)).length : unfiledCount;
-
   function startPractice(entries: KnowledgeEntry[]) {
     const eligible = entries.filter((entry) => entry.correction.trim());
-    if (!eligible.length) return;
-    const latest = new Map<string, { outcome: string; created_at: string }>();
-    for (const event of snapshot.practice) {
-      if (event.source === "repeated") continue;
-      const previous = latest.get(event.record_id);
-      if (!previous || previous.created_at < event.created_at) latest.set(event.record_id, event);
-    }
-    const priority = (entry: KnowledgeEntry) => {
-      const last = latest.get(entry.id);
-      return last?.outcome === "incorrect" ? 0 : !last ? 1 : 2;
-    };
-    eligible.sort((a, b) => priority(a) - priority(b)
-      || (a.last_recalled_at ?? "").localeCompare(b.last_recalled_at ?? ""));
-    const mixed: KnowledgeEntry[] = [];
-    let previousRule = "";
-    while (eligible.length) {
-      const top = priority(eligible[0]);
-      const index = eligible.findIndex((entry) => priority(entry) === top
-        && (ruleParts(entry.title).rule || entry.id) !== previousRule);
-      const picked = eligible.splice(index >= 0 ? index : 0, 1)[0];
-      mixed.push(picked);
-      previousRule = ruleParts(picked.title).rule || picked.id;
-    }
-    setSession(mixed.map((entry) => entry.id));
+    eligible.sort((a, b) => Number(practiceStatus.get(a.id)?.last?.outcome !== "incorrect") -
+      Number(practiceStatus.get(b.id)?.last?.outcome !== "incorrect"));
+    if (eligible.length) setSession(eligible.map((entry) => entry.id));
   }
-
-  // The selection basket is separate from navigation and survives visiting other
-  // subjects. Choosing a parent theme includes all its subtopics; overlaps count once.
-  const chosenMistakes = useMemo(() => {
-    const scope = new Set(chosenThemeIds.flatMap((id) => workspace.subtreeIds(id)));
-    return mistakes.filter((entry) => scope.has(entry.topic_id) && entry.correction.trim());
-  }, [chosenThemeIds, mistakes, workspace.subtreeIds]);
-  const selectedThemeCount = chosenThemeIds.filter((id) => workspace.topicById.has(id)).length;
-  const themeChooser = !selectedTopicId && !notFiledOnly && !search.trim() && !browsingAll && !adding;
-  function toggleChosenTheme(id: string) {
-    setChosenThemeIds((current) => current.includes(id)
-      ? current.filter((item) => item !== id) : [...current, id]);
-  }
-
-  const groupByRule = Boolean(selectedTopicId && !search.trim() && !notFiledOnly);
-  const repeatedRules = new Map<string, KnowledgeEntry[]>();
-  if (groupByRule) {
-    for (const entry of visibleMistakes.slice(0, visibleCount)) {
-      const name = ruleParts(entry.title).rule;
-      if (!name) continue;
-      repeatedRules.set(name, [...(repeatedRules.get(name) ?? []), entry]);
+  async function reviewStudy(items: MistakeCardItem[]) {
+    const ordered = new Map<string, string[]>();
+    for (const item of items) {
+      if (!item.study) continue;
+      const ids = ordered.get(item.study.packId) ?? [];
+      if (!ids.includes(item.study.cardId)) ids.push(item.study.cardId);
+      ordered.set(item.study.packId, ids);
     }
+    const entries = [...ordered].map(([packId, cardIds]) => ({ packId, cardIds }));
+    if (!entries.length) return;
+    try {
+      const reviewRouteToken = createReviewRoute(entries);
+      await openCosmosWindow({ mode: "review", packId: entries[0].packId,
+        source: "all", order: "weakest", count: "all",
+        cardIds: entries[0].cardIds, reviewRouteToken });
+      study.reload();
+    } catch (reason) { workspace.toast(friendlyError(reason), { tone: "error" }); }
   }
-  const groups = [...repeatedRules.entries()].filter(([, entries]) => entries.length > 1);
-  const groupedIds = new Set(groups.flatMap(([, entries]) => entries.map((entry) => entry.id)));
-  const listEntries = visibleMistakes.slice(0, visibleCount);
+  function logStudy(card: StudyMistake) {
+    const notebookSubject = snapshot.subjects.find((subject) => normalise(subject.name) === normalise(card.subject));
+    const latest = mistakes.find((entry) => notebookSubject &&
+      workspace.topicById.get(entry.topic_id)?.subject_id === notebookSubject.id);
+    const fallback = snapshot.topics.find((topic) => topic.subject_id === notebookSubject?.id);
+    setSelectedSubjectId(notebookSubject ? normalise(notebookSubject.name) : null);
+    setSelectedTopicId(null); setShowStudy(false); setAdding(true); setEditingId(null);
+    setPrefill({ attempt: card.attempt, correction: card.title + " = " + card.reference, explanation: card.explanation });
+    remember({ study: false, subjectId: notebookSubject ? normalise(notebookSubject.name) : null, topicId: null });
+    setDraftTopicId(latest?.topic_id ?? fallback?.id ?? "");
+  }
+  const [draftTopicId, setDraftTopicId] = useState<string>("");
+  const selectedNotebookSubject = snapshot.subjects.find((subject) => normalise(subject.name) === subjectKey);
+  const chosenDefaultTopic = draftTopicId || (selectedTopicId && workspace.topicById.has(selectedTopicId) ? selectedTopicId : "") ||
+    mistakes.find((entry) => !selectedNotebookSubject ||
+      workspace.topicById.get(entry.topic_id)?.subject_id === selectedNotebookSubject.id)?.topic_id ||
+    snapshot.topics.find((topic) => !selectedNotebookSubject || topic.subject_id === selectedNotebookSubject.id)?.id || "";
 
   async function moveSelected(topicId: string) {
     setBulkPicker(false);
     if (!selectedIds.length || bulkBusy) return;
     setBulkBusy(true);
+    const oldLocations = selectedIds.map((id) => ({ id, topicId: workspace.entryById.get(id)?.topic_id ?? "" }));
     let moved = 0;
     try {
-      for (const id of selectedIds) {
-        await workspace.patchEntry(id, { topic_id: topicId });
-        moved++;
-      }
-      workspace.toast("Moved " + moved + " mistakes to " + workspace.pathLabel(topicId) + ".");
+      for (const id of selectedIds) { await workspace.patchEntry(id, { topic_id: topicId }); moved++; }
+      const restore = oldLocations.slice(0, moved);
+      workspace.toast("Moved " + moved + " mistakes.", { action: { label: "Undo", run: () => {
+        void Promise.all(restore.filter((row) => row.topicId).map((row) =>
+          workspace.patchEntry(row.id, { topic_id: row.topicId }))).catch((reason) =>
+          workspace.toast(friendlyError(reason), { tone: "error" }));
+      } } });
       setSelectedIds([]); setSelecting(false);
     } catch (reason) {
       workspace.toast("Moved " + moved + " before an error: " + friendlyError(reason), { tone: "error" });
@@ -234,157 +457,84 @@ export function MistakeLog() {
   async function applyRule() {
     if (!selectedIds.length || !bulkRule.trim() || bulkBusy) return;
     setBulkBusy(true);
-    let updated = 0;
     try {
       for (const id of selectedIds) {
         const entry = workspace.entryById.get(id);
         if (!entry) continue;
         const detail = ruleParts(entry.title).detail;
         await workspace.patchEntry(id, { title: bulkRule.trim() + (detail ? " – " + detail : "") });
-        updated++;
       }
-      workspace.toast("Updated the rule on " + updated + " mistakes.");
-      setBulkRule(""); setSelectedIds([]); setSelecting(false);
-    } catch (reason) {
-      workspace.toast("Updated " + updated + " before an error: " + friendlyError(reason), { tone: "error" });
-      setSelectedIds((ids) => ids.slice(updated));
-    } finally { setBulkBusy(false); }
+      setSelectedIds([]); setSelecting(false); setBulkRule(""); workspace.toast("Rule updated.");
+    } catch (reason) { workspace.toast(friendlyError(reason), { tone: "error" }); }
+    finally { setBulkBusy(false); }
   }
   async function deleteSelected() {
     if (!selectedIds.length || bulkBusy) return;
     if (!await confirm({ title: "Delete " + selectedIds.length + " mistakes?",
       body: "The records and their recall history can be restored from Trash.", confirmLabel: "Move to Trash", danger: true })) return;
     setBulkBusy(true);
-    let deleted = 0;
     try {
-      for (const id of selectedIds) { await workspace.removeEntry(id, { undo: false }); deleted++; }
-      workspace.toast("Moved " + deleted + " mistakes to Trash.");
-      setSelectedIds([]); setSelecting(false);
-    } catch (reason) {
-      workspace.toast("Moved " + deleted + " before an error: " + friendlyError(reason), { tone: "error" });
-      setSelectedIds((ids) => ids.slice(deleted));
-    } finally { setBulkBusy(false); }
+      for (const id of selectedIds) await workspace.removeEntry(id, { undo: false });
+      setSelectedIds([]); setSelecting(false); workspace.toast("Moved mistakes to Trash.");
+    } catch (reason) { workspace.toast(friendlyError(reason), { tone: "error" }); }
+    finally { setBulkBusy(false); }
   }
 
-  function renderItem(entry: KnowledgeEntry, inRule = false) {
-    return editingId === entry.id
-      ? <MistakeEditor key={entry.id} entry={entry} onDone={() => setEditingId(null)} />
-      : <MistakeItem key={entry.id} entry={entry} highlighted={entry.id === highlightId}
-          hideRuleTitle={inRule} showPath={!selectedTopicId || !selectedSubjectId}
-          selecting={selecting} selected={selectedIds.includes(entry.id)}
-          onSelect={() => setSelectedIds((ids) => ids.includes(entry.id) ? ids.filter((id) => id !== entry.id) : [...ids, entry.id])}
-          onEdit={() => { setAdding(false); setEditingId(entry.id); }} />;
-  }
-
-  const title = notFiledOnly ? "Not filed" : selectedTopic?.name ?? selectedSubject?.name ?? "Mistake Log";
-  const allPage = !selectedSubjectId && !notFiledOnly;
-
-  return <div className="ml-page ml-simple-page ml-hierarchy" ref={listRef}>
+  return <div className="ml-page hc-page" ref={listRef}>
     {confirmElement}
-    <nav className="nb-crumbs ml-crumbs" aria-label="Mistake Log location">
-      <button type="button" onClick={() => select(null, null)}>Mistake Log</button>
-      {selectedSubject ? <><ChevronRight size={12}/><button type="button"
-        onClick={() => select(selectedSubject.id, null)}>{selectedSubject.name}</button></> : null}
-      {selectedTopic && !notFiledOnly ? workspace.topicPath(selectedTopic.id).chain.map((part) =>
-        <span className="nb-crumb" key={part.id}><ChevronRight size={12}/>
-          <button type="button" onClick={() => select(part.subject_id, part.id)}>{part.name}</button>
-        </span>) : null}
-      {notFiledOnly ? <span className="nb-crumb"><ChevronRight size={12}/> Not filed</span> : null}
-    </nav>
-    <header className="ws-page-head">
-      <div><h1>{title}</h1>
-        <p className="ws-muted ml-page-subtitle">{themeChooser
-          ? (allPage ? "Choose a subject, then select the themes you want to practise."
-            : "Select one or several themes, or open a theme to review its corrections.")
-          : visibleMistakes.length + (visibleMistakes.length === 1 ? " mistake" : " mistakes")}</p></div>
-      <div className="ws-page-actions">
-        <button className="ws-button" type="button" disabled={!visibleMistakes.some((entry) => entry.correction.trim())}
-          aria-label={allPage ? "Practise all mistakes" : "Practise " + title}
-          onClick={() => startPractice(visibleMistakes)}><GraduationCap size={16}/>{allPage ? "Practise all" : "Practise"}</button>
-        {workspace.writable ? <button className={"ws-button" + (adding ? "" : " is-primary")} type="button"
-          aria-expanded={adding} aria-controls="ml-new-mistake"
-          onClick={() => {
-            setAdding((open) => !open);
-            if (!adding) { setBrowsingAll(true); setEditingId(null); }
-          }}>{adding ? <X size={16}/> : <Plus size={16}/>} {adding ? "Cancel" : "Add mistake"}</button> : null}
+    <header className="hc-head">
+      <div><h1>Mistake Log</h1>
+        <p>{mistakes.length} {mistakes.length === 1 ? "mistake" : "mistakes"} you logged · {study.items.length}
+          {study.items.length === 1 ? " card" : " cards"} to work on from Study</p></div>
+      <div className="hc-head-actions">
+        <label className="hc-search"><Search size={15}/><span className="sr-only">Search mistakes</span>
+          <input ref={searchRef} type="search" value={search} placeholder="Search"
+            onChange={(event) => setSearch(event.target.value)}/></label>
+        <button type="button" className="hc-from-study" aria-pressed={showStudy} onClick={switchStudy}>
+          <Copy size={15}/> From Study <span>{study.items.length}</span></button>
+        {!showStudy ? <button type="button" className="hc-primary" disabled={!visibleLogged.length}
+          onClick={() => startPractice(visibleLogged)}><Play size={14} fill="currentColor"/> Practise {visibleLogged.length}</button> : null}
       </div>
     </header>
-
-    {allPage ? <ReviewMistakes search={search}/> : null}
-
-    {selectedThemeCount > 0 ? <div className="ml-study-selection" role="region" aria-label="Selected practice themes">
-      <div className="ml-study-selection-copy">
-        <strong>{selectedThemeCount} {selectedThemeCount === 1 ? "theme" : "themes"} selected</strong>
-        <span>{chosenMistakes.length} correctable {chosenMistakes.length === 1 ? "mistake" : "mistakes"} across your selection</span>
-      </div>
-      <button className="ws-button is-primary" type="button" disabled={!chosenMistakes.length}
-        onClick={() => startPractice(chosenMistakes)}><GraduationCap size={15}/> Practise selected</button>
-      <button className="ws-button" type="button" onClick={() => setChosenThemeIds([])}>Clear</button>
+    {showStudy ? <div className="hc-study-banner">
+      <div className="hc-study-icon"><Copy size={19}/></div>
+      <div><strong>Cards to work on from Study</strong>
+        <p>Flashcards you missed twice or more in Review. They leave this list once you get them right again.</p></div>
+      <div className="hc-banner-actions"><button type="button" className="hc-primary" disabled={!filtered.length}
+        onClick={() => void reviewStudy(filtered)}>Review these {filtered.length} in Study</button>
+        <button type="button" onClick={switchStudy}>Back to my mistakes</button></div>
     </div> : null}
-    {allPage && unfiledCount > 0 ? <button className="ml-not-filed" type="button"
-      onClick={() => select(null, null, true)}>{unfiledCount} {unfiledCount === 1 ? "mistake" : "mistakes"} not filed yet <ChevronRight size={15}/></button> : null}
-    {selectedSubjectId && !selectedTopicId && !notFiledOnly && currentUnfiledCount > 0
-      ? <button className="ml-not-filed" type="button" onClick={() => select(selectedSubjectId, null, true)}>
-        Not filed · {currentUnfiledCount}<ChevronRight size={15}/></button> : null}
-
-    <div className="ml-list-toolbar">
-      <label className="ml-search-label ml-chooser-search">
-        <Search size={16} aria-hidden="true"/>
-        <span className="sr-only">Search mistakes</span>
-        <input className="ml-search-field" type="search" value={search}
-          onChange={(event) => { setSearch(event.target.value); setVisibleCount(60); }}
-          placeholder={allPage ? "Search all mistakes…" : "Search in " + title + "…"} />
-      </label>
-      {workspace.writable && !allPage ? <button className="ws-button ml-select-trigger" type="button"
-        aria-pressed={selecting} onClick={() => { setSelecting((open) => !open); setSelectedIds([]); }}>
-        {selecting ? "Done selecting" : "Select mistakes"}
-      </button> : null}
+    {study.error ? <p className="hc-study-error" role="status">Cards from Study could not be loaded. {study.error}</p> : null}
+    <div className="hc-filters">
+      <button type="button" aria-pressed={!subjectKey} className={"hc-chip" + (!subjectKey ? " is-on" : "")}
+        onClick={() => chooseSubject(null)}>All <small>{base.length}</small></button>
+      {subjects.map((subject) => <button type="button" key={subject.value} aria-pressed={subjectKey === subject.value}
+        className={"hc-chip" + (subjectKey === subject.value ? " is-on" : "")}
+        onClick={() => chooseSubject(subject.value)}><span>{subject.glyph}</span>{subject.label} <small>{subject.count}</small></button>)}
+      <span className="hc-separator"/>
+      <CardFilter label="Topic" value={topicKey ?? ""} options={[
+        { value: "", label: "All topics" }, ...topics.map((topic) => ({ ...topic })),
+      ]} onChange={(key) => chooseTopic(key || null)}/>
+      {!showStudy ? <CardFilter label="Show" value={status} options={SHOW_OPTIONS}
+        onChange={(key) => chooseStatus(key as CardStatus | "all")}/> : null}
+      <CardFilter label="Sort" value={sort}
+        options={showStudy ? SORT_OPTIONS.filter((option) => option.value !== "fresh") : SORT_OPTIONS}
+        onChange={(key) => chooseSort(key as SortKind)}/>
     </div>
-    {allPage && !search.trim() && !browsingAll ? <div className="ml-hierarchy-grid">
-      {subjectCards.map((subject) => {
-        const entries = mistakes.filter((entry) => workspace.topicById.get(entry.topic_id)?.subject_id === subject.id);
-        const topics = workspace.childrenOf(null, subject.id).filter((topic) => countInTopic(topic.id));
-        return <SubjectCard key={subject.id} subject={subject} topics={topics.length}
-          notes={entries.length} editable={false}
-          detail={entries.length + (entries.length === 1 ? " mistake" : " mistakes") + " · "
-            + (topics.map((topic) => topic.name + " " + countInTopic(topic.id)).slice(0, 3).join(" · ") || "Not filed")}
-          onOpen={() => select(subject.id, null)}/>;
-      })}
-    </div> : null}
-
-    {childTopics.length && !search.trim() && !browsingAll ? <div className="ml-theme-gallery" aria-label="Available themes">
-      {childTopics.map((topic) => {
-        const checked = chosenThemeIds.includes(topic.id);
-        const count = countInTopic(topic.id);
-        return <div className={"ml-theme-tile" + (checked ? " is-chosen" : "")} key={topic.id}>
-          <button type="button" className="ml-theme-open"
-            onClick={() => select(topic.subject_id, topic.id)}
-            aria-label={"Open " + topic.name + " mistakes"}>
-            <span className="ml-theme-title">{topic.name}<ChevronRight size={17}/></span>
-            <span className="ml-theme-count">{count} {count === 1 ? "mistake" : "mistakes"}</span>
-          </button>
-          <button type="button" className="ml-theme-pick" aria-pressed={checked}
-            onClick={() => toggleChosenTheme(topic.id)}>
-            <Check size={15}/>{checked ? "Selected for practice" : "Select for practice"}
-          </button>
-        </div>;
-      })}
-    </div> : null}
-    {themeChooser && mistakes.length > 0 ? <div className="ml-chooser-footer">
-      <button className="nb-link-button" type="button" onClick={() => setBrowsingAll(true)}>
-        {allPage ? "Browse all corrections" : "Browse all mistakes in " + title} <ChevronRight size={14}/>
-      </button>
-    </div> : null}
-
-    {workspace.writable && !allPage && selecting ? <div className="ml-bulk-toolbar ml-bulk-expanded" role="group" aria-label="Selected mistakes">
+    <div className="hc-count"><span>Showing <strong>{filtered.length}</strong> of {base.length}
+      {activeFilters ? <> · <button type="button" onClick={clearFilters}>Clear filters</button></> : null}</span>
+      {!showStudy && workspace.writable ? <button type="button" className="hc-select-toggle" aria-pressed={selecting}
+        onClick={() => { setSelecting((value) => !value); setSelectedIds([]); }}>
+        {selecting ? "Done selecting" : "Select"}</button> : null}
+    </div>
+    {selecting && !showStudy ? <div className="ml-bulk-toolbar ml-bulk-expanded" role="group" aria-label="Selected mistakes">
       <span className="ws-muted">{selectedIds.length} selected</span>
       <button className="ws-button" type="button" disabled={bulkBusy}
-        onClick={() => setSelectedIds(visibleMistakes.map((entry) => entry.id))}>Select all visible</button>
+        onClick={() => setSelectedIds(filtered.flatMap((item) => item.entry ? [item.entry.id] : []))}>Select all visible</button>
       <button className="ws-button" type="button" disabled={!selectedIds.length || bulkBusy}
         onClick={() => setBulkPicker(true)}>Move to…</button>
       <input type="text" maxLength={200} className="ml-bulk-rule-input" value={bulkRule}
-        placeholder="Set rule…" aria-label="Set rule on selected mistakes"
-        onChange={(event) => setBulkRule(event.target.value)}/>
+        placeholder="Set rule…" aria-label="Set rule on selected mistakes" onChange={(event) => setBulkRule(event.target.value)}/>
       <button className="ws-button" type="button" disabled={!selectedIds.length || !bulkRule.trim() || bulkBusy}
         onClick={() => void applyRule()}>Apply rule</button>
       <button className="ws-button ml-bulk-delete" type="button" disabled={!selectedIds.length || bulkBusy}
@@ -392,96 +542,36 @@ export function MistakeLog() {
     </div> : null}
     {bulkPicker ? <Portal><div className="ws-dialog-backdrop" role="presentation"
       onMouseDown={(event) => { if (event.target === event.currentTarget) setBulkPicker(false); }}>
-      <TopicPicker value={selectedTopicId} onClose={() => setBulkPicker(false)}
-        onChange={(topicId) => void moveSelected(topicId)}/>
+      <TopicPicker value={selectedTopicId && workspace.topicById.has(selectedTopicId) ? selectedTopicId : null}
+        onClose={() => setBulkPicker(false)} onChange={(id) => void moveSelected(id)}/>
     </div></Portal> : null}
-    {!themeChooser ? <section className="ml-hierarchy-content">
-      {adding ? <div className="ml-add-panel" id="ml-new-mistake">
-        <MistakeEditor key={"new:" + (selectedTopicId ?? selectedSubjectId ?? "all")}
-          preferredSubjectId={selectedSubjectId} preferredTopicId={selectedTopicId}
-          onDone={() => { setAdding(false); setBrowsingAll(false); }}/>
-        {workspace.writable && selectedTopicId && !notFiledOnly ? <details className="ml-add-alternatives">
-          <summary>Other ways to add</summary>
-          <div className="ml-extra-entry"><MistakeQuickAdd key={selectedTopicId} initialTopicId={selectedTopicId}/>
-            <MistakeBulkAdd key={"bulk:" + selectedTopicId} topicId={selectedTopicId}/></div>
-        </details> : null}
-      </div> : null}
-      <h2 className="ml-section-label">{search.trim() ? "Search results" : "Mistakes and corrections"}</h2>
-      {!mistakes.length && !adding ? <EmptyState title="No mistakes recorded yet" icon={<Pencil size={22}/>}>
-        Add a mistake and its correction. File it under any Notebook subject and topic.
-      </EmptyState> : null}
-      {mistakes.length > 0 && !visibleMistakes.length && (search.trim() || !allPage)
-        ? <p className="ws-muted">No mistakes match this view. {search.trim() && !allPage
-          ? <button type="button" className="nb-link-button" onClick={() => select(null, null)}>Search everywhere</button> : null}</p> : null}
-      {groupByRule && groups.length && !search.trim() ? groups.map(([rule, entries]) =>
-        <section className="ml-rule-group" key={rule}>
-          <div className="ml-rule-head"><h3>{rule} <small>· {entries.length}</small></h3>
-            <button type="button" className="nb-link-button"
-              onClick={() => setSession(entries.filter((entry) => entry.correction.trim()).map((entry) => entry.id))}
-              disabled={!entries.some((entry) => entry.correction.trim())}>Practise</button></div>
-          <div className="ml-simple-list">{entries.map((entry) => renderItem(entry, true))}</div>
-        </section>) : null}
-      <div className="ml-simple-list">{listEntries.filter((entry) => !groupedIds.has(entry.id)).map((entry) => renderItem(entry))}</div>
-      {visibleMistakes.length > visibleCount ? <button className="ml-simple-more" type="button"
-        onClick={() => setVisibleCount((count) => count + 60)}>Show more</button> : null}
-    </section> : null}
+    <div className="hc-grid">
+      {!showStudy && workspace.writable && !selecting ? adding ? <AddMistakeTile key={"add:" + (prefill?.correction ?? "blank")}
+        initialTopicId={chosenDefaultTopic} prefill={prefill}
+        onCancel={() => { setAdding(false); setPrefill(null); setDraftTopicId(""); }}
+        onSaved={(id) => { setHighlightId(id); setPrefill(null); setDraftTopicId("");
+          setSelectedSubjectId(null); setSelectedTopicId(null); setSearch(""); setStatus("all");
+          remember({ subjectId: null, topicId: null, status: "all" }); }}/> :
+        <button type="button" className="hc-add-tile" onClick={() => { setAdding(true); setPrefill(null); setEditingId(null); }}>
+          <Plus size={25}/><span>Add a mistake</span></button> : null}
+      {filtered.map((item) => item.entry && editingId === item.entry.id
+        ? <div className="hc-edit-row" key={item.id}><MistakeEditor entry={item.entry}
+            onDone={() => setEditingId(null)}/></div>
+        : <FlippingCard key={item.id} item={item} selecting={selecting} highlighted={highlightId === item.entry?.id}
+          selected={Boolean(item.entry && selectedIds.includes(item.entry.id))}
+          onSelect={() => { if (item.entry) setSelectedIds((ids) => ids.includes(item.entry!.id)
+            ? ids.filter((id) => id !== item.entry!.id) : [...ids, item.entry!.id]); }}
+          onEdit={() => { if (item.entry) { setEditingId(item.entry.id); setAdding(false); } }}
+          onPractise={() => { if (item.entry) startPractice([item.entry]); }}
+          onReview={() => void reviewStudy([item])}
+          onLog={() => { if (item.study) logStudy(item.study); }}/>)}
+      {!base.length && !study.loading ? <p className="hc-empty">{showStudy ?
+        "Nothing to work on from Study right now." : "No mistakes yet. Write what you got wrong, and what's right."}</p>
+        : !filtered.length ? <p className="hc-empty">Nothing matches these filters.
+          <button type="button" onClick={clearFilters}>Clear filters</button></p> : null}
+    </div>
     {session ? <RecallSession ids={session} onClose={() => setSession(null)}/> : null}
   </div>;
-}
-
-function MistakeQuickAdd({ initialTopicId }: { initialTopicId: string }) {
-  const workspace = useWorkspace();
-  const [attempt, setAttempt] = useState("");
-  const [correction, setCorrection] = useState("");
-  const [rule, setRule] = useState("");
-  const [duplicate, setDuplicate] = useState<KnowledgeEntry | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const input = useRef<HTMLInputElement>(null);
-
-  const clear = () => { setAttempt(""); setCorrection(""); setDuplicate(null); input.current?.focus(); };
-  async function save(forceSeparate = false) {
-    if (!attempt.trim() || busy) return;
-    if (!forceSeparate) {
-      const existing = findRepeatedMistake(workspace.snapshot.entries, workspace.topicById,
-        initialTopicId, attempt, correction);
-      if (existing) { setDuplicate(existing); return; }
-    }
-    setBusy(true); setError(""); setDuplicate(null);
-    try {
-      await workspace.addEntry({ kind: "mistake", topicId: initialTopicId, attempt: attempt.trim(),
-        correction: correction.trim(), title: rule.trim() });
-      clear();
-    } catch (reason) { setError(friendlyError(reason)); }
-    finally { setBusy(false); }
-  }
-  async function madeAgain() {
-    if (!duplicate || busy) return;
-    setBusy(true); setError("");
-    try {
-      await workspace.recordRepeated(duplicate.id);
-      workspace.toast("Recorded as made again, without creating a duplicate.");
-      clear();
-    } catch (reason) { setError(friendlyError(reason)); }
-    finally { setBusy(false); }
-  }
-  return <form className="ml-quick-add" onSubmit={(event) => { event.preventDefault(); void save(); }}>
-    <label><span>Mistake</span><input ref={input} value={attempt} maxLength={5000}
-      placeholder="What was wrong?" onChange={(event) => { setAttempt(event.target.value); setDuplicate(null); }}/></label>
-    <label><span>Correction</span><input value={correction} maxLength={5000}
-      placeholder="What's right?" onChange={(event) => { setCorrection(event.target.value); setDuplicate(null); }}/></label>
-    <label className="ml-quick-rule"><span>Rule (optional)</span><input value={rule} maxLength={200}
-      placeholder="e.g. Adjektivendung" onChange={(event) => setRule(event.target.value)}/></label>
-    <button className="ws-button is-primary" disabled={busy || !attempt.trim()} type="submit">
-      <Plus size={15}/> Add
-    </button>
-    {duplicate ? <div className="ml-duplicate-check" role="status">
-      <span>This exact mistake already exists in this subject.</span>
-      <button className="ws-button" type="button" disabled={busy} onClick={() => void madeAgain()}>Made again</button>
-      <button className="ws-button" type="button" disabled={busy} onClick={() => void save(true)}>Keep separately</button>
-    </div> : null}
-    {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
-  </form>;
 }
 
 function MistakeBulkAdd({ topicId }: { topicId: string }) {
@@ -539,6 +629,7 @@ function MistakeBulkAdd({ topicId }: { topicId: string }) {
   </div>;
 }
 
+
 function isIdeaStyle(entry: KnowledgeEntry): boolean {
   if (!entry.correction.trim()) return false;
   const original = entry.attempt.trim();
@@ -555,59 +646,6 @@ function isIdeaStyle(entry: KnowledgeEntry): boolean {
     if (index >= 0) { common += 1; remaining.splice(index, 1); }
   }
   return Math.max(a.length, b.length) > 4 && common / Math.max(a.length, b.length) < 0.5;
-}
-
-function MistakeItem({ entry, highlighted, showPath, hideRuleTitle, onEdit, selecting, selected, onSelect }: {
-  entry: KnowledgeEntry; highlighted: boolean; showPath: boolean; hideRuleTitle: boolean; onEdit: () => void;
-  selecting: boolean; selected: boolean; onSelect: () => void;
-}) {
-  const workspace = useWorkspace();
-  const ideaStyle = isIdeaStyle(entry);
-  const diff = ideaStyle ? null : mistakeDifference(entry.attempt, entry.correction);
-  const events = workspace.snapshot.practice.filter((event) => event.record_id === entry.id);
-  const repeated = events.filter((event) => event.source === "repeated").length;
-  const last = events.filter((event) => event.source !== "repeated")
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  const rule = ruleParts(entry.title);
-  const chinesePair = /[\u3400-\u9FFF]/u.test(entry.attempt + entry.correction);
-  return <article className={"ml-simple-item" + (highlighted ? " is-highlighted" : "")
-    + (ideaStyle ? " is-idea-style" : "")} data-mistake={entry.id}>
-    {selecting ? <input className="ml-select-checkbox" type="checkbox" checked={selected} onChange={onSelect}
-      aria-label={"Select mistake " + (entry.title || entry.attempt.slice(0, 40))}/> : null}
-    <div className="ml-simple-body">
-      <div className="ml-entry-top">
-        <div className="ml-entry-heading">
-          {entry.title && !hideRuleTitle ? <h2 className="ml-entry-title">{rule.rule}
-            {rule.detail ? <small> · {rule.detail}</small> : null}</h2> : null}
-          {hideRuleTitle && rule.detail ? <small className="ml-entry-detail">{rule.detail}</small> : null}
-        </div>
-        {workspace.writable ? <div className="ml-simple-actions">
-          <button type="button" className="ws-icon-button" aria-label="Edit mistake" title="Edit mistake" onClick={onEdit}>
-            <Pencil size={15}/>
-          </button>
-        </div> : null}
-      </div>
-      <div className="ml-simple-pair">
-        <span className="ml-simple-symbol" title="Mistake" aria-label="Mistake">×</span>
-        <p className="ml-simple-wrong">{entry.attempt
-          ? diff ? <MistakeDisplay parts={diff.before} chinese={chinesePair}/> : entry.attempt : "Not recorded"}</p>
-      </div>
-      <div className="ml-simple-pair">
-        <span className="ml-simple-symbol is-right" title="Correction" aria-label="Correction">✓</span>
-        <p className={"ml-simple-right" + (!entry.correction ? " is-missing" : "")}>
-          {entry.correction ? diff ? <MistakeDisplay parts={diff.after} chinese={chinesePair}/> : entry.correction : "Add the correct version"}
-        </p>
-      </div>
-      {entry.explanation ? <div className="ml-entry-context-wrap">
-        <RichText text={entry.explanation} className="ml-entry-context is-compact"/></div> : null}
-      <small className="ml-entry-evidence">
-        {last ? (last.outcome === "incorrect" ? "Missed last time" : "Recalled last time") : "Not practised yet"}
-        {showPath ? " · " + workspace.pathLabel(entry.topic_id) : ""}
-        {repeated ? " · Made again " + repeated + (repeated === 1 ? " time" : " times") : ""}
-        {entry.pinned ? " · Pinned" : ""}
-      </small>
-    </div>
-  </article>;
 }
 
 function MistakeEditor({ entry, preferredSubjectId, preferredTopicId, onDone }: {
