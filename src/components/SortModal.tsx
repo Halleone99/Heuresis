@@ -1,12 +1,12 @@
 import { ArrowLeftRight, ArrowRight, Brain, Check, ChevronDown, PanelLeftOpen, Search, Shuffle, Tag, Undo2, Volume2, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { enterLearning, enterReview, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
 import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
-import SortEnrichmentPanel from "./SortEnrichmentPanel";
+import SortEnrichmentPanel, { firstExampleBlock, type DetailsRequest } from "./SortEnrichmentPanel";
 import { InlineSortText } from "./InlineSortText";
 import { canSpeak, reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
@@ -120,6 +120,25 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [destination, setDestination] = useState<AcquisitionPhase>(readDestination);
   const [noteOpen, setNoteOpen] = useState(false);
   const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
+  const [detailsRequest, setDetailsRequest] = useState<DetailsRequest | null>(null);
+  // Once the example sentence is touched, its translation line stays visible for this card.
+  const [exampleActive, setExampleActive] = useState(false);
+  // Saves started by a blur (card text or Details) that a decision must wait for.
+  const pendingSaves = useRef(new Set<Promise<unknown>>());
+  const [saving, setSaving] = useState(0);
+  const trackSave = useCallback((save: Promise<unknown>) => {
+    pendingSaves.current.add(save);
+    setSaving((n) => n + 1);
+    const done = () => { pendingSaves.current.delete(save); setSaving((n) => Math.max(0, n - 1)); };
+    save.then(done, done);
+  }, []);
+  /** Waits for every save in flight; false if one of them failed (the card then stays). */
+  async function flushSaves() {
+    // A click first blurs the field being edited; its save starts in that blur, before this runs.
+    await Promise.resolve();
+    const results = await Promise.allSettled([...pendingSaves.current]);
+    return results.every((result) => result.status === "fulfilled");
+  }
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [, refreshSpeechAvailability] = useState(0);
@@ -152,11 +171,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
     setEditingCard(false); setNoteOpen(Boolean(card?.note));
     setEnrichmentOpen(false); setDetailsCount(0);
+    setDetailsRequest(null); setExampleActive(false);
     setMessage("");
   }, [card?.id]);
 
   async function toggleTag(tagId: string) {
-    if (!card || busy || enrichmentBlocked || editingCard) return;
+    if (!card || busy) return;
     const next = tagIds.includes(tagId) ? tagIds.filter((id) => id !== tagId) : [...tagIds, tagId];
     setTagIds(next); setBusy(true); setMessage("");
     try { await setSortTags(card.id, next); onChanged(); }
@@ -164,17 +184,20 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     finally { setBusy(false); }
   }
 
-  async function saveInlineField(fieldKey: string, value: string) {
-    if (!card || busy || enrichmentBlocked) return;
-    setBusy(true); setMessage("");
-    try {
-      const saved = await patchCardData(card.id, { [fieldKey]: value });
-      setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item));
+  function saveInlineField(fieldKey: string, value: string) {
+    if (!card) return Promise.resolve();
+    const cardId = card.id;
+    setMessage("");
+    // Not guarded by `busy`: this runs from the blur caused by clicking a decision, which must not drop the edit.
+    const save = patchCardData(cardId, { [fieldKey]: value }).then((saved) => {
+      setQueue((items) => items.map((item) => item.id === cardId ? { ...item, data: saved } : item));
       onChanged();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not save the card.";
-      setMessage(message); throw error;
-    } finally { setBusy(false); }
+    }, (error: unknown) => {
+      setMessage(error instanceof Error ? error.message : "Could not save the card.");
+      throw error;
+    });
+    trackSave(save);
+    return save;
   }
 
   function switchDestination() {
@@ -188,7 +211,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   }
 
   async function closeSort() {
-    if (busy || enrichmentBlocked || editingCard) return;
+    if (busy) return;
+    if (pendingSaves.current.size) {
+      setBusy(true);
+      const ok = await flushSaves();
+      setBusy(false);
+      if (!ok) return;
+    }
     if (card && noteDraft.trim() !== (card.note ?? "").trim()) {
       setBusy(true); setMessage("");
       try { await saveQuickNote(); onChanged(); exitSort(); }
@@ -198,9 +227,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   }
 
   async function learn(rank: number, phase: AcquisitionPhase = destination) {
-    if (!card || busy || enrichmentBlocked || editingCard) return;
+    if (!card || busy) return;
     setBusy(true); setMessage("");
     try {
+      if (!await flushSaves()) return;
       // The three visible priorities retain the existing numeric database representation.
       await saveQuickNote();
       const state = readAcquisition(card.data);
@@ -221,9 +251,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   }
 
   async function discard() {
-    if (!card || busy || enrichmentBlocked || editingCard) return;
+    if (!card || busy) return;
     setBusy(true); setMessage("");
     try {
+      if (!await flushSaves()) return;
       await saveQuickNote();
       await discardCard(card);
       setDiscarded((value) => value + 1);
@@ -266,9 +297,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   }
 
   async function later() {
-    if (busy || enrichmentBlocked || editingCard || !card) return;
+    if (busy || !card) return;
     setBusy(true); setMessage("");
     try {
+      if (!await flushSaves()) return;
       await saveQuickNote();
       setLastRemoval({ kind: "later", card: { ...card, note: noteDraft.trim() || null } });
       setLeftForLater((value) => value + 1);
@@ -299,7 +331,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable], .qc-panel, .ws-dialog')) return;
       if (filtersOpen && event.key === "Enter" && target === dialogRef.current) { event.preventDefault(); beginSort(); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { if (lastRemoval) { event.preventDefault(); void undo(); } return; }
-      if (event.ctrlKey || event.metaKey || event.altKey || !card || busy || enrichmentBlocked || editingCard || filtersOpen) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || !card || busy || enrichmentBlocked || filtersOpen) return;
       const key = event.key.toLowerCase();
       // Retain older Sort keyboard actions for existing users, without
       // crowding the new interface with shortcut labels.
@@ -317,16 +349,21 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy || enrichmentBlocked || editingCard} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
+  const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
   const languageLabel = pack.cardType?.name?.replace(/\b(cards?|vocabulary|words?)\b/gi, "").trim() || "CARD";
   const exampleField = fieldByRole(pack.cardType, "example");
   const translationField = fieldByRole(pack.cardType, "example_translation");
-  const rawBlocks = card?.data["_workspace_blocks"];
-  const firstBlock = Array.isArray(rawBlocks) ? rawBlocks.find((value) => { try { const parsed = JSON.parse(value); return parsed.dim === "examples" && parsed.type === "text"; } catch { return false; } }) : undefined;
-  const firstExample = card ? fieldText(card.data, exampleField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\n")[0] : "") : "";
-  const exampleTranslation = card ? fieldText(card.data, translationField?.key) || (typeof firstBlock === "string" ? String(JSON.parse(firstBlock).text).split("\n").slice(2).join(" ") : "") : "";
+  // The example shown on the card: the Example field when it has text, otherwise the first example written in Details.
+  const exampleText = card ? fieldText(card.data, exampleField?.key).trim() : "";
+  const translationText = card ? fieldText(card.data, translationField?.key).trim() : "";
+  const blockExample = card && !exampleText ? firstExampleBlock(card.data) : null;
+  const decisionWaiting = saving > 0;
+  function openDetailsFor(request: Omit<DetailsRequest, "nonce">) {
+    setEnrichmentOpen(true);
+    setDetailsRequest({ ...request, nonce: Date.now() });
+  }
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
@@ -338,7 +375,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       <div className="sort-topbar-actions">
         {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
         {sessionStarted && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
-        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
+        <button type="button" disabled={busy} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
     {filtersOpen && unsorted.length ? <div className="sort-setup">
@@ -427,7 +464,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     </div> : null}
     {!filtersOpen && card ? <div className="sort-session-stage">
       <div id="sort-editing-tools" className={"sort-editing-tools" + (enrichmentOpen ? " is-open" : "")}>
-        <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged}
+        <SortEnrichmentPanel key={card.id} pack={pack} card={card} onChanged={onChanged} request={detailsRequest} trackSave={trackSave}
           onBlockedChange={setEnrichmentBlocked} onCountChange={setDetailsCount}
           onDataChanged={(saved) => setQueue((items) => items.map((item) => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
@@ -435,7 +472,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         <div className="sort-new-card-header">
           <span><small>{languageLabel.toUpperCase()}</small><i>·</i> New card</span>
           <button type="button" className={"sort-new-details" + (enrichmentOpen ? " on" : "")}
-            aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy || enrichmentBlocked || editingCard}
+            aria-expanded={enrichmentOpen} aria-controls="sort-editing-tools" disabled={busy}
             onClick={() => setEnrichmentOpen((open) => !open)} title="Details (E)">
             <PanelLeftOpen size={15} /> Details {detailsCount ? <b>{detailsCount}</b> : null}
           </button>
@@ -443,7 +480,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         <div className="sort-new-content">
           <div className="sort-new-term">
             {term ? <InlineSortText key={card.id + term.key} value={fieldText(card.data, term.key)}
-              label={term.label} placeholder="add the term" required={term.required} disabled={busy || enrichmentBlocked}
+              label={term.label} placeholder="add the term" required={term.required} disabled={busy}
               className="term" onEditingChange={setEditingCard}
               onCommit={(value) => saveInlineField(term.key, value)} /> : null}
             {fieldText(card.data, term?.key) ? <button type="button" className="sort-new-audio"
@@ -457,31 +494,35 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
           </div>
           <span className="sort-new-rule" aria-hidden="true" />
           {reading ? <InlineSortText key={card.id + reading.key} value={fieldText(card.data, reading.key)}
-            label={reading.label} placeholder="add the reading" required={reading.required} disabled={busy || enrichmentBlocked}
+            label={reading.label} placeholder="add the reading" required={reading.required} disabled={busy}
             className="reading" onEditingChange={setEditingCard}
             onCommit={(value) => saveInlineField(reading.key, value)} /> : null}
           {meaning ? <InlineSortText key={card.id + meaning.key} value={fieldText(card.data, meaning.key)}
             label={meaning.label} placeholder="add the meaning" required={meaning.required} multiline
-            className="meaning" disabled={busy || enrichmentBlocked} onEditingChange={setEditingCard}
+            className="meaning" disabled={busy} onEditingChange={setEditingCard}
             onCommit={(value) => saveInlineField(meaning.key, value)} /> : null}
           <div className="sort-new-example">
-            {exampleField ? <InlineSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)}
-              label="Example sentence" placeholder="+ Example sentence" disabled={busy || enrichmentBlocked}
-              onEditingChange={setEditingCard} className="example"
-              onCommit={(value) => saveInlineField(exampleField.key, value)} />
-              : firstExample ? <button type="button" className="sort-new-example-link" onClick={() => setEnrichmentOpen(true)} title="Edit example in Details">{firstExample}</button>
-              : <button type="button" className="sort-new-add-example" onClick={() => setEnrichmentOpen(true)}>+ Example sentence</button>}
-            {translationField ? <InlineSortText key={card.id + translationField.key} value={fieldText(card.data, translationField.key)}
-              label="Example translation" placeholder="Translation" disabled={busy || enrichmentBlocked}
-              onEditingChange={setEditingCard} className="example-translation"
-              onCommit={(value) => saveInlineField(translationField.key, value)} />
-              : exampleTranslation ? <em>{exampleTranslation}</em> : null}
+            {exampleField && !blockExample ? <>
+              <InlineSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)}
+                label="Example sentence" placeholder="+ Example sentence" disabled={busy} multiline
+                onEditingChange={(editing) => { setEditingCard(editing); if (editing) setExampleActive(true); }} className="example"
+                onCommit={(value) => saveInlineField(exampleField.key, value)} />
+              {translationField && (exampleText || translationText || exampleActive) ? <InlineSortText key={card.id + translationField.key}
+                value={fieldText(card.data, translationField.key)} label="Example translation" placeholder="Translation" disabled={busy} multiline
+                onEditingChange={setEditingCard} className="example-translation"
+                onCommit={(value) => saveInlineField(translationField.key, value)} /> : null}
+            </> : blockExample ? <button type="button" className="sort-new-example-link" disabled={busy}
+                onClick={() => openDetailsFor({ dim: "examples", blockId: blockExample.id })} title="Edit this example in Details">
+                <span>{blockExample.sentence}</span>{blockExample.translation ? <em>{blockExample.translation}</em> : null}
+              </button>
+              : <button type="button" className="sort-new-add-example" disabled={busy}
+                onClick={() => openDetailsFor({ dim: "examples" })}>+ Example sentence</button>}
           </div>
           <div className="sort-new-tags">
             {tags.filter((tag) => tagIds.includes(tag.id)).map((tag) => <button type="button" key={tag.id}
-              className={tag.is_badge ? "is-badge" : ""} disabled={busy || enrichmentBlocked || editingCard}
+              className={tag.is_badge ? "is-badge" : ""} disabled={busy}
               onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}>{tag.name} <X size={11}/></button>)}
-            <button type="button" className="sort-new-add-tag" aria-expanded={tagsOpen} disabled={busy || enrichmentBlocked || editingCard}
+            <button type="button" className="sort-new-add-tag" aria-expanded={tagsOpen} disabled={busy}
               onClick={() => setTagsOpen((v) => !v)}>+ Tag</button>
             {tagsOpen ? <div className="sort-new-tag-popover">
               {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
@@ -491,7 +532,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
           </div>
           <div className="sort-new-note">
             {noteOpen ? <textarea rows={2} autoFocus aria-label="Quick note" placeholder="Something to remember…"
-              value={noteDraft} disabled={busy || enrichmentBlocked || editingCard}
+              value={noteDraft} disabled={busy}
               onChange={(event) => setNoteDraft(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); event.preventDefault(); setNoteOpen(false); } }} />
               : <button type="button" onClick={() => setNoteOpen(true)}>+ Note</button>}
@@ -499,22 +540,22 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         </div>
         <div className="sort-new-footer">
           <div className="sort-new-decision-heading"><span>How important is it?</span>
-            <button type="button" onClick={switchDestination} disabled={busy || enrichmentBlocked || editingCard}
+            <button type="button" onClick={switchDestination} disabled={busy}
               aria-label={"Goes to " + (destination === "learning" ? "Learn" : "Review") + "; change destination"}
               title="Switch destination (R)">Goes to <b>{destination === "learning" ? "Learn" : "Review"}</b> <ArrowLeftRight size={14}/></button>
           </div>
-          <div className="sort-new-ratings" role="group" aria-label="Learning importance">
+          <div className={"sort-new-ratings" + (decisionWaiting ? " is-waiting" : "")} role="group" aria-label="Learning importance">
             {IMPORTANCE_ORDER.map((level, i) => <button type="button" key={level}
-              disabled={busy || enrichmentBlocked || editingCard} title={IMPORTANCE_HINT[level]}
+              disabled={busy} title={IMPORTANCE_HINT[level]}
               onClick={() => void learn(IMPORTANCE_RANK[level])}>
               <span className="sort-new-rating-top" /><span className="sort-new-rating-name">{IMPORTANCE_LABEL[level]} <kbd>{i + 1}</kbd></span>
               <small>{IMPORTANCE_HINT[level]}</small>
             </button>)}
           </div>
-          <div className="sort-new-secondary">
-            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void later()}>Later</button>
+          <div className={"sort-new-secondary" + (decisionWaiting ? " is-waiting" : "")}>
+            <button type="button" disabled={busy} onClick={() => void later()}>Later</button>
             <span aria-hidden="true">·</span>
-            <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void discard()}>Discard</button>
+            <button type="button" disabled={busy} onClick={() => void discard()}>Discard</button>
           </div>
           {message ? <p className="sort-error" role="alert">{message}</p> : null}
         </div>
@@ -523,7 +564,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :
           "→ " + (lastRemoval.phase === "review" ? "Review" : "Learn") + " · " +
           (lastRemoval.rank === 5 ? "Core" : lastRemoval.rank === 3 ? "Active" : "Passive")}</span>
-        <button type="button" disabled={busy || enrichmentBlocked || editingCard} onClick={() => void undo()}><Undo2 size={13}/> Undo</button>
+        <button type="button" disabled={busy} onClick={() => void undo()}><Undo2 size={13}/> Undo</button>
       </div> : null}
     </div> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
