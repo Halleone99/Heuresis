@@ -13,6 +13,7 @@ import {
   type LearnAttempt, type LearnOverview, type LearnRound,
 } from "../lib/learnRounds";
 import { isLearnCard, learnQueue, learnStatus, type LearnStatus, type LearnTopic } from "../lib/learnSession";
+import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import { enterReview, readAcquisition, saveAcquisition } from "../lib/learningStage";
 import "./learning-session.css";
 
@@ -67,6 +68,8 @@ const message = (failure: unknown, fallback: string) =>
  * scheduling are never written from here.
  */
 export default function LearningSession({ topics, title, onClose, onChanged }: Props) {
+  useAndroidStudyWakeLock(true);
+  const releaseBackEntry = useAndroidOverlayBack("learn", () => leave());
   const [screen, setScreen] = useState<Screen>("loading");
   const [problem, setProblem] = useState("");
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -294,6 +297,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   function leave() {
     if (outbox.current.length) void flush();
+    releaseBackEntry();
     onClose();
   }
 

@@ -9,6 +9,7 @@ import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } 
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
 import { InlineSortText } from "./InlineSortText";
 import { canSpeak, reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
+import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import "./sort.css";
 import "./sort-enrichment.css";
 import "./sort-refined.css";
@@ -54,6 +55,9 @@ function shuffled<T>(items: T[]) {
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
 export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, onClose, onChanged, onReview, onLearning }: Props) {
+  useAndroidStudyWakeLock(true);
+  const releaseBackEntry = useAndroidOverlayBack("new", () => { void closeSort(); });
+  const exitSort = (preserveForLearning = false) => { releaseBackEntry(preserveForLearning); onClose(); };
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
   const dialogRef = useRef<HTMLElement>(null);
   const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
@@ -187,10 +191,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     if (busy || enrichmentBlocked || editingCard) return;
     if (card && noteDraft.trim() !== (card.note ?? "").trim()) {
       setBusy(true); setMessage("");
-      try { await saveQuickNote(); onChanged(); onClose(); }
+      try { await saveQuickNote(); onChanged(); exitSort(); }
       catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the quick note."); }
       finally { setBusy(false); }
-    } else onClose();
+    } else exitSort();
   }
 
   async function learn(rank: number, phase: AcquisitionPhase = destination) {
@@ -413,9 +417,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         <span><b>{discarded}</b> discarded</span><span><b>{leftForLater}</b> for later</span>
       </div> : <p>New cards appear here when you capture them.</p>}
       <div className="sort-finished-actions">
-        {onLearning && toLearning > 0 ? <button type="button" onClick={() => { onClose(); onLearning(); }}>Start Learning</button> : null}
-        {onReview && toReview > 0 ? <button type="button" onClick={() => { onClose(); onReview(); }}>Review now</button> : null}
-        <button type="button" className="is-quiet" onClick={onClose}>Back to Study</button>
+        {onLearning && toLearning > 0 ? <button type="button" onClick={() => { exitSort(true); onLearning(); }}>Start Learning</button> : null}
+        {onReview && toReview > 0 ? <button type="button" onClick={() => { exitSort(); onReview(); }}>Review now</button> : null}
+        <button type="button" className="is-quiet" onClick={() => exitSort()}>Back to Study</button>
       </div>
       {lastRemoval ? <button type="button" className="sort-undo-inline" disabled={busy} onClick={() => void undo()}>
         Undo last ({fieldText(lastRemoval.card.data, term?.key) || "card"})

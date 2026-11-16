@@ -62,6 +62,7 @@ import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
+import { useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import "./cosmos.css";
 import "./review-card.css";
 // Android APK only (MagicPad). Loaded after review-card.css so it wins ties; see the file header.
@@ -359,6 +360,7 @@ export default function CosmosWindow() {
   const learningInFlightRef = useRef(new Set<string>());
 
   const mode = config.mode;
+  useAndroidStudyWakeLock(mode === "review");
   const relatedReview = config.relatedReview;
   const redesignReview = mode === "review" && !relatedReview;
   const studyBackground = useHeuresisBackground("heuresis-study");
