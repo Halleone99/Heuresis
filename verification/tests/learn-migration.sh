@@ -101,6 +101,15 @@ as "$A" "select public.heuresis_learn_begin_round('$round', '$learning', 1, '$pl
 as "$A" "select public.heuresis_learn_record_attempt('$round', 1, 'recognition', 'choose-meaning', true, false, 'a', 'a')" >/dev/null
 as "$A" "select public.heuresis_learn_record_attempt('$round', 1, 'recognition', 'choose-meaning', true, false, 'a', 'a')" >/dev/null
 [ "$($P -d "$DB" -c "select count(*) || ':' || sum(points) from heuresis_learn_attempts where round_id = '$round'")" = "1:10" ] || fail "the same answer scored twice"
+
+if as "$A" "insert into heuresis_learn_attempts(round_id, position, user_id, card_id, pack_id, stage, exercise_type, correct, points) select '$round', 2, '$A', card_id, pack_id, 'reconstruction', 'x', true, 10 from heuresis_learn_rounds where id = '$round'" >/dev/null 2>&1; then fail "points can be inserted directly"; fi
+if as "$A" "update heuresis_learn_rounds set score = 50, ready = true, status = 'completed' where id = '$round'" 2>/dev/null | grep -q .; then :; fi
+[ "$($P -d "$DB" -c "select score || ':' || status from heuresis_learn_rounds where id = '$round'")" = "10:active" ] || fail "a round's score can be edited directly"
+[ "$(as "$B" "select count(*) from heuresis_learn_rounds")" = "0" ] || fail "another person can see the round"
+if as "$B" "select public.heuresis_learn_record_attempt('$round', 2, 'reconstruction', 'x', true, false, '', '')" >/dev/null 2>&1; then fail "another person can answer in the round"; fi
+if as "$B" "select public.heuresis_learn_begin_round('aaaaaaaa-0000-4000-8000-0000000000bb', '$learning', 1, '$plan'::jsonb)" >/dev/null 2>&1; then fail "another person can start a round on the card"; fi
+pass "one answer per exercise; points and scores cannot be written directly; each person sees and answers only their own rounds"
+
 # Reproduce the fivefold inflation on the old function, then apply the new
 # migration and prove the same five attempts contribute one practised card.
 for item in "2 reconstruction" "3 completion" "4 context" "5 recall"; do
@@ -124,13 +133,6 @@ IFS=: read -r after_new after_learn after_review <<< "$after_activity"
 $P -d "$DB" -1 -f "$STUDY_CARDS" >/dev/null || fail "reapplying the card-count migration failed"
 [ "$(activity_counts)" = "$after_activity" ] || fail "reapplying the migration changed activity"
 pass "five Learn exercises count as one card; New, Review and exercise history are unchanged"
-if as "$A" "insert into heuresis_learn_attempts(round_id, position, user_id, card_id, pack_id, stage, exercise_type, correct, points) select '$round', 2, '$A', card_id, pack_id, 'reconstruction', 'x', true, 10 from heuresis_learn_rounds where id = '$round'" >/dev/null 2>&1; then fail "points can be inserted directly"; fi
-if as "$A" "update heuresis_learn_rounds set score = 50, ready = true, status = 'completed' where id = '$round'" 2>/dev/null | grep -q .; then :; fi
-[ "$($P -d "$DB" -c "select score || ':' || status from heuresis_learn_rounds where id = '$round'")" = "10:active" ] || fail "a round's score can be edited directly"
-[ "$(as "$B" "select count(*) from heuresis_learn_rounds")" = "0" ] || fail "another person can see the round"
-if as "$B" "select public.heuresis_learn_record_attempt('$round', 2, 'reconstruction', 'x', true, false, '', '')" >/dev/null 2>&1; then fail "another person can answer in the round"; fi
-if as "$B" "select public.heuresis_learn_begin_round('aaaaaaaa-0000-4000-8000-0000000000bb', '$learning', 1, '$plan'::jsonb)" >/dev/null 2>&1; then fail "another person can start a round on the card"; fi
-pass "one answer per exercise; points and scores cannot be written directly; each person sees and answers only their own rounds"
 # Deleting a card removes its Learning rounds with it (no orphans).
 $P -d "$DB" -c "delete from heuresis_cards where id = '$learning'" >/dev/null || fail "a card with Learning rounds cannot be deleted"
 [ "$($P -d "$DB" -c "select (select count(*) from heuresis_learn_rounds) + (select count(*) from heuresis_learn_attempts)")" = "0" ] || fail "rounds were left behind by a deleted card"
