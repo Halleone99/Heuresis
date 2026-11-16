@@ -408,7 +408,7 @@ function ScopePage({ scope, navigate, newAction }: {
     : new Set(snapshot.topics.filter((row) => row.subject_id === subjectId).map((row) => row.id));
   const topicMistakes = snapshot.entries.filter((entry) => entry.kind === "mistake" && mistakeTopicIds.has(entry.topic_id));
   const viewMistakes = () => {
-    workspace.updateMemory((current) => ({ ...current, mistakes: { subjectId, topicId: topic?.id ?? null } }));
+    workspace.updateMemory((current) => ({ ...current, mistakes: { ...current.mistakes, subjectId, topicId: topic?.id ?? null, study: false, status: "all" } }));
     workspace.goTo("mistakes");
   };
 
