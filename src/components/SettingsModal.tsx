@@ -5,6 +5,7 @@ import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import { BACKGROUND_PRESETS, createBackgroundPresetImage, presetSwatch, type BackgroundPreset } from "../lib/backgroundPresets";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
+import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import SortingSettings from "./SortingSettings";
 import StructureSettings from "./StructureSettings";
@@ -37,6 +38,7 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
   const [notice, setNotice] = useState("");
   const [applyingPreset, setApplyingPreset] = useState<string | null>(null);
   const { mode, palette, chooseMode, choosePalette } = useAppearance();
+  const { style: overviewStyle, chooseStyle: chooseOverviewStyle } = useOverviewStyle();
   const palettes: Array<{ id: PalettePreference; label: string }> = [
     { id: "slate", label: "Slate" }, { id: "forest", label: "Forest" },
     { id: "sepia", label: "Sepia" }, { id: "neutral", label: "Neutral" },
@@ -111,6 +113,13 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
       </div>
     </div>
 
+    <div className="appearance-choice ov-overview-setting" aria-label="Overview layout">
+      <div className="settings-copy"><strong>Overview layout</strong><span>Choose the presentation of the Overview page. The statistics stay the same.</span></div>
+      <div className="appearance-mode" role="group" aria-label="Overview layout">
+        <button type="button" aria-pressed={overviewStyle === "serif"} onClick={() => chooseOverviewStyle("serif")}>Serif</button>
+        <button type="button" aria-pressed={overviewStyle === "panel"} onClick={() => chooseOverviewStyle("panel")}>No. 3 · Panel</button>
+      </div>
+    </div>
     <div className="pb-studio">
       <div className="settings-copy pb-heading"><strong>Page backgrounds</strong>
         <span>Set one background for everything, or choose a different one for a page.</span></div>

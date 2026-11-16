@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, ChevronRight, FileText, Layers3, Newspaper } from "lucide-react";
+import { ArrowUpRight, FileText, Layers3, Newspaper, Quote } from "lucide-react";
 import { loadStudyActivity, loadStudyInventory, weekStart, type StudyActivity, type StudyInventoryCard } from "../../lib/activity";
 import type { PackWithType } from "../../lib/heuresis";
-import { bookReadingDays, useReadingLibrary } from "../../lib/readingBridge";
+import { useReadingLibrary } from "../../lib/readingBridge";
 import { supabase } from "../../lib/supabase";
+import { useOverviewStyle } from "../../lib/overviewStyle";
 import { useWorkspace } from "./WorkspaceContext";
-import "./overview-heatmap.css";
+import "./overview-serif.css";
 
 type Props = {
   packs: PackWithType[];
@@ -13,18 +14,17 @@ type Props = {
   studyError: string;
   onOpenStudy: () => void;
 };
-type ActivityKind = "flashcards" | "notes" | "reading" | "articles";
+type ActivityKind = "flashcards" | "notes" | "quotes" | "articles";
 type ArticleSummary = {
   id: string; status: string; created_at: string; updated_at: string; published_at: string | null;
 };
-type RecentEntry = { label: string; day: string | null; unavailable?: boolean };
 const DAY_MS = 86400000;
-const ACTIVITY_OPTIONS: Array<{ value: ActivityKind; label: string; unit: string }> = [
-  { value: "flashcards", label: "Flashcards", unit: "cards reviewed" },
-  { value: "notes", label: "Notes", unit: "notes created or last updated" },
-  { value: "reading", label: "Reading", unit: "minutes logged" },
-  { value: "articles", label: "Articles", unit: "articles created, last edited or published" },
-];
+const ACTIVITY_OPTIONS = [
+  { value: "flashcards", label: "Flashcards", unit: "cards reviewed", tooltip: "reviews", stat: "Card reviews", icon: Layers3 },
+  { value: "notes", label: "Notes", unit: "notes created or updated", tooltip: "updates", stat: "Note updates", icon: FileText },
+  { value: "quotes", label: "Quotations", unit: "quotations saved", tooltip: "saved", stat: "Quotations saved", icon: Quote },
+  { value: "articles", label: "Articles", unit: "articles created, edited or published", tooltip: "updates", stat: "Article updates", icon: Newspaper },
+] as const;
 
 function dayKey(date: Date): string {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
@@ -58,10 +58,12 @@ const added = (value: number | null) => value === null ? "—" : "+" + number(va
 const wasEdited = (entry: { created_at: string; updated_at: string }) =>
   new Date(entry.updated_at).getTime() > new Date(entry.created_at).getTime() + 1000;
 
+
 export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: Props) {
   const workspace = useWorkspace();
   const { userId } = workspace;
   const reading = useReadingLibrary(userId);
+  const { style: overviewStyle } = useOverviewStyle();
   const [kind, setKind] = useState<ActivityKind>("flashcards");
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [activityError, setActivityError] = useState("");
@@ -148,6 +150,7 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
       return { key: dayKey(date), label: index === 0 || date.getMonth() !== previous.getMonth()
         ? date.toLocaleDateString("en-GB", { month: "short" }) : "" };
     });
+    if (weeks[1]?.label || weeks[2]?.label) weeks[0].label = "";
     return { days, weeks, first: days[0].key, today };
   }, []);
   const last30 = useMemo(() => Date.now() - 30 * DAY_MS, []);
@@ -192,15 +195,6 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents, calendar.first, calendar.today]);
 
-  const readingDays = useMemo(() => {
-    const days = new Map<string, number>();
-    for (const book of reading.books) {
-      for (const log of bookReadingDays(book)) if (inPeriod(log.date)) addDay(days, log.date, log.minutes);
-    }
-    return days;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reading.books, calendar.first, calendar.today]);
-
   const articleDays = useMemo(() => {
     const perDay = new Map<string, Set<string>>();
     for (const article of articles ?? []) {
@@ -214,129 +208,158 @@ export function OverviewView({ packs, studyLoading, studyError, onOpenStudy }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articles, calendar.first, calendar.today]);
 
+
+  const quotes = reading.quotes;
+  const quoteDays = useMemo(() => {
+    const days = new Map<string, number>();
+    for (const quote of quotes) {
+      const date = dateDay(quote.createdAt);
+      if (inPeriod(date)) addDay(days, date);
+    }
+    return days;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotes, calendar.first, calendar.today]);
+
   const cardTotal = studyLoading || studyError ? null : inventory ? inventory.length : packs.reduce((sum, pack) => sum + pack.card_count, 0);
   const cardAdded = inventoryLoading || inventoryError || !inventory ? null : inventory.filter((card) => inLast30(card.created_at)).length;
   const cardReviewed = activityLoading || activityError || !activity || inventoryLoading || inventoryError ? null : reviewMonth;
-  const learningTotal = inventoryLoading || inventoryError || !inventory ? null : inventory.filter((card) => card.retention === "learning").length;
   const noteTotal = workspace.loading || workspace.error ? null : documents.length;
   const noteAdded = noteTotal === null ? null : documents.filter((note) => inLast30(note.created_at)).length;
   const noteUpdated = noteTotal === null ? null : documents.filter((note) => inLast30(note.updated_at) && wasEdited(note)).length;
-  const bookTotal = reading.loading || reading.error ? null : reading.books.length;
+  const quoteTotal = reading.loading || reading.error ? null : quotes.length;
+  const quoteSaved30 = quoteTotal === null ? null : quotes.filter((quote) => inLast30(quote.createdAt)).length;
+  const quoteAuthors = quoteTotal === null ? null : new Set(quotes.map((quote) => quote.attribution.trim().toLowerCase()).filter(Boolean)).size;
   const articleTotal = articleLoading || articleError || !articles ? null : articles.length;
   const articleAdded = articleTotal === null ? null : articles!.filter((row) => inLast30(row.created_at)).length;
-  const articlePublished = articleTotal === null ? null : articles!.filter((row) => row.status === "published" && inLast30(row.published_at)).length;
+  const articleEdited = articleTotal === null ? null : articles!.filter((row) => inLast30(row.updated_at) && wasEdited(row)).length;
 
-  const activityMap = { flashcards: flashDays, notes: noteDays, reading: readingDays, articles: articleDays }[kind];
+  const activityMap: Record<ActivityKind, Map<string, number>> = {
+    flashcards: flashDays, notes: noteDays, quotes: quoteDays, articles: articleDays,
+  };
+  const selected = activityMap[kind];
   const activeOption = ACTIVITY_OPTIONS.find((option) => option.value === kind)!;
-  const selectedLoading = { flashcards: activityLoading || inventoryLoading || studyLoading, notes: workspace.loading,
-    reading: reading.loading, articles: articleLoading }[kind];
-  const selectedError = { flashcards: activityError || inventoryError || studyError, notes: workspace.error,
-    reading: reading.error, articles: articleError }[kind];
-
+  const selectedLoading = { flashcards: activityLoading || inventoryLoading || studyLoading,
+    notes: workspace.loading, quotes: reading.loading, articles: articleLoading }[kind];
+  const selectedError = { flashcards: activityError || inventoryError || studyError,
+    notes: workspace.error, quotes: reading.error, articles: articleError }[kind];
   const newestNote = [...documents].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+  const newestQuote = [...quotes].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const newestArticle = [...(articles ?? [])].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
-  const lastFlash = latestDay(flashDays);
-  const lastRead = latestDay(readingDays);
-  const recentItems: Array<{ kind: ActivityKind; item: RecentEntry }> = [
-    { kind: "flashcards", item: cardReviewed === null ? { label: "Unavailable", day: null, unavailable: true }
-      : { label: lastFlash ? number(flashDays.get(lastFlash) ?? 0) + " cards reviewed" : "No reviews yet", day: lastFlash } },
-    { kind: "notes", item: noteTotal === null ? { label: "Unavailable", day: null, unavailable: true }
-      : { label: newestNote ? (wasEdited(newestNote) ? "Note edited" : "Note added") : "No notes yet",
-        day: newestNote ? dateDay(newestNote.updated_at) : null } },
-    { kind: "reading", item: bookTotal === null ? { label: "Unavailable", day: null, unavailable: true }
-      : { label: lastRead ? number(readingDays.get(lastRead) ?? 0) + " min logged" : "No reading logged", day: lastRead } },
-    { kind: "articles", item: articleTotal === null ? { label: "Unavailable", day: null, unavailable: true }
-      : { label: newestArticle ? (newestArticle.created_at === newestArticle.updated_at ? "Article added" : "Article updated") : "No articles yet",
-        day: newestArticle ? dateDay(newestArticle.updated_at) : null } },
+
+  const toDate = (day: string | null) => day ? new Date(day + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
+  const relative = (day: string | null) => {
+    if (!day) return "No activity yet";
+    const immediate = when(day, calendar.today);
+    if (immediate === "Today" || immediate === "Yesterday") return immediate;
+    const days = Math.max(0, Math.round((new Date(calendar.today + "T12:00:00").getTime() - new Date(day + "T12:00:00").getTime()) / DAY_MS));
+    if (days < 14) return days + " days ago";
+    if (days < 60) return Math.floor(days / 7) + " weeks ago";
+    return Math.floor(days / 30) + " months ago";
+  };
+  const chartDays = (map: Map<string, number>) => Array.from({ length: 30 }, (_, index) => {
+    const date = new Date(calendar.today + "T12:00:00");
+    date.setDate(date.getDate() - 29 + index);
+    const key = dayKey(date);
+    return { key, label: date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }),
+      value: map.get(key) ?? 0, isToday: index === 29 };
+  });
+
+  const summary = [
+    { key: "flashcards", label: "Flashcards", Icon: Layers3, total: cardTotal, unit: "cards",
+      a: cardAdded, aLabel: "new", b: cardReviewed, bLabel: "cards reviewed",
+      map: flashDays, last: latestDay(flashDays), lastLabel: "Last activity",
+      loading: activityLoading || inventoryLoading || studyLoading,
+      error: activityError || inventoryError || studyError, open: onOpenStudy },
+    { key: "notes", label: "Notes", Icon: FileText, total: noteTotal, unit: "notes",
+      a: noteAdded, aLabel: "new", b: noteUpdated, bLabel: "edited",
+      map: noteDays, last: newestNote ? dateDay(newestNote.updated_at) : null, lastLabel: "Last activity",
+      loading: workspace.loading, error: workspace.error, open: () => workspace.goTo("notebook") },
+    { key: "quotes", label: "Quotations", Icon: Quote, total: quoteTotal, unit: "quotations",
+      a: quoteSaved30, aLabel: "saved", b: quoteAuthors, bLabel: "authors",
+      map: quoteDays, last: newestQuote ? dateDay(newestQuote.createdAt) : null, lastLabel: "Last saved",
+      loading: reading.loading, error: reading.error, open: () => workspace.goTo("quotations") },
+    { key: "articles", label: "Articles", Icon: Newspaper, total: articleTotal, unit: "articles",
+      a: articleAdded, aLabel: "new", b: articleEdited, bLabel: "edited",
+      map: articleDays, last: newestArticle ? dateDay(newestArticle.updated_at) : null, lastLabel: "Last activity",
+      loading: articleLoading, error: articleError, open: () => workspace.goTo("reference") },
   ];
-  const icons = { flashcards: Layers3, notes: FileText, reading: BookOpen, articles: Newspaper };
-  const navigation = { flashcards: onOpenStudy, notes: () => workspace.goTo("notebook"),
-    reading: () => workspace.goTo("reading"), articles: () => workspace.goTo("reference") };
 
-  return <div className="ov-page oh-overview">
-    <header className="oh-page-header">
-      <div><h1>Library</h1><p>Overview of your flashcards, notes, reading and articles.</p></div>
-      <span className="oh-date">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+  const activeDays = calendar.days.filter((day) => !day.future);
+  const totalActivity = activeDays.reduce((sum, day) => sum + (selected.get(day.key) ?? 0), 0);
+  const daysWithActivity = activeDays.filter((day) => (selected.get(day.key) ?? 0) > 0).length;
+  const displayDate = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).replace(", ", " · ");
+
+  return <div className="ov" data-style={overviewStyle}>
+    <header className="ov-head">
+      <div className="ov-eyebrow">{displayDate}</div>
+      <h1 className="ov-title"><span className="ov-title-main">Heuresis</span>{" "}<span className="ov-title-sub">overview</span></h1>
     </header>
-
-    <div className="oh-dashboard-cards">
-      <button type="button" className="oh-summary-card" onClick={navigation.flashcards} aria-label="Open Flashcards">
-        <span className="oh-card-title"><span className="oh-card-icon"><Layers3 size={20}/></span><strong>Flashcards</strong><ChevronRight size={18}/></span>
-        <span className="oh-card-metrics"><span className="oh-card-total"><b>{number(cardTotal)}</b><small>Cards</small></span>
-          <span className="oh-card-detail"><span><b>{added(cardAdded)}</b><small>Added (30 d)</small></span>
-            <span><b>{number(cardReviewed)}</b><small>Reviewed (30 d)</small></span></span></span>
-        <span className="oh-card-progress" title="Distinct learning cards reviewed in the last 30 days; not mastery">
-          <span className="oh-progress-track" role="progressbar" aria-label="Learning cards reviewed in the last 30 days" aria-valuemin={0} aria-valuemax={learningTotal ?? 0} aria-valuenow={cardReviewed !== null && learningTotal !== null ? Math.min(cardReviewed, learningTotal) : undefined}><span style={{ width: cardReviewed !== null && learningTotal ? Math.min(100, cardReviewed / learningTotal * 100) + "%" : "0%" }}/></span>
-          <small>{cardReviewed !== null && learningTotal !== null ? number(cardReviewed) + " / " + number(learningTotal) : "—"}</small>
-        </span>
-      </button>
-      <button type="button" className="oh-summary-card" onClick={navigation.notes} aria-label="Open Notes">
-        <span className="oh-card-title"><span className="oh-card-icon"><FileText size={20}/></span><strong>Notes</strong><ChevronRight size={18}/></span>
-        <span className="oh-card-metrics"><span className="oh-card-total"><b>{number(noteTotal)}</b><small>Notes</small></span>
-          <span className="oh-card-detail"><span><b>{added(noteAdded)}</b><small>Added (30 d)</small></span>
-            <span><b>{number(noteUpdated)}</b><small>Edited (30 d)</small></span></span></span>
-      </button>
-      <button type="button" className="oh-summary-card" onClick={navigation.reading} aria-label="Open Reading">
-        <span className="oh-card-title"><span className="oh-card-icon"><BookOpen size={20}/></span><strong>Reading</strong><ChevronRight size={18}/></span>
-        <span className="oh-card-metrics"><span className="oh-card-total"><b>{number(bookTotal)}</b><small>Books</small></span>
-          <span className="oh-card-detail oh-status-detail">
-            <span><i/><b>{bookTotal === null ? "—" : reading.books.filter((book) => book.status === "Reading").length}</b><small>Reading</small></span>
-            <span><i/><b>{bookTotal === null ? "—" : reading.books.filter((book) => book.status === "To read").length}</b><small>Planned</small></span>
-            <span><i/><b>{bookTotal === null ? "—" : reading.books.filter((book) => book.status === "Read").length}</b><small>Finished</small></span>
-          </span></span>
-      </button>
-      <button type="button" className="oh-summary-card" onClick={navigation.articles} aria-label="Open Articles">
-        <span className="oh-card-title"><span className="oh-card-icon"><Newspaper size={20}/></span><strong>Articles</strong><ChevronRight size={18}/></span>
-        <span className="oh-card-metrics"><span className="oh-card-total"><b>{number(articleTotal)}</b><small>Articles</small></span>
-          <span className="oh-card-detail"><span><b>{added(articleAdded)}</b><small>Added (30 d)</small></span>
-            <span><b>{number(articlePublished)}</b><small>Published (30 d)</small></span></span></span>
-      </button>
+    <div className="ov-cards">
+      {summary.map(({ key, label, Icon, total, unit, a, aLabel, b, bLabel, map, last, lastLabel, loading, error, open }) => {
+        const bars = chartDays(map);
+        const maximum = Math.max(1, ...bars.map((day) => day.value));
+        const failed = Boolean(error);
+        return <div key={key} className={"ov-card" + (failed ? " is-error" : "")}>
+          <button type="button" className="ov-card-link" aria-label={"Open " + label} onClick={open} />
+          <div className="ov-card-title">
+            <span className="ov-card-icon"><Icon size={17} /></span>
+            <span className="ov-card-name">{label}</span>
+            {failed ? <span className="ov-badge">Unavailable</span> : <ArrowUpRight size={15} className="ov-card-go" />}
+          </div>
+          <div className="ov-total"><b>{loading || failed ? "—" : number(total)}</b><small>{unit}</small></div>
+          <div className="ov-month">
+            <span className="ov-cap">Last 30 days</span>
+            <span className="ov-month-row"><b className="is-up">{loading || failed ? "—" : added(a)}</b>{aLabel}</span>
+            <span className="ov-month-row"><b>{loading || failed ? "—" : number(b)}</b>{bLabel}</span>
+          </div>
+          <div className="ov-bars" role="img" aria-label={"Daily " + unit + ", last 30 days"}>
+            {bars.map((day) => <i key={day.key}
+              className={((!day.value || loading || failed) ? "is-zero " : "") + (day.isToday ? "is-today" : "")}
+              style={day.value && !loading && !failed ? { height: (12 + 88 * day.value / maximum) + "%" } : undefined}
+              title={(!loading && !failed ? day.value : 0) + " " + unit + " · " + day.label} />)}
+          </div>
+          <div className="ov-card-foot">
+            {failed ? <><span>Could not load</span><button type="button" className="ov-retry" onClick={() => setRetry((value) => value + 1)}>Retry</button></>
+              : loading ? <span>Loading…</span>
+              : <><span>{lastLabel}</span><span><b>{toDate(last)}</b> · {relative(last)}</span></>}
+          </div>
+        </div>;
+      })}
     </div>
 
-    <section className="oh-activity-panel" aria-label="Activity heatmap">
-      <div className="oh-panel-head">
-        <div className="oh-activity-controls">
-          <h2>Activity</h2>
-          <label className="oh-sr" htmlFor="oh-activity-choice">Activity shown on heatmap</label>
-          <select id="oh-activity-choice" className="oh-select" value={kind}
-            onChange={(event) => setKind(event.target.value as ActivityKind)}>
-            {ACTIVITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+    <section className="ov-activity" aria-label="Activity">
+      <div className="ov-activity-head">
+        <h2>Activity <span>Last 26 weeks</span></h2>
+        <div className="ov-tabs" role="tablist" aria-label="Activity type">
+          {ACTIVITY_OPTIONS.map(({ value, label, icon: Icon }) =>
+            <button key={value} type="button" role="tab" className={"ov-tab" + (kind === value ? " is-active" : "")}
+              aria-selected={kind === value} onClick={() => setKind(value)}><Icon size={14} />{label}</button>)}
         </div>
-        <span className="oh-muted">Last 26 weeks</span>
       </div>
-      {selectedLoading ? <p className="oh-heat-status" role="status">Loading activity…</p>
-        : selectedError ? <p className="oh-heat-status" role="alert">Activity unavailable. <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></p>
-        : <div className="oh-calendar-scroll">
-          <div className="oh-calendar-inner">
-            <div className="oh-months" aria-hidden="true">{calendar.weeks.map((week) => <span key={week.key}>{week.label}</span>)}</div>
-            <div className="oh-calendar-body">
-              <div className="oh-weekdays" aria-hidden="true"><span>M</span><span/><span>W</span><span/><span>F</span><span/><span/></div>
-              <div className="oh-days" role="img" aria-label={"Daily " + activeOption.unit + " over 26 weeks"}>
+      <div className="ov-activity-body">
+        <div className="ov-heat-wrap">
+          {selectedLoading ? <div className="ov-heat-status" role="status">Loading activity…</div>
+            : selectedError ? <div className="ov-heat-status" role="alert">Activity unavailable. <button type="button" className="ov-retry" onClick={() => setRetry((value) => value + 1)}>Retry</button></div>
+            : <div className="ov-heat">
+              <div className="ov-months" aria-hidden="true">{calendar.weeks.map((week) => <span key={week.key}>{week.label}</span>)}</div>
+              <div className="ov-weekdays" aria-hidden="true"><span>Mon</span><span/><span>Wed</span><span/><span>Fri</span><span/><span/></div>
+              <div className="ov-days" role="img" aria-label={"Daily " + activeOption.unit + " over 26 weeks"}>
                 {calendar.days.map((day) => {
-                  const count = activityMap.get(day.key) ?? 0;
-                  return <span key={day.key} className="oh-cell" data-level={day.future ? "future" : level(count)}
-                    title={day.future ? day.label : day.label + " · " + count + " " + activeOption.unit}/>;
+                  const count = selected.get(day.key) ?? 0;
+                  return <i key={day.key} className="ov-cell" data-level={day.future ? "future" : level(count)}
+                    title={day.future ? day.label : count + " " + activeOption.tooltip + " · " + day.label} />;
                 })}
               </div>
-            </div>
+            </div>}
+          <div className="ov-heat-foot"><span>{activeOption.unit}</span>
+            <span className="ov-legend">Less {[0,1,2,3,4].map((value) => <i key={value} className="ov-cell" data-level={String(value)} />)} More</span>
           </div>
-        </div>}
-      <div className="oh-calendar-footer"><span>{activeOption.unit}</span>
-        <span className="oh-legend">Less {[0, 1, 2, 3, 4].map((n) => <i key={n} className="oh-cell" data-level={String(n)} />)} More</span>
-      </div>
-    </section>
-
-    <section className="oh-recent-panel" aria-label="Most recent activity">
-      <h2>Recent</h2>
-      <div className="oh-recent-grid">
-        {recentItems.map(({ kind: itemKind, item }) => {
-          const Icon = icons[itemKind];
-          return <div className="oh-recent-item" key={itemKind}>
-            <span className="oh-recent-icon"><Icon size={20}/></span>
-            <span><strong>{item.label}</strong><small>{item.unavailable ? "Could not load" : when(item.day, calendar.today)}</small></span>
-          </div>;
-        })}
+        </div>
+        <div className="ov-stats">
+          <div className="ov-stat"><span>{activeOption.stat}</span><b>{selectedLoading || selectedError ? "—" : number(totalActivity)}</b><small>in 26 weeks</small></div>
+          <div className="ov-stat"><span>Active days</span><b>{selectedLoading || selectedError ? "—" : number(daysWithActivity)}</b>
+            <small>of {activeDays.length} days</small></div>
+        </div>
       </div>
     </section>
   </div>;
