@@ -46,6 +46,7 @@ export async function loadStudyActivity(packIds: string[], offset = 0): Promise<
     if (typeof row.day !== "string") continue;
     const existing = counts.get(row.day) ?? { n: 0, l: 0, r: 0 };
     existing.n += Number(row.new_cards) || 0;
+    // RPC keeps the legacy column name "exercises", now distinct Learn cards/day.
     existing.l += Number(row.exercises) || 0;
     existing.r += Number(row.reviews) || 0;
     counts.set(row.day, existing);
