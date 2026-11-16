@@ -45,6 +45,7 @@ try {
     "Switching back to Languages hides the Applied collection");
 
   await page.reload();
+  await page.locator('.hw-sections button:has-text("Study")').click();
   await page.getByRole("combobox", { name: "Choose knowledge mode" }).waitFor();
   check(await page.getByRole("combobox", { name: "Choose knowledge mode" }).inputValue() === "languages",
     "Selected mode survives a refresh");
