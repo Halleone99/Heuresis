@@ -17,6 +17,7 @@ import "./sort-enrichment.css";
 import "./sort-refined.css";
 import "./sort-session.css";
 import "./sort-handoff.css";
+import "./sort-details-wings.css";
 
 type Props = {
   pack: PackWithType;
