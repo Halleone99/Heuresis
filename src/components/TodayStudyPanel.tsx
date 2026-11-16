@@ -328,16 +328,16 @@ export default function TodayStudyPanel({
           } }}>
             <>
               <button type="button" className={"sh-pane-topic" + (selection === "collection:" + menuCollection.id ? " current" : "")}
-                onClick={() => chooseScope("collection:" + hoverCollection.id)}>
+                onClick={() => chooseScope("collection:" + menuCollection.id)}>
                 <span>All of {menuCollection.title}</span><small>{menuPacks.reduce((n, p) => n + p.card_count, 0)}</small>
-                {selection === "collection:" + hoverCollection.id ? <Check size={13} /> : null}
+                {selection === "collection:" + menuCollection.id ? <Check size={13} /> : null}
               </button>
-              {hoverPacks.map((pack) => <button className={"sh-pane-topic" + (selection === "topic:" + pack.id ? " current" : "")}
+              {menuPacks.map((pack) => <button className={"sh-pane-topic" + (selection === "topic:" + pack.id ? " current" : "")}
                 key={pack.id} type="button" onClick={() => chooseScope("topic:" + pack.id)}>
                 <span>{pack.title}</span><small>{pack.card_count}</small>
                 {selection === "topic:" + pack.id ? <Check size={13} /> : null}
               </button>)}
-              {!hoverPacks.length ? <p className="sh-empty-topics">No topics yet</p> : null}
+              {!menuPacks.length ? <p className="sh-empty-topics">No topics yet</p> : null}
             </>
           </div> : null}
         </div> : null}
