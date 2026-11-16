@@ -83,8 +83,8 @@ import "./library-home-quiet.css";
 // Scoped to the single-mode homepage; canonical chrome remains the final CSS import.
 import "./library-study-refined.css";
 import "./study-home.css";
-import "./theme/chrome.css";
 import "./study-knowledge-mode.css";
+import "./theme/chrome.css";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
