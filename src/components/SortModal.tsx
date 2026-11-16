@@ -9,6 +9,9 @@ import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, t
 import { cardLabels, saveCardLabels } from "../lib/cardLabels";
 import SortEnrichmentPanel, { firstExampleBlock, type DetailsRequest } from "./SortEnrichmentPanel";
 import { InlineSortText } from "./InlineSortText";
+import SelectableSortText from "./SelectableSortText";
+import FormattingRail from "./FormattingRail";
+import { languageFromName, languageFromScript } from "../lib/languages";
 import { reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import { rememberOpenStudy } from "../lib/studySessionMemory";
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
@@ -71,6 +74,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const exitSort = (preserveForLearning = false) => { releaseBackEntry(preserveForLearning); onClose(); };
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
   const dialogRef = useRef<HTMLElement>(null);
+  const sortCardRef = useRef<HTMLElement>(null);
   const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
   const [randomOrder, setRandomOrder] = useState(() => readOrder() === "random");
   const [queue, setQueue] = useState<CardWithStats[]>(() => {
@@ -429,6 +433,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
   const languageLabel = pack.cardType?.name?.replace(/\b(cards?|vocabulary|words?)\b/gi, "").trim() || "CARD";
+  const selectedLanguage = languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
+    ?? languageFromScript(card ? fieldText(card.data, term?.key) : "") ?? "en";
   const exampleField = fieldByRole(pack.cardType, "example");
   const translationField = fieldByRole(pack.cardType, "example_translation");
   // The example shown on the card: the Example field when it has text, otherwise the first example written in Details.
@@ -554,7 +560,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
           trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
-      <article className="sort-card" data-card-id={card.id} aria-label="New flashcard">
+      <article ref={sortCardRef} className="sort-card" data-card-id={card.id} aria-label="New flashcard">
         <div className="sort-new-card-header">
           <div className="sort-header-ident">
             <span><small>{languageLabel.toUpperCase()}</small><i>·</i> New card</span>
@@ -591,7 +597,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         </div>
         <div className="sort-new-content">
           <div className="sort-new-term">
-            {term ? <InlineSortText key={card.id + term.key} value={fieldText(card.data, term.key)}
+            {term ? <SelectableSortText key={card.id + term.key} value={fieldText(card.data, term.key)} language={selectedLanguage}
               label={term.label} placeholder="add the term" required={term.required} disabled={busy}
               className="term" onEditingChange={setEditingCard}
               onCommit={(value) => saveInlineField(term.key, value)} /> : null}
@@ -611,17 +617,17 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
             label={reading.label} placeholder="add the reading" required={reading.required} disabled={busy}
             className="reading" onEditingChange={setEditingCard}
             onCommit={(value) => saveInlineField(reading.key, value)} /> : null}
-          {meaning ? <InlineSortText key={card.id + meaning.key} value={fieldText(card.data, meaning.key)}
+          {meaning ? <SelectableSortText key={card.id + meaning.key} value={fieldText(card.data, meaning.key)} language="en"
             label={meaning.label} placeholder="add the meaning" required={meaning.required} multiline
             className="meaning" disabled={busy} onEditingChange={setEditingCard}
             onCommit={(value) => saveInlineField(meaning.key, value)} /> : null}
           {showExamples ? <div className="sort-new-example">
             {exampleField && !blockExample ? <>
-              <InlineSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)}
+              <SelectableSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)} language={selectedLanguage}
                 label="Example sentence" placeholder="+ Example sentence" disabled={busy} multiline
                 onEditingChange={(editing) => { setEditingCard(editing); if (editing) setExampleActive(true); }} className="example"
                 onCommit={(value) => saveInlineField(exampleField.key, value)} />
-              {translationField && (exampleText || translationText || exampleActive) ? <InlineSortText key={card.id + translationField.key}
+              {translationField && (exampleText || translationText || exampleActive) ? <SelectableSortText key={card.id + translationField.key} language="en"
                 value={fieldText(card.data, translationField.key)} label="Example translation" placeholder="Translation" disabled={busy} multiline
                 onEditingChange={setEditingCard} className="example-translation"
                 onCommit={(value) => saveInlineField(translationField.key, value)} /> : null}
@@ -669,6 +675,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
           </div>
           {message ? <p className="sort-error" role="alert">{message}</p> : null}
         </div>
+        <FormattingRail rootRef={sortCardRef} cardId={card.id} language={selectedLanguage}
+          textVersion={JSON.stringify(card.data)}
+          onOpenFormatting={() => {
+            setRightOpen(true);
+            window.requestAnimationFrame(() => document.getElementById("sort-formatting-section")?.scrollIntoView({ block:"nearest" }));
+          }} />
       </article>
       {lastRemoval ? <div className="sort-new-undo" role="status">
         <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :
