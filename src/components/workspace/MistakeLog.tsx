@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, GraduationCap, Play, Plus, Search, Trash2, X } from "lucide-react";
 import { comparableCorrection, friendlyError, type KnowledgeEntry } from "../../lib/knowledgeWorkspace";
 import { Kbd, MOD_KEY, Portal, TopicPicker, useConfirm } from "./ui";
@@ -128,7 +128,7 @@ function FlippingCard({ item, selecting, selected, highlighted, onSelect, onEdit
     item.status === "recalled" ? "Recalled" : "Not practised yet";
   const place = item.glyph + " " + item.topic + (rule ? " · " + rule : "");
   const toggle = () => selecting && entry ? onSelect() : setFlipped((value) => !value);
-  const press = (event: KeyboardEvent<HTMLElement>) => {
+  const press = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); }
   };
