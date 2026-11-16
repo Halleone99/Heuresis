@@ -274,7 +274,7 @@ export async function listTags(): Promise<HeuresisTag[]> {
     data = fallback.data; error = fallback.error;
   }
   if (error) throw error;
-  return (data ?? []) as HeuresisTag[];
+  return (data ?? []) as unknown as HeuresisTag[];
 }
 
 const CARD_SELECT = "id,pack_id,retention,data,note,favourite,interesting,interest_rank,created_at,updated_at,heuresis_card_stats(encounter_count,study_count,known_count,again_count,hard_count,good_count,easy_count,first_encountered_at,last_encountered_at,by_template),heuresis_card_tags(tag_id,heuresis_tags(id,name,is_badge,shortcut,sort_order))";
