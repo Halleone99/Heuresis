@@ -11,7 +11,17 @@ export function useAndroidOverlayBack(kind: "new" | "learn", onBack: () => void)
     if (state?.heuresisOverlay) window.history.replaceState({ ...state, heuresisOverlay: kind }, "");
     else window.history.pushState({ ...(state ?? {}), heuresisOverlay: kind }, "");
     const onPop = (event: PopStateEvent) => {
-      if ((event.state as { heuresisOverlay?: string } | null)?.heuresisOverlay !== kind) callback.current();
+      if ((event.state as { heuresisOverlay?: string } | null)?.heuresisOverlay !== kind) {
+        callback.current();
+        // A save can fail or an editor can refuse to close. If the overlay remains
+        // on screen, restore its Back guard rather than letting the next swipe exit.
+        window.setTimeout(() => {
+          const stillOpen = document.querySelector(kind === "new" ? ".sort-modal--session" : ".lrn");
+          if (stillOpen && !window.history.state?.heuresisOverlay) {
+            window.history.pushState({ ...(window.history.state ?? {}), heuresisOverlay: kind }, "");
+          }
+        }, 120);
+      }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

@@ -302,7 +302,7 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
-  const [, refreshSpeechAvailability] = useState(0);
+  const [speechAvailabilityVersion, refreshSpeechAvailability] = useState(0);
   useEffect(() => {
     const onReady = () => refreshSpeechAvailability((value) => value + 1);
     window.addEventListener("heuresis-speech-ready", onReady);
@@ -715,6 +715,8 @@ export default function CosmosWindow() {
     const meaningKey = fieldByRole(pack.cardType, "meaning")?.key;
     const role: ReviewSpeechRole = spoken.key === termKey ? "term" : spoken.key === meaningKey ? "meaning" : "other";
     const speechLocale = reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role);
+    // Do not discard a persisted Hear preference while the native TTS engine initialises.
+    if (window.HeuresisAndroidSpeech && !window.HeuresisAndroidSpeech.isReady()) return;
     if (speakReviewText(spoken.text, speechLocale, () => { void markLearning(["hear"]); })) {
       lastAutoAudioRef.current = marker;
     } else {
@@ -722,7 +724,7 @@ export default function CosmosWindow() {
       writeReviewMethod("think");
       setNotice("Audio is unavailable on this device. Switched to Think.");
     }
-  }, [method, mode, revealed, card?.id, pack?.id, template?.id, index]);
+  }, [method, mode, revealed, card?.id, pack?.id, template?.id, index, speechAvailabilityVersion]);
 
   // Keep both Review side panels visible as the session progresses; only legacy Sort uses the pinned drawer.
   useEffect(() => {

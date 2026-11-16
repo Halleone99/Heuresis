@@ -40,6 +40,7 @@ export function reviewSpokenPrompt(
 
 type AndroidSpeech = {
   isAvailable(locale: string): boolean;
+  isReady(): boolean;
   speak(text: string, locale: string, rate: number, utteranceId: string): boolean;
   stop(): void;
   keepScreenOn(on: boolean): void;
@@ -76,9 +77,7 @@ export function speakReviewText(text: string, language: string, onStarted?: () =
   const native = window.HeuresisAndroidSpeech;
   if (native) {
     try {
-      if (!native.isAvailable(language) || !native.speak(text.trim(), language, 0.9, utteranceId)) {
-        currentAudioId = ""; currentOnStart = undefined; return false;
-      }
+      // Register before requesting speech: short utterances may start immediately.
       window.heuresisSpeechStarted = (id) => {
         if (id !== currentAudioId) return;
         const callback = currentOnStart;
@@ -88,6 +87,9 @@ export function speakReviewText(text: string, language: string, onStarted?: () =
       window.heuresisSpeechFailed = (id) => {
         if (id === currentAudioId) { currentAudioId = ""; currentOnStart = undefined; }
       };
+      if (!native.isAvailable(language) || !native.speak(text.trim(), language, 0.9, utteranceId)) {
+        currentAudioId = ""; currentOnStart = undefined; return false;
+      }
       return true;
     } catch {
       currentAudioId = ""; currentOnStart = undefined; return false;
