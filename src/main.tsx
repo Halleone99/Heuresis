@@ -17,6 +17,7 @@ import "@fontsource/eb-garamond/400-italic.css";
 import "@fontsource/noto-serif/400.css";
 import App from "./App";
 import { applyAppearance, watchAppearance } from "./lib/theme";
+import { applyCardColours } from "./components/CardColoursEditor";
 import { markAndroidRuntime } from "./lib/platform";
 import FloatingQuickCapture from "./components/workspace/FloatingQuickCapture";
 import "./styles.css";
@@ -96,6 +97,7 @@ const params = new URLSearchParams(window.location.search);
 markAndroidRuntime();
 // Every window uses the same appearance; updates propagate across windows.
 applyAppearance();
+applyCardColours();
 watchAppearance();
 const content = params.get("quick") === "1"
   ? <FloatingQuickCapture />
