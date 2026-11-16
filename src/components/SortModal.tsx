@@ -8,7 +8,7 @@ import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCa
 import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } from "../lib/importance";
 import SortEnrichmentPanel from "./SortEnrichmentPanel";
 import { InlineSortText } from "./InlineSortText";
-import { reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
+import { canSpeak, reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import "./sort.css";
 import "./sort-enrichment.css";
 import "./sort-refined.css";
@@ -118,6 +118,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [enrichmentBlocked, setEnrichmentBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [, refreshSpeechAvailability] = useState(0);
+  useEffect(() => {
+    const ready = () => refreshSpeechAvailability((n) => n + 1);
+    window.addEventListener("heuresis-speech-ready", ready);
+    return () => window.removeEventListener("heuresis-speech-ready", ready);
+  }, []);
   const [learned, setLearned] = useState(0);
   const [toLearning, setToLearning] = useState(0);
   const [toReview, setToReview] = useState(0);
@@ -437,8 +443,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
               className="term" onEditingChange={setEditingCard}
               onCommit={(value) => saveInlineField(term.key, value)} /> : null}
             {fieldText(card.data, term?.key) ? <button type="button" className="sort-new-audio"
-              aria-label="Hear term" title="Hear term" onClick={() => void speakReviewText(
-                fieldText(card.data, term?.key), reviewSpeechLanguage(fieldText(card.data, term?.key), pack.title, pack.cardType?.name ?? "", "term"))}>
+              aria-label="Hear term" title={canSpeak(reviewSpeechLanguage(fieldText(card.data, term?.key), pack.title, pack.cardType?.name ?? "", "term")) ? "Hear term" : "No voice installed for this language"}
+              onClick={() => {
+                const text = fieldText(card.data, term?.key);
+                const locale = reviewSpeechLanguage(text, pack.title, pack.cardType?.name ?? "", "term");
+                if (!speakReviewText(text, locale)) setMessage("No voice installed for " + locale + " on this device.");
+              }}>
               <Volume2 size={19} /></button> : null}
           </div>
           <span className="sort-new-rule" aria-hidden="true" />

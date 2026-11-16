@@ -55,7 +55,7 @@ import { signHeuresisCardImages } from "../lib/cardMedia";
 import { isAndroidRuntime, prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
-import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
+import { reviewSpeechLanguage, reviewSpokenPrompt, canSpeak, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
@@ -301,6 +301,12 @@ export default function CosmosWindow() {
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
+  const [, refreshSpeechAvailability] = useState(0);
+  useEffect(() => {
+    const onReady = () => refreshSpeechAvailability((value) => value + 1);
+    window.addEventListener("heuresis-speech-ready", onReady);
+    return () => window.removeEventListener("heuresis-speech-ready", onReady);
+  }, []);
   const [routeError, setRouteError] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [leftContextOpen, setLeftContextOpen] = useState(false);
@@ -706,9 +712,9 @@ export default function CosmosWindow() {
     const termKey = fieldByRole(pack.cardType, "term")?.key;
     const meaningKey = fieldByRole(pack.cardType, "meaning")?.key;
     const role: ReviewSpeechRole = spoken.key === termKey ? "term" : spoken.key === meaningKey ? "meaning" : "other";
-    if (speakReviewText(spoken.text, reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role))) {
+    const speechLocale = reviewSpeechLanguage(spoken.text, pack.title + " " + template.name, pack.cardType?.name ?? "", role);
+    if (speakReviewText(spoken.text, speechLocale, () => { void markLearning(["hear"]); })) {
       lastAutoAudioRef.current = marker;
-      void markLearning(["hear"]);
     } else {
       setMethodState("think");
       writeReviewMethod("think");
@@ -1242,8 +1248,9 @@ export default function CosmosWindow() {
     if (!pack) return;
     const spokenRole: ReviewSpeechRole = fieldKey === term?.key ? "term" : fieldKey === meaning?.key ? "meaning" : "other";
     const locale = reviewSpeechLanguage(text, pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenRole);
-    if (!speakReviewText(text, locale)) { setNotice("Audio playback is not available on this device."); return; }
-    void markLearning(["hear"]);
+    if (!speakReviewText(text, locale, () => { void markLearning(["hear"]); })) {
+      setNotice("No voice installed for " + locale + " on this device.");
+    }
   }
 
   const renderReviewCore = () => {
@@ -1258,7 +1265,7 @@ export default function CosmosWindow() {
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
     const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !recap.includes(key));
     const spokenPrompt = reviewSpokenPrompt(promptKeys, card.data, reading?.key);
-    const canListen = Boolean(spokenPrompt);
+    const canListen = Boolean(spokenPrompt) && canSpeak(reviewSpeechLanguage(spokenPrompt?.text ?? "", pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenPrompt?.key === term?.key ? "term" : spokenPrompt?.key === meaning?.key ? "meaning" : "other"));
     const chineseTerm = fieldText(card.data, term?.key);
     const expected = answerValues().map((item) => typeof item === "string" ? item : item.value);
     const enteredHan = /\p{Script=Han}/u.test(typed);
@@ -1298,7 +1305,7 @@ export default function CosmosWindow() {
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
           .map(([value,label]) =>
           <button key={value} type="button" aria-pressed={method === value} disabled={value === "hear" && !canListen}
-            title={value === "hear" && !canListen ? "No spoken prompt available for this card" : undefined}
+            title={value === "hear" && !canListen ? "No voice installed for this card’s language on this device" : undefined}
             onClick={() => setMethod(value)}>{label}{!redesignReview ? ` · ${methodCounts[value]}×` : null}</button>)}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
