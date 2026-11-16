@@ -68,6 +68,21 @@ jobs:
           test -n "$MAIN_ACTIVITY"
           PACKAGE_LINE="$(grep -m1 '^package ' "$MAIN_ACTIVITY")"
           test -n "$PACKAGE_LINE"
+          # Android 11+ package visibility: TextToSpeech cannot discover engines without
+          # this manifest query (Android SDK TextToSpeech documentation).
+          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          python3 - "$MANIFEST" <<'PY'
+          from pathlib import Path
+          import sys
+          manifest = Path(sys.argv[1])
+          xml = manifest.read_text()
+          if "android.intent.action.TTS_SERVICE" not in xml:
+              marker = "<application"
+              if marker not in xml:
+                  raise RuntimeError("AndroidManifest.xml has no <application> element")
+              xml = xml.replace(marker, '<queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n    </queries>\n    <application', 1)
+              manifest.write_text(xml)
+          PY
           cat > "$MAIN_ACTIVITY" <<EOF
           $PACKAGE_LINE
 
