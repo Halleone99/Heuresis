@@ -9,6 +9,7 @@ import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK } 
 import SortEnrichmentPanel, { firstExampleBlock, type DetailsRequest } from "./SortEnrichmentPanel";
 import { InlineSortText } from "./InlineSortText";
 import { canSpeak, reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
+import { rememberOpenStudy } from "../lib/studySessionMemory";
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import "./sort.css";
 import "./sort-enrichment.css";
@@ -22,6 +23,8 @@ type Props = {
   startCardId?: string | null;
   /** One-tap daily quota launcher bypasses setup with this many unsorted cards. */
   quickStartCount?: number;
+  /** Only Study-home fixed New sessions persist, and only those can Resume. */
+  studySession?: { total: number; remainingIds?: string[] };
   onClose: () => void;
   onChanged: () => void;
   /** Offered when the pass is finished: the next useful learning action. */
@@ -54,7 +57,7 @@ function shuffled<T>(items: T[]) {
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
-export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, onClose, onChanged, onReview, onLearning }: Props) {
+export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
   useAndroidStudyWakeLock(true);
   const releaseBackEntry = useAndroidOverlayBack("new", () => { void closeSort(); });
   const exitSort = (preserveForLearning = false) => { releaseBackEntry(preserveForLearning); onClose(); };
@@ -63,6 +66,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
   const [randomOrder, setRandomOrder] = useState(() => readOrder() === "random");
   const [queue, setQueue] = useState<CardWithStats[]>(() => {
+    if (studySession?.remainingIds) {
+      const byId = new Map(unsorted.map((card) => [card.id, card]));
+      return studySession.remainingIds.map((id) => byId.get(id)).filter((card): card is CardWithStats => Boolean(card));
+    }
     const ordered = readOrder() === "random" ? shuffled(unsorted) : unsorted;
     if (startCardId) {
       const selected = ordered.find((item) => item.id === startCardId);
@@ -111,6 +118,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   }
 
   const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (!studySession || !sessionStarted) return;
+    const remainingIds = queue.slice(index).map((item) => item.id);
+    rememberOpenStudy(remainingIds.length ? {
+      kind: "new", packId: pack.id, total: studySession.total, remainingIds, updatedAt: Date.now(),
+    } : null, pack.id);
+  }, [studySession, sessionStarted, queue, index, pack.id]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
