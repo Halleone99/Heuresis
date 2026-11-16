@@ -90,7 +90,9 @@ export function useStudyMistakes() {
           return {
             cardId, packId: newest.pack_id,
             title: titleOf(byCard.get(cardId)), reference: referenceOf(byCard.get(cardId)),
-            subject: collection?.title ?? "Study", glyph: collection?.glyph ?? (collection?.title ?? "S").slice(0, 1),
+            subject: collection?.title ?? "Study",
+            glyph: collection?.title.trim().toLowerCase() === "english" || collection?.glyph === "þ"
+              ? "A" : collection?.glyph || (collection?.title ?? "S").slice(0, 1),
             topic: pack?.title ?? "Study",
             direction: distinctDirections.size > 1 ? "both directions" :
               (newest.template_id ? byDirection.get(newest.template_id) ?? "Review" : "Review"),
