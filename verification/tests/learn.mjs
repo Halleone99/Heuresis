@@ -542,6 +542,8 @@ const scenarios = {
     await openStudy(page);
     await startLearn(page);
     await playRound(page, "已经", []);
+    await page.click('.lrn-actions button:has-text("Start another round")');
+    await playRound(page, "已经", []);
     await page.click('.lrn-actions button:has-text("Move to Review")');
     await page.locator('.lrn-facts dd:has-text("Moved to Review")').waitFor();
     await page.click('.lrn-actions button:has-text("Return to Learn")');
