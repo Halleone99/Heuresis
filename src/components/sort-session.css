@@ -121,18 +121,90 @@
 .sort-modal--session .sort-finished-actions{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;}
 .sort-modal--session .sort-finished-actions>button:not(.is-quiet){background:#3d5e8f;color:#f1f5fb;border-radius:10px;min-height:42px;font:600 13px var(--ws-sans,Inter,sans-serif);}
 .sort-modal--session .sort-finished-actions>button.is-quiet,.sort-modal--session .sort-undo-inline{background:transparent;color:var(--ws-muted);border:0;font:12px var(--ws-sans,Inter,sans-serif);}
-.sort-modal--session .sort-editing-tools{position:absolute;top:45px;left:max(14px,calc((100% - 1470px)/2));width:316px;max-height:calc(100% - 65px);overflow-y:auto;z-index:5;opacity:0;visibility:hidden;transform:translateX(15px);transition:opacity .35s,transform .35s,visibility .35s;}
-.sort-modal--session .sort-editing-tools.is-open{opacity:1;visibility:visible;transform:translateX(0);}
-.sort-modal--session .sort-enrichment{display:block;border:0;background:transparent;overflow:visible;}
-.sort-modal--session .sort-enrich-list{padding:0 8px;}
+/* Details is a discreet side panel on wide screens and a dismissible drawer
+   elsewhere. The session card stays centred and does not shrink when Details opens. */
+.sort-modal--session .sort-editing-tools{
+  display:none; flex-direction:column; box-sizing:border-box;
+  position:absolute; top:45px; left:max(18px,calc(50% - 735px));
+  width:316px; max-height:calc(100% - 68px);
+  padding:16px 16px 18px; overflow-x:hidden; overflow-y:auto;
+  overscroll-behavior:contain; z-index:5;
+  border:1px solid var(--ws-line-strong); border-radius:16px;
+  background:color-mix(in srgb,var(--ws-raised) 90%,var(--ws-page));
+  box-shadow:0 18px 46px -30px rgba(0,0,0,.65);
+  backdrop-filter:blur(12px);
+}
+.sort-modal--session .sort-editing-tools.is-open{display:flex;}
+.sort-modal--session .sort-editing-header{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; min-height:36px; margin-bottom:10px; padding-bottom:9px;
+  border-bottom:1px solid var(--ws-line);
+  color:var(--ws-text); font:400 20px/1.2 Georgia,serif;
+}
+.sort-modal--session .sort-editing-header button{
+  display:grid; place-items:center; width:32px; height:32px; flex:none;
+  padding:0; border:1px solid var(--ws-line-strong); border-radius:9px;
+  color:var(--ws-muted); background:transparent; cursor:pointer;
+}
+.sort-modal--session .sort-editing-header button:hover{color:var(--ws-ink);background:var(--ws-surface-2);}
+.sort-modal--session .sort-enrichment{display:block;width:100%;min-height:0;border:0;background:transparent;overflow:visible;}
+.sort-modal--session .sort-enrich-list{display:grid;gap:2px;padding:0;}
 .sort-modal--session .sort-enrich-section{border:0;border-bottom:1px solid var(--ws-line);}
-.sort-modal--session .sort-enrich-heading{padding:12px 0;background:transparent;}
+.sort-modal--session .sort-enrich-heading{padding:10px 0;background:transparent;}
+.sort-modal--session .sort-enrich-heading>button{
+  display:grid;place-items:center;width:30px;height:30px;flex:none;
+  padding:0;border:1px solid var(--ws-line-strong);border-radius:8px;
+  background:transparent;color:var(--ws-muted);cursor:pointer;
+}
+.sort-modal--session .sort-enrich-heading>button:hover{background:var(--ws-surface-2);color:var(--ws-text);}
 .sort-modal--session .sort-enrich-item{border:0;background:transparent;padding:8px 3px;font:15px/1.5 Georgia,serif;}
 .sort-modal--session .sort-enrich-rich.nb-prose{font:15px/1.5 Georgia,serif;}
 .sort-modal--session .sort-enrich-item:hover{background:color-mix(in srgb,var(--new-blue) 5%,transparent);}
+.sort-modal--session .sort-editing-tools .sort-inline-text{text-align:left;}
+/* PR #140 added this group without styles, exposing the browser's default buttons. */
+.sort-modal--session .sort-enrich-add-empty{
+  display:flex;align-items:center;align-content:flex-start;flex-wrap:wrap;
+  gap:8px;padding:14px 0 3px;
+}
+.sort-modal--session .sort-enrich-add-empty>small{
+  flex:0 0 100%;margin:0;color:var(--ws-muted);
+  font:700 10px/1.4 var(--ws-sans,Inter,sans-serif);letter-spacing:.13em;
+}
+.sort-modal--session .sort-enrich-add-empty>button{
+  appearance:none;display:inline-flex;align-items:center;justify-content:center;
+  min-height:34px;max-width:100%;padding:7px 11px;
+  border:1px solid var(--ws-line-strong);border-radius:999px;
+  background:color-mix(in srgb,var(--ws-ink) 4%,transparent);
+  color:var(--ws-text);font:500 11px/1.3 var(--ws-sans,Inter,sans-serif);
+  text-align:left;white-space:normal;cursor:pointer;
+}
+.sort-modal--session .sort-enrich-add-empty>button:hover:not(:disabled){
+  border-color:var(--new-blue);background:color-mix(in srgb,var(--new-blue) 12%,transparent);
+}
+.sort-modal--session .sort-enrich-add-empty>button:disabled{opacity:.45;cursor:not-allowed;}
+.sort-modal--session .sort-enrich-add-empty>button:focus-visible,
+.sort-modal--session .sort-editing-header button:focus-visible,
+.sort-modal--session .sort-enrich-heading>button:focus-visible{
+  outline:2px solid var(--new-blue);outline-offset:2px;
+}
+.sort-modal--session .sort-enrich-hint{
+  margin:15px 0 0;padding-top:12px;border-top:1px solid var(--ws-line);
+  color:var(--ws-muted);font:11px/1.5 var(--ws-sans,Inter,sans-serif);
+}
 .sort-modal--session .sort-inline-error{display:block;color:var(--c-cinnabar);font:11px var(--ws-sans,Inter,sans-serif);}
-@media(max-width:1180px){
-  .sort-modal--session .sort-editing-tools{position:fixed;left:0;top:58px;bottom:0;max-height:none;width:min(335px,90vw);padding:20px;background:color-mix(in srgb,var(--ws-surface) 95%,transparent);backdrop-filter:blur(16px);box-shadow:var(--ws-shadow-2);}
+@media(max-width:1499px){
+  .sort-modal--session .sort-editing-tools{
+    position:fixed;left:0;top:58px;bottom:0;width:min(360px,92vw);
+    max-height:none;padding:18px;
+    border-left:0;border-bottom:0;border-radius:0 16px 0 0;
+    background:var(--ws-surface);box-shadow:var(--ws-shadow-2);
+  }
+}
+@media(max-width:600px){
+  .sort-modal--session .sort-editing-tools{
+    width:100vw;max-height:calc(100dvh - 58px);
+    border-right:0;border-radius:0;
+  }
 }
 @media(max-width:760px){
   .sort-modal--session .sort-topbar{padding:0 12px !important;}
