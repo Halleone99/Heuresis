@@ -6,6 +6,8 @@ import { listCards, listTags, type CardWithStats, type Collection, type Heuresis
 import { NEW_CARD_QUOTA_EVENT, readNewCardQuota } from "../lib/newCardQuota";
 import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
+import { readOpenStudy, rememberOpenStudy, type OpenStudySession } from "../lib/studySessionMemory";
+import { relativeOpened } from "../lib/relativeTime";
 import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
 import LearningSession from "./LearningSession";
@@ -27,7 +29,8 @@ type Props = {
 };
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
-type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number };
+type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number; total: number; remainingIds?: string[] };
+const STUDY_SELECTION_KEY = "heuresis.study.selection.v1";
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   return `${count.toLocaleString()} ${count === 1 ? singular : pluralForm}`;
@@ -63,21 +66,36 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(LAST_COLLECTION_KEY); } catch { return null; }
   });
+  const [selection, setSelection] = useState<string>(() => {
+    try { return sessionStorage.getItem(STUDY_SELECTION_KEY) ?? ""; } catch { return ""; }
+  });
+  const [launchRequest, setLaunchRequest] = useState<{ topicId: string; nonce: number } | null>(null);
+  const [showAllCollections, setShowAllCollections] = useState(false);
   const [relatedCounts, setRelatedCounts] = useState<Record<string, number>>({});
   const [captureRevision, setCaptureRevision] = useState(0);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === collectionId) ?? null, [collectionId, collections]);
   const filteredReviewIds = reviewLaunchIds ?? collections.map((item) => item.id);
   const refreshReviews = () => setReviewRevision((previous) => previous + 1);
 
-  async function startNewCards(pack: PackWithType, count: number) {
+  async function startNewCards(pack: PackWithType, count: number, resume?: OpenStudySession) {
     if (!Number.isInteger(count) || count < 1 || newOpening) return;
     setNewOpening(true);
     setNewError("");
     try {
       const [cards, tags] = await Promise.all([listCards(pack.id), listTags()]);
       const unsorted = cards.filter((card) => !cardHasCompletedSort(card));
-      if (!unsorted.length) { refreshReviews(); setNewError("No unclassified cards remain in this topic."); return; }
-      setQuickSort({ pack, cards, tags, count: Math.min(count, unsorted.length) });
+      if (!unsorted.length) {
+        rememberOpenStudy(null, pack.id);
+        refreshReviews(); setNewError("No unclassified cards remain in this topic."); return;
+      }
+      const eligible = new Set(unsorted.map((card) => card.id));
+      const remainingIds = resume?.remainingIds.filter((id) => eligible.has(id));
+      if (resume && !remainingIds?.length) {
+        rememberOpenStudy(null, pack.id);
+        refreshReviews(); setNewError("This session's remaining cards have already been classified."); return;
+      }
+      setQuickSort({ pack, cards, tags, count: resume ? remainingIds!.length : Math.min(count, unsorted.length),
+        total: resume?.total ?? Math.min(count, unsorted.length), remainingIds });
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
     } finally { setNewOpening(false); }
@@ -153,14 +171,23 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     return ranked[0]?.collection ?? collections[0];
   }, [collections, packs]);
 
-  const selectedCollection = useMemo(
-    () => collections.find((collection) => collection.id === selectedCollectionId) ?? latestCollection,
-    [collections, latestCollection, selectedCollectionId],
-  );
-  const selectedPacks = useMemo(
-    () => selectedCollection ? packs.filter((pack) => pack.collection_id === selectedCollection.id) : [],
-    [packs, selectedCollection],
-  );
+  const selectedCollection = useMemo(() => {
+    const id = selection.startsWith("collection:") ? selection.slice(11)
+      : selection.startsWith("topic:") ? packs.find((pack) => pack.id === selection.slice(6))?.collection_id
+      : selectedCollectionId;
+    return collections.find((collection) => collection.id === id) ?? latestCollection;
+  }, [collections, packs, latestCollection, selectedCollectionId, selection]);
+  useEffect(() => {
+    if (!latestCollection) return;
+    const valid = selection === "all" ||
+      (selection.startsWith("collection:") && collections.some((c) => c.id === selection.slice(11))) ||
+      (selection.startsWith("topic:") && packs.some((p) => p.id === selection.slice(6)));
+    if (valid) return;
+    const next = "collection:" + latestCollection.id;
+    setSelection(next);
+    setSelectedCollectionId(latestCollection.id);
+    try { sessionStorage.setItem(STUDY_SELECTION_KEY, next); sessionStorage.setItem(LAST_COLLECTION_KEY, latestCollection.id); } catch { /* navigation only */ }
+  }, [collections, packs, selection, latestCollection]);
 
   useEffect(() => {
     let alive = true;
@@ -239,9 +266,24 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     try { sessionStorage.setItem(LAST_COLLECTION_KEY, id); } catch { /* navigation preference only */ }
   }
 
+  function chooseStudyScope(value: string) {
+    const id = value.startsWith("collection:") ? value.slice(11)
+      : value.startsWith("topic:") ? packs.find((pack) => pack.id === value.slice(6))?.collection_id : null;
+    if (id) selectCollection(id);
+    setSelection(value);
+    try { sessionStorage.setItem(STUDY_SELECTION_KEY, value); } catch { /* navigation only */ }
+  }
   function openCollection(id: string) {
     selectCollection(id);
     setCollectionId(id);
+  }
+  function studyTopic(pack: PackWithType) {
+    chooseStudyScope("topic:" + pack.id);
+    setLaunchRequest((current) => ({ topicId: pack.id, nonce: (current?.nonce ?? 0) + 1 }));
+  }
+  function resumeTopic(pack: PackWithType, session: OpenStudySession) {
+    chooseStudyScope("topic:" + pack.id);
+    void startNewCards(pack, session.remainingIds.length, session);
   }
 
   function backToCollections() {
@@ -312,10 +354,13 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
     );
   }
 
-  const selectedCards = selectedPacks.reduce((sum, pack) => sum + pack.card_count, 0);
-  const selectedSeen = selectedPacks.reduce((sum, pack) => sum + pack.encountered_cards, 0);
-  const recentPacks = selectedPacks.slice().sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01")).slice(0, 2);
+  const selectedPacks = selectedCollection ? packs.filter((pack) => pack.collection_id === selectedCollection.id) : [];
+  const sortedTopics = selectedPacks.slice().sort((a, b) =>
+    Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01") || a.title.localeCompare(b.title));
   const selectedIsLatest = Boolean(selectedCollection && latestCollection && selectedCollection.id === latestCollection.id);
+  const otherCollections = collections.filter((collection) => collection.id !== selectedCollection?.id)
+    .sort((a, b) => Date.parse(newestOpen(packs.filter((p) => p.collection_id === b.id)) ?? "1970-01-01")
+       - Date.parse(newestOpen(packs.filter((p) => p.collection_id === a.id)) ?? "1970-01-01"));
 
   return (
     <section className="library-page intelligent-library">
@@ -326,55 +371,87 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
       </header>
 
       {collections.length ? <TodayStudyPanel collections={collections} packs={packs} overview={reviewOverview}
+        selection={selection} onSelectionChange={chooseStudyScope} launchRequest={launchRequest}
         quota={newCardQuota} opening={newOpening || learningOpening || reviewOpening} error={newError}
         onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
         onStartReview={(count, scopedPacks) => void startReview(count, scopedPacks)}
         onStartNew={(pack, count) => void startNewCards(pack, count)}
         onStartLearning={(eligible, scopeTitle) => void startLearning(eligible, scopeTitle)} /> : null}
 
-      {selectedCollection ? <div className="library-desk">
-        <section className="library-resume" data-accent={selectedCollection.accent} aria-label="Continue learning">
-          <div className="library-continue-heading">
-            <h2>Continue learning</h2>
-            <span>{selectedIsLatest ? "Recently opened" : "Selected collection"}</span>
+      {selectedCollection ? <div className="library-desk study-desk">
+        <section className="study-desk-feature" data-accent={selectedCollection.accent} aria-label={selectedCollection.title}>
+          <span className="study-desk-ghost" aria-hidden="true">{collectionGlyph(selectedCollection)}</span>
+          <span className="study-desk-eyebrow">{selectedIsLatest ? "CONTINUE" : "COLLECTION"}</span>
+          <div className="study-desk-heading">
+            <button type="button" className="study-desk-title" onClick={() => openCollection(selectedCollection.id)}>
+              {selectedCollection.title}
+            </button>
+            {newestOpen(selectedPacks) ? <span className="study-desk-opened"><i />Last opened {relativeOpened(newestOpen(selectedPacks))}</span> : null}
           </div>
-          <div className="library-resume-head">
-            <span className="library-resume-glyph" aria-hidden="true">{collectionGlyph(selectedCollection)}</span>
-            <div className="library-resume-copy">
-              <button type="button" className="library-resume-title" onClick={() => openCollection(selectedCollection.id)}>{selectedCollection.title}</button>
-              <p className="library-resume-summary">{selectedCards ? selectedSeen.toLocaleString() + " of " + selectedCards.toLocaleString() + " cards explored" : "No cards yet"}</p>
-            </div>
+          <div className="study-desk-topics" aria-label="Topics">
+            {sortedTopics.slice(0, 6).map((pack) => {
+              const stats = reviewOverview?.topics[pack.id];
+              let resume = readOpenStudy(pack.id);
+              // Review continuation is not available until the Review window reports answered IDs.
+              if (resume?.kind !== "new") resume = null;
+              if (stats?.newReady === 0 && resume) { rememberOpenStudy(null, pack.id); resume = null; }
+              const chosen = selection === "topic:" + pack.id;
+              return <div className={"study-desk-topic" + (chosen ? " chosen" : "")} key={pack.id}>
+                <div className="study-desk-topic-copy">
+                  <strong>{pack.title}</strong>
+                  <small>{plural(pack.card_count, "card")}{resume ? <span className="study-desk-session"> · New · {resume.remainingIds.length} of {resume.total} left</span> : null}</small>
+                </div>
+                <div className="study-desk-counts" aria-label="New, Learn and Review card counts">
+                  {(["newReady", "learnCards", "reviewCards"] as const).map((key, index) =>
+                    <span className={["new", "learn", "review"][index]} key={key}>
+                      <i />{stats ? stats[key].toLocaleString("en-GB") : "—"}
+                    </span>)}
+                </div>
+                <button type="button" className={"study-desk-action" + (resume ? " resume" : "")}
+                  disabled={newOpening || learningOpening || reviewOpening || (Boolean(stats) && !stats!.newReady && !stats!.learnCards && !stats!.ready)}
+                  title={stats && !stats.newReady && !stats.learnCards && !stats.ready ? "Nothing to study in this topic right now" : undefined}
+                  onClick={() => resume ? resumeTopic(pack, resume) : studyTopic(pack)}>{resume ? "Resume" : "Study"}</button>
+              </div>;
+            })}
+            {sortedTopics.length > 6 ? <button type="button" className="study-desk-more-topics"
+              onClick={() => openCollection(selectedCollection.id)}>+ {sortedTopics.length - 6} more topics</button> : null}
+            {!sortedTopics.length ? <button type="button" className="study-desk-empty"
+              onClick={() => onNewTopic(selectedCollection.id)}><Plus size={14} />Create your first topic</button> : null}
           </div>
-          {recentPacks.length ? <div className="library-resume-topics" aria-label="Recent topics">
-            {recentPacks.map((pack) => <button type="button" key={pack.id} onClick={() => onOpen(pack)} title={"Open " + pack.title}>
-              <span className="library-topic-copy"><strong>{pack.title}</strong><small>{plural(pack.card_count, "card")}</small></span>
-              <ChevronRight size={16} className="library-topic-chevron" aria-hidden="true" />
-            </button>)}
-          </div> : <button type="button" className="library-resume-empty" onClick={() => onNewTopic(selectedCollection.id)}>Create your first topic <ArrowRight size={14} /></button>}
         </section>
-        <aside className="library-stack" aria-label="Collections">
-          <div className="library-stack-head">
-            <h2>Collections</h2>
-            <button type="button" className="library-stack-new" onClick={onNewCollection}><Plus size={14} aria-hidden="true" /> New</button>
+        <aside className="study-desk-side" aria-label="Other collections">
+          <span className="study-desk-eyebrow">OTHER COLLECTIONS</span>
+          <div className="study-desk-others">
+            {(showAllCollections ? otherCollections : otherCollections.slice(0, 3)).map((collection) => {
+              const topicPacks = packs.filter((p) => p.collection_id === collection.id);
+              const total = topicPacks.reduce((n, pack) => n + pack.card_count, 0);
+              const counts = topicPacks.reduce((acc, pack) => {
+                const stats = reviewOverview?.topics[pack.id];
+                if (stats) { acc[0] += stats.newReady; acc[1] += stats.learnCards; acc[2] += stats.reviewCards; }
+                return acc;
+              }, [0, 0, 0]);
+              const latest = relativeOpened(newestOpen(topicPacks));
+              return <button type="button" key={collection.id}
+                className={"study-desk-mini" + (!topicPacks.length ? " off" : "")}
+                onClick={() => chooseStudyScope("collection:" + collection.id)}>
+                <span className="study-desk-mini-glyph" aria-hidden="true">{collectionGlyph(collection)}</span>
+                <span className="study-desk-mini-body"><strong>{collection.title}</strong>
+                  <small>{plural(total, "card")}{latest ? " · opened " + latest : ""}</small>
+                  <span className="study-desk-mini-track" aria-label="Proportion in New, Learn and Review">
+                    {counts.map((number, index) => <i key={index} className={["new", "learn", "review"][index]}
+                      style={{ flexGrow: number || 0.01 }} />)}
+                  </span>
+                </span><ChevronRight size={14} aria-hidden="true" />
+              </button>;
+            })}
+            <button type="button" className="study-desk-new" onClick={onNewCollection}><Plus size={13} /> New collection</button>
           </div>
-          {collections.map((collection) => {
-            const collectionPacks = packs.filter((pack) => pack.collection_id === collection.id);
-            const cards = collectionPacks.reduce((sum, pack) => sum + pack.card_count, 0);
-            return <button type="button" key={collection.id} className={"library-mini" + (!collectionPacks.length ? " off" : "") + (collection.id === selectedCollection.id ? " is-current" : "")}
-              data-accent={collection.accent} onClick={() => openCollection(collection.id)} title={"Open " + collection.title}>
-              <span className="library-mini-glyph" aria-hidden="true">{collectionGlyph(collection)}</span>
-              <span className="library-mini-copy">
-                <strong>{collection.title}</strong>
-                <small>{plural(cards, "card")} · {plural(collectionPacks.length, "topic")}</small>
-              </span>
-              <ChevronRight size={16} className="library-mini-chevron" aria-hidden="true" />
-            </button>;
-          })}
-          
+          {otherCollections.length > 3 ? <button type="button" className="study-desk-all"
+            onClick={() => setShowAllCollections((value) => !value)}>{showAllCollections ? "Show fewer" : "All collections"}</button> : null}
         </aside>
       </div> : <div className="library-empty"><BookOpen size={22} /><strong>No collections yet.</strong><p>Create one and name it however you want.</p><button type="button" className="library-new-collection" onClick={onNewCollection}><Plus size={14} /> New collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
-        quickStartCount={quickSort.count} onClose={closeQuickSort} onChanged={() => undefined}
+        quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds }} onClose={closeQuickSort} onChanged={() => undefined}
         onLearning={() => void startLearning(quickSort.pack)} /> : null}
       {learningSession ? <LearningSession topics={learningSession.topics} title={learningSession.title}
         onClose={closeLearning} onChanged={refreshReviews} /> : null}
