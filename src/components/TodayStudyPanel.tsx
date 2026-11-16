@@ -17,6 +17,9 @@ type Props = {
   collections: Collection[];
   packs: PackWithType[];
   overview: ReviewOverview | null;
+  selection: string;
+  onSelectionChange: (value: string) => void;
+  launchRequest?: { topicId: string; nonce: number } | null;
   quota: number;
   opening: boolean;
   error: string;
@@ -62,11 +65,10 @@ function rangeLabel(from: Date, to: Date) {
 function weekName(date: Date) { return dayFormat.format(date).slice(0, 2); }
 
 export default function TodayStudyPanel({
-  collections, packs, overview, quota, opening, error, onReview, onStartNew, onStartLearning, onStartReview,
+  collections, packs, overview, selection, onSelectionChange, launchRequest, quota, opening, error, onReview, onStartNew, onStartLearning, onStartReview,
 }: Props) {
-  const [selection, setSelection] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [hoverCollectionId, setHoverCollectionId] = useState<string | null>(null);
+  const [menuCollectionId, setMenuCollectionId] = useState<string | null>(null);
   const [mode, setModeState] = useState<StudyMode>(storedMode);
   const [view, setViewState] = useState<StatsView>(storedView);
   const [allStages, setAllStages] = useState(false);
@@ -77,6 +79,8 @@ export default function TodayStudyPanel({
   const [activityStatus, setActivityStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const pickerRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<HTMLDivElement>(null);
+  const handledLaunch = useRef<number | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
 
   const selectedCollection = collections.find((c) => selection === "collection:" + c.id) ?? null;
   const selectedPack = packs.find((p) => selection === "topic:" + p.id) ?? null;
@@ -152,20 +156,39 @@ export default function TodayStudyPanel({
       if (sessionOpen && !startRef.current?.contains(event.target as Node)) setSessionOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setPickerOpen(false); setSessionOpen(false); }
+      if (event.key === "Escape") {
+        if (pickerOpen && menuCollectionId) setMenuCollectionId(null);
+        else { setPickerOpen(false); setSessionOpen(false); }
+      }
     };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
-  }, [pickerOpen, sessionOpen]);
+  }, [pickerOpen, sessionOpen, menuCollectionId]);
 
-  function launch() {
-    if (!overview || opening || !stageCounts[mode]) return;
-    if (mode === "learn") { onStartLearning(learningPacks, scopeLabel); return; }
-    if (!maximum) return;
-    setSessionSize(Math.min(maximum, mode === "new" ? Math.max(1, quota - newToday || quota) : 10));
+  function launchForStage(stage: StudyMode) {
+    if (!overview || opening || !stageCounts[stage]) return;
+    if (stage === "learn") { onStartLearning(learningPacks, scopeLabel); return; }
+    const limit = stage === "new" ? topicReady : ready;
+    if (!limit) return;
+    setSessionSize(Math.min(limit, stage === "new" ? Math.max(1, quota - newToday || quota) : 10));
     setSessionOpen(true);
+    panelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
+  function launch() { launchForStage(mode); }
+  useEffect(() => {
+    if (!launchRequest || !overview || selection !== "topic:" + launchRequest.topicId
+        || handledLaunch.current === launchRequest.nonce) return;
+    handledLaunch.current = launchRequest.nonce;
+    const target: StudyMode = stageCounts[mode] ? mode : ready ? "review" : learnCards ? "learn" : "new";
+    if (target !== mode) {
+      setModeState(target);
+      try { sessionStorage.setItem(MODE_KEY, target); } catch { /* preference only */ }
+    }
+    launchForStage(target);
+  // The nonce and controlled selection determine exactly one launch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launchRequest, selection, overview]);
   function confirmSession() {
     if (!Number.isInteger(sessionSize) || sessionSize < 1 || sessionSize > maximum || opening) return;
     setSessionOpen(false);
@@ -192,15 +215,15 @@ export default function TodayStudyPanel({
   });
 
   function chooseScope(value: string) {
-    setSelection(value);
+    onSelectionChange(value);
     setPickerOpen(false);
     setAllStages(false);
     setOffset(0);
+    setMenuCollectionId(null);
   }
 
-  const hoverCollection = collections.find((c) => c.id === hoverCollectionId)
-    ?? parent ?? selectedCollection ?? collections[0] ?? null;
-  const hoverPacks = hoverCollection ? packs.filter((p) => p.collection_id === hoverCollection.id) : [];
+  const menuCollection = collections.find((c) => c.id === menuCollectionId) ?? null;
+  const menuPacks = menuCollection ? packs.filter((p) => p.collection_id === menuCollection.id) : [];
   const chartValues = activity
     ? { new: activity.new, learn: activity.learn, review: activity.review } : null;
   const activeValues = chartValues?.[mode] ?? [];
@@ -213,7 +236,9 @@ export default function TodayStudyPanel({
   const showChart = activityStatus === "ready" && chartTotal > 0;
   const trendRecent = sum(shownValues.slice(7));
   const trendPrevious = sum(shownValues.slice(0, 7));
-  const delta = trendPrevious ? Math.round((trendRecent - trendPrevious) / trendPrevious * 100) : null;
+  const weekUnit = allStages ? "cards" : mode === "new" ? "new cards" : mode === "learn" ? "exercises" : "reviews";
+  const weekCaption = (n: number, start: Date, end: Date, name: string) =>
+    (offset === 0 ? name : rangeLabel(start, end)) + " · " + countText(n) + " " + weekUnit;
   const label = (n: number) => overview ? countText(n) : "—";
   const qualityCard = (title: string, achieved: number, of: number, caption: string, stage: StudyMode) => {
     const pct = overview ? percent(achieved, of) : null;
@@ -273,33 +298,38 @@ export default function TodayStudyPanel({
   const startTitle = mode === "new" ? "Start new cards" : mode === "learn" ? "Continue learning" : "Start review";
   void onReview; // Retain the existing Review Centre callback for callers outside this panel.
 
-  return <section className="study-home" aria-label="Study">
+  return <section className="study-home" aria-label="Study" ref={panelRef}>
     <div className="sh-top">
       <div className="sh-picker" ref={pickerRef}>
         <button type="button" className="sh-picker-trigger" aria-label="Choose subject and topic" aria-expanded={pickerOpen}
-          onClick={() => { setHoverCollectionId(parent?.id ?? selectedCollection?.id ?? collections[0]?.id ?? null); setPickerOpen(!pickerOpen); }}>
-          <span className="sh-picker-glyph">{scopeGlyph || <Layers3 size={16} aria-hidden="true" />}</span>
-          <span className="sh-picker-text">{scopeLabel}</span><ChevronDown size={15} aria-hidden="true" />
+          onClick={() => { setMenuCollectionId(null); setPickerOpen(!pickerOpen); }}>
+          <span className="sh-picker-glyph">{scopeGlyph || <Layers3 size={15} aria-hidden="true" />}</span>
+          <span className="sh-picker-text"><strong>{parent?.title ?? selectedCollection?.title ?? "All subjects"}</strong>{selectedPack ? <small>{selectedPack.title}</small> : null}</span><ChevronDown size={14} strokeWidth={1.6} aria-hidden="true" />
         </button>
-        {pickerOpen ? <div className="sh-picker-pane" role="dialog" aria-label="Choose subject and topic">
+        {pickerOpen ? <div className={"sh-picker-pane" + (!menuCollection ? " one" : "")} role="dialog" aria-label="Choose subject and topic">
           <div className="sh-pane-left">
             <button className={"sh-pane-subject" + (selection === "all" ? " current" : "")} type="button" onClick={() => chooseScope("all")}>
               <Layers3 size={15} /><span>All subjects</span>{selection === "all" ? <Check size={13} /> : null}
             </button>
-            {collections.map((collection) => <button type="button" key={collection.id}
-              onMouseEnter={() => setHoverCollectionId(collection.id)}
-              onFocus={() => setHoverCollectionId(collection.id)}
-              className={"sh-pane-subject" + (hoverCollection?.id === collection.id ? " focus" : "") +
+            {collections.map((collection) => <button type="button" key={collection.id} data-menu-collection={collection.id}
+              className={"sh-pane-subject" + (menuCollectionId === collection.id ? " focus" : "") +
                 (selection === "collection:" + collection.id || (selectedPack?.collection_id === collection.id) ? " current" : "")}
-              onClick={() => chooseScope("collection:" + collection.id)}>
+              onClick={() => setMenuCollectionId(collection.id)}
+              onKeyDown={(event) => { if (event.key === "ArrowRight") {
+                event.preventDefault(); setMenuCollectionId(collection.id);
+                requestAnimationFrame(() => pickerRef.current?.querySelector<HTMLButtonElement>(".sh-pane-right button")?.focus());
+              } }}>
               <b>{collection.glyph || collection.title.slice(0, 1)}</b><span>{collection.title}</span><ChevronRight size={13} />
             </button>)}
           </div>
-          <div className="sh-pane-right">
-            {hoverCollection ? <>
-              <button type="button" className={"sh-pane-topic" + (selection === "collection:" + hoverCollection.id ? " current" : "")}
+          {menuCollection ? <div className="sh-pane-right" onKeyDown={(event) => { if (event.key === "ArrowLeft") {
+            event.preventDefault(); const id = menuCollection.id; setMenuCollectionId(null);
+            requestAnimationFrame(() => pickerRef.current?.querySelector<HTMLButtonElement>(`[data-menu-collection="${id}"]`)?.focus());
+          } }}>
+            <>
+              <button type="button" className={"sh-pane-topic" + (selection === "collection:" + menuCollection.id ? " current" : "")}
                 onClick={() => chooseScope("collection:" + hoverCollection.id)}>
-                <span>All of {hoverCollection.title}</span><small>{hoverPacks.reduce((n, p) => n + p.card_count, 0)}</small>
+                <span>All of {menuCollection.title}</span><small>{menuPacks.reduce((n, p) => n + p.card_count, 0)}</small>
                 {selection === "collection:" + hoverCollection.id ? <Check size={13} /> : null}
               </button>
               {hoverPacks.map((pack) => <button className={"sh-pane-topic" + (selection === "topic:" + pack.id ? " current" : "")}
@@ -308,8 +338,8 @@ export default function TodayStudyPanel({
                 {selection === "topic:" + pack.id ? <Check size={13} /> : null}
               </button>)}
               {!hoverPacks.length ? <p className="sh-empty-topics">No topics yet</p> : null}
-            </> : <p className="sh-empty-topics">Choose a subject</p>}
-          </div>
+            </>
+          </div> : null}
         </div> : null}
       </div>
 
@@ -325,9 +355,9 @@ export default function TodayStudyPanel({
         </button>)}
       </div>
       <div className="sh-start-area" ref={startRef}>
-        <button className="sh-start" type="button" title={startTitle} onClick={launch}
+        <button className="sh-start" type="button" title={startTitle + " · " + scopeLabel} onClick={launch}
           disabled={!overview || opening || stageCounts[mode] === 0}>
-          <Play size={13} fill="currentColor" aria-hidden="true" />{opening ? "Opening…" : "Start"}
+          <Play size={12} fill="currentColor" aria-hidden="true" />{opening ? "Opening…" : "Start"}
         </button>
         {sessionOpen && maximum > 0 ? <div className="sh-session-pop" role="dialog" aria-label="Choose number of cards">
           <h3>HOW MANY CARDS?</h3>
@@ -387,12 +417,15 @@ export default function TodayStudyPanel({
             </div>;
           })}
         </div>
-        <div className="sh-chart-foot">{allStages && chartValues ? <>
+        {allStages && chartValues ? <div className="sh-chart-foot sh-chart-legend">
           <span><i className="n" />New {countText(sum(chartValues.new))}</span>
           <span><i className="l" />Learn {countText(sum(chartValues.learn))}</span>
           <span><i className="r" />Review {countText(sum(chartValues.review))}</span>
-        </> : <span>{rangeLabel(days[7], days[13])} <b>{countText(trendRecent)}</b> · {rangeLabel(days[0], days[6])} <b>{countText(trendPrevious)}</b>
-          {delta !== null ? <> · <b>{delta > 0 ? "+" : ""}{delta}%</b></> : null}</span>}</div>
+        </div> : null}
+        <div className="sh-week-captions">
+          <span>{weekCaption(trendPrevious, days[0], days[6], "Previous 7 days")}</span>
+          <span>{weekCaption(trendRecent, days[7], days[13], "Last 7 days")}</span>
+        </div>
       </> : <p className="sh-no-history">{activityStatus === "loading" ? "Loading activity…" : "No activity history yet"}</p> : null}
 
       {view === "today" ? allStages ? <div className="sh-today-all">
