@@ -37,6 +37,7 @@ import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
 import { listCollections, listPacks, type Collection, type PackWithType } from "./lib/heuresis";
+import { readKnowledgeMode, type KnowledgeMode } from "./lib/studyKnowledgeMode";
 import { entryTitle, friendlyError } from "./lib/knowledgeWorkspace";
 import { isInboxTopic } from "./lib/lessonCleanup";
 import { quickQueueKind } from "./lib/quickQueue";
@@ -187,6 +188,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [collectionsStartNew, setCollectionsStartNew] = useState(false);
+  const [collectionsStartMode, setCollectionsStartMode] = useState<KnowledgeMode>("languages");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [topicModalOpen, setTopicModalOpen] = useState(false);
   const [topicModalPack, setTopicModalPack] = useState<PackWithType | null>(null);
@@ -534,7 +536,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }
   function openNewWords(collection: Collection) { setRelatedCollectionId(collection.id); setCaptureInboxCollectionId(null); setActivePackId(null); setView("related"); }
   function openCaptureInbox(collection: Collection) { setCaptureInboxCollectionId(collection.id); setRelatedCollectionId(null); setActivePackId(null); setView("capture-inbox"); }
-  function openCollections(startNew = false) { setCollectionsStartNew(startNew); setCollectionsOpen(true); }
+  function openCollections(startNew = false, mode: KnowledgeMode = readKnowledgeMode()) { setCollectionsStartNew(startNew); setCollectionsStartMode(mode); setCollectionsOpen(true); }
   function closeCollections() { setCollectionsOpen(false); setCollectionsStartNew(false); }
 
   function openNewTopic(preferredCollectionId: string | null = null) {
@@ -721,7 +723,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </Suspense> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-          {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={() => openCollections(true)} /> : null}
+          {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={(mode) => openCollections(true, mode)} /> : null}
           {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
           {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
           {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
@@ -757,7 +759,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
       {searchOpen ? <SearchOverlay packs={packs} initialQuery={cardQuery} onClose={() => { setSearchOpen(false); setCardQuery(""); }} onOpen={(pack, cardId) => { setSection("study"); openPack(pack, cardId ?? null); }} /> : null}
       {settingsOpen ? <SettingsModal backgrounds={backgrounds} packs={packs} collections={collections} onDataChanged={() => reload(true).then(() => undefined)} onClose={() => setSettingsOpen(false)} /> : null}
-      {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
+      {collectionsOpen ? <CollectionsModal collections={collections} packs={packs} startNew={collectionsStartNew} startMode={collectionsStartMode} onClose={closeCollections} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {archiveOpen ? <ArchiveModal packs={archivedPacks} onClose={() => setArchiveOpen(false)} onChanged={() => reload(true).then(() => undefined)} /> : null}
       {topicModalOpen ? <TopicModal collections={collections} pack={topicModalPack} preferredCollectionId={topicPreferredCollectionId} onClose={() => { setTopicModalOpen(false); setTopicModalPack(null); }} onChanged={afterTopicChange} /> : null}
     </div>
