@@ -354,7 +354,9 @@ export function MistakeLog() {
   function switchStudy() {
     const next = !showStudy; setShowStudy(next); setSelectedTopicId(null); setStatus("all");
     setSelectedIds([]); setSelecting(false); setAdding(false); setEditingId(null);
-    remember({ study: next, topicId: null, status: "all" });
+    const nextSort = next && sort === "fresh" ? "newest" : sort;
+    setSort(nextSort);
+    remember({ study: next, topicId: null, status: "all", sort: nextSort });
     listRef.current?.scrollIntoView({ block: "start" });
   }
   function clearFilters() {
@@ -613,7 +615,7 @@ function MistakeBulkAdd({ topicId }: { topicId: string }) {
   }
   return <div className="ml-bulk-add">
     <button type="button" className="nb-link-button" onClick={() => setOpen((current) => !current)}>
-      {open ? "Close bulk paste" : "Paste a list of mistakes"}
+      {open ? "Close bulk paste" : "Paste several"}
     </button>
     {open ? <div className="ml-bulk-panel">
       <label className="ws-field"><span>One correction per line: wrong → right // why</span>
