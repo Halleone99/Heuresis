@@ -200,18 +200,18 @@ const scenarios = {
     tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
     tapped(await fingerTap(page, ".review-reveal", { label: "Show answer" }), "Show answer");
-    for (const label of ["Context", "Notes"]) {
-      const toggle = `.review-top-tools button[aria-label^="${label}"]`;
-      const wasOpen = (await page.locator(toggle).getAttribute("aria-pressed")) === "true";
-      tapped(await fingerTap(page, toggle, { label }), `${label} toggles with a tap`);
-      await page.waitForTimeout(300);
-      check(((await page.locator(toggle).getAttribute("aria-pressed")) === "true") === !wasOpen, `${label} changed state`);
-      if (!wasOpen) {
-        check(await reachableNow(page, ".review-ratings button:nth-child(3)"), `with ${label} open, the results stay reachable`);
-        tapped(await fingerTap(page, toggle, { label }), `${label} closes again`);
-        await page.waitForTimeout(300);
-      }
-    }
+    const toggle = ".review-card-details";
+    check(await reachableNow(page, toggle), "the combined Details control is finger-reachable on the card");
+    tapped(await fingerTap(page, toggle, { label: "Details" }), "Details opens the combined drawer");
+    await page.waitForTimeout(300);
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "open", "combined Details opens on the right");
+    check(await page.locator(".cosmos-work").getAttribute("data-left") !== "open", "no second panel squeezes the card");
+    check(await page.locator(".cosmos-details-right").getAttribute("aria-label") === "Details: context and notes",
+      "examples, connections, facts and notes belong to one drawer");
+    check(await reachableNow(page, ".review-ratings button:nth-child(3)"), "the ratings remain reachable with Details open");
+    tapped(await fingerTap(page, toggle, { label: "Close Details" }), "Details closes by touch");
+    await page.waitForTimeout(300);
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "closed", "combined Details closes");
     tapped(await fingerTap(page, '.review-links button:has-text("Connections")', { label: "Connections" }), "the card's connections open from Review");
     await page.locator(".connections-panel").waitFor({ timeout: 10000 });
     check(await reachableNow(page, ".connections-close"), "the connections tree's close button is on screen and not covered");
@@ -225,19 +225,19 @@ const scenarios = {
     check(await reachableNow(page, ".connections-close"), "the close button is on screen and not covered");
     tapped(await fingerTap(page, ".connections-close", { label: "Close connections" }), "they close again");
   },
-  async "portrait: Notes drawer opens over the card and closes"(page) {
+  async "portrait: combined Details drawer opens and closes"(page) {
     await openTopicByTouch(page);
     tapped(await fingerTap(page, ".topic-session-control button[title='Review prepared cards']", { label: "Review" }), "Review");
     await startReviewByTouch(page);
     tapped(await fingerTap(page, ".review-reveal", { label: "Show answer" }), "Show answer");
-    // The redesigned drawer has no header of its own: the top-bar Notes button opens and closes it.
-    tapped(await fingerTap(page, '.review-top-tools button[aria-label^="Notes"]', { label: "Notes" }), "Notes opens");
+    tapped(await fingerTap(page, ".review-card-details", { label: "Details" }), "Details opens");
     await page.waitForTimeout(500);
-    await page.screenshot({ path: `${shots}/portrait-notes-drawer.png` });
-    check(await page.locator(".cosmos-work").getAttribute("data-right") === "open", "the Notes drawer is open");
-    check(await reachableNow(page, '.review-top-tools button[aria-label^="Notes"]'), "the Notes button stays reachable above the drawer");
-    tapped(await fingerTap(page, '.review-top-tools button[aria-label^="Notes"]', { label: "Close drawer" }), "the drawer closes");
+    await page.screenshot({ path: `${shots}/portrait-details-drawer.png` });
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "open", "the Details drawer is open");
+    check(await reachableNow(page, '.cosmos-details-right .cosmos-details-head button[aria-label^="Close"]'), "the drawer's close control is reachable");
+    tapped(await fingerTap(page, '.cosmos-details-right .cosmos-details-head button[aria-label^="Close"]', { label: "Close drawer" }), "the drawer closes");
     await page.waitForTimeout(300);
+    check(await page.locator(".cosmos-work").getAttribute("data-right") === "closed", "the Details drawer closes in portrait");
     tapped(await fingerTap(page, ".review-ratings button:nth-child(3)", { label: "Recalled" }), "the card is answerable again");
   },
   async "landscape: Adjust → Start review, by touch"(page) {
