@@ -19,6 +19,7 @@ DB=heuresis_learn_migration
 LEARN=../supabase/migrations/20261110120000_heuresis_learn_rounds.sql
 # Study activity depends on Learn tables, so apply it after the Learn migration.
 STUDY=../supabase/migrations/20261115150000_heuresis_study_activity.sql
+STUDY_CARDS=../supabase/migrations/20261116133000_heuresis_study_activity_cards.sql
 V2=20261012090000_knowledge_workspace_v2.sql
 fail() { echo "✗ $1"; exit 1; }
 pass() { echo "  ✓ $1"; }
@@ -29,7 +30,7 @@ $P -c "create database $DB template heuresis_v1_baseline"
 for f in ../supabase/migrations/*.sql; do
   name="$(basename "$f")"
   [[ "$name" < "$V2" ]] && continue
-  [[ "$name" == "$(basename "$LEARN")" || "$name" == "$(basename "$STUDY")" ]] && continue
+  [[ "$name" == "$(basename "$LEARN")" || "$name" == "$(basename "$STUDY")" || "$name" == "$(basename "$STUDY_CARDS")" ]] && continue
   $P -d "$DB" -1 -f "$f" >/dev/null 2>&1 || fail "migration failed: $name"
 done
 $P -d "$DB" -f sql/20_showcase.sql >/dev/null
@@ -100,6 +101,29 @@ as "$A" "select public.heuresis_learn_begin_round('$round', '$learning', 1, '$pl
 as "$A" "select public.heuresis_learn_record_attempt('$round', 1, 'recognition', 'choose-meaning', true, false, 'a', 'a')" >/dev/null
 as "$A" "select public.heuresis_learn_record_attempt('$round', 1, 'recognition', 'choose-meaning', true, false, 'a', 'a')" >/dev/null
 [ "$($P -d "$DB" -c "select count(*) || ':' || sum(points) from heuresis_learn_attempts where round_id = '$round'")" = "1:10" ] || fail "the same answer scored twice"
+# Reproduce the fivefold inflation on the old function, then apply the new
+# migration and prove the same five attempts contribute one practised card.
+for item in "2 reconstruction" "3 completion" "4 context" "5 recall"; do
+  read -r pos stage <<< "$item"
+  as "$A" "select public.heuresis_learn_record_attempt('$round', $pos, '$stage', 'fixture', true, false, 'a', 'a')" >/dev/null
+done
+[ "$($P -d "$DB" -c "select count(*) from heuresis_learn_attempts where round_id = '$round'")" = "5" ] || fail "the five exercise attempts were not stored"
+pack="$($P -d "$DB" -c "select pack_id from heuresis_learn_rounds where id = '$round'")"
+activity_counts() {
+  $P -d "$DB" -c "select new_cards || ':' || exercises || ':' || reviews from public.heuresis_study_activity(array['$pack']::uuid[], (now() at time zone 'UTC')::date, (now() at time zone 'UTC')::date, 'UTC')"
+}
+before_activity="$(activity_counts)"
+IFS=: read -r before_new before_learn before_review <<< "$before_activity"
+[ "$before_learn" = "5" ] || fail "the original activity query did not count five exercises"
+$P -d "$DB" -1 -f "$STUDY_CARDS" >/dev/null || fail "applying card-based Study activity migration failed"
+after_activity="$(activity_counts)"
+IFS=: read -r after_new after_learn after_review <<< "$after_activity"
+[ "$after_learn" = "1" ] || fail "five Learn exercises must count as one practised card"
+[ "$before_new" = "$after_new" ] && [ "$before_review" = "$after_review" ] || fail "New or Review activity changed"
+[ "$($P -d "$DB" -c "select count(*) from heuresis_learn_attempts where round_id = '$round'")" = "5" ] || fail "the migration changed exercise history"
+$P -d "$DB" -1 -f "$STUDY_CARDS" >/dev/null || fail "reapplying the card-count migration failed"
+[ "$(activity_counts)" = "$after_activity" ] || fail "reapplying the migration changed activity"
+pass "five Learn exercises count as one card; New, Review and exercise history are unchanged"
 if as "$A" "insert into heuresis_learn_attempts(round_id, position, user_id, card_id, pack_id, stage, exercise_type, correct, points) select '$round', 2, '$A', card_id, pack_id, 'reconstruction', 'x', true, 10 from heuresis_learn_rounds where id = '$round'" >/dev/null 2>&1; then fail "points can be inserted directly"; fi
 if as "$A" "update heuresis_learn_rounds set score = 50, ready = true, status = 'completed' where id = '$round'" 2>/dev/null | grep -q .; then :; fi
 [ "$($P -d "$DB" -c "select score || ':' || status from heuresis_learn_rounds where id = '$round'")" = "10:active" ] || fail "a round's score can be edited directly"

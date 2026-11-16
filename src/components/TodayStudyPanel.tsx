@@ -207,7 +207,8 @@ export default function TodayStudyPanel({
   const fullValues = chartValues ? days.map((_, i) => chartValues.new[i] + chartValues.learn[i] + chartValues.review[i]) : [];
   const shownValues = allStages ? fullValues : activeValues;
   const chartTotal = sum(shownValues);
-  const chartUnit = allStages ? "cards" : mode === "new" ? "new cards" : mode === "learn" ? "exercises" : "reviews";
+  // A card contributes once per stage per local day, not once across all stages.
+  const chartUnit = allStages ? "card activities" : mode === "new" ? "new cards" : mode === "learn" ? "cards practised" : "cards reviewed";
   const chartMaximum = Math.max(1, ...shownValues);
   const showChart = activityStatus === "ready" && chartTotal > 0;
   const trendRecent = sum(shownValues.slice(7));
@@ -345,7 +346,7 @@ export default function TodayStudyPanel({
     <div className="sh-statistics">
       <div className="sh-stats-head">
         <span className={"sh-scope-chip" + (allStages ? "" : " tone-" + mode)}>{!allStages ? <i className="sh-dot" /> : null}{allStages ? "All stages" : MODES[mode]}</span>
-        <span className="sh-stats-summary">{view === "activity"
+        <span className="sh-stats-summary" title={view === "activity" ? "Each card counts once per stage each day. A card can appear in more than one stage." : undefined}>{view === "activity"
           ? showChart ? <><strong>{countText(chartTotal)}</strong> {chartUnit} · <strong>{(chartTotal / 14).toFixed(1)}</strong> a day</>
             : activityStatus === "loading" ? "Loading activity…" : "—"
           : view === "today" ? "Today so far" : "How well it is sticking"}</span>
@@ -366,14 +367,14 @@ export default function TodayStudyPanel({
       </div>
 
       {view === "activity" ? showChart ? <>
-        <div className={"sh-chart" + (allStages ? " all" : " tone-" + mode)} role="img" aria-label="Study activity for the last 14 days">
+        <div className={"sh-chart" + (allStages ? " all" : " tone-" + mode)} role="img" aria-label="Study activity for the last 14 days. Each card is counted once per stage per day.">
           {days.map((day, index) => {
             const n = shownValues[index];
             const height = n ? Math.max(6, n / chartMaximum * 100) : 0;
             return <div className={"sh-chart-column" + (index === 7 ? " divider" : "") + (index === 13 && offset === 0 ? " today" : "")}
               key={index} title={weekName(day) + " " + day.getDate() + ": " +
-                (chartValues?.new[index] ?? 0) + " new · " + (chartValues?.learn[index] ?? 0) +
-                " learn · " + (chartValues?.review[index] ?? 0) + " review"}>
+                (chartValues?.new[index] ?? 0) + " new cards · " + (chartValues?.learn[index] ?? 0) +
+                " cards practised · " + (chartValues?.review[index] ?? 0) + " cards reviewed"}>
               <span className="sh-chart-count">{n ? countText(n) : ""}</span>
               {n ? <span className={"sh-chart-bar" + (!allStages ? " single" : "")} style={{ height: height + "%" }}>
                 {allStages && chartValues ? <>
