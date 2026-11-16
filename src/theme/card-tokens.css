@@ -1,0 +1,57 @@
+/* Sort / Review formatting colour tokens. Imported after palettes.css. */
+:root[data-theme="dark"] {
+  --imp-core: var(--c-amber);
+  --imp-useful: #6fd3bf;
+  --imp-peripheral: var(--c-violet);
+  --act-later: var(--ws-muted);
+  --act-discard: var(--c-cinnabar);
+  --hl-mk1: #f1c56c;
+  --hl-mk2: #86d49a;
+  --hl-mk3: #86b2ff;
+  --hl-mk4: #f29ac1;
+  --hl-mk5: #ab9ef2;
+  --gram-m: #86b2ff;
+  --gram-f: #f2907f;
+  --gram-n: #86d49a;
+  --gram-stress: var(--c-amber);
+  --gram-sep: #f1c56c;
+  --tone-1: #f2907f;
+  --tone-2: #f1c56c;
+  --tone-3: #86d49a;
+  --tone-4: #86b2ff;
+}
+:root[data-theme="light"] {
+  --imp-core: var(--c-amber);
+  --imp-useful: #16907a;
+  --imp-peripheral: var(--c-violet);
+  --act-later: var(--ws-muted);
+  --act-discard: var(--c-cinnabar);
+  --hl-mk1: #e0a817;
+  --hl-mk2: #3fa760;
+  --hl-mk3: #3f78e0;
+  --hl-mk4: #d9578f;
+  --hl-mk5: #7d62d8;
+  --gram-m: #2f66cf;
+  --gram-f: #cc4b46;
+  --gram-n: #2f8f50;
+  --gram-stress: var(--c-amber);
+  --gram-sep: #b88a12;
+  --tone-1: #cc4b46;
+  --tone-2: #b88a12;
+  --tone-3: #2f8f50;
+  --tone-4: #2f66cf;
+}
+.hl-tones .py.t1 { color: var(--tone-1); }
+.hl-tones .py.t2 { color: var(--tone-2); }
+.hl-tones .py.t3 { color: var(--tone-3); }
+.hl-tones .py.t4 { color: var(--tone-4); }
+.hl-gender .g-m { color: var(--gram-m); }
+.hl-gender .g-f { color: var(--gram-f); }
+.hl-gender .g-n { color: var(--gram-n); }
+.hl-stress .stress { color: var(--gram-stress); }
+.hl-sep .sp.sep { color: var(--gram-sep); border-bottom: 2px dotted color-mix(in srgb, var(--gram-sep) 55%, transparent); }
+mark.hlx { color: inherit; background: none; padding: 0; cursor: pointer; }
+mark.s-mark { background: linear-gradient(transparent 58%, color-mix(in srgb, var(--hc) 42%, transparent) 58%, color-mix(in srgb, var(--hc) 42%, transparent) 92%, transparent 92%); padding: 0 .03em; }
+mark.s-color { color: var(--hc); }
+mark.s-bold { font-weight: 700; }
+.ch .py { user-select: none; -webkit-user-select: none; }
