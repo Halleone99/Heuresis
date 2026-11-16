@@ -702,6 +702,12 @@ const scenarios = {
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${shots}/42-phone-summary-${card}.png` });
+      let extra = 0;
+      while (await page.locator('.lrn-actions button:has-text("Start another round")').count()) {
+        if (++extra > 3) throw new Error("The card did not reach 100 cumulative points");
+        await page.locator('.lrn-actions button:has-text("Start another round")').tap();
+        await playRound(page, term);
+      }
       if (card < 3) await page.locator('.lrn-actions button:has-text("Continue learning another card")').tap();
     }
     const kinds = seen.join(" | ");
@@ -710,14 +716,14 @@ const scenarios = {
     check(/говорить: [^|]*cloze-choice/.test(kinds), "Russian: the inflected form in a sentence is recognised (говорю)");
     check(/的时候: [^|]*(missing-character|choose-reading)/.test(kinds) && /的时候: [^|]*cloze-choice/.test(kinds), "Chinese: characters and the word in its sentence");
     check(/sich freuen auf: [^|]*choose-preposition/.test(kinds), "German: the verb's preposition is asked for");
-    // All three met the criteria (one of them with 40/50), so nothing is left to learn.
+    // All three now pass the 100-point multi-round criterion.
     check(await page.locator('.lrn-actions button:has-text("Continue learning another card")').count() === 0, "after the last card no further card is offered");
     await page.locator('.lrn-actions button:has-text("Move to Review")').tap();
     await page.locator('.lrn-facts dd:has-text("Moved to Review")').waitFor();
     await page.locator('.lrn-actions button:has-text("Return to Learn")').tap();
     await page.locator(".lrn").waitFor({ state: "detached" });
     await page.waitForTimeout(1200);
-    check(await sql("select count(*) from heuresis_learn_rounds where status = 'completed'") === "3", "three rounds completed and stored");
+    check(await sql("select count(*) from heuresis_learn_rounds where status = 'completed'") === "7", "all seven cumulative rounds completed and stored");
     check(await page.evaluate(() => document.documentElement.style.overflow) === "", "leaving Learn lets the page behind scroll again");
     // Start now offers the two cards that are ready and were not moved yet.
     await page.locator(".sh-start").tap();
@@ -776,6 +782,8 @@ const scenarios = {
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${shots}/45-tablet-${label.split(" ")[0]}-summary.png` });
+      await tap('.lrn-actions button:has-text("Start another round")', "Start advanced round");
+      await playRound(page, term);
       await tap('.lrn-actions button:has-text("Move to Review")', "Move to Review");
       await page.locator('.lrn-facts dd:has-text("Moved to Review")').waitFor();
       if (label.startsWith("landscape")) await tap('.lrn-actions button:has-text("Continue learning another card")', "Continue learning another card");
@@ -816,6 +824,10 @@ const scenarios = {
       }
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(300);
+      // Complete a second, harder round before graduation.
+      await page.locator('.lrn-actions button:has-text("Start another round")').focus();
+      await page.keyboard.press("Enter");
+      await playRound(page, term, [], { keyboard: true });
       // Leave both ready without moving them, to reach the end-of-session screen.
       if (card === 1) { await page.locator('.lrn-actions button:has-text("Continue learning another card")').focus(); await page.keyboard.press("Enter"); }
     }
@@ -911,7 +923,7 @@ async function playRoundOffline(page, context, term) {
   for (const position of [3, 4, 5]) { await waitExercise(page, position); await answer(page, round.plan[position - 1], true); await proceed(page); }
   await page.locator(".lrn-summary").waitFor();
   check(await sql(`select count(*) from heuresis_learn_attempts where round_id = '${round.id}'`) === "1", "while offline only the first answer is on the server");
-  check(/40\s*\/ 50/.test((await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ")), "the round still completes on the device (40/50)");
+  check(/40\s*\/ 100/.test((await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ")), "the offline round keeps 40 cumulative points");
   await page.screenshot({ path: `${shots}/55-offline-summary.png` });
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
