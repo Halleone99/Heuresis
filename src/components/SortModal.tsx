@@ -23,6 +23,7 @@ import "./sort-refined.css";
 import "./sort-session.css";
 import "./sort-handoff.css";
 import "./sort-details-wings.css";
+import "./sort-colour-editor.css";
 
 type Props = {
   pack: PackWithType;
