@@ -94,8 +94,11 @@ async function tabletNavigation() {
     await page.locator(".mobile-workspace-nav:visible").waitFor({ timeout: 15000 });
     check(await page.locator(".mobile-workspace-nav button").count() === 7, "Seven main sections include Reading and a pinned Captures destination");
     await page.locator('.mobile-workspace-nav button:has-text("Overview")').tap();
-    await page.locator('.oh-progress-track[role="progressbar"]').waitFor({ timeout: 15000 });
-    check(await page.locator('.oh-progress-track[role="progressbar"]').count() === 1, "Review coverage is accessible directly on tablet Overview");
+    await page.locator('.ov-cards .ov-card').first().waitFor({ timeout: 15000 });
+    check(await page.locator('.ov-cards .ov-card').count() === 4,
+      "All four overview sections remain accessible on tablet");
+    check(await page.getByRole('tablist', { name: 'Activity type' }).count() === 1,
+      "Activity selection remains accessible on tablet");
     check(await page.locator('.mobile-workspace-nav button:has-text("Reading")').count() === 1 && await page.locator('.mobile-workspace-nav button:has-text("Catalogue")').count() === 1, "Reading and Catalogue remain accessible from touch navigation");
     check(!(await page.locator(".desktop-nav-group").isVisible()), "Old Study bottom bar is not stacked over it");
     const touchSize = await page.locator(".mobile-workspace-nav button").first().boundingBox();

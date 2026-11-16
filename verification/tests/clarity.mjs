@@ -376,9 +376,11 @@ const scenarios = {
     check(await page.locator(".nb-doc").count() === 0, "Clicking Notebook leaves the last note and shows the subject library");
     // Overview now reports Study activity; saved notes remain accessible from Notebook topics.
     await page.locator('.hw-sections button:has-text("Overview")').click();
-    await page.locator(".oh-overview .oh-progress-track[role='progressbar']").waitFor();
-    check(await page.locator(".oh-overview .oh-progress-track[role='progressbar']").count() === 1,
-      "Overview displays Study review coverage");
+    await page.locator('.ov-cards .ov-card').first().waitFor();
+    check(await page.locator('.ov-cards .ov-card').count() === 4,
+      "Overview displays four knowledge sections");
+    check(await page.getByRole('tablist', { name: 'Activity type' }).count() === 1,
+      "Overview exposes an accessible activity selector");
     await page.locator('.hw-sections button:has-text("Notebook")').click();
     await page.locator('.nb-home-subject:has-text("Philosophy") .nb-subject-open').click();
     await page.locator('.nb-topic-card:has-text("Ethics")').click();
