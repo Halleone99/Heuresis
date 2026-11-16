@@ -540,12 +540,14 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     </div> : null}
     {!filtersOpen && card ? <div className="sort-session-stage">
       <div id="sort-language-details" className={"sort-editing-tools sort-editing-tools--left" + (leftOpen ? " is-open" : "")}>
+        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => setLeftOpen(false)}>×</button>
         <SortEnrichmentPanel key={card.id + "-language"} pack={pack} card={card} side="language" onChanged={onChanged}
           request={detailsRequest && ["examples","neighbours","components","structure","origin"].includes(detailsRequest.dim) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setLeftBlocked} onCountChange={setLeftCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <div id="sort-knowledge-details" className={"sort-editing-tools sort-editing-tools--right" + (rightOpen ? " is-open" : "")}>
+        <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => setRightOpen(false)}>×</button>
         <SortEnrichmentPanel key={card.id + "-knowledge"} pack={pack} card={card} side="knowledge" onChanged={onChanged}
           request={detailsRequest && !["examples","neighbours","components","structure","origin"].includes(detailsRequest.dim) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
