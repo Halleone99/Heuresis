@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
+const library = read("src/components/LibraryView.tsx");
+const modal = read("src/components/CollectionsModal.tsx");
+const app = read("src/App.tsx");
+const model = read("src/lib/heuresis.ts");
+const advanced = read("src/lib/advanced.ts");
+const mode = read("src/lib/studyKnowledgeMode.ts");
+const styles = read("src/study-knowledge-mode.css");
+const migration = read("supabase/migrations/20261116170000_heuresis_collection_study_modes.sql");
+
+assert.match(mode, /type KnowledgeMode = "languages" \| "applied"/);
+assert.match(mode, /studySelectionKey\(mode: KnowledgeMode\)/);
+assert.match(library, /collections\.filter\(\(collection\) => collection\.study_mode === knowledgeMode\)/);
+assert.match(library, /packs\.filter\(\(pack\) => visible\.has\(pack\.collection_id\)\)/);
+assert.match(library, /TodayStudyPanel collections=\{modeCollections\} packs=\{modePacks\}/);
+assert.match(library, /ReviewCentre collections=\{modeCollections\} packs=\{modePacks\}/);
+assert.match(library, /otherCollections = modeCollections\.filter/);
+assert.match(library, /modePacks\.filter\(\(pack\) => pack\.collection_id === selectedCollection\.id\)/);
+assert.match(library, /aria-label="Choose knowledge mode"/);
+assert.match(library, /onNewCollection\(knowledgeMode\)/);
+assert.match(modal, /<option value="applied">Applied<\/option>/);
+assert.match(modal, /createCollection\(\{ title, description, glyph, accent, study_mode: studyMode \}\)/);
+assert.match(modal, /updateCollection\(editing\.id, \{ title, description, glyph, accent, study_mode: studyMode \}\)/);
+assert.match(app, /startMode=\{collectionsStartMode\}/);
+assert.match(model, /\.select\("id,title,description,accent,glyph,sort_order,study_mode"\)/);
+assert.match(advanced, /study_mode: input\.study_mode \?\? "languages"/);
+assert.match(styles, /\.study-knowledge-select/);
+assert.match(migration, /default 'languages'/);
+assert.match(migration, /'applied'/);
+console.log("Study knowledge-mode scoping and creation invariants: OK");
