@@ -1,5 +1,6 @@
 import { ArrowLeftRight, Check, CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Plus, SkipForward, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import {
   fieldByRole,
   fieldText,
@@ -51,7 +52,7 @@ import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
 import { isSuccess, RESULT_HINT, RESULT_LABEL, RESULT_ORDER } from "../lib/reviewResults";
 import { signHeuresisCardImages } from "../lib/cardMedia";
-import { prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
+import { isAndroidRuntime, prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
 import { reviewSpeechLanguage, reviewSpokenPrompt, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
@@ -63,6 +64,8 @@ import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, typ
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
 import "./cosmos.css";
 import "./review-card.css";
+// Android APK only (MagicPad). Loaded after review-card.css so it wins ties; see the file header.
+import "./review-card-android.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -245,6 +248,18 @@ function isConceptualPack(pack: PackWithType) {
   return /philosoph|history|psycholog|concept|theor|politic|econom/i.test(`${pack.title} ${pack.cardType?.name ?? ""}`);
 }
 
+/** Display only: a short list of meanings ("before; previously") is not a sentence, even though
+ * isWordSized() treats the semicolon as one for answer checking. */
+function isGloss(value: string) {
+  const text = value.trim();
+  if (!text || text.length > 48 || /[.!?。！？]$/u.test(text) || /\p{Script=Han}/u.test(text)) return false;
+  const parts = text.split(/\s*[;；,，/]\s*/u).filter(Boolean);
+  return parts.length > 1 && parts.length <= 4 && parts.every((part) => part.split(/\s+/u).length <= 4);
+}
+
+/** The Android tablet has room for four 田字格 squares; desktop keeps three. */
+const PAD_CELLS = isAndroidRuntime() ? 4 : 3;
+
 /** An empty selection is not a failure: the window explains it calmly. */
 class EmptySelection extends Error {}
 
@@ -290,6 +305,14 @@ export default function CosmosWindow() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [leftContextOpen, setLeftContextOpen] = useState(false);
   const [detailsPinned, setDetailsPinned] = useState(() => { try { return localStorage.getItem(DETAILS_PIN_KEY) === "1"; } catch { return false; } });
+  // Android tablet below 1400 px: one side panel at a time, so the card keeps a readable width.
+  const lastPanel = useRef<"left" | "right" | null>(null);
+  useEffect(() => { if (leftContextOpen) lastPanel.current = "left"; }, [leftContextOpen]);
+  useEffect(() => { if (detailsOpen) lastPanel.current = "right"; }, [detailsOpen]);
+  useEffect(() => {
+    if (!leftContextOpen || !detailsOpen || !isAndroidRuntime() || window.innerWidth >= 1400) return;
+    if (lastPanel.current === "left") setDetailsOpen(false); else setLeftContextOpen(false);
+  }, [leftContextOpen, detailsOpen]);
   const [whyOpen, setWhyOpen] = useState(false);
   const [addingDim, setAddingDim] = useState<DimensionId | null>(null);
   const [addingText, setAddingText] = useState("");
@@ -1251,7 +1274,7 @@ export default function CosmosWindow() {
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
       const termToPlay = redesignReview && revealed && recapField && key === term?.key;
-      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? " is-sentence" : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
+      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
         {rule ? <i className="cosmos-rule" /> : null}<span>{value}</span>
         {termToPlay ? <button type="button" className="review-icon review-speak" aria-label="Hear term" title="Hear term" onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
       </div>;
@@ -1279,12 +1302,13 @@ export default function CosmosWindow() {
             onClick={() => setMethod(value)}>{label}{!redesignReview ? ` · ${methodCounts[value]}×` : null}</button>)}
       </div> : null}
       {!revealed && method === "type" ? <textarea autoFocus className="cosmos-inline-typing" value={typed} onChange={(event) => setTyped(event.target.value)}
+        autoCorrect="off" autoCapitalize="none" spellCheck={false} autoComplete="off" enterKeyHint="done"
         placeholder={redesignReview ? "your answer" : "Type your answer here…"} aria-label="Your typed answer" rows={redesignReview ? 1 : 2}
         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); void reveal(); } }} /> : null}
       {!revealed && (method === "say" || method === "hear") ? <button type="button" className="cosmos-said-button" aria-pressed={saidAnswer}
         onClick={() => setSaidAnswer((value) => !value)}>{redesignReview ? <span className="review-said-dot" aria-hidden="true"/> : null}{saidAnswer ? "Said aloud" : redesignReview ? "I said it aloud" : "Said aloud"}</button> : null}
       {method === "handwrite" ? <div className={revealed ? "cosmos-handwrite-compare" : "cosmos-handwrite-entry"}>
-        <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} onHasWritingChange={setHasWriting} />
+        <ReviewAnswerPad key={`${card.id}:${template?.id ?? ""}:${index}`} revealed={revealed} cells={PAD_CELLS} onHasWritingChange={setHasWriting} />
         {revealed ? <div className="cosmos-handwrite-reference"><strong>Answer</strong><div>{backKeys.map((key) => fieldText(card.data,key)).filter(Boolean).join(" · ") || fieldText(card.data,meaning?.key)}</div></div> : null}
       </div> : null}
       {revealed && method === "type" && typed.trim() && difference ? <div className="cosmos-typed-compare">
@@ -1424,7 +1448,7 @@ export default function CosmosWindow() {
                 <span aria-hidden="true">·</span><button type="button" onClick={()=>setConnectionsOpen(true)}>Connections</button>
               </div>
             </>}
-          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={()=>setConnectionsOpen(false)}/> : null}
+          {/* Portalled: the card's backdrop-filter would otherwise trap this fixed overlay inside the card. */}{connectionsOpen ? createPortal(<ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} />, document.body) : null}
         </footer> : mode === "review" ? <footer className="cosmos-review-foot">{revealed ? <>
           {suggestion ? <p className="cosmos-suggestion" role="status">Suggested: <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} You decide.</p> : null}
           {sentenceCard ? <p className="cosmos-suggestion">For sentences, judge meaning and grammar, not just exact wording.</p> : null}
@@ -1464,7 +1488,7 @@ export default function CosmosWindow() {
             <button type="button" className="cosmos-extra-toggle" disabled={busy} onClick={() => void sendBackToLearning()}>Relearn</button>
             <button type="button" className="cosmos-extra-toggle" onClick={() => setConnectionsOpen(true)}>Connections</button>
           </div>}
-          {connectionsOpen ? <ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} /> : null}
+          {connectionsOpen ? createPortal(<ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} />, document.body) : null}
         </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
       </article>
       {mode === "review" ? renderDetails("right") : renderDetails()}

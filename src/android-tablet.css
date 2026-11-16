@@ -20,8 +20,6 @@
   z-index: 90;
 }
 :root[data-platform="android"] .connections-close { min-width: 46px; min-height: 46px; }
-/* Review's pen button floats above everything; hide it while the connections tree is open. */
-:root[data-platform="android"] body:has(.connections-backdrop) .review-scratchpad-tools { display: none; }
 
 /* ---------------------------------------------------------------------------
    Sort: the whole screen, like the Review page
@@ -104,7 +102,6 @@
   gap: 10px;
   padding: 0 max(10px, env(safe-area-inset-right)) 0 max(18px, env(safe-area-inset-left));
 }
-:root[data-platform="android"] .cosmos-progress { flex: none; }
 :root[data-platform="android"] .cosmos-stage {
   flex: 1 1 0;
   min-height: 0;
@@ -154,28 +151,9 @@
   }
 }
 
-:root[data-platform="android"] .cosmos-close { width: 48px; height: 48px; }
-:root[data-platform="android"] .cosmos-panel-toggles button,
-:root[data-platform="android"] .cosmos-why { min-height: 42px; padding-inline: 12px; }
-:root[data-platform="android"] .cosmos-method select { min-height: 42px; }
-:root[data-platform="android"] .cosmos-inline-reveal {
-  min-height: 50px;
-  margin-top: clamp(20px, 4vh, 42px);
-  padding: 0 32px;
-  font-size: 15px;
-}
-:root[data-platform="android"] .cosmos-review-foot { padding: 12px 18px; }
-:root[data-platform="android"] .cosmos-results { gap: 10px; }
-:root[data-platform="android"] .cosmos-review-foot button {
-  min-width: 124px;
-  min-height: 50px;
-  padding: 0 18px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-/* Keyboard digits mean nothing without a keyboard. */
-:root[data-platform="android"] .cosmos-review-foot button small { display: none; }
-:root[data-platform="android"] .cosmos-review-foot > span { font-size: 13px; }
+/* Review's card controls (top bar, methods, Reveal, ratings, Missed) are styled in
+   src/components/review-card-android.css, which loads after review-card.css. Rules here lose
+   ties against the lazily loaded Review CSS. */
 :root[data-platform="android"] .retention-practice { padding-inline: 24px; }
 :root[data-platform="android"] :is(.retention-actions, .retention-panel) button { min-height: 40px; padding: 0 14px; font-size: 13px; }
 :root[data-platform="android"] .retention-type-panel textarea { font-size: 16px; }
@@ -187,3 +165,36 @@
 :root[data-platform="android"] .cosmos-state button,
 :root[data-platform="android"] .cosmos-summary-actions button { min-height: 50px; padding: 0 22px; }
 
+
+/* ---------------------------------------------------------------------------
+   New cards (SortModal session)
+   --------------------------------------------------------------------------- */
+/* A centred card taller than the stage overflowed upwards, under the top bar, where it could not
+   be scrolled to (card header and Details hidden in landscape). */
+:root[data-platform="android"] .sort-modal--session .sort-session-stage {
+  justify-content: safe center;
+  /* A field brought into view (keyboard open) stops above the fixed Undo bar, not under it. */
+  scroll-padding-block: 24px 96px;
+}
+:root[data-platform="android"] .sort-modal--session .sort-top-progress { white-space: nowrap; }
+:root[data-platform="android"] .sort-modal--session .sort-new-details { min-height: 44px; padding: 0 14px; }
+:root[data-platform="android"] .sort-modal--session .sort-new-add-tag,
+:root[data-platform="android"] .sort-modal--session .sort-new-tags > button { min-height: 40px; padding: 0 14px; }
+:root[data-platform="android"] .sort-modal--session .sort-new-note > button { min-height: 44px; padding: 0 14px; }
+:root[data-platform="android"] .sort-modal--session .sort-new-note textarea { font-size: 16px; }
+:root[data-platform="android"] .sort-modal--session .sort-new-decision-heading > button { min-height: 44px; padding: 0 14px; }
+:root[data-platform="android"] .sort-modal--session .sort-new-secondary button { min-height: 44px; padding: 0 14px; }
+:root[data-platform="android"]:not([data-keyboard="1"]) .sort-modal--session .sort-new-ratings kbd { display: none; }
+:root[data-platform="android"] .sort-modal--session .sort-new-ratings button:hover { background: transparent; }
+:root[data-platform="android"] .sort-modal--session .sort-new-ratings button:active { background: color-mix(in srgb, var(--ws-ink) 7%, transparent); }
+
+/* ---------------------------------------------------------------------------
+   Study home: session start
+   --------------------------------------------------------------------------- */
+:root[data-platform="android"] .sh-start { min-height: 44px; padding-inline: 20px; }
+:root[data-platform="android"] .sh-session-options button { min-width: 48px; min-height: 44px; }
+:root[data-platform="android"] .sh-session-confirm { min-height: 50px; }
+
+/* Learn: Android keeps :hover on the last tapped answer. */
+:root[data-platform="android"] .lrn-choice:hover:not(:disabled),
+:root[data-platform="android"] .lrn-tile:hover:not(:disabled) { border-color: var(--ws-line-strong); background: var(--ws-raised, #fff); }
