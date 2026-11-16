@@ -431,7 +431,10 @@ export function MistakeLog() {
   }
   const [draftTopicId, setDraftTopicId] = useState<string>("");
   const selectedNotebookSubject = snapshot.subjects.find((subject) => normalise(subject.name) === subjectKey);
-  const chosenDefaultTopic = draftTopicId || (selectedTopicId && workspace.topicById.has(selectedTopicId) ? selectedTopicId : "") ||
+  const selectedNotebookTopic = snapshot.topics.find((topic) =>
+    normalise(topic.name) === topicKey && (!selectedNotebookSubject || topic.subject_id === selectedNotebookSubject.id));
+  const chosenDefaultTopic = draftTopicId || selectedNotebookTopic?.id ||
+    (selectedTopicId && workspace.topicById.has(selectedTopicId) ? selectedTopicId : "") ||
     mistakes.find((entry) => !selectedNotebookSubject ||
       workspace.topicById.get(entry.topic_id)?.subject_id === selectedNotebookSubject.id)?.topic_id ||
     snapshot.topics.find((topic) => !selectedNotebookSubject || topic.subject_id === selectedNotebookSubject.id)?.id || "";
