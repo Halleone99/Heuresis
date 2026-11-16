@@ -179,6 +179,9 @@ async function answer(page, exercise, right = true, { keyboard = false } = {}) {
       for (const letter of letters) await hit(page.locator(".lrn-tile.is-letter:not([disabled])").filter({ hasText: new RegExp(`^${letter}$`) }).first());
       await hit(page.locator(".lrn-check .lrn-primary"));
     } else await hit(page.locator('.lrn-check button:has-text("I don’t know")'));
+  } else if (exercise.format === "compose") {
+    await page.fill(".lrn-input", right ? `Today I used ${exercise.target} in a longer sentence.` : "An unrelated sentence without the target.");
+    await page.keyboard.press("Control+Enter");
   } else {
     await page.fill(".lrn-input", right ? exercise.accepted[0].value : "zzz");
     await page.keyboard.press("Enter");
@@ -230,7 +233,7 @@ const scenarios = {
     await page.locator(".sh-stage.tone-learn:not([disabled])").waitFor({ timeout: 12000 });
     await startLearn(page);
     await waitExercise(page, 1);
-    check(await points(page) === "0/50 points", "the points indicator starts at 0/50");
+    check(await points(page) === "0/100 points", "the points indicator starts at 0/100");
     check(await page.locator(".lrn-stage").count() === 1 && await page.locator(".lrn-prompt").count() === 1, "exactly one exercise is on screen");
     await page.screenshot({ path: `${shots}/02-exercise-1.png` });
     const round = await activeRound(term);
@@ -240,7 +243,7 @@ const scenarios = {
 
     await answer(page, round.plan[0], true);
     const gained = await points(page);
-    check(/^\+10 · ?10\/50 points$/.test(gained), `a correct first answer shows +10 · 10/50 (“${gained}”)`);
+    check(/^\+10 · ?10\/100 points$/.test(gained), `a correct first answer shows +10 · 10/50 (“${gained}”)`);
     check(await sql(`select count(*) || '|' || coalesce(sum(points),0) from heuresis_learn_attempts where round_id = '${round.id}'`) === "1|10", "the answer is saved at once, with 10 points");
     await page.screenshot({ path: `${shots}/03-correct.png` });
     await proceed(page);
@@ -248,14 +251,14 @@ const scenarios = {
     await waitExercise(page, 2);
     await answer(page, round.plan[1], false);
     check(/Not quite/.test(await page.locator(".lrn-feedback").innerText()), "a wrong answer says so and shows the right one");
-    check(await points(page) === "10/50 points", "a wrong first answer earns 0 points");
+    check(await points(page) === "10/100 points", "a wrong first answer earns 0 points");
     await page.screenshot({ path: `${shots}/04-wrong.png` });
     // Correcting it afterwards is practice: it never returns the points.
     if (await page.locator('.lrn-feedback-actions button:has-text("Try again")').count()) {
       await page.click('.lrn-feedback-actions button:has-text("Try again")');
       await page.locator(".lrn-practice").waitFor();
       await answer(page, round.plan[1], true);
-      check(await points(page) === "10/50 points", "correcting the answer after feedback does not award the missed points");
+      check(await points(page) === "10/100 points", "correcting the answer after feedback does not award the missed points");
       await page.waitForTimeout(400);
       check(await sql(`select correct::text || '|' || points || '|' || (corrected_at is not null) from heuresis_learn_attempts where round_id = '${round.id}' and position = 2`) === "false|0|true",
         "the first answer stays recorded as wrong (0 points); the correction is noted");
