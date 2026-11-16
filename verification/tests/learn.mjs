@@ -271,13 +271,20 @@ const scenarios = {
     }
     await page.locator(".lrn-summary").waitFor();
     await page.waitForTimeout(500);
-    await page.screenshot({ path: `${shots}/05-summary-ready.png` });
-    const summary = await page.locator(".lrn-summary").innerText();
-    check(/Learning round complete/.test(summary) && /40\s*\/ 50/.test(summary.replace(/\n/g, " ")), "the summary shows the score 40/50");
-    check(/Successful exercises\s*4\/5/.test(summary.replace(/\n/g, " ")), "the summary shows 4/5 successful exercises");
-    check(/Ready for Review/.test(summary), "40/50 with the final recall right is Ready for Review");
-    check(await sql(`select status || '|' || score || '|' || correct_count || '|' || ready from heuresis_learn_rounds where id = '${round.id}'`) === "completed|40|4|true",
-      "the round is stored as completed, 40 points, ready");
+    await page.screenshot({ path: `${shots}/05-summary-first-round.png` });
+    let summary = await page.locator(".lrn-summary").innerText();
+    check(/40\s*\/ 100/.test(summary.replace(/\n/g, " ")), "first round has 40 cumulative points");
+    check(/Keep learning/.test(summary) && !/Ready for Review/.test(summary), "40 is not ready");
+    check(await sql(`select status || '|' || score || '|' || correct_count || '|' || ready from heuresis_learn_rounds where id = '${round.id}'`) === "completed|40|4|false",
+      "first round stored without premature readiness");
+    await page.click('.lrn-actions button:has-text("Start another round")');
+    await playRound(page, term);
+    summary = await page.locator(".lrn-summary").innerText();
+    check(/90\s*\/ 100/.test(summary.replace(/\n/g, " ")), "second round reaches 90 points");
+    await page.click('.lrn-actions button:has-text("Start another round")');
+    await playRound(page, term);
+    summary = await page.locator(".lrn-summary").innerText();
+    check(/Ready for Review/.test(summary) && /100\s*\/ 100/.test(summary.replace(/\n/g, " ")), "third round reaches 100 points with final recall");
     check(await sql(`select count(*) || '|' || string_agg(position::text, '' order by position) from heuresis_learn_attempts where round_id = '${round.id}'`) === "5|12345",
       "exactly five answers are stored, one per exercise");
     check((await phaseOf(term)).phase === "learning", "the card stays in Learn until it is moved");
@@ -300,9 +307,9 @@ const scenarios = {
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "1", "Review now has the card due; the interface updated without a reload");
     await chooseStage(page, "learn");
-    check(await stat(page, "Learning") === "0" && await stat(page, "Exercises today") === "5", "Learn shows 0 cards learning and 5 exercises today");
-    check(await sql("select count(*)::text || '|' || count(*) filter (where points > 0)::text from heuresis_learn_attempts") === "5|4",
-      "Learning activity preserves five graded exercises and four first-try successes");
+    check(await stat(page, "Learning") === "0" && await stat(page, "Exercises today") === "15", "Learn shows 0 cards learning and 15 exercises today");
+    check(await sql("select count(*)::text || '|' || count(*) filter (where points > 0)::text from heuresis_learn_attempts") === "15|14",
+      "Learning activity preserves 15 graded exercises and 14 first-try successes");
     await chooseStage(page, "new");
     check(await stat(page, "New cards") === "16" && await stat(page, "Introduced today") === "1", "New shows 16 cards left and 1 introduced today");
     await page.screenshot({ path: `${shots}/07-library-after.png` });
