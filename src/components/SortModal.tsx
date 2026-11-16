@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, Brain, Check, ChevronDown, Clock3, PanelLeftOpen, Quote, RotateCcw, Search, Shuffle, Tag, Trash2, Undo2, Volume2, X } from "lucide-react";
+import { ArrowRight, BookOpen, Brain, Check, ChevronDown, Clock3, Palette, PanelLeftOpen, Quote, RotateCcw, Search, Shuffle, Tag, Trash2, Undo2, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
@@ -11,6 +11,8 @@ import SortEnrichmentPanel, { firstExampleBlock, type DetailsRequest } from "./S
 import { InlineSortText } from "./InlineSortText";
 import SelectableSortText from "./SelectableSortText";
 import FormattingRail from "./FormattingRail";
+import BadgeCreator from "./BadgeCreator";
+import CardColoursEditor from "./CardColoursEditor";
 import { languageFromName, languageFromScript } from "../lib/languages";
 import { reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import { rememberOpenStudy } from "../lib/studySessionMemory";
@@ -138,6 +140,10 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     } : null, pack.id);
   }, [studySession, sessionStarted, queue, index, pack.id]);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [localBadges, setLocalBadges] = useState<HeuresisTag[]>(() => tags.filter(tag => tag.is_badge));
+  const [badgeEditorOpen, setBadgeEditorOpen] = useState(false);
+  const [colourEditorOpen, setColourEditorOpen] = useState(false);
+  useEffect(() => { setLocalBadges(tags.filter(tag => tag.is_badge)); }, [tags]);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [editingCard, setEditingCard] = useState(false);
@@ -208,7 +214,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setEditingCard(false); setNoteOpen(Boolean(card?.note));
     setLeftOpen(false); setRightOpen(false); setLeftCount(0); setRightCount(0);
     setDetailsRequest(null); setExampleActive(false);
-    setConfirmDiscard(false); setAddingLabel(false); setLabelDraft("");
+    setConfirmDiscard(false); setAddingLabel(false); setLabelDraft(""); setBadgeEditorOpen(false);
     setMessage("");
   }, [card?.id]);
 
@@ -240,6 +246,19 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   function toggleBothDetails() {
     const next = !(leftOpen && rightOpen);
     setLeftOpen(next); setRightOpen(next);
+  }
+  async function badgeCreated(badge: HeuresisTag) {
+    setLocalBadges(current => [...current, badge]);
+    if (!card) return;
+    const next = [...new Set([...tagIds, badge.id])];
+    setTagIds(next);
+    await setSortTags(card.id, next);
+    onChanged();
+  }
+  async function badgeDeleted(id: string) {
+    setLocalBadges(current => current.filter(tag => tag.id !== id));
+    setTagIds(current => current.filter(tag => tag !== id));
+    onChanged();
   }
   function chooseImportance(level: Importance) {
     setImportance(level);
@@ -423,7 +442,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       if (key === "i") { event.preventDefault(); setAddingLabel(true); return; }
       if (key === "l" || key === "s") { event.preventDefault(); later(); return; }
       if (key === "t") { event.preventDefault(); setTagsOpen((value) => !value); return; }
-      if (key === "n") { event.preventDefault(); setNoteOpen(true); }
+      if (key === "n") { event.preventDefault(); setNoteOpen(true); return; }
+      const badge = localBadges.find(item => item.shortcut?.toLowerCase() === key);
+      if (badge) { event.preventDefault(); void toggleTag(badge.id); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -458,6 +479,9 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       <div className="sort-topbar-actions">
         {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
         {sessionStarted && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
+        {!filtersOpen && card ? <button type="button" disabled={busy} aria-label="Card colours"
+          title="Card colours" aria-expanded={colourEditorOpen} onClick={() => setColourEditorOpen(value => !value)}><Palette size={18} /></button> : null}
+        {colourEditorOpen ? <div className="sort-colour-editor-popover"><CardColoursEditor /></div> : null}
         <button type="button" disabled={busy} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
@@ -639,12 +663,14 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
                 onClick={() => openDetailsFor({ dim: "examples" })}>+ Example sentence</button>}
           </div> : null}
           <div className="sort-new-tags sort-badge-row">
-            {tags.filter(tag => tag.is_badge).map(tag =>
+            {localBadges.map(tag =>
               <button type="button" key={tag.id} className={tagIds.includes(tag.id) ? "is-badge active" : "is-badge"}
                 aria-pressed={tagIds.includes(tag.id)} disabled={busy} onClick={() => void toggleTag(tag.id)}
-                title={tag.name}>{tag.name}</button>)}
-            <button type="button" className="sort-new-add-tag" aria-expanded={tagsOpen} disabled={busy}
-              onClick={() => setTagsOpen(v => !v)} aria-label="Choose badges and tags">+</button>
+                title={tag.name} style={tag.color ? {borderColor: tag.color} : undefined}>{tag.name}</button>)}
+            <button type="button" className="sort-new-add-tag" aria-expanded={badgeEditorOpen} disabled={busy}
+              onClick={() => setBadgeEditorOpen(value => !value)} aria-label="Create badge" title="Create badge (B)">+</button>
+            {badgeEditorOpen ? <BadgeCreator badges={localBadges} onClose={() => setBadgeEditorOpen(false)}
+              onCreated={badgeCreated} onDeleted={badgeDeleted} /> : null}
             {tagsOpen ? <div className="sort-new-tag-popover">
               {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
               {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}
