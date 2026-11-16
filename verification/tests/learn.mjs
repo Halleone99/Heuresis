@@ -333,7 +333,7 @@ const scenarios = {
     check(first.plan.some((item) => item.kind === "choose-article"), "a German noun is asked for its article (der / die / das)");
     await page.waitForTimeout(400);
     let summary = (await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ");
-    check(/40\s*\/ 50/.test(summary) && /Keep learning/.test(summary) && !/Ready for Review/.test(summary), "40/50 with the final recall wrong is not Ready for Review");
+    check(/40\s*\/ 100/.test(summary) && /Keep learning/.test(summary) && !/Ready for Review/.test(summary), "40/50 with the final recall wrong is not Ready for Review");
     check(/final active-recall exercise/.test(summary), "the summary says what is missing: the final recall");
     check(await page.locator('.lrn-actions button:has-text("Move to Review")').count() === 0, "no Move to Review is offered");
     check(await sql(`select score || '|' || recall_correct || '|' || ready from heuresis_learn_rounds where id = '${first.id}'`) === "40|false|false", "stored: 40 points, recall wrong, not ready");
@@ -360,7 +360,7 @@ const scenarios = {
     await page.locator(".lrn-hint").waitFor();
     await page.screenshot({ path: `${shots}/11-recall-hint.png` });
     await answer(page, second.plan[4], true);
-    check(/with a hint/.test(await page.locator(".lrn-feedback").innerText()) && await points(page) === "40/50 points", "a hinted answer is accepted but earns no points");
+    check(/with a hint/.test(await page.locator(".lrn-feedback").innerText()) && await points(page) === "80/100 points", "a hinted answer is accepted but earns no points");
     await proceed(page);
     await page.locator(".lrn-summary").waitFor();
     await page.waitForTimeout(400);
@@ -368,20 +368,20 @@ const scenarios = {
       "stored: round 2, 40 points, four unaided successes, recall assisted, not ready");
     check(await sql(`select correct::text || '|' || assisted || '|' || points from heuresis_learn_attempts where round_id = '${second.id}' and position = 5`) === "true|true|0", "the hinted answer is stored as correct, assisted, 0 points");
 
-    // Round 3: two wrong at the start → 30/50, recall right → still not ready.
+    // Round 3: the cumulative target is reached but failed recall prevents graduation.
     await page.click('.lrn-actions button:has-text("Start another round")');
-    await playRound(page, term, [1, 2]);
+    await playRound(page, term, [1, 2, 5]);
     await page.waitForTimeout(400);
     summary = (await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ");
-    check(/30\s*\/ 50/.test(summary) && /Reach at least 40 of 50 points/.test(summary), "30/50 is not ready even with the recall right");
+    check(/100\s*\/ 100/.test(summary) && /final active-recall exercise/.test(summary), "100 points without final recall cannot graduate");
 
-    // Round 4: clean → 50/50, ready.
+    // Round 4: unaided recall completes the cumulative 100-point mastery gate.
     await page.click('.lrn-actions button:has-text("Start another round")');
     const fourth = await playRound(page, term, []);
     await page.waitForTimeout(400);
     summary = (await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ");
-    check(/50\s*\/ 50/.test(summary) && /Ready for Review/.test(summary) && /No mistakes/.test(summary), "50/50 is Ready for Review");
-    check(await sql(`select string_agg(round_number || ':' || score, ',' order by round_number) from heuresis_learn_rounds r join heuresis_cards c on c.id = r.card_id where c.data->>'term' = '${term}'`) === "1:40,2:40,3:30,4:50",
+    check(/100\s*\/ 100/.test(summary) && /Ready for Review/.test(summary) && /No mistakes/.test(summary), "cumulative mastery is Ready for Review");
+    check(await sql(`select string_agg(round_number || ':' || score, ',' order by round_number) from heuresis_learn_rounds r join heuresis_cards c on c.id = r.card_id where c.data->>'term' = '${term}'`) === "1:40,2:40,3:20,4:50",
       "each round keeps its own score; the latest (50) does not overwrite the history");
     check(await sql(`select count(*) || '|' || count(distinct (round_id, position)) || '|' || max(points) from heuresis_learn_attempts`) === "20|20|10", "20 answers for 4 rounds, never more than 10 points each");
     check(await sql("select count(*) from heuresis_review_mistakes") === "0" && await gradeCount() === 0, "wrong Learning answers are not reviews and do not enter the Mistake Log");
@@ -403,8 +403,8 @@ const scenarios = {
     check(await stat(page, "Exercises today") === "20", "20 learning exercises today");
     await chooseStage(page, "learn");
     await chooseView(page, "Quality");
-    check((await page.locator('.sh-quality:has-text("Right first time") .sh-quality-head strong').innerText()).trim() === "80%",
-      "Learning quality shows 16 of 20 right first time (80%)");
+    check((await page.locator('.sh-quality:has-text("Right first time") .sh-quality-head strong').innerText()).trim() === "75%",
+      "Learning quality shows 15 of 20 right first time (75%)");
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "0" && await stat(page, "Reviewed today") === "0" && await gradeCount() === 0,
       "none of this counts as a review");
