@@ -116,6 +116,50 @@
 .lrn-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--ws-accent-strong); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .lrn-hint { display: inline-flex; align-items: center; gap: 6px; margin: 0; font: 400 20px/1.2 var(--lrn-serif); letter-spacing: .08em; color: var(--ws-text); }
 
+/* Applied: a case to read, steps to order, and a free answer checked against the card's points. */
+.lrn-prompt.is-case {
+  padding: 16px 18px; border: 1px solid var(--ws-line); border-left: 3px solid var(--ws-accent); border-radius: 6px 14px 14px 6px;
+  background: var(--ws-raised, #fff); font: 400 18px/1.55 Inter, system-ui, sans-serif; letter-spacing: 0; color: var(--ws-ink);
+}
+.lrn-prompt.is-case + .lrn-sub { font-size: 14px; color: var(--ws-muted); }
+.lrn-build.is-stacked .lrn-built { flex-direction: column; align-items: stretch; counter-reset: lrn-step; border-bottom: 0; padding: 0; min-height: 0; gap: 6px; }
+.lrn-build.is-stacked .lrn-built.is-empty { min-height: 48px; padding: 12px 14px; border: 1px dashed var(--ws-line-strong); border-radius: 10px; }
+.lrn-build.is-stacked .lrn-tiles { flex-direction: column; gap: 6px; }
+.lrn-build.is-stacked .lrn-tile { width: 100%; min-height: 46px; text-align: left; font-size: 15px; line-height: 1.35; padding: 10px 14px; }
+.lrn-build.is-stacked .lrn-tile:disabled:not(.is-picked) { display: none; }
+.lrn-build.is-stacked .lrn-built .lrn-tile { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: baseline; }
+.lrn-build.is-stacked .lrn-built .lrn-tile::before { counter-increment: lrn-step; content: counter(lrn-step); color: var(--ws-accent-strong); font-weight: 650; font-variant-numeric: tabular-nums; }
+.lrn-stage[data-result="right"] .lrn-build.is-stacked .lrn-built .lrn-tile { border-color: var(--ws-good); }
+.lrn-stage[data-result="wrong"] .lrn-build.is-stacked .lrn-built .lrn-tile { border-color: var(--ws-bad); }
+.lrn-judge { margin-top: clamp(18px, 3.5vh, 32px); display: flex; flex-direction: column; gap: 16px; }
+.lrn-area { min-height: 116px; max-height: 42vh; field-sizing: content; resize: vertical; font: 400 16px/1.5 Inter, system-ui, sans-serif; }
+/* The answer stays readable once it is locked (the theme mutes disabled fields). */
+:root .lrn .lrn-area:disabled { color: var(--ws-text); }
+.lrn-check-points { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; animation: lrn-enter .16s ease-out; }
+.lrn-check-points legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--ws-muted); }
+.lrn-point {
+  position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 12px 14px; border: 1px solid var(--ws-line-strong); border-radius: 12px; background: var(--ws-raised, #fff); cursor: pointer;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+/* Visually hidden, not by opacity: the theme shows every disabled control at full opacity. */
+.lrn-point input { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip-path: inset(50%); appearance: none; pointer-events: none; }
+.lrn-point:has(input:focus-visible) { outline: 2px solid var(--ws-accent); outline-offset: 2px; }
+.lrn-point-box { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--ws-line-strong); border-radius: 7px; color: var(--ws-muted); }
+.lrn-point-box kbd { font: 600 11px/1 Inter, system-ui, sans-serif; }
+.lrn-point-text { font-size: 15px; line-height: 1.45; color: var(--ws-ink); overflow-wrap: anywhere; }
+.lrn-point-text b { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--ws-muted); }
+.lrn-point:hover { border-color: var(--ws-accent); }
+.lrn-point.is-on { border-color: var(--ws-accent-line); background: var(--ws-accent-soft); }
+.lrn-point.is-on .lrn-point-box { border-color: var(--ws-accent); background: var(--ws-accent); color: var(--lrn-on-accent); }
+.lrn-point:has(input:disabled) { cursor: default; }
+.lrn-point.is-missing { border-color: color-mix(in srgb, var(--ws-bad) 45%, transparent); }
+.lrn-point.is-skipped { opacity: .72; }
+.lrn-point-text b em { font-style: normal; font-weight: 500; letter-spacing: .04em; }
+.lrn-point-warn { display: block; margin-top: 6px; font-size: 12.5px; line-height: 1.35; color: var(--ws-warn); }
+.lrn-check-points legend small { display: block; margin-top: 2px; font-weight: 400; font-size: 12px; }
+.lrn-check.is-judging .lrn-keys { min-height: 0; margin: 0; }
+
 /* Bottom: check, then feedback and continue. */
 .lrn-bottom { border-top: 1px solid var(--ws-line); background: var(--ws-surface); }
 .lrn-bottom > * { width: min(100%, var(--lrn-measure)); margin: 0 auto; padding: 14px 20px; box-sizing: border-box; }
@@ -192,11 +236,13 @@
   .lrn-feedback-actions, .lrn-check { justify-content: space-between; }
   .lrn-feedback-actions .lrn-primary:only-child { width: 100%; }
   .lrn-mistakes li { grid-template-columns: 1fr; gap: 2px; }
+  .lrn-prompt.is-case { font-size: 16px; padding: 14px 15px; }
+  .lrn-point-box kbd { display: none; }
   .lrn-summary .lrn-actions > * { flex: 1 1 100%; }
 }
 @media (hover: none) { .lrn-choice kbd, .lrn-keys span { display: none; } .lrn-choice { grid-template-columns: minmax(0, 1fr) auto; } }
 @media (max-height: 620px) { .lrn-stage { padding-top: 14px; } .lrn-choices, .lrn-build, .lrn-gaps, .lrn-type { margin-top: 16px; } .lrn-choice { min-height: 48px; padding: 8px 14px; } }
 @media (prefers-reduced-motion: reduce) {
-  .lrn-stage, .lrn-feedback, .lrn-points b { animation: none; }
+  .lrn-stage, .lrn-feedback, .lrn-points b, .lrn-check-points { animation: none; }
   .lrn-choice, .lrn-tile, .lrn-progress i, .lrn-primary { transition: none; }
 }
