@@ -51,6 +51,7 @@ jobs:
         working-directory: verification
         run: |
           node tests/learn-exercises.mjs
+          node tests/learn-applied.mjs
           node tests/learn.mjs
           bash tests/learn-migration.sh
       - name: Regression scenarios
