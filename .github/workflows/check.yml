@@ -24,6 +24,7 @@ jobs:
       - run: node scripts/check-pinyin-unicode.mjs
       - run: node scripts/check-study-session-counts.mjs
       - run: node scripts/check-study-desk.mjs
+      - run: node scripts/check-study-chart-subject-tooltip.mjs
       - run: node scripts/check-study-knowledge-modes.mjs
       - run: node scripts/check-progress-tooltips.mjs
       - run: node scripts/check-progress-layout.mjs

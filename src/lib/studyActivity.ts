@@ -1,11 +1,14 @@
 import { supabase } from "./supabase";
 
 /** A real 14-day activity window. Missing/offline RPCs throw rather than returning invented zeros. */
-export type StudyActivity = {
+type DailyStageCounts = { new: number[]; learn: number[]; review: number[] };
+export type StudyActivity = DailyStageCounts & {
   days: Date[];
-  new: number[];
-  learn: number[];
-  review: number[];
+  /** Counts per topic, so chart tooltips can show subject totals without another request. */
+  byPack: Record<string, DailyStageCounts>;
+};
+export type StudyActivityRow = {
+  day: string; pack_id?: string | null; new_cards: number; exercises: number; reviews: number;
 };
 const cache = new Map<string, { time: number; data: StudyActivity }>();
 const CACHE_MS = 60_000;
@@ -15,6 +18,32 @@ function localDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return y + "-" + m + "-" + d;
+}
+
+function emptyCounts(length: number): DailyStageCounts {
+  return { new: Array(length).fill(0), learn: Array(length).fill(0), review: Array(length).fill(0) };
+}
+
+/** Preserve the RPC's per-topic counts alongside the existing day totals. */
+export function aggregateStudyActivity(days: Date[], rows: StudyActivityRow[]): StudyActivity {
+  const indices = new Map(days.map((day, index) => [localDate(day), index]));
+  const totals = emptyCounts(days.length);
+  const byPack: Record<string, DailyStageCounts> = {};
+  for (const row of rows) {
+    const index = indices.get(row.day);
+    if (index === undefined) continue;
+    const counts = {
+      new: Number(row.new_cards) || 0,
+      learn: Number(row.exercises) || 0, // RPC retains the legacy "exercises" column name.
+      review: Number(row.reviews) || 0,
+    };
+    for (const stage of ["new", "learn", "review"] as const) totals[stage][index] += counts[stage];
+    if (typeof row.pack_id === "string" && row.pack_id) {
+      const pack = byPack[row.pack_id] ?? (byPack[row.pack_id] = emptyCounts(days.length));
+      for (const stage of ["new", "learn", "review"] as const) pack[stage][index] += counts[stage];
+    }
+  }
+  return { days, ...totals, byPack };
 }
 
 export async function loadStudyActivity(packIds: string[], offset = 0): Promise<StudyActivity> {
@@ -41,22 +70,7 @@ export async function loadStudyActivity(packIds: string[], offset = 0): Promise<
     p_tz: zone,
   });
   if (error) throw error;
-  const counts = new Map<string, { n: number; l: number; r: number }>();
-  for (const row of (data ?? []) as Array<{ day: string; new_cards: number; exercises: number; reviews: number }>) {
-    if (typeof row.day !== "string") continue;
-    const existing = counts.get(row.day) ?? { n: 0, l: 0, r: 0 };
-    existing.n += Number(row.new_cards) || 0;
-    // RPC keeps the legacy column name "exercises", now distinct Learn cards/day.
-    existing.l += Number(row.exercises) || 0;
-    existing.r += Number(row.reviews) || 0;
-    counts.set(row.day, existing);
-  }
-  const result: StudyActivity = {
-    days,
-    new: days.map((day) => counts.get(localDate(day))?.n ?? 0),
-    learn: days.map((day) => counts.get(localDate(day))?.l ?? 0),
-    review: days.map((day) => counts.get(localDate(day))?.r ?? 0),
-  };
+  const result = aggregateStudyActivity(days, (data ?? []) as StudyActivityRow[]);
   cache.set(key, { time: Date.now(), data: result });
   return result;
 }

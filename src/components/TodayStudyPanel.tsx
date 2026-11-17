@@ -230,6 +230,27 @@ export default function TodayStudyPanel({
   const fullValues = chartValues ? days.map((_, i) => chartValues.new[i] + chartValues.learn[i] + chartValues.review[i]) : [];
   const shownValues = allStages ? fullValues : activeValues;
   const chartTotal = sum(shownValues);
+  // The activity RPC already returns each topic's counts. Aggregate those
+  // under their parent subject for the day currently hovered or focused.
+  const collectionNames = new Map(collections.map((item) => [item.id, item.title]));
+  const chartBreakdowns = days.map((_, index) => {
+    const groups = new Map<string, number>();
+    for (const pack of scopePacks) {
+      const values = activity?.byPack[pack.id];
+      if (!values) continue;
+      const n = allStages
+        ? values.new[index] + values.learn[index] + values.review[index]
+        : values[mode][index];
+      if (!n) continue;
+      const name = collectionNames.get(pack.collection_id) ?? "Unassigned";
+      groups.set(name, (groups.get(name) ?? 0) + n);
+    }
+    const lines = [...groups].map(([name, count]) => ({ name, count }));
+    const unassigned = (shownValues[index] ?? 0) - lines.reduce((total, item) => total + item.count, 0);
+    if (unassigned > 0) lines.push({ name: "Unassigned", count: unassigned });
+    return lines.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  });
+
   // A card contributes once per stage per local day, not once across all stages.
   const chartUnit = allStages ? "card activities" : mode === "new" ? "new cards" : mode === "learn" ? "cards practised" : "cards reviewed";
   const chartMaximum = Math.max(1, ...shownValues);
@@ -397,14 +418,14 @@ export default function TodayStudyPanel({
       </div>
 
       {view === "activity" ? showChart ? <>
-        <div className={"sh-chart" + (allStages ? " all" : " tone-" + mode)} role="img" aria-label="Study activity for the last 14 days. Each card is counted once per stage per day.">
+        <div className={"sh-chart" + (allStages ? " all" : " tone-" + mode)} role="group" aria-label="Study activity for the last 14 days. Each card is counted once per stage per day.">
           {days.map((day, index) => {
             const n = shownValues[index];
             const height = n ? Math.max(6, n / chartMaximum * 100) : 0;
             return <div className={"sh-chart-column" + (index === 7 ? " divider" : "") + (index === 13 && offset === 0 ? " today" : "")}
-              key={index} title={weekName(day) + " " + day.getDate() + ": " +
-                (chartValues?.new[index] ?? 0) + " new cards · " + (chartValues?.learn[index] ?? 0) +
-                " cards practised · " + (chartValues?.review[index] ?? 0) + " cards reviewed"}>
+              key={index} tabIndex={0}
+              aria-label={dayFormat.format(day) + " " + dateFormat.format(day) + ": " + countText(n) + " " + chartUnit +
+                (chartBreakdowns[index].length ? "; " + chartBreakdowns[index].map((item) => item.name + " " + item.count).join(", ") : "")}>
               <span className="sh-chart-count">{n ? countText(n) : ""}</span>
               {n ? <span className={"sh-chart-bar" + (!allStages ? " single" : "")} style={{ height: height + "%" }}>
                 {allStages && chartValues ? <>
@@ -414,6 +435,18 @@ export default function TodayStudyPanel({
                 </> : <i className={mode} />}
               </span> : <span className="sh-zero" />}
               <span className="sh-weekday">{index === 13 && offset === 0 ? "Today" : weekName(day)}</span>
+              <div className="sh-chart-tooltip" role="tooltip">
+                <span className="sh-chart-tip-date">{dayFormat.format(day)} {dateFormat.format(day)}</span>
+                <strong>{countText(n)} {chartUnit}</strong>
+                {chartBreakdowns[index].length ? <div className="sh-chart-tip-subjects">
+                  {chartBreakdowns[index].map((item) => <span key={item.name}>
+                    <span>{item.name}</span><b>{countText(item.count)}</b>
+                  </span>)}
+                </div> : <span className="sh-chart-tip-empty">No activity</span>}
+                {allStages && chartValues ? <span className="sh-chart-tip-stages">
+                  New {chartValues.new[index]} · Learn {chartValues.learn[index]} · Review {chartValues.review[index]}
+                </span> : null}
+              </div>
             </div>;
           })}
         </div>

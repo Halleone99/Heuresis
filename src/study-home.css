@@ -94,6 +94,24 @@
 .sh-zero{height:2px;width:100%;max-width:22px;background:var(--ws-line-strong);border-radius:2px}
 .sh-weekday{min-height:12px;font-size:9.5px;color:var(--ws-muted)}
 .sh-chart-column.today .sh-weekday{font-weight:700;color:var(--ws-ink)}
+
+/* Day hover: keep the existing chart, reveal the subjects behind each count. */
+.sh-chart-column:is(:hover,:focus){z-index:20}
+.sh-chart-column:focus-visible{outline:1px solid var(--ws-accent);outline-offset:3px;border-radius:4px}
+.sh-chart-tooltip{position:absolute;bottom:calc(100% - 28px);left:50%;z-index:30;width:max-content;min-width:154px;max-width:min(228px,calc(100vw - 28px));padding:10px 12px;box-sizing:border-box;border:1px solid var(--ws-line-strong);border-radius:10px;background:var(--ws-surface);box-shadow:var(--ws-shadow-2);color:var(--ws-ink);text-align:left;opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,4px);transition:opacity .12s,transform .12s,visibility .12s}
+.sh-chart-column:is(:hover,:focus) .sh-chart-tooltip{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.sh-chart-column:nth-child(-n+4) .sh-chart-tooltip{left:0;transform:translate(0,4px)}
+.sh-chart-column:nth-last-child(-n+4) .sh-chart-tooltip{left:auto;right:0;transform:translate(0,4px)}
+.sh-chart-column:nth-child(-n+4):is(:hover,:focus) .sh-chart-tooltip,.sh-chart-column:nth-last-child(-n+4):is(:hover,:focus) .sh-chart-tooltip{transform:translate(0,0)}
+.sh-chart-tip-date{display:block;margin-bottom:3px;font-size:10px;color:var(--ws-muted)}
+.sh-chart-tooltip>strong{display:block;font-size:12px;font-weight:700;line-height:1.35;white-space:nowrap}
+.sh-chart-tip-subjects{display:grid;gap:5px;margin-top:7px;padding-top:7px;border-top:1px solid var(--ws-line);max-height:170px;overflow:hidden}
+.sh-chart-tip-subjects>span{display:flex;align-items:baseline;justify-content:space-between;gap:20px;font-size:11px}
+.sh-chart-tip-subjects>span>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-chart-tip-subjects b{font-weight:650;font-variant-numeric:tabular-nums}
+.sh-chart-tip-empty,.sh-chart-tip-stages{display:block;margin-top:6px;font-size:10px;color:var(--ws-muted)}
+.sh-chart-tip-stages{padding-top:6px;border-top:1px solid var(--ws-line);white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.sh-chart-tooltip{transition:none}}
 .sh-chart-foot{display:flex;justify-content:flex-start;gap:16px;flex-wrap:wrap;margin-top:11px;font-size:11px;color:var(--ws-muted)}
 .sh-chart-foot b{color:var(--ws-ink)}
 .sh-chart-foot>span{display:inline-flex;align-items:center;gap:5px}
