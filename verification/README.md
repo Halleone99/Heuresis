@@ -114,6 +114,14 @@ to the Chinese and German ones, and checks the database as well as the screen:
 Run one scenario with `node tests/learn.mjs <part of its name>`; screenshots go to
 `screenshots/learn/`.
 
+`tests/learn-applied.mjs` (also in CI) checks Applied learning on 22 rules from five fields
+(`tests/applied-fixtures.mjs`: Incoterms, EU export control, procedures, IFRS 15, an example
+expense policy, and a rule alone in its topic), four rounds each: rounds follow each card's
+structure and run from recognising to producing; no case is used twice, the case to solve is never
+shown or offered earlier, names are hidden where they would answer the question, neighbours'
+cases are interleaved; a missed skill returns in the next round; free answers are judged on the
+card's own essential points and details; Applied is recognised only by the card type.
+
 `tests/learn-exercises.mjs` (also in CI) checks the exercise generator and answer checking
 without a browser or a database: German, Russian, Chinese and knowledge cards, a topic with
 one card and one with two, three rounds each. Every round has five different exercises in

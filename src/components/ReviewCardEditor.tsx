@@ -2,6 +2,7 @@ import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fieldText, getCard, updateCard, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import RelatedEditor from "./RelatedEditor";
+import { isRuleTextField } from "../lib/teachingShape";
 
 type Props = {
   pack: PackWithType;
@@ -205,7 +206,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
   const renderField = (field: FieldDef) => (
     <label key={field.key} className="cosmos-edit-field">
       <span>{field.label}{field.required ? " *" : ""}</span>
-      {["example", "extra", "example_translation"].includes(field.role ?? "")
+      {["example", "extra", "example_translation"].includes(field.role ?? "") || isRuleTextField(pack.cardType, field)
         ? <textarea rows={2} value={values[field.key] ?? ""} onChange={(event) => setValue(field.key, event.target.value)} />
         : <input type="text" value={values[field.key] ?? ""} onChange={(event) => setValue(field.key, event.target.value)} />}
     </label>

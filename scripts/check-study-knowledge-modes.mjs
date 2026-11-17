@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const library = read("src/components/LibraryView.tsx");
+const menu = read("src/components/KnowledgeModeMenu.tsx");
 const modal = read("src/components/CollectionsModal.tsx");
 const app = read("src/App.tsx");
 const model = read("src/lib/heuresis.ts");
@@ -19,7 +20,10 @@ assert.match(library, /TodayStudyPanel collections=\{modeCollections\} packs=\{m
 assert.match(library, /ReviewCentre collections=\{modeCollections\} packs=\{modePacks\}/);
 assert.match(library, /otherCollections = modeCollections\.filter/);
 assert.match(library, /modePacks\.filter\(\(pack\) => pack\.collection_id === selectedCollection\.id\)/);
-assert.match(library, /aria-label="Choose knowledge mode"/);
+assert.match(library, /<KnowledgeModeMenu mode=\{knowledgeMode\} collections=\{collections\} onChange=\{chooseKnowledgeMode\} \/>/);
+assert.match(menu, /role="listbox" aria-label="Choose knowledge mode"/);
+assert.match(menu, /aria-haspopup="listbox" aria-expanded=\{open\}/);
+assert.match(menu, /createPortal\(/);
 assert.match(library, /onNewCollection\(knowledgeMode\)/);
 assert.match(modal, /<option value="applied">Applied<\/option>/);
 assert.match(modal, /createCollection\(\{ title, description, glyph, accent, study_mode: studyMode \}\)/);
@@ -28,6 +32,7 @@ assert.match(app, /startMode=\{collectionsStartMode\}/);
 assert.match(model, /\.select\("id,title,description,accent,glyph,sort_order,study_mode"\)/);
 assert.match(advanced, /study_mode: input\.study_mode \?\? "languages"/);
 assert.match(styles, /\.study-knowledge-select/);
+assert.match(styles, /\.study-knowledge-menu \{/);
 assert.match(migration, /default 'languages'/);
 assert.match(migration, /'applied'/);
 console.log("Study knowledge-mode scoping and creation invariants: OK");

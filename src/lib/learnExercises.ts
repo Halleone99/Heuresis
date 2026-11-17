@@ -1,7 +1,10 @@
 import { acceptedAnswers, isWordSized, normaliseAnswer, numberedPinyinToMarks, suggestResult, type ExpectedAnswer } from "./answerCheck";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "./heuresis";
 import { languageFromName, languageFromScript, type LanguageKey } from "./languages";
-import { ROUND_SIZE, STAGE_ORDER, type LearnStage } from "./learnRounds";
+import { ROUND_SIZE, STAGE_LABEL, STAGE_ORDER, type LearnStage } from "./learnRounds";
+import { packShape } from "./teachingShape";
+import { appliedSkill, buildAppliedRound, SKILL_LABEL, toRuleCard, type RoundHistory } from "./appliedExercises";
+import { hash, rng, shuffle, tiles, uniqueBy } from "./learnRandom";
 
 /**
  * The five exercises of a Learning round.
@@ -16,14 +19,26 @@ import { ROUND_SIZE, STAGE_ORDER, type LearnStage } from "./learnRounds";
  * is invented and no AI service is called. When a card has too little data for a step,
  * another meaningful exercise takes its place, and the round still has exactly five.
  *
+ * Applied cards (rules, regulations, procedures; see teachingShape.ts) go through the same
+ * five steps with their own exercises: which rule governs a situation, the steps in order,
+ * the missing condition or threshold, what follows in a case, and finally solving a case or
+ * stating the rule from memory. Those last answers are written freely and checked against
+ * the card's own points ("judge" format), never against invented criteria.
+ *
  * Pure and deterministic: the same (card, pool, round number, seed) gives the same round.
  */
 
-export type ExerciseKind =
+export type StandardKind =
   | "choose-meaning" | "choose-term" | "build-term" | "build-sentence" | "fill-gaps"
   | "missing-character" | "choose-reading" | "choose-stress" | "choose-article" | "choose-preposition"
   | "cloze-choice" | "example-meaning" | "match-example" | "build-meaning" | "type-meaning"
   | "recall-type" | "recall-build" | "recall-guided";
+/** Applied (rule) cards; built in appliedExercises.ts. */
+export type AppliedKind =
+  | "rule-for-case" | "rule-boundary" | "rule-for-statement" | "statement-for-rule" | "order-steps" | "build-statement"
+  | "missing-condition" | "missing-exception" | "missing-value" | "case-outcome" | "which-case"
+  | "solve-case" | "recall-steps" | "state-rule" | "complete-statement" | "complete-condition" | "name-rule";
+export type ExerciseKind = StandardKind | AppliedKind;
 
 export type Prompt = {
   /** Small line above the question, e.g. "What does this mean?". */
@@ -34,6 +49,8 @@ export type Prompt = {
   sub?: string;
   /** BCP 47 tag for `text`, so fonts and input methods behave. */
   lang?: string;
+  /** "case": `text` is a situation to read (a passage), not a word to recognise. */
+  style?: "case";
 };
 
 type Base = {
@@ -46,12 +63,18 @@ type Base = {
   solution: string;
   /** One or two sentences worth reading after a wrong answer. */
   explain: string;
+  /** Cases this exercise shows (normalised situations), so later rounds can prefer unseen ones. */
+  uses?: string[];
 };
 
 export type Choice = { id: string; label: string; lang?: string; /** What this option really is, for feedback. */ note?: string };
 export type ChoiceExercise = Base & { format: "choice"; choices: Choice[]; answerId: string; layout: "list" | "grid" };
 export type Tile = { id: string; text: string };
-export type BuildExercise = Base & { format: "build"; tiles: Tile[]; /** Tile texts in the right order. */ answer: string[]; joiner: "" | " "; lang?: string };
+export type BuildExercise = Base & {
+  format: "build"; tiles: Tile[]; /** Tile texts in the right order. */ answer: string[]; joiner: "" | " "; lang?: string;
+  /** Long pieces (the steps of a procedure) shown one per line and numbered as they are placed. */
+  stacked?: boolean;
+};
 export type GapCell = { ch: string; gap: boolean };
 export type GapsExercise = Base & { format: "gaps"; cells: GapCell[]; bank: string[]; lang?: string };
 export type TypeExercise = Base & {
@@ -61,13 +84,27 @@ export type TypeExercise = Base & {
   /** Language key used for spelling variants (German ae/oe/ue/ss). */
   language?: LanguageKey | null;
 };
-export type Exercise = ChoiceExercise | BuildExercise | GapsExercise | TypeExercise;
+/** One thing a free answer must contain: the outcome, the reason, a condition, a step. */
+export type JudgePoint = {
+  id: string; label: string; text: string;
+  /** Essential points must all be there; of the others (details), half are enough. Default: essential. */
+  essential?: boolean;
+};
+/**
+ * A free answer (solve a case, state a rule) that no string comparison could judge. The
+ * learner writes it, then sees the card's own points and ticks the ones the answer
+ * contains. It is right when it contains every essential point and at least half of the
+ * details (judgeResult).
+ */
+export type JudgeExercise = Base & { format: "judge"; points: JudgePoint[]; placeholder: string };
+export type Exercise = ChoiceExercise | BuildExercise | GapsExercise | TypeExercise | JudgeExercise;
 
 export type ExerciseInput =
   | { format: "choice"; choiceId: string }
   | { format: "build"; tileIds: string[] }
   | { format: "gaps"; letters: string[] }
-  | { format: "type"; text: string };
+  | { format: "type"; text: string }
+  | { format: "judge"; text: string; covered: string[] };
 
 export type Verdict = { correct: boolean; response: string; expected: string; message: string };
 
@@ -76,6 +113,10 @@ export type Verdict = { correct: boolean; response: string; expected: string; me
 /* ------------------------------------------------------------------------- */
 
 export type LearnExample = { source: string; reading: string; translation: string };
+/** A situation and what follows in it, under the card's rule. */
+export type LearnCase = { situation: string; outcome: string };
+/** What an Applied card holds beyond its name (term) and what it requires (meaning). */
+export type RuleParts = { conditions: string[]; exceptions: string[]; steps: string[]; cases: LearnCase[]; source: string };
 export type LearnCard = {
   id: string;
   /** The term as written on the card. */
@@ -88,6 +129,8 @@ export type LearnCard = {
   language: LanguageKey | null;
   han: boolean;
   wordSized: boolean;
+  /** Present only on Applied cards; it decides which exercises the card gets. */
+  rule?: RuleParts;
 };
 
 const HAN = /\p{Script=Han}/u;
@@ -121,6 +164,8 @@ function workspaceExamples(card: CardWithStats): LearnExample[] {
 
 /** The language of a topic: its subject first, then its own title, then its card type. */
 export function packLanguage(pack: PackWithType, collectionTitle?: string | null): LanguageKey | null {
+  // An Applied topic is not a language topic, whatever its title ("German export control").
+  if (packShape(pack) === "rule") return null;
   return languageFromName(collectionTitle) ?? languageFromName(pack.title) ?? languageFromName(pack.cardType?.name) ?? null;
 }
 
@@ -139,6 +184,7 @@ export function toLearnCard(card: CardWithStats, pack: PackWithType, language: L
     });
   }
   for (const extra of workspaceExamples(card)) if (!examples.some((item) => item.source === extra.source)) examples.push(extra);
+  if (packShape(pack) === "rule") return toRuleCard(card, pack, { term, meaning, examples });
   const form = writtenForm(term);
   return {
     id: card.id, term, form, reading, meaning, examples,
@@ -149,50 +195,6 @@ export function toLearnCard(card: CardWithStats, pack: PackWithType, language: L
 
 /** A card can be learned when it has something to ask and something to answer. */
 export function learnable(card: LearnCard) { return Boolean(card.term && card.meaning); }
-
-/* ------------------------------------------------------------------------- */
-/* Deterministic randomness                                                    */
-/* ------------------------------------------------------------------------- */
-
-function hash(text: string) {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-
-function rng(seed: string) {
-  let a = hash(seed) || 1;
-  return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function shuffle<T>(items: T[], random: () => number): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-/** A shuffle that never leaves the tiles already in the right order. */
-function scramble<T>(items: T[], random: () => number, same: (a: T, b: T) => boolean): T[] {
-  if (items.length < 2) return [...items];
-  for (let tries = 0; tries < 6; tries += 1) {
-    const mixed = shuffle(items, random);
-    if (mixed.some((item, index) => !same(item, items[index]))) return mixed;
-  }
-  return [...items.slice(1), items[0]];
-}
-
-function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
-  const seen = new Set<string>();
-  return items.filter((item) => { const k = key(item); if (!k || seen.has(k)) return false; seen.add(k); return true; });
-}
 
 /* ------------------------------------------------------------------------- */
 /* Distractors from the same topic                                             */
@@ -246,7 +248,8 @@ function pickRivals(card: LearnCard, pool: LearnCard[], random: () => number, fi
 
 type Context = { card: LearnCard; pool: LearnCard[]; round: number };
 type Draft = Omit<ChoiceExercise, "position" | "stage" | "v"> | Omit<BuildExercise, "position" | "stage" | "v">
-  | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">;
+  | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">
+  | Omit<JudgeExercise, "position" | "stage" | "v">;
 type Builder = (context: Context, random: () => number) => Draft | null;
 
 const tag = (card: LearnCard) => (card.language ? BCP[card.language] : undefined) ?? (card.han ? "zh-Hans" : undefined);
@@ -357,11 +360,6 @@ function termPieces(card: LearnCard, unit?: "words"): { pieces: string[]; joiner
   return { pieces, joiner: "" };
 }
 
-/** Tiles in a shuffled order that is never already the solution. `texts` starts with the right order. */
-function tiles(texts: string[], random: () => number): Tile[] {
-  const made = texts.map((text, index) => ({ id: `t${index}`, text }));
-  return scramble(made, random, (a, b) => a.text === b.text);
-}
 
 function buildFrom(card: LearnCard, pool: LearnCard[], random: () => number, options: { kind: "build-term" | "recall-build"; showReading: boolean; extra: number }): Draft | null {
   const withDistractors = (term: { pieces: string[]; joiner: "" | " " }) => {
@@ -752,7 +750,8 @@ const recallGuided: Builder = ({ card }) => ({
   solution: written(card), explain: "",
 });
 
-const BUILDERS: Record<ExerciseKind, Builder> = {
+/** Exercises of standard cards (words, sentences, term–definition). Applied cards: appliedExercises.ts. */
+const BUILDERS: Record<StandardKind, Builder> = {
   "choose-meaning": chooseMeaning, "choose-term": chooseTerm, "build-term": buildTerm, "build-sentence": buildSentence,
   "fill-gaps": fillGaps, "missing-character": missingCharacter, "choose-reading": chooseReading, "choose-stress": chooseStress,
   "choose-article": chooseArticle, "choose-preposition": choosePreposition, "cloze-choice": clozeChoice,
@@ -761,7 +760,7 @@ const BUILDERS: Record<ExerciseKind, Builder> = {
 };
 
 /** Each step's preferred exercises, best first. A later round takes the next one that fits the card. */
-const STEP_KINDS: Record<LearnStage, ExerciseKind[]> = {
+const STEP_KINDS: Record<LearnStage, StandardKind[]> = {
   recognition: ["choose-meaning", "choose-term"],
   reconstruction: ["build-term", "build-sentence"],
   completion: ["choose-article", "choose-preposition", "missing-character", "choose-stress", "fill-gaps", "choose-reading"],
@@ -770,7 +769,7 @@ const STEP_KINDS: Record<LearnStage, ExerciseKind[]> = {
 };
 
 /** When a step has nothing that fits, any other meaningful exercise not yet used in the round. */
-const SUBSTITUTES: ExerciseKind[] = [
+const SUBSTITUTES: StandardKind[] = [
   "choose-meaning", "choose-term", "fill-gaps", "build-term", "missing-character", "choose-reading",
   "choose-stress", "cloze-choice", "example-meaning", "build-sentence", "build-meaning", "type-meaning", "recall-guided",
 ];
@@ -783,14 +782,16 @@ function longAnswer(card: LearnCard) {
  * Builds the five exercises of one round for one card.
  * `pool` is the other cards of the topic (learning or not); they only supply distractors.
  */
-export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string }): Exercise[] {
+export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string; history?: RoundHistory | null }): Exercise[] {
   const { card } = input;
   if (!learnable(card)) throw new Error("This card needs a term and a meaning before it can be learned.");
+  // Applied cards choose their five from their own library, by what the card contains.
+  if (card.rule) return buildAppliedRound(input);
   const round = Math.max(1, Math.floor(input.round));
-  const used = new Set<ExerciseKind>();
+  const used = new Set<StandardKind>();
   const plan: Exercise[] = [];
 
-  const attempt = (kind: ExerciseKind, position: number, stage: LearnStage): Exercise | null => {
+  const attempt = (kind: StandardKind, position: number, stage: LearnStage): Exercise | null => {
     const draft = BUILDERS[kind]({ card, pool: input.pool, round }, rng(`${input.seed}:${position}:${kind}`));
     return draft ? { ...draft, v: 1, position, stage } as Exercise : null;
   };
@@ -812,7 +813,7 @@ export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: n
     }
     // A card with a term and a meaning can always be asked for from its outline or from memory.
     chosen ??= attempt(stage === "recall" ? "recall-type" : "recall-guided", position, stage)!;
-    used.add(chosen.kind);
+    used.add(chosen.kind as StandardKind);
     plan.push(chosen);
   });
   return plan;
@@ -873,7 +874,40 @@ export function checkExercise(exercise: Exercise, input: ExerciseInput): Verdict
     return { correct, response: filled, expected: exercise.solution, message: correct ? "" : exercise.explain };
   }
   if (exercise.format === "type" && input.format === "type") return checkTyped(exercise, input.text);
+  if (exercise.format === "judge" && input.format === "judge") {
+    // Stored with the attempt; the database keeps at most 1,000 characters.
+    const typed = input.text.trim().slice(0, 900);
+    const result = judgeResult(exercise, input.covered);
+    const correct = Boolean(typed) && result.correct;
+    const labels = uniqueBy(result.missingEssential.map((point) => point.label.replace(/\s+\d+$/, "").toLocaleLowerCase()), (label) => label);
+    const message = correct ? (result.missingDetails ? "Enough of the details; the card lists the rest." : "")
+      : !typed ? exercise.explain
+        : labels.length ? `${result.covered ? "Partly right. " : ""}Not in your answer yet: ${labels.join(", ")}.`
+          : `Partly right: ${result.details.covered} of ${result.details.total} details; at least ${result.details.needed} are needed.`;
+    return { correct, response: typed, expected: exercise.solution.slice(0, 900), message };
+  }
   return { correct: false, response: "", expected: exercise.solution, message: exercise.explain };
+}
+
+/** How a free answer measures up: every essential point, and at least half of the details. */
+export function judgeResult(exercise: JudgeExercise, covered: string[]) {
+  const essential = exercise.points.filter((point) => point.essential !== false);
+  const details = exercise.points.filter((point) => point.essential === false);
+  const missingEssential = essential.filter((point) => !covered.includes(point.id));
+  const coveredDetails = details.filter((point) => covered.includes(point.id)).length;
+  const needed = Math.floor(details.length / 2);
+  return {
+    correct: !missingEssential.length && coveredDetails >= needed,
+    missingEssential, missingDetails: details.length - coveredDetails,
+    covered: exercise.points.some((point) => covered.includes(point.id)),
+    details: { total: details.length, covered: coveredDetails, needed },
+  };
+}
+
+/** What an exercise trains, as the session shows it: the Applied skill, or the Learn stage. */
+export function exerciseLabel(exercise: Pick<Exercise, "kind" | "stage">): string {
+  const skill = appliedSkill(exercise.kind);
+  return skill ? SKILL_LABEL[skill] : STAGE_LABEL[exercise.stage];
 }
 
 /* ------------------------------------------------------------------------- */
@@ -903,6 +937,11 @@ function isExercise(value: unknown, position: number): value is Exercise {
       && item.cells.every((cell) => cell && typeof (cell as GapCell).ch === "string" && typeof (cell as GapCell).gap === "boolean");
   }
   if (item.format === "type") return Array.isArray(item.accepted) && item.accepted.length >= 1;
+  if (item.format === "judge") {
+    return Array.isArray(item.points) && item.points.length >= 1
+      && item.points.every((point) => point && typeof (point as JudgePoint).id === "string" && typeof (point as JudgePoint).label === "string" && typeof (point as JudgePoint).text === "string"
+        && ((point as JudgePoint).essential === undefined || typeof (point as JudgePoint).essential === "boolean"));
+  }
   return false;
 }
 

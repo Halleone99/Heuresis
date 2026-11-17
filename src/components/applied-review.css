@@ -1,0 +1,36 @@
+/* Applied Review is one short question within the existing Review card and SRS. */
+.applied-review-question{width:100%;max-width:680px;margin:auto;display:grid;gap:16px;color:var(--ws-ink,#eaf0f8);padding:12px 4px 24px;text-align:left}
+.applied-review-heading{display:grid;gap:5px}
+.applied-review-heading span{font-size:12px;color:var(--ws-muted,#99a8b9);letter-spacing:.02em;text-transform:capitalize}
+.applied-review-heading strong{font-size:17px;font-weight:600}
+.applied-review-case,.applied-review-prompt{font-size:18px;line-height:1.5;overflow-wrap:anywhere}
+.applied-review-case{border:1px solid var(--ws-line,rgba(150,170,200,.25));border-left:3px solid var(--ws-accent,#88afe1);border-radius:10px;padding:15px;background:var(--ws-raised,rgba(100,125,155,.12))}
+.applied-review-sub{margin:0;color:var(--ws-muted,#99a8b9);font-size:13px}
+.applied-review-choices,.applied-review-tiles,.applied-review-selected{display:grid;gap:8px}
+.applied-review-choices button,.applied-review-tiles button,.applied-review-selected button{width:100%;text-align:left;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));border-radius:10px;padding:12px 14px;background:var(--ws-raised,rgba(100,125,155,.16));color:inherit;font:inherit;cursor:pointer;line-height:1.35}
+.applied-review-choices button:focus-visible,.applied-review-tiles button:focus-visible,.applied-review-selected button:focus-visible{outline:2px solid var(--ws-accent,#88afe1);outline-offset:2px}
+.applied-review-choices button.selected{border-color:var(--ws-accent,#88afe1);background:var(--ws-accent-soft,rgba(100,155,225,.19))}
+.applied-review-choices button.correct{border-color:#6da88d}
+.applied-review-choices button.incorrect{border-color:#cd8b8b}
+.applied-review-choices button:disabled,.applied-review-selected button:disabled{cursor:default;opacity:1}
+.applied-review-order>p{margin:0 0 8px;color:var(--ws-muted,#99a8b9);font-size:13px}
+.applied-review-selected{margin-bottom:10px}
+.applied-review-selected button{display:flex;gap:10px;align-items:baseline}
+.applied-review-selected b{color:var(--ws-accent,#88afe1);min-width:1.2em}
+.applied-review-free textarea{width:100%;min-height:110px;resize:vertical;box-sizing:border-box;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));border-radius:10px;background:var(--ws-raised,rgba(100,125,155,.16));color:inherit;padding:12px;font:inherit;line-height:1.5}
+.applied-review-selfcheck{margin:14px 0 0;padding:0;border:0;display:grid;gap:9px}
+.applied-review-selfcheck legend{font-size:13px;color:var(--ws-muted,#99a8b9);padding:0 0 8px}
+.applied-review-selfcheck label{display:grid;grid-template-columns:22px 1fr;gap:10px;border:1px solid var(--ws-line,rgba(150,170,200,.25));border-radius:10px;padding:11px;cursor:pointer}
+.applied-review-selfcheck input{accent-color:var(--ws-accent,#88afe1);width:17px;height:17px;margin:2px 0}
+.applied-review-selfcheck span{display:grid;gap:4px;line-height:1.4;font-size:14px}
+.applied-review-selfcheck b{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ws-muted,#99a8b9)}
+.applied-review-selfcheck small{font-size:12px;color:#dcb879}
+.applied-review-answer{border-top:1px solid var(--ws-line,rgba(150,170,200,.25));padding-top:14px;display:grid;gap:6px}
+.applied-review-answer p{margin:0;white-space:pre-wrap;line-height:1.5}
+.applied-review-answer small{color:var(--ws-muted,#99a8b9);line-height:1.4}
+.applied-review-footer{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+.applied-review-footer button{min-height:44px;padding:8px 18px;border-radius:99px;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));background:transparent;color:inherit;font:inherit;cursor:pointer}
+.applied-review-footer button.primary{background:var(--ws-accent,#88afe1);color:var(--ws-on-accent,#172335);border-color:transparent;font-weight:600}
+.applied-review-footer button:disabled{opacity:.42;cursor:default}
+.applied-review-footer-note{font-size:12px;color:var(--ws-muted,#99a8b9);text-align:center;margin:0}
+@media(max-width:640px){.applied-review-question{padding:10px 0 20px}.applied-review-case,.applied-review-prompt{font-size:16px}.applied-review-footer button{flex:1}}
