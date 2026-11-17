@@ -18,7 +18,9 @@ import { attentionScore, directionTemplates, formatSeen, isKeepMissing, isNotSee
 import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
 import { inReview } from "../lib/learningStage";
 import { isLearnCard, readOpenLearn, rememberOpenLearn } from "../lib/learnSession";
-import { packLanguage } from "../lib/learnExercises";
+import { packLanguage, toLearnCard } from "../lib/learnExercises";
+import { isRuleTextField, packShape } from "../lib/teachingShape";
+import { appliedCoverage } from "../lib/appliedExercises";
 import LearningSession from "./LearningSession";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import { openCosmosWindow } from "../lib/cosmosWindow";
@@ -152,8 +154,12 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
         <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><GitFork size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
         <div className="editor-fields">
           {(pack.cardType?.field_schema ?? []).map((field) => (
-            <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
+            <label className="field-row" key={field.key}><span>{field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" || isRuleTextField(pack.cardType, field) ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
           ))}
+          {packShape(pack) === "rule" ? (() => {
+            const hint = appliedCoverage(toLearnCard({ ...card, data: { ...card.data, ...values } }, pack, null), pack.card_count - 1).hint;
+            return hint ? <p className="card-applied-hint">{hint}</p> : null;
+          })() : null}
           <label className="field-row"><span>Note</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>
           <div className="editor-meta-row"><button className={`toggle-pill ${favourite ? "selected" : ""}`} onClick={() => setFavourite((value) => !value)}><Star size={14} fill={favourite ? "currentColor" : "none"} /> Favourite</button><button type="button" className={`toggle-pill ${reviewImportant ? "selected" : ""}`} onClick={() => setReviewImportant((value) => !value)} aria-pressed={reviewImportant}>Important (review)</button><label className="interest-control">Importance <select value={interest ?? ""} onChange={(event) => setInterest(event.target.value ? Number(event.target.value) : null)}><option value="">—</option>{IMPORTANCE_ORDER.map((level) => <option key={level} value={IMPORTANCE_RANK[level]}>{IMPORTANCE_LABEL[level]}</option>)}{interest != null && !IMPORTANCE_ORDER.some((level) => IMPORTANCE_RANK[level] === interest) ? <option value={interest}>{IMPORTANCE_LABEL[importanceOf(interest) ?? "useful"]} (kept as {interest} / 5)</option> : null}</select></label>
             <button type="button" className="toggle-pill" disabled={saving} onClick={() => { setSaving(true); void onRetention(card.retention === "reference" ? "learning" : "reference").catch((error) => setMessage(error instanceof Error ? error.message : "Could not change this card.")).finally(() => setSaving(false)); }}
