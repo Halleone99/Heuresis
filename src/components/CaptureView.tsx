@@ -10,6 +10,9 @@ import {
   type PackWithType,
 } from "../lib/heuresis";
 import { addRelatedWord, type RelationType } from "../lib/related";
+import { toLearnCard } from "../lib/learnExercises";
+import { appliedCoverage } from "../lib/appliedExercises";
+import { packShape } from "../lib/teachingShape";
 
 type Props = {
   collections: Collection[];
@@ -241,6 +244,17 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
 
   const fields = pack?.cardType?.field_schema ?? [];
   const groups = useMemo(() => coreFieldGroups(fields), [fields]);
+  // Applied: a case (and what follows in it) is the most useful optional addition, so it is always
+  // in view; conditions, exceptions, steps and source stay under More fields.
+  const applied = packShape(pack) === "rule";
+  const caseFields = useMemo(() => (applied ? groups.extras.filter((field) => field.role === "case" || field.role === "outcome") : []), [applied, groups]);
+  const moreFields = useMemo(() => groups.extras.filter((field) => !caseFields.includes(field)), [groups, caseFields]);
+  const coverage = useMemo(() => {
+    if (!applied || !pack) return null;
+    const view = toLearnCard({ id: "draft", pack_id: pack.id, retention: "learning", data: draft.values, note: null, favourite: false, interesting: false, interest_rank: null,
+      created_at: "", updated_at: "", tags: [], stats: { encounter_count: 0, study_count: 0, known_count: 0, again_count: 0, hard_count: 0, good_count: 0, easy_count: 0, first_encountered_at: null, last_encountered_at: null, by_template: {} } }, pack, null);
+    return appliedCoverage(view, pack.card_count);
+  }, [applied, pack, draft.values]);
   const coreFields = useMemo(() => [...groups.prompt, ...groups.answer], [groups]);
   const valid = draftIsValid(pack, draft);
   const liveBlank = isBlank(draft);
@@ -526,9 +540,16 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
                 />;
               })}
 
-              {expanded && groups.extras.length ? <div className="capture-extra-fields">
+              {caseFields.length ? <div className="capture-extra-fields capture-case-fields">
+                <div className="capture-side-label"><span>A CASE</span><em>optional · the most useful addition</em></div>
+                {caseFields.map((field) => <FieldSlot key={field.key} field={field} value={draft.values[field.key] ?? ""} onChange={(value) => setField(field.key, value)} />)}
+              </div> : null}
+
+              {coverage?.hint ? <p className="capture-applied-hint">{coverage.hint}</p> : null}
+
+              {expanded && moreFields.length ? <div className="capture-extra-fields">
                 <div className="capture-side-label"><span>MORE FIELDS</span><em>optional</em></div>
-                {groups.extras.map((field) => <FieldSlot key={field.key} field={field} value={draft.values[field.key] ?? ""} onChange={(value) => setField(field.key, value)} />)}
+                {moreFields.map((field) => <FieldSlot key={field.key} field={field} value={draft.values[field.key] ?? ""} onChange={(value) => setField(field.key, value)} />)}
               </div> : null}
 
               {draft.blocks.map((block) => <EnrichmentBlock
