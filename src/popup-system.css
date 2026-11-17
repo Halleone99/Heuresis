@@ -375,3 +375,9 @@
   font-size: 10px;
 }
 .capture-close-confirm > button.capture-commit { border-color: var(--ws-primary); background: var(--ws-primary); color: var(--ws-on-primary); }
+
+/* Applied cards: what Learn can do with the card, and the one addition that would help most. */
+.capture-applied-hint, .card-applied-hint {
+  margin: 4px 0 10px; padding: 8px 11px; border-left: 2px solid var(--ws-accent-line); border-radius: 0 8px 8px 0;
+  background: var(--ws-accent-soft); color: var(--ws-text); font-size: 12.5px; line-height: 1.45;
+}
