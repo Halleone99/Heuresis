@@ -109,7 +109,10 @@
 .sort-modal--session .sort-new-secondary{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:15px;color:var(--ws-muted);}
 .sort-modal--session .sort-new-secondary button{border:0;background:transparent;padding:6px;color:var(--ws-muted);cursor:pointer;font:12px var(--ws-sans,Inter,sans-serif);}
 .sort-modal--session .sort-new-undo{position:fixed;bottom:15px;left:50%;transform:translateX(-50%);z-index:15;display:flex;align-items:center;gap:15px;max-width:min(95vw,500px);padding:10px 15px;border:1px solid var(--ws-line-strong);border-radius:999px;background:var(--ws-surface);box-shadow:var(--ws-shadow-2);color:var(--ws-text);font:12px var(--ws-sans,Inter,sans-serif);}
-.sort-modal--session .sort-new-undo>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sort-modal--session .sort-new-undo>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;}
+/* The Undo toast must never trap taps on New-card fields when a virtual keyboard shortens the viewport. */
+.sort-modal--session .sort-new-undo{pointer-events:none;}
+.sort-modal--session .sort-new-undo button{pointer-events:auto;}
 .sort-modal--session .sort-new-undo button{display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--new-blue);cursor:pointer;}
 .sort-modal--session .sort-finished{width:min(780px,calc(100vw - 48px));padding:70px 38px;border:1px solid var(--ws-line-strong);border-radius:20px;background:var(--ws-raised);box-shadow:0 30px 70px -40px rgba(0,0,0,.7);}
 .sort-modal--session .sort-finished>.eyebrow{font:700 11px var(--ws-sans,Inter,sans-serif);letter-spacing:.16em;color:var(--new-blue);}
