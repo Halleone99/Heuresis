@@ -37,10 +37,22 @@ async function showAllIfAvailable(page) {
 }
 async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
-  await page.waitForTimeout(800);
-  await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  // Pin the full desktop sidebar to avoid the icon-rail hover peek covering content.
+  if (await page.locator(".heuresis-desktop").getAttribute("data-sidebar") === "rail") {
+    await page.keyboard.press("Control+Backslash");
+    await page.locator('.heuresis-desktop[data-sidebar="full"]').waitFor();
+  }
+  await page.locator(".study-desk").waitFor({ state: "visible", timeout: 15000 });
+  const topic = page.locator(".study-desk-topic").filter({ hasText: "HSK 2 — Time" });
+  if (!(await topic.waitFor({state:"visible",timeout:5000}).then(()=>true).catch(()=>false))) {
+    const all = page.locator(".study-desk-all");
+    if (await all.count() && await all.isVisible()) await all.click();
+    await page.locator(".study-desk-mini").filter({hasText:"Chinese"}).click();
+    await topic.waitFor({state:"visible",timeout:15000});
+  }
+  await page.locator(".study-desk-title").click();
+  await page.locator('.topic-card-main:has-text("HSK 2 — Time")').first().click();
   // Wait for the asynchronous topic data: the browse actions do not exist until cards load.
-  // Checking Show all before that point leaves the table collapsed and times out on rows.
   await page.locator(".topic-browse-hub").waitFor();
   await showAllIfAvailable(page);
   await page.locator(".modern-topic-row").first().waitFor();
