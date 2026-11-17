@@ -8,6 +8,7 @@ import { useAppearance, type PalettePreference } from "../lib/theme";
 import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import SortingSettings from "./SortingSettings";
+import CardColoursEditor from "./CardColoursEditor";
 import StructureSettings from "./StructureSettings";
 import { BUILD_COMMIT, buildPlatform } from "../lib/buildInfo";
 
@@ -243,7 +244,9 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
       </div>
       {background.syncError ? <div className="settings-note error" role="alert">{background.syncError}</div> : null}
       {notice ? <div className="settings-note" role="status">{notice}</div> : null}
-    </div></section>;
+    </div>
+    <CardColoursEditor />
+  </section>;
 }
 
 function StudySettings() {

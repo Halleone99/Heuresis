@@ -50,7 +50,7 @@ async function sortByTouch(page, name) {
   await page.screenshot({ path: `${shots}/${name}-sort.png` });
   check(await reachableNow(page, ".sort-topbar-actions button:last-child"), "New close is reachable");
   check(await reachableNow(page, ".sort-top-progress > span"), "New progress is visible");
-  check(await reachableNow(page, ".sort-inline-text.term"), "the editable card term is on screen");
+  check(await reachableNow(page, ".sort-selectable.term"), "the selectable card term is on screen");
   const bottomNavCovers = await page.evaluate(() => {
     const modal = document.querySelector(".sort-modal");
     if (!modal) return true;
@@ -63,25 +63,28 @@ async function sortByTouch(page, name) {
   });
   check(!bottomNavCovers, "no app navigation or Capture handle floats above New");
 
-  const current = async () => (await page.locator(".sort-inline-text.term").inputValue()).trim();
-  tapped(await fingerTap(page, ".sort-new-decision-heading button", { label: "To Review preference" }),
-    "Review is selected once for this session");
-  check(/Goes to Review/.test(await page.locator(".sort-new-decision-heading button").getAttribute("aria-label") ?? ""),
-    "the destination changes to Review without classifying");
+  const current = async () => (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
   const first = await current();
-  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(1)", { label: "Core" }),
-    "Core is classified with one tap");
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(1)", { label: "Core importance" }),
+    "Core is selected without advancing");
+  check(await current() === first, "selecting importance keeps the current card in place");
+  tapped(await fingerTap(page, '.sort-destination-actions button:has-text("Review")', { label: "To Review" }),
+    "Review classifies the Core card and advances");
   await page.waitForTimeout(700);
   const second = await current();
-  check(second !== first, "choosing Core advances to the next card");
-  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(3)", { label: "Passive" }),
-    "Passive is classified with one tap");
+  check(second !== first, "choosing Review advances to the next card");
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(3)", { label: "Passive importance" }),
+    "Passive importance is selectable");
+  tapped(await fingerTap(page, '.sort-destination-actions button:has-text("Learn")', { label: "To Learn" }),
+    "Learn classifies the Passive card and advances");
   await page.waitForTimeout(700);
   tapped(await fingerTap(page, ".sort-new-undo button", { label: "Undo" }), "Undo restores the last sorted card");
   await page.waitForTimeout(700);
   check(await current() === second, "Undo brings the second card back");
   tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(3)", { label: "Passive again" }),
-    "Passive is classified again after Undo");
+    "Passive is selected again after Undo");
+  tapped(await fingerTap(page, '.sort-destination-actions button:has-text("Learn")', { label: "To Learn again" }),
+    "the restored card enters Learn");
   await page.waitForTimeout(700);
   const third = await current();
   const full = page.viewportSize();
@@ -91,15 +94,17 @@ async function sortByTouch(page, name) {
   await page.locator(".sort-new-note textarea").fill("seen in lesson 4");
   tapped(await fingerTap(page, ".sort-new-note textarea", { label: "Quick note (keyboard open)" }), "the note is reachable with the keyboard open");
   await page.screenshot({ path: `${shots}/${name}-sort-keyboard.png` });
-  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(2)", { label: "Active (keyboard open)" }),
-    "Active remains reachable and classifies with one tap");
+  tapped(await fingerTap(page, ".sort-new-ratings button:nth-child(2)", { label: "Active importance (keyboard open)" }),
+    "Active importance remains reachable with the keyboard open");
+  tapped(await fingerTap(page, '.sort-destination-actions button:has-text("Learn")', { label: "Learn (keyboard open)" }),
+    "Learn saves the Active card with the keyboard open");
   await page.setViewportSize(full);
   await page.locator(".sort-finished").waitFor({ timeout: 8000 });
   check(/3 new cards met/.test(await page.locator(".sort-finished").innerText()), "the pass ends with its redesigned summary");
-  const expected = [[first, `${first}:5:learning:true:`], [second, `${second}:1:learning:true:`], [third, `${third}:3:learning:true:seen in lesson 4`]]
+  const expected = [[first, `${first}:5:review:true:`], [second, `${second}:1:learning:true:`], [third, `${third}:3:learning:true:seen in lesson 4`]]
     .sort((a, b) => a[0] < b[0] ? -1 : 1).map((entry) => entry[1]).join(",");
-  check(await sql(`select string_agg(data->>'term' || ':' || interest_rank || ':' || retention || ':' || ((data->>'_sorted_at') is not null) || ':' || coalesce(note,''), ',' order by data->>'term') from heuresis_cards where data->>'term' in ('${first}','${second}','${third}')`) === expected,
-    "all three one-tap decisions and the quick note persist");
+  const actual = await sql(`select string_agg(data->>'term' || ':' || interest_rank || ':' || ((data->>'_acquisition_v1')::jsonb->>'phase') || ':' || ((data->>'_sorted_at') is not null) || ':' || coalesce(note,''), ',' order by data->>'term') from heuresis_cards where data->>'term' in ('${first}','${second}','${third}')`);
+  check(actual === expected, `importance, acquisition phase and quick note persist (actual: ${actual})`);
   await page.screenshot({ path: `${shots}/${name}-sort-finished.png` });
   check(await reachableNow(page, '.sort-finished-actions button:has-text("Review now")'), "Review now is reachable");
 }
