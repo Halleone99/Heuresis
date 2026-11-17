@@ -26,6 +26,12 @@ async function addUnsortedCards() {
     ('${USER}','${HSK}','{"term":"最近","reading":"zuìjìn","meaning":"recently"}')`);
 }
 async function selectStudyDeskTopic(page) {
+  // Exercise the full-sidebar desktop layout, so the rail's intended hover peek
+  // does not cover a target when Playwright moves its pointer across the rail.
+  if (await page.locator(".heuresis-desktop").getAttribute("data-sidebar") === "rail") {
+    await page.keyboard.press("Control+Backslash");
+    await page.locator('.heuresis-desktop[data-sidebar="full"]').waitFor();
+  }
   // The Study desk and its collections load asynchronously after authentication.
   await page.locator(".study-desk").waitFor({ state: "visible", timeout: 15000 });
   const row = page.locator(".study-desk-topic").filter({ hasText: "HSK 2 — Time" });
