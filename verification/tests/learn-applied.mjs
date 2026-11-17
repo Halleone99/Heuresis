@@ -197,5 +197,26 @@ const bare = toLearnCard(card("bare", { rule: "Four-eyes principle", statement: 
 check(/Add a case/.test(appliedCoverage(bare, 0).hint), `a bare card is told what would help most (“${appliedCoverage(bare, 0).hint}”)`);
 check(appliedCoverage(fca, 5).hint === "" && appliedCoverage(fca, 5).skills.includes("solve"), "a card with two cases and neighbours needs nothing more");
 
+
+console.log("— direct Applied Questions ask for answers, not their own prompts");
+const questionCards = [
+  card("qa-1", { rule: "When does risk transfer under FOB?", statement: "When goods are loaded on board the vessel.", _applied_kind: "question" }),
+  card("qa-2", { rule: "What is an EORI?", statement: "An EU customs identification number for economic operators.", _applied_kind: "question" }),
+  card("qa-3", { rule: "Which document accompanies road transport?", statement: "A CMR consignment note.", _applied_kind: "question" }),
+  card("qa-4", { rule: "How does a Sea Waybill ease release?", statement: "No original negotiable B/L needs to be surrendered by the named consignee.", _applied_kind: "question" }),
+];
+const qa = questionCards.map((item) => toLearnCard(item, pack("Q&A"), null));
+check(qa.every((item) => item.appliedQuestion && !item.rule), "Question cards retain their Q&A identity; no procedural rule is fabricated");
+for (const item of qa) {
+  const plan = buildRound({ card: item, pool: qa, round: 1, seed: "qa-test" });
+  check(plan.length === 5 && plan.every((exercise) => exercise.prompt.text === item.term) && plan[4].format === "judge",
+    `direct Q&A for ${item.id}: five correctly directed exercises ending in written answer`);
+  check(readPlan(JSON.parse(JSON.stringify(plan))) !== null && plan.every((exercise) => checkExercise(exercise, right(exercise)).correct),
+    `direct Q&A for ${item.id}: persisted exercises accept the answer`);
+  check(JSON.stringify(plan) === JSON.stringify(buildRound({ card: item, pool: qa, round: 1, seed: "qa-test" })),
+    `direct Q&A for ${item.id}: deterministic round`);
+}
+check(toLearnCard(card("old", { rule: "Plain principle", statement: "Its explanation." }), pack("x"), null).rule !== undefined,
+  "Existing Applied cards without a kind remain Knowledge");
 console.log(failed ? `${failed} Applied check(s) failed.` : "All Applied exercise checks passed.");
 process.exit(failed ? 1 : 0);
