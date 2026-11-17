@@ -28,7 +28,7 @@ type Props = {
 };
 
 type Entry = { card: CardWithStats; topic: LearnTopic; view: LearnCard; status: LearnStatus };
-type Current = { entry: Entry; round: LearnRound; plan: Exercise[] };
+type Current = { entry: Entry; round: LearnRound; plan: Exercise[]; basePoints: number };
 type Screen = "loading" | "setup" | "failed" | "empty" | "exercise" | "summary" | "finished";
 /** How the answer on screen is being given: scored, or as unscored practice. */
 type Mode = "scored" | "again" | "practice";
@@ -94,6 +94,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   const overview = useRef<LearnOverview | null>(null);
   const lastRound = useRef(new Map<string, number>());
+  const lastTotal = useRef(new Map<string, number>());
   const outbox = useRef<Array<{ roundId: string; cardId: string; attempt: LearnAttempt }>>([]);
   const flushing = useRef(false);
   const dirty = useRef(false);
@@ -101,6 +102,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const opening = useRef(false);
   const shell = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const exampleInput = useRef<HTMLTextAreaElement>(null);
   const primary = useRef<HTMLButtonElement>(null);
   const changed = useRef(onChanged); changed.current = onChanged;
 
@@ -110,7 +112,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     return current.plan[Math.min(step, ROUND_SIZE - 1)] ?? null;
   }, [current, practice, step]);
   const attempts = current?.round.attempts ?? [];
-  const result = useMemo(() => roundResult(attempts), [attempts]);
+  const result = useMemo(() => roundResult(attempts, current?.basePoints ?? 0), [attempts, current?.basePoints]);
+  const totalPoints = (current?.basePoints ?? 0) + result.score;
   const mode: Mode = practice ? "practice" : again ? "again" : "scored";
   const queue = useMemo(() => learnQueue(entries), [entries]);
   const ready = useMemo(() => entries.filter((entry) => entry.status === "ready" && !moved.includes(entry.card.id)), [entries, moved]);
@@ -155,6 +158,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       const acquisition = readAcquisition(card.data);
       const known = stateForCycle(overview.current?.cards.get(card.id), acquisition.cycle);
       const previous = Math.max(lastRound.current.get(card.id) ?? 0, known?.last?.roundNumber ?? 0);
+      const basePoints = Math.max(lastTotal.current.get(card.id) ?? 0, known?.totalPoints ?? 0);
       const pool = topic.cards.map((item) => toLearnCard(item, topic.pack, topic.language)).filter(learnable);
       const opened = await openLearnRound({
         cardId: card.id, cycle: acquisition.cycle,
@@ -164,7 +168,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       const plan = readPlan(opened.round.plan) ?? buildRound({ card: view, pool, round: opened.round.roundNumber, seed: opened.round.id });
       for (const attempt of opened.unsent) outbox.current.push({ roundId: opened.round.id, cardId: card.id, attempt });
       if (opened.unsent.length) void flush();
-      const next: Current = { entry, round: opened.round, plan };
+      const next: Current = { entry, round: opened.round, plan, basePoints };
       setCurrent(next);
       setStartedIds((ids) => (ids.includes(card.id) ? ids : [...ids, card.id]));
       const answered = opened.round.attempts.length;
@@ -209,7 +213,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   /* -------------------------------------------------------------- the round */
 
   function completeRound(done: Current) {
-    const outcome = roundResult(done.round.attempts);
+    const outcome = roundResult(done.round.attempts, done.basePoints);
+    lastTotal.current.set(done.entry.card.id, done.basePoints + outcome.score);
     lastRound.current.set(done.entry.card.id, done.round.roundNumber);
     setEntries((all) => all.map((entry) => entry.card.id === done.entry.card.id ? { ...entry, status: outcome.ready ? "ready" : "retry" } : entry));
     setFinishedCards((count) => count + 1);
@@ -307,13 +312,14 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const canCheck = Boolean(exercise) && !shown && (
     exercise!.format === "build" ? tileIds.length > 0
       : exercise!.format === "gaps" ? gapFill.length === gapCount && gapFill.every(Boolean)
-        : exercise!.format === "type" ? Boolean(text.trim()) : false);
+        : exercise!.format === "type" || exercise!.format === "compose" ? Boolean(text.trim()) : false);
 
   function check(skip = false) {
     if (!exercise || shown) return;
     if (exercise.format === "build") submit({ format: "build", tileIds: skip ? [] : tileIds });
     else if (exercise.format === "gaps") submit({ format: "gaps", letters: skip ? [] : gapFill.map((cell) => cell?.ch ?? "") });
     else if (exercise.format === "type") submit({ format: "type", text: skip ? "" : text });
+    else if (exercise.format === "compose") submit({ format: "compose", text: skip ? "" : text });
   }
 
   function choose(id: string) {
@@ -352,11 +358,15 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (IME(event)) return;
     if (event.key === "Escape") { event.preventDefault(); leave(); return; }
     if (screen !== "exercise" || !exercise) return;
-    const typing = event.target instanceof HTMLInputElement;
+    const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
     if (shown) {
       // Enter moves on; Space too, except on a focused button, where it already activates it.
       if (event.key === "Enter" || (event.key === " " && !(event.target instanceof HTMLButtonElement))) { event.preventDefault(); proceed(); }
       return;
+    }
+    if (exercise.format === "compose" && event.key === "Enter") {
+      if (event.ctrlKey || event.metaKey) { if (canCheck) { event.preventDefault(); check(); } }
+      return; // Plain Enter inserts a new line in the example editor.
     }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (exercise.format === "choice") {
@@ -383,7 +393,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   // A button that is still disabled (while an answer is being saved) cannot take focus, so this
   // runs again when saving or moving ends; until then the screen itself holds the keyboard.
   useEffect(() => {
-    const target = screen === "exercise" && !shown && exercise?.format === "type" ? input.current
+    const target = screen === "exercise" && !shown && (exercise?.format === "type" || exercise?.format === "compose") ? (exercise.format === "compose" ? exampleInput.current : input.current)
       : (screen === "exercise" && shown) || screen === "summary" || screen === "finished" ? primary.current : null;
     if (target && !target.disabled) target.focus({ preventScroll: true });
     else if (!shell.current?.contains(document.activeElement)) shell.current?.focus({ preventScroll: true });
@@ -470,6 +480,12 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         </div>
       </div>;
     }
+    if (item.format === "compose") return <div className="lrn-type lrn-compose">
+      <textarea ref={exampleInput} className="lrn-input" value={text} lang={item.lang} disabled={locked}
+        rows={3} placeholder="Write your own example…" aria-label="Your example sentence"
+        autoCapitalize="sentences" spellCheck={true} onChange={(event) => setText(event.target.value)} />
+      <p className="lrn-example-note">Checks vocabulary and sentence length, not grammar · Ctrl+Enter to check</p>
+    </div>;
     return <div className="lrn-type">
       <input ref={input} className="lrn-input" type="text" value={text} lang={item.lang} disabled={locked}
         placeholder={item.placeholder} aria-label="Your answer" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
@@ -486,7 +502,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       ? state.mode !== "scored" ? "Correct" : state.assisted ? "Correct, with a hint" : "Correct"
       : "Not quite";
     const note = verdict.correct
-      ? state.mode !== "scored" ? "Practice does not change your score." : state.assisted ? "A hinted answer earns no points." : ""
+      ? state.mode !== "scored" ? "Practice does not change your score." : state.assisted ? "A hinted answer earns no points." : verdict.message
       : verdict.message;
     const canRetry = !verdict.correct && item.format !== "choice";
     return <div className={`lrn-feedback ${verdict.correct ? "is-right" : "is-wrong"}`} role="status" aria-live="polite">
@@ -511,15 +527,15 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     const mistakes = done.round.attempts.filter((attempt) => !attempt.correct || attempt.assisted);
     const wasMoved = moved.includes(done.entry.card.id);
     const needs: string[] = [];
-    if (result.score < READY_SCORE) needs.push(`Reach at least ${READY_SCORE} of ${ROUND_MAX} points.`);
+    if (totalPoints < READY_SCORE) needs.push(`Reach ${READY_SCORE} cumulative points (${Math.max(0, READY_SCORE - totalPoints)} remaining).`);
     if (!result.recallCorrect) needs.push("Answer the final active-recall exercise correctly, without a hint.");
     const waiting = saving === "saving" || outbox.current.length > 0;
     return <div className="lrn-summary">
       <p className="lrn-ask">Learning round complete</p>
-      <h2 className="lrn-score-line"><b>{result.score}</b><span>/ {ROUND_MAX}</span></h2>
+      <h2 className="lrn-score-line"><b>{Math.min(totalPoints, READY_SCORE)}</b><span>/ {READY_SCORE} points</span></h2>
       <p className="lrn-card-line" lang={done.entry.view.han ? "zh-Hans" : undefined}><strong>{done.entry.view.form}</strong> {done.entry.view.meaning}</p>
       <dl className="lrn-facts">
-        <div><dt>Successful exercises</dt><dd>{result.correctCount}/{ROUND_SIZE}</dd></div>
+        <div><dt>This round</dt><dd>{result.score}/{ROUND_MAX} · {result.correctCount}/{ROUND_SIZE} correct</dd></div>
         <div><dt>Learning status</dt><dd className={result.ready ? "is-ready" : "is-open"}>
           {wasMoved ? <><CheckCircle2 size={16} aria-hidden="true" /> Moved to Review</>
             : result.ready ? <><CheckCircle2 size={16} aria-hidden="true" /> Ready for Review</> : "Keep learning"}</dd></div>
@@ -581,7 +597,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         {inRound ? <span>Card {Math.min(startedCount, cardTotal)} of {cardTotal}</span> : null}</div>
       {inRound ? <div className={`lrn-status${gain ? " has-gain" : ""}`} aria-live="polite">
         {screen === "exercise" ? <span className="lrn-step">{stepLabel}{exercise && !practice ? <i> · {STAGE_LABEL[exercise.stage]}</i> : null}</span> : null}
-        <span className="lrn-points">{gain && shown ? <b key={attempts.length}>+{gain} · </b> : null}{result.score}/{ROUND_MAX} <small>points</small></span>
+        <span className="lrn-points">{gain && shown ? <b key={attempts.length}>+{gain} · </b> : null}{Math.min(totalPoints, READY_SCORE)}/{READY_SCORE} <small>points</small></span>
       </div> : null}
       {inRound ? segments() : null}
     </header>

@@ -18,43 +18,46 @@ Moving a card between stages only changes its phase. No card is copied, no revie
 grade is written and no statistic or schedule is touched. A card sent straight from New
 to Review arrives as an unreviewed card.
 
-## A round
+## One card, progressive rounds
 
-Each round has exactly five exercises, one per screen, from recognising to producing:
+Each round contains exactly **five exercises for the same card**, one on screen at a time.
+Each first-attempt unaided success earns **10 points**, and the points accumulate across
+completed rounds in the **same Learning cycle**. A card needs **100 cumulative points**
+**and a successful unaided final recall** in its most recent completed round to enter
+Review. Failed or hinted exercises earn no points, and correcting them for practice
+never changes their original score. A round still scores at most 50 points.
 
-1. **Recognition** — choose the meaning (or the word) among other cards of the topic
-2. **Reconstruction** — build the word, expression or sentence from shuffled pieces
-3. **Completion** — the missing part: article (German nouns), preposition (German verbs),
-   missing character (Chinese), stress (Russian, when the card marks it), missing letters
-4. **Context** — the word in its example sentence, the sentence's meaning, the concept a
-   description belongs to, or the definition put back in order
-5. **Active recall** — type the answer from memory (a long sentence is built without help)
+The first round begins with recognition and progressively introduces construction,
+completion, context and active recall. Subsequent rounds become harder: distractors
+are drawn from plausible similar words in the same topic, and free typing, typed cloze,
+translation or a short written example can replace earlier recognition exercises.
+The other words are distractors only: each round still teaches and scores one card.
 
-`src/lib/learnExercises.ts` builds the round from the card's own fields, its example
-sentences (card field and Workspace example blocks) and the other cards of the topic as
-distractors. Nothing is invented and no AI service is called. When a step has nothing
-that fits the card, another exercise takes its place; a round always has five. A later
-round rotates to other exercise types and other examples.
+**Original examples:** On a word-sized language card, a later round may ask the user
+to produce a meaningful short sentence. The offline validator checks that the target
+expression (or a recognisable inflected form) occurs with enough surrounding context.
+It **does not check grammar or semantic naturalness**, and the UI says so. The learner
+response is persisted in the Learning attempt; it is not automatically copied into
+the permanent Examples field. Some inflections may need manual correction or another
+attempt. Where the card has a good example with translation, the advanced tasks can
+also ask for that sentence without revealing the answer.
 
-Answer checking reuses `src/lib/answerCheck.ts` (the Review rules): alternatives split on
-`;` `/`, numbered pinyin read as tone marks, Russian stress and ё/е not counted as
-spelling. Learn additionally accepts ae/oe/ue/ss for German and ignores capitals,
-punctuation and spacing.
+Only exercises supported by a card’s own content or existing topic vocabulary are
+generated; when an exercise is not feasible, another one is substituted. Stored plans
+remain deterministic and can be resumed after a refresh or an offline interruption.
 
 ## Points and readiness
 
-- Correct at the first attempt, without a hint: **+10**. Anything else: **0**. Maximum **50**.
-- *Try again* and *Review mistakes* are practice. They are recorded (`corrected_at`) and
-  never change the score.
-- **Ready for Review** = at least 40/50 **and** the fifth exercise right without a hint.
-- Otherwise the card stays in Learn, the summary says what is missing, and *Start another
-  round* creates a new round with different exercises.
-- Each round keeps its own score. The latest round decides readiness; earlier rounds stay
-  as history.
+- **100 cumulative points** within the current Learning cycle, never across Relearn cycles.
+- **Unaided final recall** is mandatory at the moment the cumulative threshold is met.
+- The current round stays limited to exactly five attempts, scored 0 or 10 each.
+- Resubmission and practice cannot create additional points for the same exercise.
+- When a card returns to Learning from Review, it begins a new cycle with a fresh score.
+- Historical rounds and original card identity remain intact.
 
-## Database (migration `20261110120000_heuresis_learn_rounds.sql`)
+## Database (migrations `20261110120000_heuresis_learn_rounds.sql` and `20261116160000_heuresis_learn_cumulative_mastery.sql`)
 
-Additive; no existing row is rewritten; safe to run more than once.
+The cumulative migration alters the readiness check and backfills old ready flags from original recorded scores. It does not change points, attempts or card identities. Both migrations must be installed in order; the upgrade is idempotent.
 
 | Object | Purpose |
 | --- | --- |
@@ -113,6 +116,10 @@ exercise types stays Ready for Review; any other card starts five-exercise round
   data, applied twice.
 
 What each scenario proves is listed in `verification/README.md`.
+
+### Historical verification (before the 16 November changes)
+
+The results below describe the original 40/50 implementation as tested on 10 November, **not** verification of the cumulative upgrade. New CI and migration checks are required for the new feature.
 
 ### Verified on 10 November 2026 (local harness only)
 

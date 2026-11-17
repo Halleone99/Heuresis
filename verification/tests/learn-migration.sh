@@ -17,6 +17,7 @@ export PGOPTIONS="-c client_min_messages=warning"
 P="psql -h $PGHOST -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q -At"
 DB=heuresis_learn_migration
 LEARN=../supabase/migrations/20261110120000_heuresis_learn_rounds.sql
+MASTERY=../supabase/migrations/20261116160000_heuresis_learn_cumulative_mastery.sql
 # Study activity depends on Learn tables, so apply it after the Learn migration.
 STUDY=../supabase/migrations/20261115150000_heuresis_study_activity.sql
 STUDY_CARDS=../supabase/migrations/20261116133000_heuresis_study_activity_cards.sql
@@ -30,7 +31,7 @@ $P -c "create database $DB template heuresis_v1_baseline"
 for f in ../supabase/migrations/*.sql; do
   name="$(basename "$f")"
   [[ "$name" < "$V2" ]] && continue
-  [[ "$name" == "$(basename "$LEARN")" || "$name" == "$(basename "$STUDY")" || "$name" == "$(basename "$STUDY_CARDS")" ]] && continue
+  [[ "$name" == "$(basename "$LEARN")" || "$name" == "$(basename "$MASTERY")" || "$name" == "$(basename "$STUDY")" || "$name" == "$(basename "$STUDY_CARDS")" ]] && continue
   $P -d "$DB" -1 -f "$f" >/dev/null 2>&1 || fail "migration failed: $name"
 done
 $P -d "$DB" -f sql/20_showcase.sql >/dev/null
@@ -63,6 +64,7 @@ fingerprint() {
 }
 before="$(fingerprint)"
 $P -d "$DB" -1 -f "$LEARN" >/dev/null || fail "the Learn migration failed"
+$P -d "$DB" -1 -f "$MASTERY" >/dev/null || fail "the cumulative mastery migration failed"
 # This function reads heuresis_learn_attempts, absent until Learn is installed.
 $P -d "$DB" -1 -f "$STUDY" >/dev/null || fail "the Study activity migration failed after Learn"
 $P -d "$DB" -c "select count(*) from public.heuresis_study_activity(array[]::uuid[], current_date - 13, current_date, 'UTC')" >/dev/null || fail "the Study activity function cannot run"
@@ -74,6 +76,7 @@ pass "every existing table, row and policy is unchanged ($(echo "$before" | wc -
 pass "cards that already had a phase get one starting row in the card history; the damaged one is skipped"
 phases="$($P -d "$DB" -c "select count(*) || ':' || md5(string_agg(s::text, '|' order by s::text)) from heuresis_card_state_changes s where state_kind = 'learning_phase'")"
 $P -d "$DB" -1 -f "$LEARN" >/dev/null || fail "running the migration again failed"
+$P -d "$DB" -1 -f "$MASTERY" >/dev/null || fail "repeating the mastery migration failed"
 [ "$(fingerprint)" = "$before" ] || fail "running it again changed existing data"
 [ "$($P -d "$DB" -c "select count(*) || ':' || md5(string_agg(s::text, '|' order by s::text)) from heuresis_card_state_changes s where state_kind = 'learning_phase'")" = "$phases" ] || fail "running it again added history rows"
 [ "$($P -d "$DB" -c "select count(*) from pg_tables where tablename like 'heuresis_learn_%'")" = "2" ] || fail "the two Learn tables are missing"

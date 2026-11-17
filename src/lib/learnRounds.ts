@@ -17,7 +17,8 @@ import { supabase } from "./supabase";
 export const ROUND_SIZE = 5;
 export const POINTS_PER_EXERCISE = 10;
 export const ROUND_MAX = ROUND_SIZE * POINTS_PER_EXERCISE;
-export const READY_SCORE = 40;
+/** Cumulative first-attempt points needed in the current Learning cycle. */
+export const READY_SCORE = 100;
 
 export type LearnStage = "recognition" | "reconstruction" | "completion" | "context" | "recall";
 export const STAGE_ORDER: LearnStage[] = ["recognition", "reconstruction", "completion", "context", "recall"];
@@ -59,7 +60,7 @@ export type RoundResult = {
   answered: number;
   complete: boolean;
   recallCorrect: boolean;
-  /** Ready for Review: at least 40/50 and the final active-recall exercise right, unaided. */
+  /** Ready for Review: 100 cumulative points and final unaided recall. */
   ready: boolean;
 };
 
@@ -68,7 +69,7 @@ export function pointsFor(correct: boolean, assisted: boolean): number {
   return correct && !assisted ? POINTS_PER_EXERCISE : 0;
 }
 
-export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "correct" | "assisted">>): RoundResult {
+export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "correct" | "assisted">>, previousPoints = 0): RoundResult {
   const byPosition = new Map<number, Pick<LearnAttempt, "position" | "correct" | "assisted">>();
   for (const attempt of attempts) {
     if (attempt.position >= 1 && attempt.position <= ROUND_SIZE && !byPosition.has(attempt.position)) byPosition.set(attempt.position, attempt);
@@ -80,7 +81,7 @@ export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "cor
   const complete = rows.length === ROUND_SIZE;
   return {
     score, correctCount: rows.filter((row) => pointsFor(row.correct, row.assisted) > 0).length, answered: rows.length,
-    complete, recallCorrect, ready: complete && score >= READY_SCORE && recallCorrect,
+    complete, recallCorrect, ready: complete && previousPoints + score >= READY_SCORE && recallCorrect,
   };
 }
 
@@ -88,6 +89,8 @@ export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "cor
 export type CardLearnState = {
   cardId: string;
   cycle: number;
+  /** Completed-round points in this cycle (active round excluded). */
+  totalPoints: number;
   active: { id: string; roundNumber: number; answered: number; score: number } | null;
   last: { id: string; roundNumber: number; score: number; correctCount: number; recallCorrect: boolean; ready: boolean; completedAt: string | null } | null;
 };
@@ -183,7 +186,7 @@ export async function loadLearnOverview(cardIds: string[], now = Date.now()): Pr
     const active = row.active && typeof row.active === "object" ? row.active as Record<string, unknown> : null;
     const last = row.last && typeof row.last === "object" ? row.last as Record<string, unknown> : null;
     cards.set(row.card_id, {
-      cardId: row.card_id, cycle: int(row.cycle),
+      cardId: row.card_id, cycle: int(row.cycle), totalPoints: int(row.total_points),
       active: active && typeof active.id === "string"
         ? { id: active.id, roundNumber: Math.max(1, int(active.round_number)), answered: Math.min(ROUND_SIZE, int(active.answered)), score: int(active.score) } : null,
       last: last && typeof last.id === "string" ? {

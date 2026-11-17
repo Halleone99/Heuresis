@@ -179,6 +179,9 @@ async function answer(page, exercise, right = true, { keyboard = false } = {}) {
       for (const letter of letters) await hit(page.locator(".lrn-tile.is-letter:not([disabled])").filter({ hasText: new RegExp(`^${letter}$`) }).first());
       await hit(page.locator(".lrn-check .lrn-primary"));
     } else await hit(page.locator('.lrn-check button:has-text("I don’t know")'));
+  } else if (exercise.format === "compose") {
+    await page.fill(".lrn-input", right ? `Today I used ${exercise.target} in a longer sentence.` : "An unrelated sentence without the target.");
+    await page.keyboard.press("Control+Enter");
   } else {
     await page.fill(".lrn-input", right ? exercise.accepted[0].value : "zzz");
     await page.keyboard.press("Enter");
@@ -230,7 +233,7 @@ const scenarios = {
     await page.locator(".sh-stage.tone-learn:not([disabled])").waitFor({ timeout: 12000 });
     await startLearn(page);
     await waitExercise(page, 1);
-    check(await points(page) === "0/50 points", "the points indicator starts at 0/50");
+    check(await points(page) === "0/100 points", "the points indicator starts at 0/100");
     check(await page.locator(".lrn-stage").count() === 1 && await page.locator(".lrn-prompt").count() === 1, "exactly one exercise is on screen");
     await page.screenshot({ path: `${shots}/02-exercise-1.png` });
     const round = await activeRound(term);
@@ -240,7 +243,7 @@ const scenarios = {
 
     await answer(page, round.plan[0], true);
     const gained = await points(page);
-    check(/^\+10 · ?10\/50 points$/.test(gained), `a correct first answer shows +10 · 10/50 (“${gained}”)`);
+    check(/^\+10 · ?10\/100 points$/.test(gained), `a correct first answer shows +10 · 10/50 (“${gained}”)`);
     check(await sql(`select count(*) || '|' || coalesce(sum(points),0) from heuresis_learn_attempts where round_id = '${round.id}'`) === "1|10", "the answer is saved at once, with 10 points");
     await page.screenshot({ path: `${shots}/03-correct.png` });
     await proceed(page);
@@ -248,14 +251,14 @@ const scenarios = {
     await waitExercise(page, 2);
     await answer(page, round.plan[1], false);
     check(/Not quite/.test(await page.locator(".lrn-feedback").innerText()), "a wrong answer says so and shows the right one");
-    check(await points(page) === "10/50 points", "a wrong first answer earns 0 points");
+    check(await points(page) === "10/100 points", "a wrong first answer earns 0 points");
     await page.screenshot({ path: `${shots}/04-wrong.png` });
     // Correcting it afterwards is practice: it never returns the points.
     if (await page.locator('.lrn-feedback-actions button:has-text("Try again")').count()) {
       await page.click('.lrn-feedback-actions button:has-text("Try again")');
       await page.locator(".lrn-practice").waitFor();
       await answer(page, round.plan[1], true);
-      check(await points(page) === "10/50 points", "correcting the answer after feedback does not award the missed points");
+      check(await points(page) === "10/100 points", "correcting the answer after feedback does not award the missed points");
       await page.waitForTimeout(400);
       check(await sql(`select correct::text || '|' || points || '|' || (corrected_at is not null) from heuresis_learn_attempts where round_id = '${round.id}' and position = 2`) === "false|0|true",
         "the first answer stays recorded as wrong (0 points); the correction is noted");
@@ -268,13 +271,20 @@ const scenarios = {
     }
     await page.locator(".lrn-summary").waitFor();
     await page.waitForTimeout(500);
-    await page.screenshot({ path: `${shots}/05-summary-ready.png` });
-    const summary = await page.locator(".lrn-summary").innerText();
-    check(/Learning round complete/.test(summary) && /40\s*\/ 50/.test(summary.replace(/\n/g, " ")), "the summary shows the score 40/50");
-    check(/Successful exercises\s*4\/5/.test(summary.replace(/\n/g, " ")), "the summary shows 4/5 successful exercises");
-    check(/Ready for Review/.test(summary), "40/50 with the final recall right is Ready for Review");
-    check(await sql(`select status || '|' || score || '|' || correct_count || '|' || ready from heuresis_learn_rounds where id = '${round.id}'`) === "completed|40|4|true",
-      "the round is stored as completed, 40 points, ready");
+    await page.screenshot({ path: `${shots}/05-summary-first-round.png` });
+    let summary = await page.locator(".lrn-summary").innerText();
+    check(/40\s*\/ 100/.test(summary.replace(/\n/g, " ")), "first round has 40 cumulative points");
+    check(/Keep learning/.test(summary) && !/Ready for Review/.test(summary), "40 is not ready");
+    check(await sql(`select status || '|' || score || '|' || correct_count || '|' || ready from heuresis_learn_rounds where id = '${round.id}'`) === "completed|40|4|false",
+      "first round stored without premature readiness");
+    await page.click('.lrn-actions button:has-text("Start another round")');
+    await playRound(page, term);
+    summary = await page.locator(".lrn-summary").innerText();
+    check(/90\s*\/ 100/.test(summary.replace(/\n/g, " ")), "second round reaches 90 points");
+    await page.click('.lrn-actions button:has-text("Start another round")');
+    await playRound(page, term);
+    summary = await page.locator(".lrn-summary").innerText();
+    check(/Ready for Review/.test(summary) && /100\s*\/ 100/.test(summary.replace(/\n/g, " ")), "third round reaches 100 points with final recall");
     check(await sql(`select count(*) || '|' || string_agg(position::text, '' order by position) from heuresis_learn_attempts where round_id = '${round.id}'`) === "5|12345",
       "exactly five answers are stored, one per exercise");
     check((await phaseOf(term)).phase === "learning", "the card stays in Learn until it is moved");
@@ -297,9 +307,9 @@ const scenarios = {
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "1", "Review now has the card due; the interface updated without a reload");
     await chooseStage(page, "learn");
-    check(await stat(page, "Learning") === "0" && await stat(page, "Exercises today") === "5", "Learn shows 0 cards learning and 5 exercises today");
-    check(await sql("select count(*)::text || '|' || count(*) filter (where points > 0)::text from heuresis_learn_attempts") === "5|4",
-      "Learning activity preserves five graded exercises and four first-try successes");
+    check(await stat(page, "Learning") === "0" && await stat(page, "Exercises today") === "15", "Learn shows 0 cards learning and 15 exercises today");
+    check(await sql("select count(*)::text || '|' || count(*) filter (where points > 0)::text from heuresis_learn_attempts") === "15|14",
+      "Learning activity preserves 15 graded exercises and 14 first-try successes");
     await chooseStage(page, "new");
     check(await stat(page, "New cards") === "16" && await stat(page, "Introduced today") === "1", "New shows 16 cards left and 1 introduced today");
     await page.screenshot({ path: `${shots}/07-library-after.png` });
@@ -323,7 +333,7 @@ const scenarios = {
     check(first.plan.some((item) => item.kind === "choose-article"), "a German noun is asked for its article (der / die / das)");
     await page.waitForTimeout(400);
     let summary = (await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ");
-    check(/40\s*\/ 50/.test(summary) && /Keep learning/.test(summary) && !/Ready for Review/.test(summary), "40/50 with the final recall wrong is not Ready for Review");
+    check(/40\s*\/ 100/.test(summary) && /Keep learning/.test(summary) && !/Ready for Review/.test(summary), "40/50 with the final recall wrong is not Ready for Review");
     check(/final active-recall exercise/.test(summary), "the summary says what is missing: the final recall");
     check(await page.locator('.lrn-actions button:has-text("Move to Review")').count() === 0, "no Move to Review is offered");
     check(await sql(`select score || '|' || recall_correct || '|' || ready from heuresis_learn_rounds where id = '${first.id}'`) === "40|false|false", "stored: 40 points, recall wrong, not ready");
@@ -350,7 +360,7 @@ const scenarios = {
     await page.locator(".lrn-hint").waitFor();
     await page.screenshot({ path: `${shots}/11-recall-hint.png` });
     await answer(page, second.plan[4], true);
-    check(/with a hint/.test(await page.locator(".lrn-feedback").innerText()) && await points(page) === "40/50 points", "a hinted answer is accepted but earns no points");
+    check(/with a hint/.test(await page.locator(".lrn-feedback").innerText()) && await points(page) === "80/100 points", "a hinted answer is accepted but earns no points");
     await proceed(page);
     await page.locator(".lrn-summary").waitFor();
     await page.waitForTimeout(400);
@@ -358,20 +368,20 @@ const scenarios = {
       "stored: round 2, 40 points, four unaided successes, recall assisted, not ready");
     check(await sql(`select correct::text || '|' || assisted || '|' || points from heuresis_learn_attempts where round_id = '${second.id}' and position = 5`) === "true|true|0", "the hinted answer is stored as correct, assisted, 0 points");
 
-    // Round 3: two wrong at the start → 30/50, recall right → still not ready.
+    // Round 3: the cumulative target is reached but failed recall prevents graduation.
     await page.click('.lrn-actions button:has-text("Start another round")');
-    await playRound(page, term, [1, 2]);
+    await playRound(page, term, [1, 2, 5]);
     await page.waitForTimeout(400);
     summary = (await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ");
-    check(/30\s*\/ 50/.test(summary) && /Reach at least 40 of 50 points/.test(summary), "30/50 is not ready even with the recall right");
+    check(/100\s*\/ 100/.test(summary) && /final active-recall exercise/.test(summary), "100 points without final recall cannot graduate");
 
-    // Round 4: clean → 50/50, ready.
+    // Round 4: unaided recall completes the cumulative 100-point mastery gate.
     await page.click('.lrn-actions button:has-text("Start another round")');
     const fourth = await playRound(page, term, []);
     await page.waitForTimeout(400);
     summary = (await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ");
-    check(/50\s*\/ 50/.test(summary) && /Ready for Review/.test(summary) && /No mistakes/.test(summary), "50/50 is Ready for Review");
-    check(await sql(`select string_agg(round_number || ':' || score, ',' order by round_number) from heuresis_learn_rounds r join heuresis_cards c on c.id = r.card_id where c.data->>'term' = '${term}'`) === "1:40,2:40,3:30,4:50",
+    check(/100\s*\/ 100/.test(summary) && /Ready for Review/.test(summary) && /No mistakes/.test(summary), "cumulative mastery is Ready for Review");
+    check(await sql(`select string_agg(round_number || ':' || score, ',' order by round_number) from heuresis_learn_rounds r join heuresis_cards c on c.id = r.card_id where c.data->>'term' = '${term}'`) === "1:40,2:40,3:20,4:50",
       "each round keeps its own score; the latest (50) does not overwrite the history");
     check(await sql(`select count(*) || '|' || count(distinct (round_id, position)) || '|' || max(points) from heuresis_learn_attempts`) === "20|20|10", "20 answers for 4 rounds, never more than 10 points each");
     check(await sql("select count(*) from heuresis_review_mistakes") === "0" && await gradeCount() === 0, "wrong Learning answers are not reviews and do not enter the Mistake Log");
@@ -393,8 +403,8 @@ const scenarios = {
     check(await stat(page, "Exercises today") === "20", "20 learning exercises today");
     await chooseStage(page, "learn");
     await chooseView(page, "Quality");
-    check((await page.locator('.sh-quality:has-text("Right first time") .sh-quality-head strong').innerText()).trim() === "80%",
-      "Learning quality shows 16 of 20 right first time (80%)");
+    check((await page.locator('.sh-quality:has-text("Right first time") .sh-quality-head strong').innerText()).trim() === "75%",
+      "Learning quality shows 15 of 20 right first time (75%)");
     await chooseStage(page, "review");
     check(await stat(page, "Due now") === "0" && await stat(page, "Reviewed today") === "0" && await gradeCount() === 0,
       "none of this counts as a review");
@@ -420,7 +430,7 @@ const scenarios = {
     await page.locator(".lrn").waitFor({ timeout: 20000 });
     await waitExercise(page, 3);
     check(await page.locator(".lrn-prompt").innerText() === prompt, "after a refresh Learn reopens on the same exercise (3/5), unchanged");
-    check(await points(page) === "10/50 points", "the points earned so far are still there (10/50)");
+    check(await points(page) === "10/100 points", "the first 10 points survive the refresh");
     check(await page.locator('.lrn-progress i[data-state="right"]').count() === 1 && await page.locator('.lrn-progress i[data-state="wrong"]').count() === 1, "the progress bar shows one right and one wrong");
     check(await sql("select count(*) from heuresis_learn_rounds") === "1" && (await activeRound(term)).id === round.id, "it is the same round: none was created by the refresh");
     await answer(page, round.plan[2], true); await proceed(page);
@@ -437,7 +447,7 @@ const scenarios = {
     await page.click(".sh-start");
     await page.locator(".lrn").waitFor();
     await waitExercise(page, 4);
-    check(await points(page) === "20/50 points", "Start resumes the unfinished card first, at exercise 4 with 20/50");
+    check(await points(page) === "20/100 points", "Start resumes the unfinished card with 20 cumulative points");
     await answer(page, round.plan[3], true); await proceed(page);
     await waitExercise(page, 5);
     await answer(page, round.plan[4], true); await proceed(page);
@@ -461,7 +471,7 @@ const scenarios = {
     await page.locator(".lrn-feedback").waitFor();
     await page.waitForTimeout(500);
     check(await sql(`select count(*) || '|' || sum(points) from heuresis_learn_attempts where round_id = '${round.id}'`) === "1|10", "a double click records one answer and 10 points");
-    check(await points(page).then((text) => /10\/50 points$/.test(text)), "the indicator shows 10/50, not 20");
+    check(await points(page).then((text) => /10\/100 points$/.test(text)), "the indicator shows 10/100, not 20");
 
     // The same request again, as a retry or an offline replay would send it.
     const again = await rpc("heuresis_learn_record_attempt", { p_round_id: round.id, p_position: 1, p_stage: "recognition", p_exercise_type: "choose-meaning", p_correct: true, p_assisted: false, p_response: "x", p_expected: "x" });
@@ -531,6 +541,8 @@ const scenarios = {
     await sendToLearn("已经");
     await openStudy(page);
     await startLearn(page);
+    await playRound(page, "已经", []);
+    await page.click('.lrn-actions button:has-text("Start another round")');
     await playRound(page, "已经", []);
     await page.click('.lrn-actions button:has-text("Move to Review")');
     await page.locator('.lrn-facts dd:has-text("Moved to Review")').waitFor();
@@ -692,6 +704,12 @@ const scenarios = {
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${shots}/42-phone-summary-${card}.png` });
+      let extra = 0;
+      while (await page.locator('.lrn-actions button:has-text("Start another round")').count()) {
+        if (++extra > 3) throw new Error("The card did not reach 100 cumulative points");
+        await page.locator('.lrn-actions button:has-text("Start another round")').tap();
+        await playRound(page, term);
+      }
       if (card < 3) await page.locator('.lrn-actions button:has-text("Continue learning another card")').tap();
     }
     const kinds = seen.join(" | ");
@@ -700,14 +718,14 @@ const scenarios = {
     check(/говорить: [^|]*cloze-choice/.test(kinds), "Russian: the inflected form in a sentence is recognised (говорю)");
     check(/的时候: [^|]*(missing-character|choose-reading)/.test(kinds) && /的时候: [^|]*cloze-choice/.test(kinds), "Chinese: characters and the word in its sentence");
     check(/sich freuen auf: [^|]*choose-preposition/.test(kinds), "German: the verb's preposition is asked for");
-    // All three met the criteria (one of them with 40/50), so nothing is left to learn.
+    // All three now pass the 100-point multi-round criterion.
     check(await page.locator('.lrn-actions button:has-text("Continue learning another card")').count() === 0, "after the last card no further card is offered");
     await page.locator('.lrn-actions button:has-text("Move to Review")').tap();
     await page.locator('.lrn-facts dd:has-text("Moved to Review")').waitFor();
     await page.locator('.lrn-actions button:has-text("Return to Learn")').tap();
     await page.locator(".lrn").waitFor({ state: "detached" });
     await page.waitForTimeout(1200);
-    check(await sql("select count(*) from heuresis_learn_rounds where status = 'completed'") === "3", "three rounds completed and stored");
+    check(await sql("select count(*) from heuresis_learn_rounds where status = 'completed'") === "7", "all seven cumulative rounds completed and stored");
     check(await page.evaluate(() => document.documentElement.style.overflow) === "", "leaving Learn lets the page behind scroll again");
     // Start now offers the two cards that are ready and were not moved yet.
     await page.locator(".sh-start").tap();
@@ -766,6 +784,8 @@ const scenarios = {
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${shots}/45-tablet-${label.split(" ")[0]}-summary.png` });
+      await tap('.lrn-actions button:has-text("Start another round")', "Start advanced round");
+      await playRound(page, term);
       await tap('.lrn-actions button:has-text("Move to Review")', "Move to Review");
       await page.locator('.lrn-facts dd:has-text("Moved to Review")').waitFor();
       if (label.startsWith("landscape")) await tap('.lrn-actions button:has-text("Continue learning another card")', "Continue learning another card");
@@ -806,6 +826,15 @@ const scenarios = {
       }
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(300);
+      // Wait until the server has saved the last answer before activating the next round.
+      // A visible but disabled action must not receive keyboard Enter: that used to stall CI.
+      const nextRound = page.locator('.lrn-actions button:has-text("Start another round"):not([disabled])');
+      await nextRound.waitFor({ timeout: 15000 });
+      await nextRound.focus();
+      await page.keyboard.press("Enter");
+      await playRound(page, term, [], { keyboard: true });
+      check(/Ready for Review/.test(await page.locator(".lrn-summary").innerText()),
+        `two successful keyboard rounds make ${term} ready for Review`);
       // Leave both ready without moving them, to reach the end-of-session screen.
       if (card === 1) { await page.locator('.lrn-actions button:has-text("Continue learning another card")').focus(); await page.keyboard.press("Enter"); }
     }
@@ -901,7 +930,7 @@ async function playRoundOffline(page, context, term) {
   for (const position of [3, 4, 5]) { await waitExercise(page, position); await answer(page, round.plan[position - 1], true); await proceed(page); }
   await page.locator(".lrn-summary").waitFor();
   check(await sql(`select count(*) from heuresis_learn_attempts where round_id = '${round.id}'`) === "1", "while offline only the first answer is on the server");
-  check(/40\s*\/ 50/.test((await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ")), "the round still completes on the device (40/50)");
+  check(/40\s*\/ 100/.test((await page.locator(".lrn-summary").innerText()).replace(/\n/g, " ")), "the offline round keeps 40 cumulative points");
   await page.screenshot({ path: `${shots}/55-offline-summary.png` });
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));

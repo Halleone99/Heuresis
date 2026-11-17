@@ -23,7 +23,7 @@ export type ExerciseKind =
   | "choose-meaning" | "choose-term" | "build-term" | "build-sentence" | "fill-gaps"
   | "missing-character" | "choose-reading" | "choose-stress" | "choose-article" | "choose-preposition"
   | "cloze-choice" | "example-meaning" | "match-example" | "build-meaning" | "type-meaning"
-  | "recall-type" | "recall-build" | "recall-guided";
+  | "recall-type" | "recall-build" | "recall-guided" | "cloze-type" | "type-example" | "write-example";
 
 export type Prompt = {
   /** Small line above the question, e.g. "What does this mean?". */
@@ -61,13 +61,15 @@ export type TypeExercise = Base & {
   /** Language key used for spelling variants (German ae/oe/ue/ss). */
   language?: LanguageKey | null;
 };
-export type Exercise = ChoiceExercise | BuildExercise | GapsExercise | TypeExercise;
+export type ComposeExercise = Base & { format: "compose"; target: string; lang?: string; language?: LanguageKey | null };
+export type Exercise = ChoiceExercise | BuildExercise | GapsExercise | TypeExercise | ComposeExercise;
 
 export type ExerciseInput =
   | { format: "choice"; choiceId: string }
   | { format: "build"; tileIds: string[] }
   | { format: "gaps"; letters: string[] }
-  | { format: "type"; text: string };
+  | { format: "type"; text: string }
+  | { format: "compose"; text: string };
 
 export type Verdict = { correct: boolean; response: string; expected: string; message: string };
 
@@ -227,17 +229,25 @@ function byPlausibility(card: LearnCard, rivals: LearnCard[], random: () => numb
     const a = field === "meaning" ? words(card.meaning) : Array.from(card.form).length;
     const b = field === "meaning" ? words(other.meaning) : Array.from(other.form).length;
     value += Math.max(0, 1 - Math.abs(a - b) / Math.max(2, a));
+    // Advanced choices favour close spellings, not merely words with the same length.
+    if (field === "form") {
+      const first = card.form.toLocaleLowerCase(), second = other.form.toLocaleLowerCase();
+      let prefix = 0, suffix = 0;
+      while (prefix < Math.min(first.length, second.length) && first[prefix] === second[prefix]) prefix++;
+      while (suffix < Math.min(first.length, second.length) && first[first.length - 1 - suffix] === second[second.length - 1 - suffix]) suffix++;
+      value += 2.5 * Math.max(prefix, suffix) / Math.max(first.length, second.length);
+    }
     return value;
   };
   return rivals.map((other) => ({ other, value: score(other) })).sort((x, y) => y.value - x.value).map((entry) => entry.other);
 }
 
-function pickRivals(card: LearnCard, pool: LearnCard[], random: () => number, field: "meaning" | "form", count = 3): LearnCard[] {
+function pickRivals(card: LearnCard, pool: LearnCard[], random: () => number, field: "meaning" | "form", count = 3, advanced = false): LearnCard[] {
   let rivals = meaningRivals(card, pool);
   if (field === "form") rivals = uniqueBy(rivals, (other) => normaliseAnswer(other.form));
   // Choose among the most plausible, so a second round does not repeat the first.
   const ranked = byPlausibility(card, rivals, random, field).slice(0, Math.max(count, 6));
-  return shuffle(ranked, random).slice(0, count);
+  return advanced ? ranked.slice(0, count) : shuffle(ranked, random).slice(0, count);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -246,7 +256,8 @@ function pickRivals(card: LearnCard, pool: LearnCard[], random: () => number, fi
 
 type Context = { card: LearnCard; pool: LearnCard[]; round: number };
 type Draft = Omit<ChoiceExercise, "position" | "stage" | "v"> | Omit<BuildExercise, "position" | "stage" | "v">
-  | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">;
+  | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">
+  | Omit<ComposeExercise, "position" | "stage" | "v">;
 type Builder = (context: Context, random: () => number) => Draft | null;
 
 const tag = (card: LearnCard) => (card.language ? BCP[card.language] : undefined) ?? (card.han ? "zh-Hans" : undefined);
@@ -254,8 +265,8 @@ const pair = (card: LearnCard) => `${card.form}${card.reading && card.han ? ` ($
 /** The answer as feedback shows it: Chinese with its reading. */
 const written = (card: LearnCard) => `${card.form}${card.reading && card.han ? ` · ${card.reading}` : ""}`;
 
-const chooseMeaning: Builder = ({ card, pool }, random) => {
-  const rivals = pickRivals(card, pool, random, "meaning");
+const chooseMeaning: Builder = ({ card, pool, round }, random) => {
+  const rivals = pickRivals(card, pool, random, "meaning", 3, round >= 2);
   if (rivals.length < 2) return null;
   const choices = shuffle<Choice>([
     { id: card.id, label: card.meaning },
@@ -268,8 +279,8 @@ const chooseMeaning: Builder = ({ card, pool }, random) => {
   };
 };
 
-const chooseTerm: Builder = ({ card, pool }, random) => {
-  const rivals = pickRivals(card, pool, random, "form");
+const chooseTerm: Builder = ({ card, pool, round }, random) => {
+  const rivals = pickRivals(card, pool, random, "form", 3, round >= 2);
   if (rivals.length < 2) return null;
   const choices = shuffle<Choice>([
     { id: card.id, label: card.form, lang: tag(card) },
@@ -599,7 +610,7 @@ const choosePreposition: Builder = ({ card }, random) => {
 };
 
 const STOP = new Set(["der", "die", "das", "den", "dem", "des", "ein", "eine", "sich", "to", "the", "a", "an", "se", "le", "la", "les", "el", "los", "las", ...DE_PREPOSITIONS]);
-const SEPARABLE = ["zurück", "heraus", "herein", "hinaus", "weiter", "ab", "an", "auf", "aus", "bei", "ein", "mit", "nach", "vor", "weg", "zu"];
+const SEPARABLE = ["fest", "zurück", "heraus", "herein", "hinaus", "weiter", "ab", "an", "auf", "aus", "bei", "ein", "mit", "nach", "vor", "weg", "zu"];
 
 function fold(text: string) {
   return text.normalize("NFD").replace(/́/g, "").normalize("NFC").toLocaleLowerCase();
@@ -641,7 +652,7 @@ export function locateInSentence(card: Pick<LearnCard, "form" | "han" | "languag
 const clozeChoice: Builder = ({ card, pool, round }, random) => {
   const example = exampleFor(card, round, (item) => Boolean(locateInSentence(card, item.source)));
   if (!example) return null;
-  const rivals = pickRivals(card, pool, random, "form");
+  const rivals = pickRivals(card, pool, random, "form", 3, round >= 2);
   if (rivals.length < 2) return null;
   const range = locateInSentence(card, example.source)!;
   const gapped = `${example.source.slice(0, range.start)}＿＿＿${example.source.slice(range.end)}`;
@@ -752,12 +763,56 @@ const recallGuided: Builder = ({ card }) => ({
   solution: written(card), explain: "",
 });
 
+
+/** Advanced completion: produce the missing form without multiple-choice clues. */
+const clozeType: Builder = ({ card, round }) => {
+  const example = exampleFor(card, round, (item) => Boolean(locateInSentence(card, item.source)));
+  if (!example) return null;
+  const range = locateInSentence(card, example.source)!;
+  const missing = example.source.slice(range.start, range.end);
+  if (!missing.trim()) return null;
+  return {
+    format: "type", kind: "cloze-type", accepted: [{ value: missing, kind: "exact" }],
+    placeholder: "Type the missing word", lang: tag(card), language: card.language,
+    prompt: { ask: "Complete the sentence from memory.", text: example.source.slice(0, range.start) + "＿＿＿" + example.source.slice(range.end), sub: example.translation || undefined, lang: tag(card) },
+    solution: missing, explain: example.source,
+  };
+};
+
+/** Advanced context: reconstruct a known example from its translation. */
+const typeExample: Builder = ({ card, round }) => {
+  const example = exampleFor(card, round, (item) => Boolean(item.translation) && words(item.source) >= 4 && words(item.source) <= 14);
+  if (!example) return null;
+  const accepted: ExpectedAnswer[] = [{ value: example.source, kind: "exact" }];
+  if (card.han && example.reading) accepted.push({ value: example.reading, kind: "exact" });
+  return {
+    format: "type", kind: "type-example", accepted, placeholder: "Write the sentence",
+    lang: tag(card), language: card.language,
+    prompt: { ask: "Translate this example without hints.", text: example.translation },
+    solution: example.source, explain: example.source,
+  };
+};
+
+/**
+ * Learner-created context. A conservative offline check verifies the term and a meaningful
+ * sentence length, not grammatical correctness. Avoid suggesting that AI proofread it.
+ */
+const writeExample: Builder = ({ card }) => {
+  if (!card.language || !card.wordSized || card.form.length < 3 || words(card.form) > 3) return null;
+  return {
+    format: "compose", kind: "write-example", target: card.form, lang: tag(card), language: card.language,
+    prompt: { ask: "Use this word in your own short sentence.", text: card.form, sub: card.meaning, lang: tag(card) },
+    solution: card.form, explain: "Use the target expression in a meaningful sentence. Grammar is not automatically checked.",
+  };
+};
+
 const BUILDERS: Record<ExerciseKind, Builder> = {
   "choose-meaning": chooseMeaning, "choose-term": chooseTerm, "build-term": buildTerm, "build-sentence": buildSentence,
   "fill-gaps": fillGaps, "missing-character": missingCharacter, "choose-reading": chooseReading, "choose-stress": chooseStress,
   "choose-article": chooseArticle, "choose-preposition": choosePreposition, "cloze-choice": clozeChoice,
   "example-meaning": exampleMeaning, "match-example": matchExample, "build-meaning": buildMeaning, "type-meaning": typeMeaning,
   "recall-type": recallType, "recall-build": recallBuild, "recall-guided": recallGuided,
+  "cloze-type": clozeType, "type-example": typeExample, "write-example": writeExample,
 };
 
 /** Each step's preferred exercises, best first. A later round takes the next one that fits the card. */
@@ -770,6 +825,15 @@ const STEP_KINDS: Record<LearnStage, ExerciseKind[]> = {
 };
 
 /** When a step has nothing that fits, any other meaningful exercise not yet used in the round. */
+/** Higher rounds gradually replace recognition with independent production. */
+const ADVANCED_KINDS: Record<LearnStage, ExerciseKind[]> = {
+  recognition: ["type-meaning", "choose-term", "choose-meaning"],
+  reconstruction: ["build-term", "build-sentence", "fill-gaps"],
+  completion: ["cloze-type", "recall-guided", "fill-gaps", "choose-preposition", "choose-article"],
+  context: ["write-example", "type-example", "build-meaning", "cloze-type", "cloze-choice"],
+  recall: ["recall-type", "recall-build"],
+};
+
 const SUBSTITUTES: ExerciseKind[] = [
   "choose-meaning", "choose-term", "fill-gaps", "build-term", "missing-character", "choose-reading",
   "choose-stress", "cloze-choice", "example-meaning", "build-sentence", "build-meaning", "type-meaning", "recall-guided",
@@ -797,12 +861,12 @@ export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: n
 
   STAGE_ORDER.forEach((stage, index) => {
     const position = index + 1;
-    let preferred = STEP_KINDS[stage];
+    let preferred = round >= 2 ? ADVANCED_KINDS[stage] : STEP_KINDS[stage];
     // A long sentence is produced by building it without help; typing it letter-perfect proves little more.
     if (stage === "recall" && longAnswer(card)) preferred = ["recall-build", "recall-type"];
     const fitting = preferred.filter((kind) => !used.has(kind)).map((kind) => attempt(kind, position, stage)).filter((item): item is Exercise => Boolean(item));
     let chosen: Exercise | null = fitting.length
-      ? fitting[stage === "recall" ? 0 : (round - 1) % fitting.length] : null;
+      ? fitting[stage === "recall" ? 0 : (round >= 2 ? round - 2 : round - 1) % fitting.length] : null;
     if (!chosen) {
       for (const kind of SUBSTITUTES) {
         if (used.has(kind)) continue;
@@ -873,6 +937,30 @@ export function checkExercise(exercise: Exercise, input: ExerciseInput): Verdict
     return { correct, response: filled, expected: exercise.solution, message: correct ? "" : exercise.explain };
   }
   if (exercise.format === "type" && input.format === "type") return checkTyped(exercise, input.text);
+  if (exercise.format === "compose" && input.format === "compose") {
+    const response = clean(input.text);
+    const isChinese = exercise.language === "zh" || exercise.language === "ja";
+    const enoughContext = isChinese
+      ? Array.from(response).length >= Array.from(exercise.target).length + 6
+      : response.split(/\s+/u).filter(Boolean).length >= 5;
+    const match = locateInSentence({ form: exercise.target, han: isChinese, language: exercise.language ?? null }, response);
+    const target = normaliseAnswer(exercise.target);
+    const plainMatch = Boolean(target && normaliseAnswer(response).includes(target));
+    let participleMatch = false;
+    if (exercise.language === "de" && exercise.target.endsWith("en")) {
+      const prefix = SEPARABLE.find((part) => exercise.target.startsWith(part) && exercise.target.length - part.length > 4);
+      if (prefix) {
+        const root = exercise.target.slice(prefix.length, -2);
+        participleMatch = normaliseAnswer(response).includes(normaliseAnswer(prefix + "ge" + root + "t"));
+      }
+    }
+    const correct = enoughContext && Boolean(match || plainMatch || participleMatch);
+    return {
+      correct, response, expected: exercise.target,
+      message: correct ? "You used the target in a sentence. Grammar has not been checked."
+        : "Write at least five words (or a full Chinese/Japanese sentence), and include the target or a recognisable inflected form. Grammar is not automatically checked.",
+    };
+  }
   return { correct: false, response: "", expected: exercise.solution, message: exercise.explain };
 }
 
@@ -903,6 +991,7 @@ function isExercise(value: unknown, position: number): value is Exercise {
       && item.cells.every((cell) => cell && typeof (cell as GapCell).ch === "string" && typeof (cell as GapCell).gap === "boolean");
   }
   if (item.format === "type") return Array.isArray(item.accepted) && item.accepted.length >= 1;
+  if (item.format === "compose") return typeof item.target === "string" && item.target.length >= 3;
   return false;
 }
 

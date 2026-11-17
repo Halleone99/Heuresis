@@ -72,6 +72,7 @@ const right = (exercise) => {
     return { format: "build", tileIds: exercise.answer.map((text) => left.splice(left.findIndex((tile) => tile.text === text), 1)[0].id) };
   }
   if (exercise.format === "gaps") return { format: "gaps", letters: exercise.cells.filter((cell) => cell.gap).map((cell) => cell.ch) };
+  if (exercise.format === "compose") return { format: "compose", text: `Today I used ${exercise.target} in a longer sentence.` };
   return { format: "type", text: typeof exercise.accepted[0] === "string" ? exercise.accepted[0] : exercise.accepted[0].value };
 };
 
@@ -117,6 +118,26 @@ for (const [topic, cards] of Object.entries(topics)) {
   }
   check(problems.length === 0, `${topic}: ${cards.length} ${cards.length === 1 ? "card" : "cards"}${problems.length ? ` — ${problems.join("; ")}` : ""}`);
 }
+
+// Round two is deliberately harder: completion and context require independent writing.
+const confused = [
+  card("fs", "feststellen", "to establish; ascertain", { language: "de" }),
+  card("vs", "vorstellen", "to introduce; imagine", { language: "de" }),
+  card("hs", "herstellen", "to manufacture", { language: "de" }),
+  card("es", "einstellen", "to adjust; hire", { language: "de" }),
+];
+const advanced = buildRound({ card: confused[0], pool: confused, round: 2, seed: "advanced" });
+check(advanced.length === 5 && advanced[3].kind === "write-example" && advanced[4].kind === "recall-type",
+  "round two asks for an original example and ends with independent recall");
+const compose = advanced[3];
+check(checkExercise(compose, { format: "compose", text: "Ich habe festgestellt, dass die Tür offen ist." }).correct,
+  "German separable participle is recognised as usage in an original sentence");
+check(!checkExercise(compose, { format: "compose", text: "Ich habe die Tür geöffnet." }).correct,
+  "an unrelated original sentence cannot earn points");
+check(!checkExercise(compose, { format: "compose", text: "feststellen" }).correct,
+  "repeating the isolated word is not a sentence");
+check(readPlan(JSON.parse(JSON.stringify(advanced)))?.[3].kind === "write-example",
+  "advanced composition round survives persistence and refresh");
 
 const kindsOf = (id) => seen.get(id).map((exercise) => exercise.kind);
 const find = (id, kind) => seen.get(id).find((exercise) => exercise.kind === kind);
