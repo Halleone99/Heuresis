@@ -92,7 +92,8 @@ const scenarios = {
     const fixtureTotal = Number(await sql(`select count(*) from heuresis_cards where pack_id='${HSK}' and data->>'_discarded_at' is null`));
     check(fixtureTotal === 7 && Number(libraryRow.match(/(\d+)\s+cards?/i)?.[1]) === fixtureTotal,
       `Library shows the current topic total, including the two newly added cards (“${libraryRow}”)`);
-    await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator(".study-desk-title").click();
+    await page.locator('.topic-card-main:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();
     if (await page.locator('.topic-browse-actions button:has-text("Show all")').count()) await page.locator('.topic-browse-actions button:has-text("Show all")').click();
     await page.locator(".modern-topic-row").first().waitFor();
