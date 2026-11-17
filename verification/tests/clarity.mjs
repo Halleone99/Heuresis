@@ -25,10 +25,27 @@ async function addUnsortedCards() {
     ('${USER}','${HSK}','{"term":"马上","reading":"mǎshàng","meaning":"immediately","example":"我马上来。"}'),
     ('${USER}','${HSK}','{"term":"最近","reading":"zuìjìn","meaning":"recently"}')`);
 }
+async function selectStudyDeskTopic(page) {
+  const row = page.locator(".study-desk-topic").filter({ hasText: "HSK 2 — Time" });
+  if (!(await row.count())) {
+    await page.locator(".sh-picker-trigger").click();
+    const collections = page.locator(".sh-pane-subject[data-menu-collection]");
+    let found = false;
+    for (let i = 0, n = await collections.count(); i < n; i += 1) {
+      await collections.nth(i).click();
+      const topic = page.locator(".sh-pane-topic").filter({ hasText: "HSK 2 — Time" });
+      if (await topic.count()) { await topic.first().click(); found = true; break; }
+    }
+    if (!found) throw new Error("HSK topic not found in Study collections");
+  }
+  await row.waitFor();
+  return row;
+}
 async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
-  await page.waitForTimeout(800);
-  await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  await selectStudyDeskTopic(page);
+  await page.locator(".study-desk-title").click();
+  await page.locator('.topic-card-main:has-text("HSK 2 — Time")').first().click();
   if (await page.locator('.topic-browse-actions button:has-text("Show all")').count()) await page.locator('.topic-browse-actions button:has-text("Show all")').click();
   await page.locator(".modern-topic-row").first().waitFor();
   await page.waitForTimeout(400);
@@ -50,7 +67,8 @@ const rgb = (value) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
 const scenarios = {
   async "topic starts with tag groups rather than every card"(page) {
     await page.click('.hw-sections button:has-text("Study")');
-    await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    await page.locator(".study-desk-title").click();
+    await page.locator('.topic-card-main:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();
     // Compact topics now expose cards immediately; larger topics have Show all.
     // Keep this legacy scenario name because CI invokes it directly by name.
@@ -70,8 +88,8 @@ const scenarios = {
     await page.reload();
     await page.locator('.hw-sections button:has-text("Study")').waitFor();
     await page.click('.hw-sections button:has-text("Study")');
-    await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').waitFor();
-    const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
+    const topicRow = await selectStudyDeskTopic(page);
+    const libraryRow = await topicRow.locator(".study-desk-topic-copy small").innerText();
     const fixtureTotal = Number(await sql(`select count(*) from heuresis_cards where pack_id='${HSK}' and data->>'_discarded_at' is null`));
     check(fixtureTotal === 7 && Number(libraryRow.match(/(\d+)\s+cards?/i)?.[1]) === fixtureTotal,
       `Library shows the current topic total, including the two newly added cards (“${libraryRow}”)`);
@@ -151,7 +169,7 @@ const scenarios = {
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-new-details").click();
     await page.locator(".sort-editing-tools.is-open").waitFor();
-    const left = await page.locator(".sort-editing-tools.is-open").boundingBox();
+    const left = await page.locator("#sort-language-details.is-open").boundingBox();
     const centre = await page.locator(".sort-card").boundingBox();
     check(Boolean(left && centre && left.x < centre.x),
       "Details opens beside the central card without displacing the decisions");
@@ -159,8 +177,8 @@ const scenarios = {
     // Empty detail sections are presented in the ADD list until the first item is saved.
     await page.locator('.sort-enrich-add-empty button:has-text("+ In context")').click();
     await page.getByRole("textbox", { name: "Write in context" }).pressSequentially("An example recorded while sorting.");
-    check(await page.locator(".sort-new-ratings button").first().isDisabled(),
-      "An unfinished enrichment draft blocks moving to the next card");
+    check(await page.locator(".sort-filter-open").isDisabled(),
+      "An unfinished enrichment draft blocks changing selection");
     await page.locator(".sort-enrich-editor").getByRole("button", { name: "Save", exact: true }).click();
     await page.locator('.sort-enrich-item:has-text("An example recorded while sorting.")').waitFor();
     const persisted = await sql("select data->>'_workspace_blocks' from heuresis_cards where id='" + cardId + "'");
@@ -187,23 +205,26 @@ const scenarios = {
     const decision = page.locator(".sort-modal");
     check(await decision.locator(".sort-new-ratings button").count() === 3, "Three priorities: Core, Active and Passive");
     check(await decision.locator(".sort-new-ratings button").first().innerText() !== "", "Core classification is available");
-    check(await decision.locator(".sort-new-decision-heading button:has-text('Learn')").count() === 1, "Learn is the default destination");
-    await page.keyboard.press("r");
-    check(await decision.locator(".sort-new-decision-heading button:has-text('Review')").count() === 1, "R can bypass Learn");
-    await page.keyboard.press("r");
+    check(await decision.locator(".sort-destination-actions button:has-text('Learn')").count() === 1, "Learn is an explicit destination");
+    check(await decision.locator(".sort-destination-actions button:has-text('Review')").count() === 1, "Review is an explicit bypass");
     check(await decision.getByRole("button", { name: /Reference/ }).count() === 0, "Reference is not a Sort action");
-    check(await decision.locator(".sort-new-secondary button:has-text('Later')").count() === 1, "Later remains available");
-    check(await decision.locator(".sort-new-secondary button:has-text('Discard')").count() === 1, "Discard remains recoverable");
-    const first = (await page.locator(".sort-inline-text.term").inputValue()).trim();
+    check(await decision.locator(".sort-destination-actions button:has-text('Later')").count() === 1, "Later remains available");
+    check(await decision.locator('button[aria-label="Discard card"]').count() === 1, "Discard remains recoverable in the header");
+    const current = async () => (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
+    const first = await current();
     await page.keyboard.press("l");
     await page.waitForTimeout(450);
     check(await sql("select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='" + first + "'") === "t",
       "Later leaves the first card unsorted");
-    const second = (await page.locator(".sort-inline-text.term").inputValue()).trim();
-    await page.keyboard.press("u");
+    const second = await current();
+    await page.keyboard.press("2");
+    check(await decision.locator('.sort-new-ratings button:nth-child(2)').getAttribute("aria-checked") === "true",
+      "2 selects Active without advancing");
+    check(await current() === second, "choosing importance alone leaves the current card in place");
+    await page.keyboard.press("r");
     await page.locator(".sort-finished").waitFor();
-    check(await sql("select interest_rank||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|true",
-      "U immediately records Active (rank 3) and advances without confirmation");
+    check(await sql("select interest_rank||'|'||retention||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|review|true",
+      "R sends the selected Active card to Review and completes sorting");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
 
