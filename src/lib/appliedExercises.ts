@@ -2,7 +2,7 @@ import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from ".
 import { isWordSized, normaliseAnswer } from "./answerCheck";
 import { rng, shuffle, tiles, uniqueBy } from "./learnRandom";
 import { STAGE_ORDER } from "./learnRounds";
-import { parseCaseText, splitList } from "./teachingShape";
+import { appliedCardKind, parseCaseText, splitList } from "./teachingShape";
 import type { Choice, Exercise, ExerciseKind, JudgePoint, LearnCard, LearnCase, LearnExample, RuleParts } from "./learnExercises";
 
 /**
@@ -44,6 +44,7 @@ const KIND_SKILL: Partial<Record<ExerciseKind, AppliedSkill>> = {
   "case-outcome": "apply", "which-case": "apply",
   "solve-case": "solve", "recall-steps": "solve", "state-rule": "solve",
   "build-statement": "wording", "complete-statement": "wording", "complete-condition": "wording", "name-rule": "wording",
+  "qa-answer": "solve", "qa-choose": "identify", "qa-sequence": "sequence", "qa-type": "solve", "qa-case": "apply",
 };
 
 /** Easier skills first; the unaided answer always comes last. */
@@ -108,6 +109,12 @@ function workspaceCases(card: CardWithStats): LearnCase[] {
 }
 
 export function toRuleCard(card: CardWithStats, pack: PackWithType, base: { term: string; meaning: string; examples: LearnExample[] }): LearnCard {
+  // A direct Q&A card is not a procedural rule. Give it standard recall exercises and a
+  // conventional Q→A review rather than inventing a condition, case or rule attribution.
+  if (appliedCardKind(card.data) === "question") return {
+    id: card.id, term: base.term, form: base.term, reading: "", meaning: base.meaning, examples: base.examples,
+    language: null, han: false, wordSized: false, appliedQuestion: true,
+  };
   const type = pack.cardType;
   const list = (role: "condition" | "exception" | "step") =>
     uniqueBy((type?.field_schema ?? []).filter((field) => field.role === role).flatMap((field) => splitList(fieldText(card.data, field.key))).map(clean), normaliseAnswer);
@@ -598,6 +605,77 @@ const nameRule: Builder = (m) => ({
   prompt: { ask: "Which rule is this? Type its name.", text: maskName(m.card.meaning, m.card) },
   solution: m.card.form, explain: "",
 });
+
+/**
+ * Direct Q&A is not a rule. Keep the question on screen and practise its answer.
+ * The same five-stage persistence is retained, but no reverse recall of the question
+ * and no fabricated scenario/condition are introduced.
+ *
+ * Questions without structured cases naturally have fewer distinct exercise forms.
+ * This is a deliberately modest fallback: a shorter Q&A round may be warranted later.
+ */
+export function buildAppliedQuestionRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string }): Exercise[] {
+  const { card } = input;
+  const others = uniqueBy(input.pool.filter((other) =>
+    other.id !== card.id && other.appliedQuestion && other.meaning &&
+    normaliseAnswer(other.meaning) !== normaliseAnswer(card.meaning)), (other) => normaliseAnswer(other.meaning));
+  const points: JudgePoint[] = splitList(card.meaning).length > 1
+    ? splitList(card.meaning).slice(0, 5).map((text, index) => ({ id: `p${index}`, label: `Point ${index + 1}`, text, essential: true }))
+    : [{ id: "answer", label: "Answer", text: card.meaning }];
+  const judge = (prompt: string) => ({
+    format: "judge" as const, kind: "qa-answer" as const,
+    points, placeholder: "Write your answer, then check the key points",
+    prompt: { ask: prompt, text: card.term },
+    solution: card.meaning, explain: "",
+  });
+  const choice = (position: number) => {
+    if (others.length < 2) return null;
+    const random = rng(`${input.seed}:qa-choice:${position}:${input.round}`);
+    const options: Choice[] = shuffle([
+      { id: card.id, label: card.meaning },
+      ...shuffle(others, random).slice((position - 1) % Math.max(1, others.length - 1), ((position - 1) % Math.max(1, others.length - 1)) + 3)
+        .map((other) => ({ id: other.id, label: other.meaning })),
+    ], random);
+    if (options.length < 3) return null;
+    return {
+      format: "choice" as const, kind: "qa-choose" as const,
+      layout: "list" as const, choices: options, answerId: card.id,
+      prompt: { ask: "Which answer belongs to this question?", text: card.term },
+      solution: card.meaning, explain: "Read the complete answer before continuing.",
+    };
+  };
+  const sequence = () => {
+    // Only ordered clauses are suitable for reconstruction; do not turn arbitrary prose
+    // into a vocabulary-style word jumble.
+    const parts = splitList(card.meaning);
+    if (parts.length < 3 || parts.length > 7 || new Set(parts).size !== parts.length) return null;
+    const random = rng(`${input.seed}:qa-sequence:${input.round}`);
+    return {
+      format: "build" as const, kind: "qa-sequence" as const, stacked: true,
+      tiles: tiles(parts, random), answer: parts, joiner: " " as const,
+      prompt: { ask: "Reconstruct the answer in order.", text: card.term },
+      solution: parts.join(" → "), explain: "",
+    };
+  };
+  const typed = () => {
+    if (card.meaning.trim().split(/\s+/).length > 4) return null;
+    return {
+      format: "type" as const, kind: "qa-type" as const,
+      accepted: [{ value: card.meaning, kind: "exact" as const }],
+      placeholder: "Type your answer", language: null,
+      prompt: { ask: "Answer from memory.", text: card.term },
+      solution: card.meaning, explain: "",
+    };
+  };
+  const drafts = [
+    choice(1) ?? judge("Which answer fits? Explain in your own words."),
+    sequence() ?? judge("Give the essential answer."),
+    typed() ?? judge("Answer the question without hints."),
+    choice(4) ?? judge("Check whether you remember the answer."),
+    judge("Final recall — answer independently."),
+  ];
+  return drafts.map((draft, index) => ({ ...draft, v: 1 as const, position: index + 1, stage: STAGE_ORDER[index] }) as Exercise);
+}
 
 /* ------------------------------------------------------------------------- */
 /* Choosing the five                                                          */

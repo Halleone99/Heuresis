@@ -12,7 +12,7 @@ import {
 import { addRelatedWord, type RelationType } from "../lib/related";
 import { toLearnCard } from "../lib/learnExercises";
 import { appliedCoverage } from "../lib/appliedExercises";
-import { packShape } from "../lib/teachingShape";
+import { APPLIED_KIND_KEY, appliedCardFieldLabel, packShape, type AppliedCardKind } from "../lib/teachingShape";
 
 type Props = {
   collections: Collection[];
@@ -36,6 +36,7 @@ type CaptureBlock = {
 type CaptureDraft = {
   id: string;
   packId: string;
+  kind?: AppliedCardKind;
   values: Record<string, string>;
   tagIds: string[];
   blocks: CaptureBlock[];
@@ -72,7 +73,7 @@ function uid() {
 }
 
 function emptyDraft(packId: string): CaptureDraft {
-  return { id: uid(), packId, values: {}, tagIds: [], blocks: [], createdAt: new Date().toISOString() };
+  return { id: uid(), packId, kind: "knowledge", values: {}, tagIds: [], blocks: [], createdAt: new Date().toISOString() };
 }
 
 function blockDef(kind: BlockKind) {
@@ -141,6 +142,7 @@ function FieldSlot({
   field,
   value,
   display,
+  labelOverride,
   inputRef,
   onChange,
   onEnter,
@@ -148,17 +150,18 @@ function FieldSlot({
   field: FieldDef;
   value: string;
   display?: boolean;
+  labelOverride?: string;
   inputRef?: (element: HTMLTextAreaElement | null) => void;
   onChange: (value: string) => void;
   onEnter?: () => void;
 }) {
   return <label className={`capture-slot ${display ? "capture-slot-display" : ""}`}>
-    <span>{field.label}{field.required ? <b> *</b> : null}</span>
+    <span>{labelOverride ?? field.label}{field.required ? <b> *</b> : null}</span>
     <textarea
       ref={inputRef}
       rows={1}
       value={value}
-      placeholder={display ? field.label : ""}
+      placeholder={display ? (labelOverride ?? field.label) : ""}
       onChange={(event) => {
         onChange(event.target.value);
         event.currentTarget.style.height = "auto";
@@ -247,14 +250,15 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
   // Applied: a case (and what follows in it) is the most useful optional addition, so it is always
   // in view; conditions, exceptions, steps and source stay under More fields.
   const applied = packShape(pack) === "rule";
-  const caseFields = useMemo(() => (applied ? groups.extras.filter((field) => field.role === "case" || field.role === "outcome") : []), [applied, groups]);
+  const appliedKind: AppliedCardKind = draft.kind === "question" ? "question" : "knowledge";
+  const caseFields = useMemo(() => (applied && appliedKind === "knowledge" ? groups.extras.filter((field) => field.role === "case" || field.role === "outcome") : []), [applied, appliedKind, groups]);
   const moreFields = useMemo(() => groups.extras.filter((field) => !caseFields.includes(field)), [groups, caseFields]);
   const coverage = useMemo(() => {
-    if (!applied || !pack) return null;
+    if (!applied || appliedKind !== "knowledge" || !pack) return null;
     const view = toLearnCard({ id: "draft", pack_id: pack.id, retention: "learning", data: draft.values, note: null, favourite: false, interesting: false, interest_rank: null,
       created_at: "", updated_at: "", tags: [], stats: { encounter_count: 0, study_count: 0, known_count: 0, again_count: 0, hard_count: 0, good_count: 0, easy_count: 0, first_encountered_at: null, last_encountered_at: null, by_template: {} } }, pack, null);
     return appliedCoverage(view, pack.card_count);
-  }, [applied, pack, draft.values]);
+  }, [applied, appliedKind, pack, draft.values]);
   const coreFields = useMemo(() => [...groups.prompt, ...groups.answer], [groups]);
   const valid = draftIsValid(pack, draft);
   const liveBlank = isBlank(draft);
@@ -319,7 +323,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
     const item = draft;
     setSaving(true); setStatus(""); setConfirmClose(false);
     try {
-      const created = await createCard(pack, item.values, undefined, item.tagIds);
+      const created = await createCard(pack, applied ? { ...item.values, [APPLIED_KIND_KEY]: item.kind === "question" ? "question" : "knowledge" } : item.values, undefined, item.tagIds);
       let warning = "";
       try { await enrichCreatedCard(created.id, item); }
       catch (error) { warning = error instanceof Error ? error.message : "Some extras could not be saved."; }
@@ -341,7 +345,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
     }
     // enrichCreatedCard only reads the current pack.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, onSaved, pack, saving]);
+  }, [applied, draft, onSaved, pack, saving]);
 
   function loadQueued(item: CaptureDraft) {
     setQueue((current) => {
@@ -513,11 +517,17 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
           {pack && !fields.length ? <div className="capture-empty">This topic has no readable card schema yet.</div> : null}
 
           {pack && fields.length ? <>
+            {applied ? <div className="capture-applied-kind" role="group" aria-label="Applied card format">
+              <button type="button" aria-pressed={appliedKind === "knowledge"} className={appliedKind === "knowledge" ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, kind: "knowledge" }))}>Knowledge</button>
+              <button type="button" aria-pressed={appliedKind === "question"} className={appliedKind === "question" ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, kind: "question" }))}>Question</button>
+              <small>{appliedKind === "question" ? "Ask directly · answer from memory" : "Explain a rule, principle or process"}</small>
+            </div> : null}
             <div className="capture-card-surface">
               <div className="capture-side-label"><span>FRONT</span><em>what you see first</em></div>
               {groups.prompt.map((field, index) => <FieldSlot
                 key={field.key}
                 field={field}
+                labelOverride={applied ? appliedCardFieldLabel(field, appliedKind) : undefined}
                 display
                 value={draft.values[field.key] ?? ""}
                 inputRef={(element) => { inputRefs.current[index] = element; }}
@@ -533,6 +543,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
                 return <FieldSlot
                   key={field.key}
                   field={field}
+                  labelOverride={applied ? appliedCardFieldLabel(field, appliedKind) : undefined}
                   value={draft.values[field.key] ?? ""}
                   inputRef={(element) => { inputRefs.current[index] = element; }}
                   onChange={(value) => setField(field.key, value)}

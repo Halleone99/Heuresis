@@ -3,7 +3,7 @@ import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from ".
 import { languageFromName, languageFromScript, type LanguageKey } from "./languages";
 import { ROUND_SIZE, STAGE_LABEL, STAGE_ORDER, type LearnStage } from "./learnRounds";
 import { packShape } from "./teachingShape";
-import { appliedSkill, buildAppliedRound, SKILL_LABEL, toRuleCard, type RoundHistory } from "./appliedExercises";
+import { appliedSkill, buildAppliedQuestionRound, buildAppliedRound, SKILL_LABEL, toRuleCard, type RoundHistory } from "./appliedExercises";
 import { hash, rng, shuffle, tiles, uniqueBy } from "./learnRandom";
 
 /**
@@ -37,7 +37,8 @@ export type StandardKind =
 export type AppliedKind =
   | "rule-for-case" | "rule-boundary" | "rule-for-statement" | "statement-for-rule" | "order-steps" | "build-statement"
   | "missing-condition" | "missing-exception" | "missing-value" | "case-outcome" | "which-case"
-  | "solve-case" | "recall-steps" | "state-rule" | "complete-statement" | "complete-condition" | "name-rule";
+  | "solve-case" | "recall-steps" | "state-rule" | "complete-statement" | "complete-condition" | "name-rule"
+  | "qa-answer" | "qa-choose" | "qa-sequence" | "qa-type" | "qa-case";
 export type ExerciseKind = StandardKind | AppliedKind;
 
 export type Prompt = {
@@ -129,8 +130,10 @@ export type LearnCard = {
   language: LanguageKey | null;
   han: boolean;
   wordSized: boolean;
-  /** Present only on Applied cards; it decides which exercises the card gets. */
+  /** Present only on Applied Knowledge cards; it decides which exercises the card gets. */
   rule?: RuleParts;
+  /** Direct Applied Q&A; never ask the learner to reconstruct the question from the answer. */
+  appliedQuestion?: boolean;
 };
 
 const HAN = /\p{Script=Han}/u;
@@ -787,6 +790,7 @@ export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: n
   if (!learnable(card)) throw new Error("This card needs a term and a meaning before it can be learned.");
   // Applied cards choose their five from their own library, by what the card contains.
   if (card.rule) return buildAppliedRound(input);
+  if (card.appliedQuestion) return buildAppliedQuestionRound(input);
   const round = Math.max(1, Math.floor(input.round));
   const used = new Set<StandardKind>();
   const plan: Exercise[] = [];

@@ -17,6 +17,18 @@ export type TeachingShape = "standard" | "rule";
 /** The built-in Rule — Applied card type (migration 20261117160000). */
 export const RULE_CARD_TYPE_ID = "00000000-0000-4000-8000-000000000006";
 
+/** Two presentation forms can coexist in one Applied topic. Stored on each card. */
+export const APPLIED_KIND_KEY = "_applied_kind";
+export type AppliedCardKind = "knowledge" | "question";
+export function appliedCardKind(data: Record<string, unknown> | null | undefined): AppliedCardKind {
+  return data?.[APPLIED_KIND_KEY] === "question" ? "question" : "knowledge";
+}
+export function appliedCardFieldLabel(field: FieldDef, kind: AppliedCardKind): string {
+  if (kind === "knowledge") return field.role === "term" ? "Knowledge / principle" : field.role === "meaning" ? "Explanation" : field.label;
+  return field.role === "term" ? "Question" : field.role === "meaning" ? "Answer" : field.label;
+}
+
+
 /** Field roles that Applied cards use. They describe fields; they do not make a card Applied. */
 export const RULE_ROLES: readonly FieldRole[] = ["condition", "exception", "step", "case", "outcome", "source"];
 

@@ -2,7 +2,7 @@ import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fieldText, getCard, updateCard, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import RelatedEditor from "./RelatedEditor";
-import { isRuleTextField } from "../lib/teachingShape";
+import { APPLIED_KIND_KEY, appliedCardKind, appliedCardFieldLabel, isRuleTextField, packShape } from "../lib/teachingShape";
 
 type Props = {
   pack: PackWithType;
@@ -141,6 +141,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(schema.map((field) => [field.key, fieldText(card.data, field.key)])));
   const [note, setNote] = useState(card.note ?? "");
+  const [appliedKind, setAppliedKind] = useState(appliedCardKind(card.data));
   const [blocks, setBlocks] = useState<EditableBlock[]>(() => editableBlocks(card));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -171,12 +172,13 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
       if (!latest) throw new Error("This card no longer exists.");
       if (
         schema.some((field) => fieldText(latest.data, field.key) !== fieldText(card.data, field.key)) ||
+        (packShape(pack) === "rule" && appliedCardKind(latest.data) !== appliedCardKind(card.data)) ||
         (latest.note ?? "") !== (card.note ?? "") ||
         JSON.stringify(originalRows(latest)) !== JSON.stringify(originalRows(card))
       ) throw new Error("This card was changed elsewhere. Close and reopen Modify to avoid overwriting it.");
 
       const workspaceBlocks = knowledgeRows(card, blocks, pack);
-      await updateCard(pack, card.id, values, {
+      await updateCard(pack, card.id, packShape(pack) === "rule" ? { ...values, [APPLIED_KIND_KEY]: appliedKind } : values, {
         note,
         favourite: latest.favourite,
         interest_rank: latest.interest_rank,
@@ -184,7 +186,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
         workspaceBlocks,
       });
       const refreshed = await getCard(card.id).catch(() => null);
-      const nextData: CardWithStats["data"] = { ...card.data, [BLOCK_KEY]: workspaceBlocks };
+      const nextData: CardWithStats["data"] = { ...card.data, [BLOCK_KEY]: workspaceBlocks, ...(packShape(pack) === "rule" ? { [APPLIED_KIND_KEY]: appliedKind } : {}) };
       for (const field of schema) {
         const value = (values[field.key] ?? "").trim();
         if (value) nextData[field.key] = value;
@@ -205,7 +207,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
 
   const renderField = (field: FieldDef) => (
     <label key={field.key} className="cosmos-edit-field">
-      <span>{field.label}{field.required ? " *" : ""}</span>
+      <span>{packShape(pack) === "rule" ? appliedCardFieldLabel(field, appliedKind) : field.label}{field.required ? " *" : ""}</span>
       {["example", "extra", "example_translation"].includes(field.role ?? "") || isRuleTextField(pack.cardType, field)
         ? <textarea rows={2} value={values[field.key] ?? ""} onChange={(event) => setValue(field.key, event.target.value)} />
         : <input type="text" value={values[field.key] ?? ""} onChange={(event) => setValue(field.key, event.target.value)} />}
@@ -225,6 +227,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
         <button type="button" onClick={onClose} disabled={saving} aria-label="Close card editor"><X size={18} /></button>
       </header>
       <div className="cosmos-edit-fields">
+        {packShape(pack) === "rule" ? <div className="applied-kind-switch" role="group" aria-label="Applied card format"><button type="button" className={appliedKind === "knowledge" ? "selected" : ""} aria-pressed={appliedKind === "knowledge"} onClick={() => setAppliedKind("knowledge")}>Knowledge</button><button type="button" className={appliedKind === "question" ? "selected" : ""} aria-pressed={appliedKind === "question"} onClick={() => setAppliedKind("question")}>Question</button></div> : null}
         <div className="cosmos-edit-section-label"><span>FRONT</span><small>Recall prompt</small></div>
         {groups.prompt.map(renderField)}
         <div className="cosmos-edit-section-label cosmos-edit-back-label"><span>BACK</span><small>Reference answer</small></div>
