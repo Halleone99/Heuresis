@@ -63,6 +63,10 @@ import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrect
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
 import { useAndroidStudyWakeLock } from "../lib/androidStudySession";
+import { packShape } from "../lib/teachingShape";
+import { appliedReviewQuestion } from "../lib/appliedReview";
+import { checkExercise, type Verdict } from "../lib/learnExercises";
+import AppliedReviewQuestion from "./AppliedReviewQuestion";
 import "./cosmos.css";
 import "./review-card.css";
 // Android APK only (MagicPad). Loaded after review-card.css so it wins ties; see the file header.
@@ -124,6 +128,17 @@ const CONCEPT_DIMS: DimensionDef[] = [
   { id: "components", label: "Parts", sub: "elements and sub-ideas" },
   { id: "structure", label: "Structure", sub: "argument and relationships" },
   { id: "origin", label: "Origin", sub: "history and lineage" },
+  { id: "facts", label: "Facts", sub: "useful and memorable" },
+  { id: "notes", label: "Notes", sub: "my own" },
+];
+
+/** Applied cards: a rule, regulation or procedure (see teachingShape.ts). */
+const RULE_DIMS: DimensionDef[] = [
+  { id: "examples", label: "Cases", sub: "situations and what follows" },
+  { id: "structure", label: "Conditions", sub: "when it applies, exceptions, steps" },
+  { id: "neighbours", label: "Related", sub: "rules it is confused with" },
+  { id: "components", label: "Terms", sub: "definitions it relies on" },
+  { id: "origin", label: "Source", sub: "legal basis and version" },
   { id: "facts", label: "Facts", sub: "useful and memorable" },
   { id: "notes", label: "Notes", sub: "my own" },
 ];
@@ -232,6 +247,9 @@ function serialiseBlocks(blocks: WorkspaceBlock[]) {
 function fieldDimension(field: FieldDef): DimensionId | null {
   const haystack = `${field.key} ${field.label}`.toLocaleLowerCase();
   if (field.role === "example" || field.role === "example_reading" || field.role === "example_translation") return "examples";
+  if (field.role === "case" || field.role === "outcome") return "examples";
+  if (field.role === "condition" || field.role === "exception" || field.role === "step") return "structure";
+  if (field.role === "source") return "origin";
   if (/neighbou?r|synonym|antonym|related|similar|alternative word|contrast|difference|confus|versus|\bvs\b/.test(haystack)) return "neighbours";
   if (/component|radical|character|morph|part/.test(haystack)) return "components";
   if (/etymolog|origin|history|lineage/.test(haystack)) return "origin";
@@ -298,6 +316,11 @@ export default function CosmosWindow() {
   const [manualRest, setManualRest] = useState<QueueItem[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [appliedChoice, setAppliedChoice] = useState("");
+  const [appliedTiles, setAppliedTiles] = useState<string[]>([]);
+  const [appliedWritten, setAppliedWritten] = useState("");
+  const [appliedCovered, setAppliedCovered] = useState<string[]>([]);
+  const [appliedVerdict, setAppliedVerdict] = useState<Verdict | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
@@ -398,8 +421,13 @@ export default function CosmosWindow() {
   const template = templateFor(item);
   const progressDirectionIds = useMemo(() => defaultDirections(templates, legacyId).map((entry) => entry.id), [templates, legacyId]);
   const done = Boolean(queue.length && index >= queue.length);
-  const dimensions = pack && isConceptualPack(pack) ? CONCEPT_DIMS : LANGUAGE_DIMS;
-  const structuredWords = Boolean(pack && !isConceptualPack(pack));
+  const appliedPack = packShape(pack) === "rule";
+  const appliedQuestion = useMemo(() => {
+    if (!appliedPack || !pack || !card || mode !== "review" || relatedReview) return null;
+    return appliedReviewQuestion({ card, pack, cards, reviewNumber: reviewGradeCount(card) });
+  }, [appliedPack, pack, card, cards, mode, relatedReview]);
+  const dimensions = appliedPack ? RULE_DIMS : pack && isConceptualPack(pack) ? CONCEPT_DIMS : LANGUAGE_DIMS;
+  const structuredWords = Boolean(pack && !appliedPack && !isConceptualPack(pack));
   const blocks = parseBlocks(card);
 
   const setMethod = (next: ReviewMethod) => {
@@ -839,11 +867,43 @@ export default function CosmosWindow() {
     })).filter((entry) => entry.value);
   }
 
-  async function reveal() {
+  /** One question replaces the definition flip for Applied cards, but uses the same
+   * reveal event, Review grade and SRS scheduling as every other card. */
+  function appliedInputReady(): boolean {
+    if (!appliedQuestion) return true;
+    if (appliedQuestion.format === "choice") return Boolean(appliedChoice);
+    if (appliedQuestion.format === "build") return appliedTiles.length === appliedQuestion.tiles.length;
+    if (appliedQuestion.format === "judge") return Boolean(appliedWritten.trim());
+    return false;
+  }
+
+  function confirmAppliedSelfCheck() {
+    if (!appliedQuestion || appliedQuestion.format !== "judge" || !revealed || appliedVerdict) return;
+    setAppliedVerdict(checkExercise(appliedQuestion, { format: "judge", text: appliedWritten, covered: appliedCovered }));
+  }
+
+  async function reveal(unknown = false) {
     if (!card || !pack || !template || !sessionRef.current || revealed || busy) return;
+    if (appliedQuestion && !unknown && !appliedInputReady()) {
+      setNotice("Answer the question first, or choose I don't know.");
+      return;
+    }
     setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: "revealed" });
+      if (appliedQuestion) {
+        if (unknown) {
+          setAppliedVerdict({ correct: false, response: "", expected: appliedQuestion.solution, message: "Not recalled this time." });
+        } else if (appliedQuestion.format === "choice") {
+          setAppliedVerdict(checkExercise(appliedQuestion, { format: "choice", choiceId: appliedChoice }));
+        } else if (appliedQuestion.format === "build") {
+          setAppliedVerdict(checkExercise(appliedQuestion, { format: "build", tileIds: appliedTiles }));
+        }
+        // For a written case, reveal the reference points first; the user then ticks
+        // what was genuinely in their answer before the SRS rating becomes available.
+        setRevealed(true);
+        return;
+      }
       if (method === "type" && typed.trim()) {
         const values = answerValues();
         const suggested = suggestResult(typed, values);
@@ -871,21 +931,26 @@ export default function CosmosWindow() {
     }
     setIndex(nextIndex);
     setRevealed(false);
+    setAppliedChoice(""); setAppliedTiles([]); setAppliedWritten(""); setAppliedCovered([]); setAppliedVerdict(null);
     setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setMissNote(""); setMissNoteAdded(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
     stopReviewAudio();
   }
 
   async function answer(grade: StudyGrade): Promise<boolean> {
     if (!card || !pack || !template || !item || !sessionRef.current || !revealed || busy || unsavedDraft || gradedMistake) return false;
+    if (appliedQuestion && !appliedVerdict) return false;
+    if (appliedQuestion && appliedVerdict && ((appliedVerdict.correct && grade === "again")
+      || (!appliedVerdict.correct && (grade === "good" || grade === "easy")))) return false;
     setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
       // Count the method used on each completed attempt, not just a click.
       try {
-        const updated = countReviewMethod(reviewMethodCounts(card, learningCounts[card.id]), method);
+        const countedMethod: ReviewMethod = appliedQuestion ? (appliedQuestion.format === "judge" ? "type" : "think") : method;
+        const updated = countReviewMethod(reviewMethodCounts(card, learningCounts[card.id]), countedMethod);
         const data = await patchCardData(card.id, {
           [REVIEW_METHOD_COUNTS_KEY]: JSON.stringify(updated),
-          [REVIEW_LAST_METHOD_KEY]: method,
+          [REVIEW_LAST_METHOD_KEY]: countedMethod,
         });
         patchLocalCard(card.id, (entry) => ({ ...entry, data }));
       } catch {
@@ -909,8 +974,8 @@ export default function CosmosWindow() {
           pendingCorrectionRef.current = {
             id: crypto.randomUUID(), cardId: card.id, packId: pack.id,
             sessionId: sessionRef.current, templateId: template.id, grade,
-            attempt: method === "type" ? typed : "",
-            referenceAnswer: answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
+            attempt: appliedQuestion ? (appliedVerdict?.response || appliedWritten) : method === "type" ? typed : "",
+            referenceAnswer: appliedQuestion?.solution ?? answerValues().map((value) => typeof value === "string" ? value : value.value).filter(Boolean).join(" · "),
             explanation: "", repeated: suggestRelearning([...(events ?? []), graded].filter((entry) => entry.cardId === card.id)), submitted: false,
           };
         }
@@ -945,6 +1010,8 @@ export default function CosmosWindow() {
 
   function selectGrade(grade: StudyGrade) {
     if (busy || correctionOpen || gradedMistake) return;
+    if (appliedQuestion && (!appliedVerdict || (appliedVerdict.correct && grade === "again")
+      || (!appliedVerdict.correct && (grade === "good" || grade === "easy")))) return;
     void answer(grade);
   }
 
@@ -1099,11 +1166,14 @@ export default function CosmosWindow() {
       }
       if (typing || !card || busy || done) return;
       if (mode === "review") {
+        // Applied requires an explicit answer. Do not accidentally reveal from Space
+        // while the learner is choosing or ordering their answer.
+        if (appliedQuestion && !revealed && (event.key === " " || event.key === "Enter")) return;
         if (!revealed && (event.key === " " || event.key === "Enter")) { event.preventDefault(); void reveal(); return; }
         const grades: Record<string, StudyGrade> = { "1": "again", "2": "hard", "3": "good", "4": "easy" };
         const grade = grades[event.key];
         if (revealed && grade) { event.preventDefault(); selectGrade(grade); return; }
-        if (revealed && event.key === "Enter" && suggestion) { event.preventDefault(); selectGrade(suggestion.grade); return; }
+        if (revealed && event.key === "Enter" && suggestion && !appliedQuestion) { event.preventDefault(); selectGrade(suggestion.grade); return; }
         if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
         if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
       } else {
@@ -1184,7 +1254,7 @@ export default function CosmosWindow() {
     if (addingDim !== dimensionId) return <button className="cosmos-add" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(dimensionId); }}><Plus size={13} /> Add to {def.label}</button>;
     return showRelated
       ? <div className="cosmos-word-editor"><input autoFocus placeholder="Word or expression" value={relatedTerm} onChange={(event) => setRelatedTerm(event.target.value)} /><input placeholder="Reading / pinyin" value={relatedReading} onChange={(event) => setRelatedReading(event.target.value)} /><textarea placeholder="Meaning" rows={3} value={relatedMeaning} onChange={(event) => setRelatedMeaning(event.target.value)} /><div className="cosmos-relation-types">{RELATION_TYPES.map((value) => <button key={value} className={relationType === value ? "selected" : ""} onClick={() => setRelationType(value)}>{relationLabel(value)}</button>)}</div><div className="cosmos-editor-actions"><button onClick={() => { setAddingDim(null); setRelatedTerm(""); setRelatedReading(""); setRelatedMeaning(""); }}>Cancel</button><button className="primary" disabled={busy} onClick={() => void saveRelated()}>Save</button></div></div>
-      : <div className="cosmos-add-editor"><textarea autoFocus rows={4} value={addingText} onChange={(event) => setAddingText(event.target.value)} placeholder={`Add to ${def.label}`} /><div><button onClick={() => { setAddingDim(null); setAddingText(""); }}>Cancel</button><button className="primary" disabled={busy || !addingText.trim()} onClick={() => void saveTextBlock(dimensionId)}>Save</button></div></div>;
+      : <div className="cosmos-add-editor"><textarea autoFocus rows={4} value={addingText} onChange={(event) => setAddingText(event.target.value)} placeholder={appliedPack && dimensionId === "examples" ? "A situation…\n→ what follows" : `Add to ${def.label}`} /><div><button onClick={() => { setAddingDim(null); setAddingText(""); }}>Cancel</button><button className="primary" disabled={busy || !addingText.trim()} onClick={() => void saveTextBlock(dimensionId)}>Save</button></div></div>;
   };
 
   const renderDimension = (def: DimensionDef) => {
@@ -1422,9 +1492,17 @@ export default function CosmosWindow() {
           onClick={() => setEditOpen(true)} disabled={busy} title="Modify this card without grading it">
           <Pencil size={13} aria-hidden="true" /> Modify
         </button> : null}
-        <div className="cosmos-nucleus">{mode === "review" ? renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
+        <div className="cosmos-nucleus">{mode === "review" ? appliedQuestion ? <AppliedReviewQuestion
+          exercise={appliedQuestion} revealed={revealed} verdict={appliedVerdict} choiceId={appliedChoice}
+          tileIds={appliedTiles} written={appliedWritten} covered={appliedCovered}
+          onChoice={setAppliedChoice} onTiles={setAppliedTiles} onWritten={setAppliedWritten} onCovered={setAppliedCovered}/>
+          : renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
         {redesignReview ? <footer className="cosmos-review-foot">
-          {!revealed ? <button type="button" className="review-reveal" title="Reveal (Space)" disabled={busy}
+          {!revealed ? appliedQuestion ? <div className="applied-review-footer">
+              <button type="button" disabled={busy} onClick={() => void reveal(true)}>I don't know</button>
+              <button type="button" className="primary" disabled={busy || !appliedInputReady()}
+                onClick={() => void reveal()}>{appliedQuestion.format === "judge" ? "Show checklist" : "Check answer"}</button>
+            </div> : <button type="button" className="review-reveal" title="Reveal (Space)" disabled={busy}
             onClick={() => void reveal()}>Reveal</button>
           : gradedMistake ? <div className="review-missed" data-grade={gradedMistake} role="status">
               <div className="review-missed-line">
@@ -1451,6 +1529,20 @@ export default function CosmosWindow() {
                       if(missNote.trim())setMissNoteAdded(true);
                     }
                   }}/>}
+            </div>
+          : appliedQuestion ? <div className="applied-review-footer">
+              {appliedQuestion.format === "judge" && !appliedVerdict ? <button type="button" className="primary"
+                disabled={busy} onClick={confirmAppliedSelfCheck}>Confirm self-check</button> : <>
+                <p className="applied-review-footer-note">{appliedVerdict?.correct ? "Correct · choose how easily you recalled it" : "Not yet correct · use Again or Hard"}</p>
+                {appliedVerdict?.correct ? <>
+                  <button type="button" disabled={busy} onClick={() => selectGrade("hard")}>Hard</button>
+                  <button type="button" className="primary" disabled={busy} onClick={() => selectGrade("good")}>Good</button>
+                  <button type="button" disabled={busy} onClick={() => selectGrade("easy")}>Easy</button>
+                </> : <>
+                  <button type="button" className="primary" disabled={busy} onClick={() => selectGrade("again")}>Again</button>
+                  <button type="button" disabled={busy} onClick={() => selectGrade("hard")}>Hard</button>
+                </>}
+              </>}
             </div>
           : <>
               {suggestion ? <p className="cosmos-suggestion" role="status">Looks like <b>{RESULT_LABEL[suggestion.grade]}</b> — {suggestion.reason} Your call.</p> : null}
