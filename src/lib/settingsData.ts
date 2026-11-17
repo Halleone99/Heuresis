@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 
-export type StructureRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
+export type StructureRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation"
+  | "condition" | "exception" | "step" | "case" | "outcome" | "source";
 export type StructureScript = "han" | "cyrl" | "latn";
 export type StructureField = {
   key: string;
