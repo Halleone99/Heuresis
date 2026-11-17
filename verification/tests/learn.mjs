@@ -826,10 +826,15 @@ const scenarios = {
       }
       await page.locator(".lrn-summary").waitFor();
       await page.waitForTimeout(300);
-      // Complete a second, harder round before graduation.
-      await page.locator('.lrn-actions button:has-text("Start another round")').focus();
+      // Wait until the server has saved the last answer before activating the next round.
+      // A visible but disabled action must not receive keyboard Enter: that used to stall CI.
+      const nextRound = page.locator('.lrn-actions button:has-text("Start another round"):not([disabled])');
+      await nextRound.waitFor({ timeout: 15000 });
+      await nextRound.focus();
       await page.keyboard.press("Enter");
       await playRound(page, term, [], { keyboard: true });
+      check(/Ready for Review/.test(await page.locator(".lrn-summary").innerText()),
+        `two successful keyboard rounds make ${term} ready for Review`);
       // Leave both ready without moving them, to reach the end-of-session screen.
       if (card === 1) { await page.locator('.lrn-actions button:has-text("Continue learning another card")').focus(); await page.keyboard.press("Enter"); }
     }
