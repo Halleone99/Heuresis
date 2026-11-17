@@ -3,12 +3,14 @@ import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Delete, Lightbulb, RotateCcw, X } from "lucide-react";
 import type { CardWithStats } from "../lib/heuresis";
 import {
-  buildRound, checkExercise, learnable, readPlan, toLearnCard,
+  buildRound, checkExercise, exerciseLabel, learnable, readPlan, toLearnCard,
   type Exercise, type ExerciseInput, type LearnCard, type Verdict,
 } from "../lib/learnExercises";
+import { answerMentions, appliedCoverage, roundHistory, type RoundHistory } from "../lib/appliedExercises";
+import { packShape } from "../lib/teachingShape";
 import {
   LEARN_SETUP_MESSAGE, READY_SCORE, ROUND_MAX, ROUND_SIZE, STAGE_LABEL,
-  cacheRound, forgetCachedRound, learnSchemaMissing, loadLearnOverview, markLearnCorrected, openLearnRound,
+  cacheRound, forgetCachedRound, learnSchemaMissing, loadLearnOverview, loadLearnRound, markLearnCorrected, openLearnRound,
   pointsFor, recordLearnAttempt, roundResult, stateForCycle,
   type LearnAttempt, type LearnOverview, type LearnRound,
 } from "../lib/learnRounds";
@@ -84,6 +86,9 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const [gapFill, setGapFill] = useState<Array<{ ch: string; bank: number } | null>>([]);
   const [text, setText] = useState("");
   const [hinted, setHinted] = useState(false);
+  /** A free answer (judge format): the card's points are shown and the learner ticks what the answer contains. */
+  const [judging, setJudging] = useState(false);
+  const [covered, setCovered] = useState<string[]>([]);
   const [gain, setGain] = useState(0);
   const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
   const [saveProblem, setSaveProblem] = useState("");
@@ -94,6 +99,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   const overview = useRef<LearnOverview | null>(null);
   const lastRound = useRef(new Map<string, number>());
+  /** What each card's previous round showed and where it went wrong, so the next round can build on it. */
+  const histories = useRef(new Map<string, RoundHistory>());
   const outbox = useRef<Array<{ roundId: string; cardId: string; attempt: LearnAttempt }>>([]);
   const flushing = useRef(false);
   const dirty = useRef(false);
@@ -101,6 +108,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const opening = useRef(false);
   const shell = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const area = useRef<HTMLTextAreaElement>(null);
   const primary = useRef<HTMLButtonElement>(null);
   const changed = useRef(onChanged); changed.current = onChanged;
 
@@ -142,7 +150,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   const resetAnswer = useCallback((next: Exercise | null) => {
     answering.current = false;
-    setShown(null); setChoiceId(null); setTileIds([]); setText(""); setHinted(false);
+    setShown(null); setChoiceId(null); setTileIds([]); setText(""); setHinted(false); setJudging(false); setCovered([]);
     setGapFill(next?.format === "gaps" ? next.cells.filter((cell) => cell.gap).map(() => null) : []);
   }, []);
 
@@ -155,10 +163,20 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       const acquisition = readAcquisition(card.data);
       const known = stateForCycle(overview.current?.cards.get(card.id), acquisition.cycle);
       const previous = Math.max(lastRound.current.get(card.id) ?? 0, known?.last?.roundNumber ?? 0);
-      const pool = topic.cards.map((item) => toLearnCard(item, topic.pack, topic.language)).filter(learnable);
+      // An Applied rule is told apart from the rules it is most often confused with, which may sit
+      // in other topics of the same collection.
+      const neighbours = view.rule
+        ? topics.filter((other) => other.pack.collection_id === topic.pack.collection_id && packShape(other.pack) === "rule") : [topic];
+      const pool = neighbours.flatMap((other) => other.cards.map((item) => toLearnCard(item, other.pack, other.language))).filter(learnable);
+      // The previous round, from this session or (best effort) from the server, shapes the next one.
+      let history = histories.current.get(card.id) ?? null;
+      if (!history && view.rule && known?.last && !known.last.ready) {
+        const stored = await loadLearnRound(known.last.id);
+        if (stored) history = roundHistory(stored.plan, stored.attempts, known.last.score);
+      }
       const opened = await openLearnRound({
         cardId: card.id, cycle: acquisition.cycle,
-        proposal: () => ({ roundNumber: previous + 1, plan: buildRound({ card: view, pool, round: previous + 1, seed: crypto.randomUUID() }) }),
+        proposal: () => ({ roundNumber: previous + 1, plan: buildRound({ card: view, pool, round: previous + 1, seed: crypto.randomUUID(), history }) }),
       });
       // A round stored by a different version of the exercises is rebuilt for display; its answers stay valid.
       const plan = readPlan(opened.round.plan) ?? buildRound({ card: view, pool, round: opened.round.roundNumber, seed: opened.round.id });
@@ -176,7 +194,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       if (learnSchemaMissing(failure)) setScreen("setup");
       else { setProblem(message(failure, "This card could not be opened.")); setScreen("failed"); }
     } finally { opening.current = false; }
-  // completeRound only reads refs and setters.
+  // completeRound only reads refs and setters; the topics are those the session was opened with.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flush, resetAnswer]);
 
@@ -211,6 +229,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   function completeRound(done: Current) {
     const outcome = roundResult(done.round.attempts);
     lastRound.current.set(done.entry.card.id, done.round.roundNumber);
+    histories.current.set(done.entry.card.id, roundHistory(done.plan, done.round.attempts, outcome.score));
     setEntries((all) => all.map((entry) => entry.card.id === done.entry.card.id ? { ...entry, status: outcome.ready ? "ready" : "retry" } : entry));
     setFinishedCards((count) => count + 1);
     setPractice(null); setAgain(false); setShown(null);
@@ -307,13 +326,25 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const canCheck = Boolean(exercise) && !shown && (
     exercise!.format === "build" ? tileIds.length > 0
       : exercise!.format === "gaps" ? gapFill.length === gapCount && gapFill.every(Boolean)
-        : exercise!.format === "type" ? Boolean(text.trim()) : false);
+        : exercise!.format === "type" ? Boolean(text.trim())
+          : exercise!.format === "judge" ? judging || Boolean(text.trim()) : false);
 
   function check(skip = false) {
     if (!exercise || shown) return;
     if (exercise.format === "build") submit({ format: "build", tileIds: skip ? [] : tileIds });
     else if (exercise.format === "gaps") submit({ format: "gaps", letters: skip ? [] : gapFill.map((cell) => cell?.ch ?? "") });
     else if (exercise.format === "type") submit({ format: "type", text: skip ? "" : text });
+    else if (exercise.format === "judge") {
+      // First the answer is written; then the card's points are shown to tick; then it counts.
+      if (skip) submit({ format: "judge", text: "", covered: [] });
+      else if (!judging) setJudging(true);
+      else submit({ format: "judge", text, covered });
+    }
+  }
+
+  function toggleCovered(id: string) {
+    if (shown) return;
+    setCovered((ids) => (ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]));
   }
 
   function choose(id: string) {
@@ -358,7 +389,16 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       if (event.key === "Enter" || (event.key === " " && !(event.target instanceof HTMLButtonElement))) { event.preventDefault(); proceed(); }
       return;
     }
+    // A free answer may run over several lines: Enter makes a new line, Ctrl/⌘ + Enter checks.
+    if (event.target instanceof HTMLTextAreaElement) {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (canCheck) check(); }
+      return;
+    }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (exercise.format === "judge" && judging) {
+      const index = Number(event.key) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < exercise.points.length) { event.preventDefault(); toggleCovered(exercise.points[index].id); return; }
+    }
     if (exercise.format === "choice") {
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < exercise.choices.length) { event.preventDefault(); choose(exercise.choices[index].id); }
@@ -384,10 +424,11 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   // runs again when saving or moving ends; until then the screen itself holds the keyboard.
   useEffect(() => {
     const target = screen === "exercise" && !shown && exercise?.format === "type" ? input.current
-      : (screen === "exercise" && shown) || screen === "summary" || screen === "finished" ? primary.current : null;
+      : screen === "exercise" && !shown && exercise?.format === "judge" && !judging ? area.current
+        : (screen === "exercise" && shown) || screen === "summary" || screen === "finished" ? primary.current : null;
     if (target && !target.disabled) target.focus({ preventScroll: true });
     else if (!shell.current?.contains(document.activeElement)) shell.current?.focus({ preventScroll: true });
-  }, [screen, exercise, shown, again, saving, moving, moved.length]);
+  }, [screen, exercise, shown, again, saving, moving, moved.length, judging]);
 
   // The app behind is out of reach while Learn is open, and does not scroll under a finger.
   useEffect(() => {
@@ -414,7 +455,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       {Array.from({ length: ROUND_SIZE }, (_, index) => {
         const attempt = attempts.find((item) => item.position === index + 1);
         const state = attempt ? (attempt.points ? "right" : "wrong") : index === step && screen === "exercise" && !practice ? "now" : "todo";
-        return <i key={index} data-state={state} title={STAGE_LABEL[current?.plan[index]?.stage ?? "recognition"]} />;
+        const planned = current?.plan[index];
+        return <i key={index} data-state={state} title={planned ? exerciseLabel(planned) : STAGE_LABEL.recognition} />;
       })}
     </div>;
   }
@@ -436,13 +478,13 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     }
     if (item.format === "build") {
       const picked = tileIds.map((id) => item.tiles.find((tile) => tile.id === id)!).filter(Boolean);
-      return <div className="lrn-build">
+      return <div className={`lrn-build${item.stacked ? " is-stacked" : ""}`}>
         <div className={`lrn-built${picked.length ? "" : " is-empty"}${item.joiner ? " is-words" : ""}`} lang={item.lang} aria-label="Your answer" aria-live="polite">
           {picked.length ? picked.map((tile) => <button type="button" key={tile.id} className="lrn-tile is-picked" disabled={locked}
             aria-label={`Remove ${tile.text}`} onClick={() => setTileIds((ids) => ids.filter((id) => id !== tile.id))}>{tile.text}</button>)
-            : <span>Tap the pieces in order</span>}
+            : <span>{item.stacked ? "Tap the steps in order" : "Tap the pieces in order"}</span>}
         </div>
-        <div className="lrn-tiles" lang={item.lang} role="group" aria-label="Pieces">
+        <div className="lrn-tiles" lang={item.lang} role="group" aria-label={item.stacked ? "Steps" : "Pieces"}>
           {item.tiles.map((tile) => <button type="button" key={tile.id} className="lrn-tile" disabled={locked || tileIds.includes(tile.id)}
             onClick={() => setTileIds((ids) => [...ids, tile.id])}>{tile.text}</button>)}
         </div>
@@ -468,6 +510,30 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
             onClick={() => fillGap(letter, index)}>{letter}</button>)}
           <button type="button" className="lrn-tile is-tool" disabled={locked || !gapFill.some(Boolean)} aria-label="Delete the last letter" onClick={clearLastGap}><Delete size={17} /></button>
         </div>
+      </div>;
+    }
+    if (item.format === "judge") {
+      const open = judging || locked;
+      return <div className="lrn-judge">
+        <textarea ref={area} className="lrn-input lrn-area" value={text} rows={4} disabled={open}
+          placeholder={item.placeholder} aria-label="Your answer" spellCheck autoCapitalize="sentences"
+          onChange={(event) => setText(event.target.value)} />
+        {open ? <fieldset className="lrn-check-points">
+          <legend>{locked ? "The card’s points" : "Tick what your answer contains"}
+            {item.points.some((point) => point.essential === false) ? <small>Details: half of them are enough.</small> : null}</legend>
+          {item.points.map((point, index) => {
+            const on = covered.includes(point.id);
+            const detail = point.essential === false;
+            // Advisory: a ticked point that the written answer does not seem to mention.
+            const unsupported = on && !locked && !answerMentions(text, point.text);
+            return <label key={point.id} className={`lrn-point${on ? " is-on" : ""}${detail ? " is-detail" : ""}${locked && !on ? (detail ? " is-skipped" : " is-missing") : ""}`}>
+              <input type="checkbox" checked={on} disabled={locked} onChange={() => toggleCovered(point.id)} />
+              <span className="lrn-point-box" aria-hidden="true">{on ? <Check size={14} /> : <kbd>{index + 1}</kbd>}</span>
+              <span className="lrn-point-text"><b>{point.label}{detail ? <em> · detail</em> : null}</b>{point.text}
+                {unsupported ? <small className="lrn-point-warn">Not found in your answer. Tick it only if you said it in other words.</small> : null}</span>
+            </label>;
+          })}
+        </fieldset> : null}
       </div>;
     }
     return <div className="lrn-type">
@@ -525,9 +591,14 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
             : result.ready ? <><CheckCircle2 size={16} aria-hidden="true" /> Ready for Review</> : "Keep learning"}</dd></div>
       </dl>
       {!result.ready ? <ul className="lrn-needs" aria-label="What to improve">{needs.map((line) => <li key={line}>{line}</li>)}</ul> : null}
+      {done.entry.view.rule ? (() => {
+        // An Applied card with too little material gets weaker exercises; say what would help.
+        const hint = appliedCoverage(done.entry.view, done.entry.topic.cards.length - 1).hint;
+        return hint ? <p className="lrn-note lrn-card-hint">{hint}</p> : null;
+      })() : null}
       {mistakes.length ? <ul className="lrn-mistakes" aria-label="Mistakes in this round">
         {mistakes.map((attempt) => <li key={attempt.position}>
-          <span>{STAGE_LABEL[attempt.stage]}</span>
+          <span>{exerciseLabel({ kind: attempt.exerciseType as Exercise["kind"], stage: attempt.stage })}</span>
           <p>{attempt.correct ? "Answered with a hint" : attempt.response ? <>You answered <q>{attempt.response}</q></> : "No answer"}
             {" · "}<b>{stressed(attempt.expected)}</b></p>
         </li>)}
@@ -580,7 +651,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       <div className="lrn-context"><strong>{title}</strong>
         {inRound ? <span>Card {Math.min(startedCount, cardTotal)} of {cardTotal}</span> : null}</div>
       {inRound ? <div className={`lrn-status${gain ? " has-gain" : ""}`} aria-live="polite">
-        {screen === "exercise" ? <span className="lrn-step">{stepLabel}{exercise && !practice ? <i> · {STAGE_LABEL[exercise.stage]}</i> : null}</span> : null}
+        {screen === "exercise" ? <span className="lrn-step">{stepLabel}{exercise && !practice ? <i> · {exerciseLabel(exercise)}</i> : null}</span> : null}
         <span className="lrn-points">{gain && shown ? <b key={attempts.length}>+{gain} · </b> : null}{result.score}/{ROUND_MAX} <small>points</small></span>
       </div> : null}
       {inRound ? segments() : null}
@@ -601,7 +672,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         data-result={shown ? (shown.verdict.correct ? "right" : "wrong") : undefined}>
         {mode !== "scored" ? <p className="lrn-practice">Practice · no points</p> : null}
         <p className="lrn-ask">{exercise.prompt.ask}</p>
-        <h2 className={`lrn-prompt${Array.from(exercise.prompt.text).length > 46 ? " is-long" : ""}`} lang={exercise.prompt.lang}>{exercise.prompt.text}</h2>
+        <h2 className={`lrn-prompt${Array.from(exercise.prompt.text).length > 46 ? " is-long" : ""}${exercise.prompt.style === "case" ? " is-case" : ""}`} lang={exercise.prompt.lang}>{exercise.prompt.text}</h2>
         {exercise.prompt.sub ? <p className="lrn-sub">{exercise.prompt.sub}</p> : null}
         {renderAnswer(exercise)}
       </main>
@@ -609,10 +680,15 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         {notSaved && !shown ? <p className="lrn-alert" role="alert">{saveProblem} <button type="button" className="lrn-link" onClick={() => void flush()}>Save again</button></p> : null}
         {shown ? renderFeedback(exercise, shown)
           : exercise.format === "choice" ? <p className="lrn-keys">Choose an answer{exercise.choices.length <= 9 ? <span>, or press 1–{exercise.choices.length}</span> : null}</p>
-            : <div className="lrn-check">
-              <button type="button" className="lrn-quiet" onClick={() => check(true)}>I don’t know</button>
-              <button type="button" className="lrn-primary" disabled={!canCheck} onClick={() => check()}>Check</button>
-            </div>}
+            : exercise.format === "judge" && judging
+              ? <div className="lrn-check is-judging">
+                <p className="lrn-keys">Be strict: tick only what you actually wrote.</p>
+                <button type="button" className="lrn-primary" onClick={() => check()}>Confirm</button>
+              </div>
+              : <div className="lrn-check">
+                <button type="button" className="lrn-quiet" onClick={() => check(true)}>I don’t know</button>
+                <button type="button" className="lrn-primary" disabled={!canCheck} onClick={() => check()}>{exercise.format === "judge" ? "Compare" : "Check"}</button>
+              </div>}
       </footer>
     </> : null}
 
