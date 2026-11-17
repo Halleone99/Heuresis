@@ -4,6 +4,14 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { check, launch, signIn, sql } from "./lib.mjs";
 
+// The mode badge is a button that opens a listbox; its accessible name says which mode is selected.
+const modeBadge = (page) => page.getByRole("button", { name: /^Choose knowledge mode/ });
+const selectedMode = async (page) => ((await modeBadge(page).getAttribute("aria-label")) ?? "").replace(/^.*, (\w+) selected$/, "$1").toLowerCase();
+const chooseMode = async (page, label) => {
+  await modeBadge(page).click();
+  await page.getByRole("option", { name: new RegExp(`^${label}`) }).click();
+};
+
 const here = fileURLToPath(new URL("..", import.meta.url));
 execFileSync("./db.sh", ["restore", "heuresis_showcase"], { cwd: here, stdio: "ignore" });
 
@@ -11,12 +19,11 @@ const { browser, page, errors } = await launch({ width: 1280, height: 880 });
 try {
   await signIn(page);
   await page.locator('.hw-sections button:has-text("Study")').click();
-  const selector = page.getByRole("combobox", { name: "Choose knowledge mode" });
-  await selector.waitFor();
-  check(await selector.inputValue() === "languages", "Existing study collections start in Languages");
+  await modeBadge(page).waitFor();
+  check(await selectedMode(page) === "languages", "Existing study collections start in Languages");
   check(await page.locator(".study-desk-feature").count() === 1, "Languages shows the existing Study Desk");
 
-  await selector.selectOption("applied");
+  await chooseMode(page, "Applied");
   await page.locator(".study-knowledge-empty").waitFor();
   check(await page.locator(".study-home").count() === 0, "Empty Applied has no language study panel");
   check(!/Chinese|German|Russian/.test(await page.locator(".intelligent-library").innerText()),
@@ -39,16 +46,15 @@ try {
   check(!/Chinese|German|Russian/.test(await page.locator(".intelligent-library").innerText()),
     "Applied collection stays isolated from languages");
 
-  await selector.selectOption("languages");
+  await chooseMode(page, "Languages");
   await page.locator(".study-desk-feature").waitFor();
   check(!/Trade & Logistics/.test(await page.locator(".intelligent-library").innerText()),
     "Switching back to Languages hides the Applied collection");
 
   await page.reload();
   await page.locator('.hw-sections button:has-text("Study")').click();
-  await page.getByRole("combobox", { name: "Choose knowledge mode" }).waitFor();
-  check(await page.getByRole("combobox", { name: "Choose knowledge mode" }).inputValue() === "languages",
-    "Selected mode survives a refresh");
+  await modeBadge(page).waitFor();
+  check(await selectedMode(page) === "languages", "Selected mode survives a refresh");
   check(errors.filter((message) => /Uncaught|TypeError|Cannot read properties/.test(message)).length === 0,
     "No runtime exceptions during knowledge mode switching");
 } finally {
