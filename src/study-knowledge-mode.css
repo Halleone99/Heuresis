@@ -79,3 +79,38 @@
   .intelligent-library .study-knowledge-heading { align-items: center; column-gap: 12px; }
   .intelligent-library .study-knowledge-select { transform: none; }
 }
+
+
+/* Applied cards can be a knowledge statement or a direct question in the same topic. */
+.capture-applied-kind, .applied-kind-switch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.capture-applied-kind button, .applied-kind-switch button {
+  cursor: pointer;
+  border: 1px solid var(--ws-line-strong, rgba(150, 175, 205, .28));
+  border-radius: 999px;
+  background: var(--ws-surface, transparent);
+  color: var(--ws-text, inherit);
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 12px;
+}
+.capture-applied-kind button.selected, .applied-kind-switch button.selected {
+  background: var(--ws-accent-soft, rgba(120, 163, 220, .17));
+  border-color: var(--ws-accent, #89b5eb);
+  font-weight: 650;
+}
+.capture-applied-kind small { color: var(--ws-muted, #8e9dad); font-size: 11px; margin-left: 5px; }
+.applied-kind-pill {
+  font-size: 10px; font-weight: 700; line-height: 18px;
+  min-width: 19px; min-height: 19px;
+  display: inline-grid; place-items: center;
+  border-radius: 6px;
+  background: var(--ws-accent-soft, rgba(120, 163, 220, .14));
+  color: var(--ws-accent-strong, #8cb8ee);
+  margin-right: 7px; flex: none;
+}
