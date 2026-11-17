@@ -2,7 +2,7 @@ import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from ".
 import { isWordSized, normaliseAnswer } from "./answerCheck";
 import { rng, shuffle, tiles, uniqueBy } from "./learnRandom";
 import { STAGE_ORDER } from "./learnRounds";
-import { parseCaseText, splitList } from "./teachingShape";
+import { appliedCardKind, parseCaseText, splitList } from "./teachingShape";
 import type { Choice, Exercise, ExerciseKind, JudgePoint, LearnCard, LearnCase, LearnExample, RuleParts } from "./learnExercises";
 
 /**
@@ -108,6 +108,12 @@ function workspaceCases(card: CardWithStats): LearnCase[] {
 }
 
 export function toRuleCard(card: CardWithStats, pack: PackWithType, base: { term: string; meaning: string; examples: LearnExample[] }): LearnCard {
+  // A direct Q&A card is not a procedural rule. Give it standard recall exercises and a
+  // conventional Q→A review rather than inventing a condition, case or rule attribution.
+  if (appliedCardKind(card.data) === "question") return {
+    id: card.id, term: base.term, form: base.term, reading: "", meaning: base.meaning, examples: base.examples,
+    language: null, han: false, wordSized: false,
+  };
   const type = pack.cardType;
   const list = (role: "condition" | "exception" | "step") =>
     uniqueBy((type?.field_schema ?? []).filter((field) => field.role === role).flatMap((field) => splitList(fieldText(card.data, field.key))).map(clean), normaliseAnswer);
