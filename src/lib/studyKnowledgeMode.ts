@@ -2,9 +2,9 @@
 export type KnowledgeMode = "languages" | "applied";
 
 export const KNOWLEDGE_MODE_KEY = "heuresis.study.knowledge-mode.v1";
-export const KNOWLEDGE_MODES: ReadonlyArray<{ id: KnowledgeMode; label: string }> = [
-  { id: "languages", label: "Languages" },
-  { id: "applied", label: "Applied" },
+export const KNOWLEDGE_MODES: ReadonlyArray<{ id: KnowledgeMode; label: string; description: string; mark: string }> = [
+  { id: "languages", label: "Languages", description: "Words, grammar, expression", mark: "Aa" },
+  { id: "applied", label: "Applied", description: "Rules, procedures, cases", mark: "§" },
 ];
 
 export function isKnowledgeMode(value: unknown): value is KnowledgeMode {
