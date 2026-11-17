@@ -26,14 +26,18 @@ async function addUnsortedCards() {
     ('${USER}','${HSK}','{"term":"最近","reading":"zuìjìn","meaning":"recently"}')`);
 }
 async function selectStudyDeskTopic(page) {
+  // The Study desk and its collections load asynchronously after authentication.
+  await page.locator(".study-desk").waitFor({ state: "visible", timeout: 15000 });
   const row = page.locator(".study-desk-topic").filter({ hasText: "HSK 2 — Time" });
-  if (!(await row.count())) {
-    // Navigate from the visible collection list; a Study picker overlay is not needed to enter the topic.
+  if (!(await row.waitFor({ state: "visible", timeout: 5000 }).then(() => true).catch(() => false))) {
+    // When German was most recently opened, select the Chinese collection first.
+    const all = page.locator(".study-desk-all");
+    if (await all.count() && await all.isVisible()) await all.click();
     const chinese = page.locator(".study-desk-mini").filter({ hasText: "Chinese" });
-    await chinese.waitFor({ state: "visible" });
+    await chinese.waitFor({ state: "visible", timeout: 10000 });
     await chinese.click();
+    await row.waitFor({ state: "visible", timeout: 15000 });
   }
-  await row.waitFor();
   return row;
 }
 async function openTopic(page) {
