@@ -28,15 +28,10 @@ async function addUnsortedCards() {
 async function selectStudyDeskTopic(page) {
   const row = page.locator(".study-desk-topic").filter({ hasText: "HSK 2 — Time" });
   if (!(await row.count())) {
-    await page.locator(".sh-picker-trigger").click();
-    const collections = page.locator(".sh-pane-subject[data-menu-collection]");
-    let found = false;
-    for (let i = 0, n = await collections.count(); i < n; i += 1) {
-      await collections.nth(i).click();
-      const topic = page.locator(".sh-pane-topic").filter({ hasText: "HSK 2 — Time" });
-      if (await topic.count()) { await topic.first().click(); found = true; break; }
-    }
-    if (!found) throw new Error("HSK topic not found in Study collections");
+    // Navigate from the visible collection list; a Study picker overlay is not needed to enter the topic.
+    const chinese = page.locator(".study-desk-mini").filter({ hasText: "Chinese" });
+    await chinese.waitFor({ state: "visible" });
+    await chinese.click();
   }
   await row.waitFor();
   return row;
