@@ -103,8 +103,8 @@ async function sortByTouch(page, name) {
   check(/3 new cards met/.test(await page.locator(".sort-finished").innerText()), "the pass ends with its redesigned summary");
   const expected = [[first, `${first}:5:review:true:`], [second, `${second}:1:learning:true:`], [third, `${third}:3:learning:true:seen in lesson 4`]]
     .sort((a, b) => a[0] < b[0] ? -1 : 1).map((entry) => entry[1]).join(",");
-  check(await sql(`select string_agg(data->>'term' || ':' || interest_rank || ':' || retention || ':' || ((data->>'_sorted_at') is not null) || ':' || coalesce(note,''), ',' order by data->>'term') from heuresis_cards where data->>'term' in ('${first}','${second}','${third}')`) === expected,
-    "all three separate importance/destination decisions and the quick note persist");
+  const actual = await sql(`select string_agg(data->>'term' || ':' || interest_rank || ':' || ((data->>'_acquisition_v1')::jsonb->>'phase') || ':' || ((data->>'_sorted_at') is not null) || ':' || coalesce(note,''), ',' order by data->>'term') from heuresis_cards where data->>'term' in ('${first}','${second}','${third}')`);
+  check(actual === expected, `importance, acquisition phase and quick note persist (actual: ${actual})`);
   await page.screenshot({ path: `${shots}/${name}-sort-finished.png` });
   check(await reachableNow(page, '.sort-finished-actions button:has-text("Review now")'), "Review now is reachable");
 }
