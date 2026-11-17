@@ -17,7 +17,9 @@ export function isDiscarded(card: Pick<CardWithStats, "data">) {
 }
 
 export type AccentKey = "cinnabar" | "indigo" | "amber" | "sage" | "burgundy" | "slate" | "ink";
-export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation";
+export type FieldRole = "term" | "reading" | "meaning" | "extra" | "example" | "example_reading" | "example_translation"
+  /* Applied (rule) cards: see teachingShape.ts. */
+  | "condition" | "exception" | "step" | "case" | "outcome" | "source";
 export type CardRetention = "reference" | "learning";
 
 export type FieldDef = {
@@ -41,6 +43,8 @@ export type CardType = {
   id: string;
   name: string;
   field_schema: FieldDef[];
+  /** How cards of this type are taught (teachingShape.ts); null or absent: the standard exercises. */
+  teaching_shape?: string | null;
 };
 
 export type Pack = {
@@ -213,12 +217,27 @@ export async function listCollections(): Promise<Collection[]> {
 }
 
 export async function listCardTypes(): Promise<CardType[]> {
-  const { data, error } = await db()
-    .from("heuresis_card_types")
-    .select("id,name,field_schema")
-    .order("name");
+  const [{ data, error }, shapes] = await Promise.all([
+    db().from("heuresis_card_types").select("id,name,field_schema").order("name"),
+    listTeachingShapes(),
+  ]);
   if (error) throw error;
-  return (data ?? []).map((row) => ({ id: row.id, name: row.name, field_schema: fieldSchema(row.field_schema) }));
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name, field_schema: fieldSchema(row.field_schema), teaching_shape: shapes.get(row.id) ?? null }));
+}
+
+/**
+ * Card types with an explicit teaching shape, read on their own so that the main card-type
+ * request (and its offline copy) stays exactly as it was. Before migration
+ * 20261118090000_heuresis_card_type_teaching_shape.sql is applied, or offline before this
+ * request was ever made, it answers nothing and the built-in Rule type is recognised by its id.
+ */
+async function listTeachingShapes(): Promise<Map<string, string>> {
+  try {
+    const { data, error } = await db().from("heuresis_card_types").select("id,teaching_shape").not("teaching_shape", "is", null);
+    if (error || !Array.isArray(data)) return new Map();
+    return new Map(data.flatMap((row: { id?: unknown; teaching_shape?: unknown }) =>
+      typeof row.id === "string" && typeof row.teaching_shape === "string" ? [[row.id, row.teaching_shape] as [string, string]] : []));
+  } catch { return new Map(); }
 }
 
 /** Cards discarded in Sort, per topic (they stay in the database until deleted from Trash). */
