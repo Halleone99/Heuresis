@@ -325,6 +325,18 @@ export async function recordLearnAttempt(roundId: string, attempt: LearnAttempt)
 }
 
 /** The learner practised the right answer after feedback. Worth recording; worth no points. */
+/**
+ * One stored round with its answers (plan and first attempts), or null when it cannot be read
+ * (offline without a copy, an older database, a slow connection). Used only to make the next
+ * round better; Learn never waits on it to work.
+ */
+export async function loadLearnRound(roundId: string): Promise<LearnRound | null> {
+  try {
+    const { data, error } = await db().rpc("heuresis_learn_round_state", { p_round_id: roundId });
+    return error ? null : mapRound(data);
+  } catch { return null; }
+}
+
 export async function markLearnCorrected(roundId: string, position: number): Promise<void> {
   const { error } = await db().rpc("heuresis_learn_mark_corrected", { p_round_id: roundId, p_position: position });
   if (error) throw error;
