@@ -229,7 +229,7 @@ const scenarios = {
     check(await current() === second, "choosing importance alone leaves the current card in place");
     await page.keyboard.press("r");
     await page.locator(".sort-finished").waitFor();
-    check(await sql("select interest_rank||'|'||retention||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|review|true",
+    check(await sql("select interest_rank||'|'||((data->>'_acquisition_v1')::jsonb->>'phase')||'|'||((data->>'_sorted_at') is not null) from heuresis_cards where data->>'term'='" + second + "'") === "3|review|true",
       "R sends the selected Active card to Review and completes sorting");
     check(await page.locator(".sort-finished").count() === 1, "the pass ends with a summary");
   },
