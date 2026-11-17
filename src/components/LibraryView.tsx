@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BookOpen, ChevronDown, ChevronRight, Link2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Link2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
@@ -8,9 +8,10 @@ import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import { readOpenStudy, rememberOpenStudy, type OpenStudySession } from "../lib/studySessionMemory";
 import { relativeOpened } from "../lib/relativeTime";
-import { KNOWLEDGE_MODES, readKnowledgeMode, studySelectionKey, writeKnowledgeMode, type KnowledgeMode } from "../lib/studyKnowledgeMode";
+import { readKnowledgeMode, studySelectionKey, writeKnowledgeMode, type KnowledgeMode } from "../lib/studyKnowledgeMode";
 import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
+import KnowledgeModeMenu from "./KnowledgeModeMenu";
 import LearningSession from "./LearningSession";
 import ReviewCentre from "./ReviewCentre";
 import SortModal from "./SortModal";
@@ -395,14 +396,7 @@ export default function LibraryView({ collections, packs, onOpen, onOpenCaptureI
         <div className="library-head-copy">
           <div className="study-knowledge-heading">
             <h1>Study<span>.</span></h1>
-            <label className="study-knowledge-select">
-              <span className="study-knowledge-dot" aria-hidden="true" />
-              <select aria-label="Choose knowledge mode" value={knowledgeMode}
-                onChange={(event) => chooseKnowledgeMode(event.target.value as KnowledgeMode)}>
-                {KNOWLEDGE_MODES.map((mode) => <option value={mode.id} key={mode.id}>{mode.label}</option>)}
-              </select>
-              <ChevronDown size={13} aria-hidden="true" />
-            </label>
+            <KnowledgeModeMenu mode={knowledgeMode} collections={collections} onChange={chooseKnowledgeMode} />
           </div>
         </div>
       </header>
