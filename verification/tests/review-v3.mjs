@@ -37,10 +37,22 @@ async function showAllIfAvailable(page) {
 }
 async function openTopic(page) {
   await page.click('.hw-sections button:has-text("Study")');
-  await page.waitForTimeout(800);
-  await page.locator('button:has-text("HSK 2 — Time")').first().click();
+  // Pin the full desktop sidebar to avoid the icon-rail hover peek covering content.
+  if (await page.locator(".heuresis-desktop").getAttribute("data-sidebar") === "rail") {
+    await page.keyboard.press("Control+Backslash");
+    await page.locator('.heuresis-desktop[data-sidebar="full"]').waitFor();
+  }
+  await page.locator(".study-desk").waitFor({ state: "visible", timeout: 15000 });
+  const topic = page.locator(".study-desk-topic").filter({ hasText: "HSK 2 — Time" });
+  if (!(await topic.waitFor({state:"visible",timeout:5000}).then(()=>true).catch(()=>false))) {
+    const all = page.locator(".study-desk-all");
+    if (await all.count() && await all.isVisible()) await all.click();
+    await page.locator(".study-desk-mini").filter({hasText:"Chinese"}).click();
+    await topic.waitFor({state:"visible",timeout:15000});
+  }
+  await page.locator(".study-desk-title").click();
+  await page.locator('.topic-card-main:has-text("HSK 2 — Time")').first().click();
   // Wait for the asynchronous topic data: the browse actions do not exist until cards load.
-  // Checking Show all before that point leaves the table collapsed and times out on rows.
   await page.locator(".topic-browse-hub").waitFor();
   await showAllIfAvailable(page);
   await page.locator(".modern-topic-row").first().waitFor();
@@ -95,12 +107,13 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    const first = (await page.locator(".sort-inline-text.term").inputValue()).trim();
-    await page.locator(".sort-new-decision-heading button").click();
-    await page.keyboard.press("c");
+    const first = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
+    await page.locator(".sort-new-ratings button:nth-child(1)").click();
+    await page.locator('.sort-destination-actions button:has-text("Review")').click();
     await page.waitForTimeout(700);
-    const second = (await page.locator(".sort-inline-text.term").inputValue()).trim();
-    await page.keyboard.press("p");
+    const second = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
+    await page.locator(".sort-new-ratings button:nth-child(3)").click();
+    await page.locator('.sort-destination-actions button:has-text("Review")').click();
     await page.waitForTimeout(700);
     check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${first}'`) === "5", "Core is stored as rank 5");
     check(await sql(`select interest_rank from heuresis_cards where data->>'term'='${second}'`) === "1", "Passive is stored as rank 1");
@@ -156,22 +169,25 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    const first = (await page.locator(".sort-inline-text.term").inputValue()).trim();
+    const first = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
     const discarded = () => sql(`select (data->>'_discarded_at') is not null from heuresis_cards where data->>'term'='${first}'`);
     await page.keyboard.press("d");
+    await page.locator('.sort-discard-confirm button.danger').click();
     await page.waitForTimeout(800);
     check(await discarded() === "t", `D discards ${first} (kept in the database)`);
     check((await page.locator(".sort-new-undo").innerText()).includes(first), "an Undo bar names the discarded card");
     await page.click(".sort-new-undo button");
     await page.waitForTimeout(800);
     check(await discarded() === "f", "Undo restores it");
-    check((await page.locator(".sort-inline-text.term").inputValue()).trim() === first, "and brings it back as the current card");
+    check((await page.locator(".sort-selectable.term > span").first().innerText()).trim() === first, "and brings it back as the current card");
     await page.keyboard.press("d");
+    await page.locator('.sort-discard-confirm button.danger').click();
     await page.waitForTimeout(800);
     await page.keyboard.press("Control+z");
     await page.waitForTimeout(800);
     check(await discarded() === "f", "Ctrl+Z also undoes a discard");
     await page.keyboard.press("d");
+    await page.locator('.sort-discard-confirm button.danger').click();
     await page.waitForTimeout(800);
     await page.keyboard.press("l");
     await page.waitForTimeout(400);
@@ -182,8 +198,8 @@ const scenarios = {
     check(/^6 cards/.test(await page.locator(".pack-record").innerText()), "the topic count leaves it out");
     await page.click('.desktop-nav-group button:has-text("Library")');
     await page.waitForTimeout(1000);
-    const libraryRow = await page.locator('.library-resume-topics button:has-text("HSK 2 — Time") small').innerText();
-    check(/^6 CARDS/i.test(libraryRow), `the Library count leaves it out too (“${libraryRow}”)`);
+    const libraryRow = await page.locator('.study-desk-topic:has-text("HSK 2 — Time") .study-desk-topic-copy small').innerText();
+    check(/^6 cards/i.test(libraryRow), `the Library count leaves it out too (“${libraryRow}”)`);
     await openTopic(page);
     check(await stageCount(page, "unsorted") === 1, "the card left for later is still unsorted");
 
@@ -205,8 +221,9 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    for (let guard = 0; guard < 3 && (await page.locator(".sort-inline-text.term").inputValue()).trim() !== first; guard += 1) { await page.keyboard.press("l"); await page.waitForTimeout(300); }
+    for (let guard = 0; guard < 3 && (await page.locator(".sort-selectable.term > span").first().innerText()).trim() !== first; guard += 1) { await page.keyboard.press("l"); await page.waitForTimeout(300); }
     await page.keyboard.press("d");
+    await page.locator('.sort-discard-confirm button.danger').click();
     await page.waitForTimeout(800);
     await page.keyboard.press("Escape");
     await page.click(".desktop-account-menu > summary");
@@ -323,12 +340,14 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    const first = (await page.locator(".sort-inline-text.term").inputValue()).trim();
+    const first = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
     await context.setOffline(true);
-    await page.keyboard.press("c");
+    await page.keyboard.press("1");
+    await page.keyboard.press("Enter");
     await page.waitForTimeout(900);
-    const second = (await page.locator(".sort-inline-text.term").inputValue()).trim();
+    const second = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
     await page.keyboard.press("d");
+    await page.locator('.sort-discard-confirm button.danger').click();
     await page.waitForTimeout(900);
     check(/2 new cards met/.test(await page.locator(".sort-finished").innerText()), "Sort keeps working offline");
     check(await page.locator(".sort-error").count() === 0, "without error messages");
@@ -421,12 +440,13 @@ const scenarios = {
     await page.click(".sort-command");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    const later = (await page.locator(".sort-inline-text.term").inputValue()).trim();
+    const later = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
     const previousCardId = await page.locator(".sort-card").getAttribute("data-card-id");
-    await page.locator('.sort-new-secondary button:has-text("Later")').click();
+    await page.locator('.sort-destination-actions button:has-text("Later")').click();
     await page.waitForFunction((previous) => document.querySelector(".sort-card")?.getAttribute("data-card-id") !== previous, previousCardId);
-    const active = (await page.locator(".sort-inline-text.term").inputValue()).trim();
+    const active = (await page.locator(".sort-selectable.term > span").first().innerText()).trim();
     await page.locator(".sort-new-ratings button:nth-child(2)").click();
+    await page.locator('.sort-destination-actions button:has-text("Review")').click();
     await page.locator(".sort-finished").waitFor();
     await page.locator('.sort-finished-actions button:has-text("Back to Study")').click();
     await showAllIfAvailable(page);

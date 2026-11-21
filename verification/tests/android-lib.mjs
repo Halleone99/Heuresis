@@ -145,7 +145,22 @@ export async function openTopicByTouch(page, title = "HSK 2 — Time") {
   if (await mobile.isVisible().catch(() => false)) await mobile.tap();
   else await page.locator('.hw-sections button:has-text("Study")').tap();
   await page.waitForTimeout(800);
-  await page.locator(`button:has-text("${title}")`).first().tap();
+  // The redesigned Study desk exposes a collection, not a direct topic button.
+  const deskTopic = page.locator(".study-desk-topic").filter({ hasText: title });
+  if (!(await deskTopic.count())) {
+    await page.locator(".sh-picker-trigger").tap();
+    const collections = page.locator(".sh-pane-subject[data-menu-collection]");
+    let found = false;
+    for (let i = 0, n = await collections.count(); i < n; i += 1) {
+      await collections.nth(i).tap();
+      const topic = page.locator(".sh-pane-topic").filter({ hasText: title });
+      if (await topic.count()) { await topic.first().tap(); found = true; break; }
+    }
+    if (!found) throw new Error(`Study topic not found: ${title}`);
+    await deskTopic.waitFor();
+  }
+  await page.locator(".study-desk-title").tap();
+  await page.locator(".topic-card-main").filter({ hasText: title }).first().tap();
   const showAll = page.locator('.topic-browse-actions button:has-text("Show all")');
   if (await showAll.count()) await showAll.tap();
   await page.locator(".modern-topic-row").first().waitFor({ timeout: 15000 });

@@ -5,25 +5,29 @@ import { RichText } from "./workspace/RichText";
 import { RichEditor, type RichEditorHandle } from "./workspace/RichEditor";
 import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, setRelatedRelationType, type RelatedCatalogueRow, type RelationType } from "../lib/related";
-import { signHeuresisCardImages } from "../lib/cardMedia";
+import { removeHeuresisCardImage, signHeuresisCardImages, uploadHeuresisCardImage } from "../lib/cardMedia";
+import { languageFromName, languageFromScript } from "../lib/languages";
+import { deleteHighlightRule, listHighlightRules, type HighlightRule } from "../lib/highlights";
 
 const BLOCKS_KEY = "_workspace_blocks";
-export type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "notes";
+export type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "hook" | "picture" | "notes";
 type TextBlock = { id: string; type: "text"; text: string; dim: Dimension };
 type ImageBlock = { id: string; type: "image"; path: string; caption: string; dim: Dimension };
 type Block = TextBlock | ImageBlock;
 /** Asks the panel to start adding to a section, or to edit one block, from outside (the card). */
 export type DetailsRequest = { dim: Dimension; blockId?: string; nonce: number };
-const ids = new Set<Dimension>(["examples", "neighbours", "components", "structure", "origin", "facts", "notes"]);
+const ids = new Set<Dimension>(["examples", "neighbours", "components", "structure", "origin", "facts", "hook", "picture", "notes"]);
 const languageLabels: Record<Dimension, string> = {
   examples: "In context", neighbours: "Nearby words", components: "Parts", structure: "Grammar",
-  origin: "Origin", facts: "Worth knowing", notes: "My note",
+  origin: "Origin", facts: "Worth knowing", hook: "Memory hook", picture: "Picture", notes: "My note",
 };
 const conceptLabels: Record<Dimension, string> = {
   examples: "Instances", neighbours: "Related", components: "Parts", structure: "Structure",
-  origin: "Origin", facts: "Facts", notes: "Notes",
+  origin: "Origin", facts: "Facts", hook: "Memory hook", picture: "Picture", notes: "My note",
 };
-const ORDER: Dimension[] = ["examples", "neighbours", "components", "structure", "origin", "facts", "notes"];
+const LEFT_ORDER: Dimension[] = ["examples", "neighbours", "components", "structure", "origin"];
+const RIGHT_ORDER: Dimension[] = ["facts", "hook", "picture", "notes"];
+const ORDER: Dimension[] = [...LEFT_ORDER, ...RIGHT_ORDER];
 const EXAMPLE_ROLES = ["example", "example_reading", "example_translation"];
 
 function dimensionForField(field: FieldDef): Dimension | null {
@@ -71,10 +75,11 @@ export function firstExampleBlock(data: CardWithStats["data"]): { id: string; se
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, request, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
+export default function SortEnrichmentPanel({ pack, card, request, side = "all", onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
   pack: PackWithType;
   card: CardWithStats;
   request?: DetailsRequest | null;
+  side?: "language" | "knowledge" | "all";
   onBlockedChange: (blocked: boolean) => void;
   onChanged: () => void;
   onCountChange?: (count: number) => void;
@@ -86,6 +91,8 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
   const labels = conceptual ? conceptLabels : languageLabels;
   const structuredWords = !conceptual;
   const schema = pack.cardType?.field_schema ?? [];
+  const activeDims = side === "language" ? LEFT_ORDER : side === "knowledge" ? RIGHT_ORDER : ORDER;
+  const inputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState(card.data);
   // The card face edits the same fields (term, example…): follow its saves instead of keeping a stale copy.
   useEffect(() => { setData(card.data); }, [card.data]);
@@ -103,6 +110,24 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
   const [relation, setRelation] = useState<RelationType>("related");
   const [related, setRelated] = useState<RelatedCatalogueRow[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [formatRules, setFormatRules] = useState<HighlightRule[]>([]);
+  const selectedLang = languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
+    ?? languageFromScript(fieldText(data, schema.find(f => f.role === "term")?.key)) ?? "en";
+  useEffect(() => {
+    if (side === "language") return;
+    let active = true;
+    const load = () => { void listHighlightRules().then(rules => { if (active) setFormatRules(rules); }).catch(() => undefined); };
+    load();
+    window.addEventListener("heuresis-highlights-updated", load);
+    return () => { active = false; window.removeEventListener("heuresis-highlights-updated", load); };
+  }, [side]);
+  async function removeFormatting(id: string) {
+    try {
+      await deleteHighlightRule(id);
+      setFormatRules(rules => rules.filter(rule => rule.id !== id));
+      window.dispatchEvent(new Event("heuresis-highlights-updated"));
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not remove formatting."); }
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -117,9 +142,13 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
   const emptyFields = (dim: Dimension) => schema.filter((field) => dimensionForField(field) === dim && !fieldText(data, field.key).trim());
 
   useEffect(() => {
-    const visibleFields = schema.filter((field) => dimensionForField(field) !== null && Boolean(fieldText(data, field.key).trim())).length;
-    onCountChange?.(visibleFields + blocks.length + related.length);
-  }, [data, blocks, related, schema, onCountChange]);
+    const visibleFields = schema.filter((field) => {
+      const dim = dimensionForField(field);
+      return dim !== null && activeDims.includes(dim) && Boolean(fieldText(data, field.key).trim());
+    }).length;
+    onCountChange?.(visibleFields + blocks.filter(block => activeDims.includes(block.dim)).length
+      + (activeDims.includes("neighbours") ? related.length : 0));
+  }, [data, blocks, related, schema, onCountChange, side]);
 
   useEffect(() => {
     if (!structuredWords) return;
@@ -242,6 +271,19 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
     finally { setInlineBusy(false); }
   }
 
+  async function uploadPicture(file?: File | null) {
+    if (!file || busy) return;
+    setBusy(true); setError("");
+    let path: string | null = null;
+    try {
+      path = await uploadHeuresisCardImage(card.id, file);
+      const next: ImageBlock = { id: crypto.randomUUID(), type: "image", path, caption: "", dim: "picture" };
+      await writeBlocks([...blocks, next]);
+    } catch (err) {
+      if (path) await removeHeuresisCardImage(path).catch(() => undefined);
+      setError(err instanceof Error ? err.message : "Could not attach image.");
+    } finally { setBusy(false); }
+  }
   async function saveImageCaption(id: string, caption: string) {
     setInlineBusy(true); setError("");
     try { await writeBlocks(blocks.map((block) => block.id === id && block.type === "image" ? { ...block, caption } : block)); }
@@ -289,11 +331,14 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
     return field.label;
   }
 
-  const emptyDims = ORDER.filter((dim) => dim !== adding && dim !== revealed && !filledFields(dim).length
+  const emptyDims = activeDims.filter((dim) => dim !== adding && dim !== revealed && !filledFields(dim).length
     && !blocks.some((block) => block.dim === dim) && !(dim === "neighbours" && structuredWords && related.length));
 
-  return <aside className="sort-enrichment" aria-label="Card details">
-    <div className="sort-enrich-list">{ORDER.map((dim) => {
+  return <aside className={"sort-enrichment sort-enrichment--" + side} aria-label={side === "knowledge" ? "Knowledge details" : "Language details"}>
+    {side !== "all" ? <h2 className="sort-panel-title">{side === "language" ? (conceptual ? "Concept" : "Language") : "Knowledge"}</h2> : null}
+    {side !== "language" ? <input type="file" ref={inputRef} hidden accept="image/*"
+      onChange={event => { void uploadPicture(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} /> : null}
+    <div className="sort-enrich-list">{activeDims.map((dim) => {
       const fields = schema.filter((field) => dimensionForField(field) === dim
         && (revealed === dim || Boolean(fieldText(data, field.key).trim())));
       const owned = blocks.filter((block) => block.dim === dim);
@@ -304,7 +349,7 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
       return <section className="sort-enrich-section" key={dim}>
         <div className="sort-enrich-heading"><span>{labels[dim]}</span>
           <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
-            disabled={blocked} onClick={() => openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>
+            disabled={blocked} onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>
             <Plus size={14} />
           </button>
         </div>
@@ -369,8 +414,24 @@ export default function SortEnrichmentPanel({ pack, card, request, onBlockedChan
     {emptyDims.length ? <div className="sort-enrich-add-empty">
       <small>Add</small>
       <div>{emptyDims.map((dim) => <button key={dim} type="button" disabled={blocked}
-        onClick={() => openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>+ {labels[dim]}</button>)}</div>
+        onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>+ {labels[dim]}</button>)}</div>
     </div> : null}
+    {side === "knowledge" ? <section id="sort-formatting-section" className="sort-enrich-section sort-panel-formatting">
+      <div className="sort-enrich-heading"><span>Formatting</span></div>
+      {formatRules.filter(rule => rule.lang === selectedLang).length
+        ? <ul>{formatRules.filter(rule => rule.lang === selectedLang).map(rule =>
+            <li key={rule.id}><span>{rule.text} · {rule.style} · {rule.card_id ? "Card" : "All"}</span>
+              <button type="button" aria-label={"Remove formatting for " + rule.text}
+                onClick={() => void removeFormatting(rule.id)}>×</button></li>)}</ul>
+        : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
+    </section> : null}
+    {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
+      <div className="sort-enrich-heading"><span>Source</span></div>
+      <p>Pack: {pack.title}</p>
+      {card.tags.filter(tag => /^Lesson\s+\d+/i.test(tag.name)).map(tag =>
+        <p key={tag.id}>Lesson: {tag.name}</p>)}
+      <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p>
+    </section> : null}
     <p className="sort-enrich-hint">Click any text to change it · Enter keeps it · Esc undoes</p>
     <p className={"sort-enrich-saved" + (saved ? " is-on" : "")} aria-live="polite">{saved ? "✓ Saved" : ""}</p>
     {error ? <p className="sort-enrich-error" role="alert">{error}</p> : null}
