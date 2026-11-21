@@ -1,0 +1,24 @@
+// Run using the existing load-ts helper; no network or database required.
+import assert from "node:assert/strict";
+import { loadTs } from "./lib/load-ts.mjs";
+const { roundResult, pointsFor, MIX_SCORE, mixedLearnPartner } = loadTs("src/lib/learnRounds.ts", { "./supabase": { supabase: null } });
+const attempt = (position, correct, assisted = false) => ({ position, correct, assisted });
+assert.equal(MIX_SCORE, 50);
+assert.equal(pointsFor(false, false), -10);
+assert.equal(pointsFor(false, true), -10);
+assert.equal(pointsFor(true, true), 0);
+assert.equal(pointsFor(true, false), 10);
+assert.equal(roundResult([attempt(1, false), attempt(2, true)]).score, 10);
+assert.equal(roundResult([attempt(1, true), attempt(2, false)], 60).score, 60);
+assert.equal(roundResult([attempt(1, true)], 50).score, 60);
+assert.equal(roundResult([attempt(1, true), attempt(1, true)], 50).score, 60);
+assert.equal(roundResult([attempt(1, true)], 90).ready, true);
+assert.equal(roundResult([attempt(1, true)], 90).complete, true);
+assert.equal(roundResult(Array.from({ length: 5 }, (_, i) => attempt(i + 1, true))).ready, false);
+const cards = ["a", "b", "c"].map(id => ({ card: { id } }));
+assert.equal(mixedLearnPartner(cards, "a", 50, new Map()), undefined);
+assert.equal(mixedLearnPartner(cards, "a", 60, new Map()).card.id, "b");
+assert.equal(mixedLearnPartner(cards, "b", 10, new Map([["a", 60]])).card.id, "c");
+assert.equal(mixedLearnPartner(cards, "c", 10, new Map([["a", 60]])).card.id, "a");
+assert.equal(mixedLearnPartner(cards.slice(0, 1), "a", 80, new Map()), undefined);
+console.log("Cumulative Learn mastery and mixing: passed");

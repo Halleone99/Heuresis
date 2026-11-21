@@ -43,14 +43,13 @@ punctuation and spacing.
 
 ## Points and readiness
 
-- Correct at the first attempt, without a hint: **+10**. Anything else: **0**. Maximum **50**.
-- *Try again* and *Review mistakes* are practice. They are recorded (`corrected_at`) and
-  never change the score.
-- **Ready for Review** = at least 40/50 **and** the fifth exercise right without a hint.
-- Otherwise the card stays in Learn, the summary says what is missing, and *Start another
-  round* creates a new round with different exercises.
-- Each round keeps its own score. The latest round decides readiness; earlier rounds stay
-  as history.
+- Mastery belongs to each card and learning cycle, persists across rounds, and ranges from 0 to 100.
+- Correct without hints: +10. Incorrect: −10 (floor zero). Correct with hints: 0.
+- At 100 the card becomes Ready for Review, even if fewer than five exercises were needed in the last round.
+- Above 50, alternate between available Learn cards after each scored answer; with a single card continue normally. Partial rounds resume without losing points.
+- At higher mastery, use independent recall, contextual cloze, saved-example reconstruction and production, and applied cases where the card supports them.
+- Optional correction/review of mistakes is unscored practice. Separate Review scheduling is unchanged.
+- Existing completed rounds and previously earned readiness are retained. New rounds build from the last completed score in the current cycle.
 
 ## Database (migration `20261110120000_heuresis_learn_rounds.sql`)
 

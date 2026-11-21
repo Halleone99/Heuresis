@@ -614,7 +614,7 @@ const nameRule: Builder = (m) => ({
  * Questions without structured cases naturally have fewer distinct exercise forms.
  * This is a deliberately modest fallback: a shorter Q&A round may be warranted later.
  */
-export function buildAppliedQuestionRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string }): Exercise[] {
+export function buildAppliedQuestionRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string; mastery?: number }): Exercise[] {
   const { card } = input;
   const others = uniqueBy(input.pool.filter((other) =>
     other.id !== card.id && other.appliedQuestion && other.meaning &&
@@ -667,7 +667,13 @@ export function buildAppliedQuestionRound(input: { card: LearnCard; pool: LearnC
       solution: card.meaning, explain: "",
     };
   };
-  const drafts = [
+  const drafts = (input.mastery ?? 0) >= 50 ? [
+    judge("Answer independently, without choices."),
+    sequence() ?? judge("Explain the essential answer."),
+    typed() ?? judge("Recall the answer without hints."),
+    judge("Explain the answer in your own words."),
+    judge("Final recall — answer independently."),
+  ] : [
     choice(1) ?? judge("Which answer fits? Explain in your own words."),
     sequence() ?? judge("Give the essential answer."),
     typed() ?? judge("Answer the question without hints."),
@@ -697,14 +703,14 @@ const SKILL_PICKS: Record<AppliedSkill, Pick[]> = {
  * Builds the five exercises of one Applied round. `pool` holds the other rules the card may be
  * confused with; `history` is the previous round of this card, when there was one.
  */
-export function buildAppliedRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string; history?: RoundHistory | null }): Exercise[] {
+export function buildAppliedRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string; history?: RoundHistory | null; mastery?: number }): Exercise[] {
   const { card } = input;
   const rule = card.rule!;
   const round = Math.max(1, Math.floor(input.round));
   const history = input.history ?? null;
   const seen = new Set(history?.seen ?? []);
   const solvedLast = new Set(history?.solved ?? []);
-  const level: 1 | 2 = round <= 1 || (history !== null && history.score < 30) ? 1 : 2;
+  const level: 1 | 2 = (input.mastery ?? 0) >= 50 ? 2 : round <= 1 || (history !== null && history.score < 30) ? 1 : 2;
 
   // Cases not yet seen come first; among equals, the round number rotates the order.
   const rotate = <T,>(items: T[]) => (items.length ? [...items.slice((round - 1) % items.length), ...items.slice(0, (round - 1) % items.length)] : items);

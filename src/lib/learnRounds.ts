@@ -1,8 +1,8 @@
 import { supabase } from "./supabase";
 
 /**
- * Learning rounds: exactly five exercises for one card, 10 points for each one answered
- * correctly at the first attempt (maximum 50).
+ * Learning rounds: exactly five exercises for one card, cumulative mastery across rounds: +10 unaided correct, -10 incorrect,
+ * with a floor of zero and a ceiling of 100.
  *
  * Supabase is the source of truth (migration 20261110120000_heuresis_learn_rounds.sql):
  *   heuresis_learn_rounds    the round, its five exercises as shown, score and readiness
@@ -16,8 +16,17 @@ import { supabase } from "./supabase";
  */
 export const ROUND_SIZE = 5;
 export const POINTS_PER_EXERCISE = 10;
-export const ROUND_MAX = ROUND_SIZE * POINTS_PER_EXERCISE;
-export const READY_SCORE = 40;
+export const ROUND_MAX = 100;
+export const READY_SCORE = 100;
+export const MIX_SCORE = 50;
+
+/** A high-mastery card gets a different card before its next scored exercise. */
+export function mixedLearnPartner<T extends { card: { id: string } }>(entries: T[], currentId: string, score: number, scores: ReadonlyMap<string, number>): T | undefined {
+  const others = entries.filter((entry) => entry.card.id !== currentId);
+  if (!others.length || (score <= MIX_SCORE && !others.some((entry) => (scores.get(entry.card.id) ?? 0) > MIX_SCORE))) return undefined;
+  const index = entries.findIndex((entry) => entry.card.id === currentId);
+  return index >= 0 ? entries[(index + 1) % entries.length] : others[0];
+}
 
 export type LearnStage = "recognition" | "reconstruction" | "completion" | "context" | "recall";
 export const STAGE_ORDER: LearnStage[] = ["recognition", "reconstruction", "completion", "context", "recall"];
@@ -49,6 +58,7 @@ export type LearnRound = {
   roundNumber: number;
   status: "active" | "completed" | "abandoned";
   plan: unknown[];
+  baseScore?: number;
   attempts: LearnAttempt[];
 };
 
@@ -59,28 +69,28 @@ export type RoundResult = {
   answered: number;
   complete: boolean;
   recallCorrect: boolean;
-  /** Ready for Review: at least 40/50 and the final active-recall exercise right, unaided. */
+  /** Ready for Review: cumulative mastery reaches 100. */
   ready: boolean;
 };
 
 /** The one scoring rule, mirrored by the database (which has the final word). */
 export function pointsFor(correct: boolean, assisted: boolean): number {
-  return correct && !assisted ? POINTS_PER_EXERCISE : 0;
+  return !correct ? -POINTS_PER_EXERCISE : assisted ? 0 : POINTS_PER_EXERCISE;
 }
 
-export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "correct" | "assisted">>): RoundResult {
+export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "correct" | "assisted">>, baseScore = 0): RoundResult {
   const byPosition = new Map<number, Pick<LearnAttempt, "position" | "correct" | "assisted">>();
   for (const attempt of attempts) {
     if (attempt.position >= 1 && attempt.position <= ROUND_SIZE && !byPosition.has(attempt.position)) byPosition.set(attempt.position, attempt);
   }
-  const rows = [...byPosition.values()];
-  const score = rows.reduce((sum, row) => sum + pointsFor(row.correct, row.assisted), 0);
+  const rows = [...byPosition.values()].sort((a, b) => a.position - b.position);
+  const score = rows.reduce((sum, row) => Math.max(0, Math.min(ROUND_MAX, sum + pointsFor(row.correct, row.assisted))), Math.max(0, Math.min(ROUND_MAX, baseScore)));
   const last = byPosition.get(ROUND_SIZE);
   const recallCorrect = Boolean(last && last.correct && !last.assisted);
-  const complete = rows.length === ROUND_SIZE;
+  const complete = rows.length === ROUND_SIZE || score >= READY_SCORE;
   return {
     score, correctCount: rows.filter((row) => pointsFor(row.correct, row.assisted) > 0).length, answered: rows.length,
-    complete, recallCorrect, ready: complete && score >= READY_SCORE && recallCorrect,
+    complete, recallCorrect, ready: score >= READY_SCORE,
   };
 }
 
@@ -142,7 +152,7 @@ function mapAttempt(raw: unknown): LearnAttempt | null {
   return {
     position, stage: row.stage,
     exerciseType: typeof row.exercise_type === "string" ? row.exercise_type : "",
-    correct: row.correct === true, assisted: row.assisted === true, points: int(row.points),
+    correct: row.correct === true, assisted: row.assisted === true, points: pointsFor(row.correct === true, row.assisted === true),
     response: typeof row.response === "string" ? row.response : "",
     expected: typeof row.expected === "string" ? row.expected : "",
     createdAt: typeof row.created_at === "string" ? row.created_at : new Date().toISOString(),
@@ -156,7 +166,7 @@ function mapRound(raw: unknown): LearnRound | null {
   const status = row.status === "completed" || row.status === "abandoned" ? row.status : "active";
   const attempts = (Array.isArray(row.attempts) ? row.attempts : []).map(mapAttempt)
     .filter((attempt): attempt is LearnAttempt => Boolean(attempt)).sort((a, b) => a.position - b.position);
-  return { id: row.id, cardId: row.card_id, cycle: int(row.cycle), roundNumber: Math.max(1, int(row.round_number)), status, plan: row.plan, attempts };
+  return { id: row.id, cardId: row.card_id, cycle: int(row.cycle), roundNumber: Math.max(1, int(row.round_number)), status, plan: row.plan, baseScore: int(row.base_score), attempts };
 }
 
 /**
@@ -279,13 +289,13 @@ export type OpenedRound = {
 export async function openLearnRound(input: {
   cardId: string;
   cycle: number;
-  proposal: () => { roundNumber: number; plan: unknown[] };
+  proposal: () => { roundNumber: number; plan: unknown[]; baseScore?: number };
 }): Promise<OpenedRound> {
   const local = cachedRound(input.cardId, input.cycle);
   const proposed = local ?? (() => {
     const fresh = input.proposal();
     if (fresh.plan.length !== ROUND_SIZE) throw new Error("A Learning round needs exactly five exercises.");
-    return { id: crypto.randomUUID(), cardId: input.cardId, cycle: input.cycle, roundNumber: fresh.roundNumber, status: "active" as const, plan: fresh.plan, attempts: [] };
+    return { id: crypto.randomUUID(), cardId: input.cardId, cycle: input.cycle, roundNumber: fresh.roundNumber, status: "active" as const, plan: fresh.plan, baseScore: fresh.baseScore ?? 0, attempts: [] };
   })();
   const { data, error } = await db().rpc("heuresis_learn_begin_round", {
     p_round_id: proposed.id, p_card_id: input.cardId, p_cycle: input.cycle, p_plan: proposed.plan,
@@ -300,7 +310,7 @@ export async function openLearnRound(input: {
   if (server.status !== "active") {
     // The proposed id belonged to a round that has since been completed elsewhere.
     forgetCachedRound(input.cardId);
-    return openLearnRound(input);
+    return { round: server, unsent: [], synced: true };
   }
   const localAttempts = local && local.id === server.id ? local.attempts : [];
   const attempts = mergeAttempts(server.attempts, localAttempts);

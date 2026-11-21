@@ -32,7 +32,7 @@ export type StandardKind =
   | "choose-meaning" | "choose-term" | "build-term" | "build-sentence" | "fill-gaps"
   | "missing-character" | "choose-reading" | "choose-stress" | "choose-article" | "choose-preposition"
   | "cloze-choice" | "example-meaning" | "match-example" | "build-meaning" | "type-meaning"
-  | "recall-type" | "recall-build" | "recall-guided";
+  | "recall-type" | "recall-build" | "recall-guided" | "cloze-type" | "example-write";
 /** Applied (rule) cards; built in appliedExercises.ts. */
 export type AppliedKind =
   | "rule-for-case" | "rule-boundary" | "rule-for-statement" | "statement-for-rule" | "order-steps" | "build-statement"
@@ -249,7 +249,7 @@ function pickRivals(card: LearnCard, pool: LearnCard[], random: () => number, fi
 /* Builders                                                                    */
 /* ------------------------------------------------------------------------- */
 
-type Context = { card: LearnCard; pool: LearnCard[]; round: number };
+type Context = { card: LearnCard; pool: LearnCard[]; round: number; hard?: boolean };
 type Draft = Omit<ChoiceExercise, "position" | "stage" | "v"> | Omit<BuildExercise, "position" | "stage" | "v">
   | Omit<GapsExercise, "position" | "stage" | "v"> | Omit<TypeExercise, "position" | "stage" | "v">
   | Omit<JudgeExercise, "position" | "stage" | "v">;
@@ -419,7 +419,7 @@ function exampleFor(card: LearnCard, round: number, need: (example: LearnExample
 const buildSentence: Builder = ({ card, round }, random) => {
   const example = exampleFor(card, round, (item) => {
     const { pieces } = sentencePieces(item, HAN.test(item.source));
-    return pieces.length >= 4 && pieces.length <= 11;
+    return Boolean(item.translation) && pieces.length >= 4 && pieces.length <= 11;
   });
   if (!example) return null;
   const han = HAN.test(example.source);
@@ -658,6 +658,34 @@ const clozeChoice: Builder = ({ card, pool, round }, random) => {
   };
 };
 
+/** Recall the exact form used in a saved example, including inflections. */
+const clozeType: Builder = ({ card, round }) => {
+  if (!card.language && !card.han) return null;
+  const example = exampleFor(card, round, (item) => Boolean(locateInSentence(card, item.source)));
+  if (!example) return null;
+  const range = locateInSentence(card, example.source)!;
+  const expected = example.source.slice(range.start, range.end);
+  return {
+    format: "type", kind: "cloze-type", accepted: [{ value: expected, kind: "exact" }],
+    lang: tag(card), language: card.language, placeholder: "Type the missing word or phrase",
+    prompt: { ask: "Complete this saved example from memory.", text: example.source.slice(0, range.start) + "＿＿＿" + example.source.slice(range.end), sub: example.translation || undefined, lang: tag(card) },
+    solution: expected, explain: example.source + (example.translation ? " — " + example.translation : ""),
+  };
+};
+
+/** Reproduce a saved example using its translation; do not invent sentences. */
+const exampleWrite: Builder = ({ card, round }) => {
+  if (!card.language && !card.han) return null;
+  const example = exampleFor(card, round, (item) => Boolean(item.translation) && Array.from(item.source).length <= 100 && item.source !== item.translation);
+  if (!example) return null;
+  return {
+    format: "type", kind: "example-write", accepted: [{ value: example.source, kind: "exact" }],
+    lang: tag(card), language: card.language, placeholder: "Write the original example sentence",
+    prompt: { ask: "Reproduce the saved example sentence.", text: example.translation },
+    solution: example.source, explain: example.source + " — " + example.translation,
+  };
+};
+
 const exampleMeaning: Builder = ({ card, pool, round }, random) => {
   const example = exampleFor(card, round, (item) => Boolean(item.translation));
   if (!example) return null;
@@ -732,13 +760,13 @@ function firstLetters(form: string) {
   }).join(" ");
 }
 
-const recallType: Builder = ({ card }) => {
+const recallType: Builder = ({ card, hard }) => {
   const accepted: ExpectedAnswer[] = [{ value: card.term, kind: "exact" }];
   if (card.form !== card.term) accepted.push({ value: card.form, kind: "exact" });
-  if (card.han && card.reading) accepted.push({ value: card.reading, kind: "exact" });
+  if (card.han && card.reading && !hard) accepted.push({ value: card.reading, kind: "exact" });
   return {
     format: "type", kind: "recall-type", accepted, lang: tag(card), language: card.language,
-    placeholder: card.han ? (card.reading ? "Characters, or pinyin with tones (yi3 qian2)" : "Type the characters") : "Type your answer",
+    placeholder: card.han ? (card.reading && !hard ? "Characters, or pinyin with tones (yi3 qian2)" : "Type the characters") : "Type your answer",
     hint: card.han ? undefined : firstLetters(card.form),
     prompt: { ask: card.wordSized ? "Write it from memory." : "Write the sentence from memory.", text: card.meaning },
     solution: written(card), explain: "",
@@ -757,7 +785,7 @@ const recallGuided: Builder = ({ card }) => ({
 const BUILDERS: Record<StandardKind, Builder> = {
   "choose-meaning": chooseMeaning, "choose-term": chooseTerm, "build-term": buildTerm, "build-sentence": buildSentence,
   "fill-gaps": fillGaps, "missing-character": missingCharacter, "choose-reading": chooseReading, "choose-stress": chooseStress,
-  "choose-article": chooseArticle, "choose-preposition": choosePreposition, "cloze-choice": clozeChoice,
+  "choose-article": chooseArticle, "choose-preposition": choosePreposition, "cloze-choice": clozeChoice, "cloze-type": clozeType, "example-write": exampleWrite,
   "example-meaning": exampleMeaning, "match-example": matchExample, "build-meaning": buildMeaning, "type-meaning": typeMeaning,
   "recall-type": recallType, "recall-build": recallBuild, "recall-guided": recallGuided,
 };
@@ -765,9 +793,9 @@ const BUILDERS: Record<StandardKind, Builder> = {
 /** Each step's preferred exercises, best first. A later round takes the next one that fits the card. */
 const STEP_KINDS: Record<LearnStage, StandardKind[]> = {
   recognition: ["choose-meaning", "choose-term"],
-  reconstruction: ["build-term", "build-sentence"],
+  reconstruction: ["build-sentence", "build-term"],
   completion: ["choose-article", "choose-preposition", "missing-character", "choose-stress", "fill-gaps", "choose-reading"],
-  context: ["cloze-choice", "match-example", "example-meaning", "build-sentence", "build-meaning", "choose-reading", "choose-stress", "choose-term", "choose-meaning"],
+  context: ["cloze-choice", "example-meaning", "match-example", "build-sentence", "cloze-type", "build-meaning", "choose-reading", "choose-stress", "choose-term", "choose-meaning"],
   recall: ["recall-type"],
 };
 
@@ -785,29 +813,42 @@ function longAnswer(card: LearnCard) {
  * Builds the five exercises of one round for one card.
  * `pool` is the other cards of the topic (learning or not); they only supply distractors.
  */
-export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string; history?: RoundHistory | null }): Exercise[] {
+export function buildRound(input: { card: LearnCard; pool: LearnCard[]; round: number; seed: string; history?: RoundHistory | null; mastery?: number }): Exercise[] {
   const { card } = input;
   if (!learnable(card)) throw new Error("This card needs a term and a meaning before it can be learned.");
   // Applied cards choose their five from their own library, by what the card contains.
   if (card.rule) return buildAppliedRound(input);
   if (card.appliedQuestion) return buildAppliedQuestionRound(input);
   const round = Math.max(1, Math.floor(input.round));
+  const isHard = (position: number) => (input.mastery ?? 0) + (position - 1) * 10 >= 50;
   const used = new Set<StandardKind>();
   const plan: Exercise[] = [];
 
   const attempt = (kind: StandardKind, position: number, stage: LearnStage): Exercise | null => {
-    const draft = BUILDERS[kind]({ card, pool: input.pool, round }, rng(`${input.seed}:${position}:${kind}`));
+    const hard = isHard(position);
+    const draft = BUILDERS[kind]({ card, pool: input.pool, round: round + (hard && position >= 3 ? position - 2 : 0), hard }, rng(`${input.seed}:${position}:${kind}`));
     return draft ? { ...draft, v: 1, position, stage } as Exercise : null;
   };
 
   STAGE_ORDER.forEach((stage, index) => {
     const position = index + 1;
+    const hard = isHard(position);
     let preferred = STEP_KINDS[stage];
     // A long sentence is produced by building it without help; typing it letter-perfect proves little more.
-    if (stage === "recall" && longAnswer(card)) preferred = ["recall-build", "recall-type"];
+    if (stage === "recall" && longAnswer(card) && !hard) preferred = ["recall-build", "recall-type"];
+    if (hard) {
+      const harder: Record<LearnStage, StandardKind[]> = {
+        recognition: ["type-meaning", "match-example", "example-meaning", "choose-term"],
+        reconstruction: ["build-sentence", "recall-build", "build-meaning"],
+        completion: ["cloze-type", "fill-gaps", "missing-character"],
+        context: ["example-write", "cloze-type", "match-example", "example-meaning", "build-sentence"],
+        recall: ["recall-type"],
+      };
+      preferred = [...harder[stage], ...preferred.filter((kind) => !harder[stage].includes(kind))];
+    }
     const fitting = preferred.filter((kind) => !used.has(kind)).map((kind) => attempt(kind, position, stage)).filter((item): item is Exercise => Boolean(item));
     let chosen: Exercise | null = fitting.length
-      ? fitting[stage === "recall" ? 0 : (round - 1) % fitting.length] : null;
+      ? fitting[hard || stage === "recall" ? 0 : (round - 1) % fitting.length] : null;
     if (!chosen) {
       for (const kind of SUBSTITUTES) {
         if (used.has(kind)) continue;
@@ -911,7 +952,7 @@ export function judgeResult(exercise: JudgeExercise, covered: string[]) {
 /** What an exercise trains, as the session shows it: the Applied skill, or the Learn stage. */
 export function exerciseLabel(exercise: Pick<Exercise, "kind" | "stage">): string {
   const skill = appliedSkill(exercise.kind);
-  return skill ? SKILL_LABEL[skill] : STAGE_LABEL[exercise.stage];
+  return exercise.kind === "cloze-type" ? "Contextual recall" : exercise.kind === "example-write" ? "Example recall" : skill ? SKILL_LABEL[skill] : STAGE_LABEL[exercise.stage];
 }
 
 /* ------------------------------------------------------------------------- */
