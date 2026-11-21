@@ -52,17 +52,17 @@ function normaliseShortcut(value: string | null | undefined) {
   return next || null;
 }
 
-export async function createBadge(input: { name: string; shortcut?: string | null }) {
+export async function createBadge(input: { name: string; shortcut?: string | null; color?: string | null }) {
   const name = input.name.trim().replace(/\s+/g, " ");
   if (!name) throw new Error("Badge name cannot be empty.");
   if (name.length > 48) throw new Error("Keep badge names under 48 characters.");
   const { data: last, error: lastError } = await db().from("heuresis_tags").select("sort_order").eq("is_badge", true).order("sort_order", { ascending: false }).limit(1);
   if (lastError) throw lastError;
-  const { error } = await db().from("heuresis_tags").insert({ name, shortcut: normaliseShortcut(input.shortcut), is_badge: true, sort_order: Number(last?.[0]?.sort_order ?? -1) + 1 });
+  const { error } = await db().from("heuresis_tags").insert({ name, shortcut: normaliseShortcut(input.shortcut), color: input.color ?? null, is_badge: true, sort_order: Number(last?.[0]?.sort_order ?? -1) + 1 });
   if (error) throw error;
 }
 
-export async function updateBadge(id: string, patch: Partial<{ name: string; shortcut: string | null; sort_order: number; is_badge: boolean }>) {
+export async function updateBadge(id: string, patch: Partial<{ name: string; shortcut: string | null; color: string | null; sort_order: number; is_badge: boolean }>) {
   const next: Record<string, string | number | boolean | null> = {};
   if (patch.name !== undefined) {
     const name = patch.name.trim().replace(/\s+/g, " ");
@@ -71,6 +71,7 @@ export async function updateBadge(id: string, patch: Partial<{ name: string; sho
     next.name = name;
   }
   if (patch.shortcut !== undefined) next.shortcut = normaliseShortcut(patch.shortcut);
+  if (patch.color !== undefined) next.color = patch.color;
   if (patch.sort_order !== undefined) next.sort_order = patch.sort_order;
   if (patch.is_badge !== undefined) next.is_badge = patch.is_badge;
   const { error } = await db().from("heuresis_tags").update(next).eq("id", id);
