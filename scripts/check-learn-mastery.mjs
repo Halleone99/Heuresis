@@ -1,7 +1,7 @@
 // Run using the existing load-ts helper; no network or database required.
 import assert from "node:assert/strict";
 import { loadTs } from "./lib/load-ts.mjs";
-const { roundResult, pointsFor, MIX_SCORE, mixedLearnPartner } = loadTs("src/lib/learnRounds.ts", { "./supabase": { supabase: null } });
+const { roundResult, pointsFor, MIX_SCORE, mixedLearnPartner, firstLearnRound, randomLearnCard, MIX_DAILY_MAX } = loadTs("src/lib/learnRounds.ts", { "./supabase": { supabase: null } });
 const attempt = (position, correct, assisted = false) => ({ position, correct, assisted });
 assert.equal(MIX_SCORE, 50);
 assert.equal(pointsFor(false, false), -10);
@@ -22,3 +22,12 @@ assert.equal(mixedLearnPartner(cards, "b", 10, new Map([["a", 60]])).card.id, "c
 assert.equal(mixedLearnPartner(cards, "c", 10, new Map([["a", 60]])).card.id, "a");
 assert.equal(mixedLearnPartner(cards.slice(0, 1), "a", 80, new Map()), undefined);
 console.log("Cumulative Learn mastery and mixing: passed");
+
+assert.equal(MIX_DAILY_MAX, 20);
+assert.equal(firstLearnRound({ roundNumber: 1, baseScore: 0 }), true);
+assert.equal(firstLearnRound({ roundNumber: 2, baseScore: 0 }), false);
+assert.equal(randomLearnCard(cards, "a", () => 0).card.id, "b");
+assert.equal(randomLearnCard(cards, "a", () => 0.99).card.id, "c");
+assert.equal(randomLearnCard(cards.slice(0, 1), "a").card.id, "a");
+assert.equal(randomLearnCard([], "a"), undefined);
+console.log("First learning and mixed selection: passed");

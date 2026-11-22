@@ -249,3 +249,16 @@
 
 /* A small replay control, not a second primary action. */
 .lrn .lrn-pronunciation { min-width: 40px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; align-self: center; padding: 6px 10px; }
+
+/* Learn phases and the mastery success panel */
+.lrn-phase { padding: 4px 9px; border: 1px solid var(--ws-line); border-radius: 999px; color: var(--ws-muted); font-size: 11px; font-weight: 600; }
+.lrn-success-stage .lrn-summary { width: min(100%, 560px); margin-inline: auto; padding: clamp(20px, 4vw, 36px); border: 1px solid var(--ws-line); border-radius: 24px; background: var(--ws-surface); box-shadow: 0 16px 48px #0002; }
+.lrn-success-icon { color: var(--ws-good); margin-block: 4px 12px; }
+.lrn-success-stage .lrn-score-line b { color: var(--ws-good); }
+@media (max-width: 520px) { .lrn-status { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; } .lrn-phase { font-size: 10px; } }
+
+.lrn-mode-list { display: grid; gap: 12px; margin-block: 18px; }
+.lrn-mode-list button { display: flex; align-items: center; gap: 14px; text-align: left; width: 100%; padding: 18px; border: 1px solid var(--ws-line); border-radius: 15px; background: var(--ws-surface); color: var(--ws-ink); cursor: pointer; }
+.lrn-mode-list button span { flex: 1; display: grid; gap: 4px; }
+.lrn-mode-list button small { color: var(--ws-muted); font-size: 12px; }
+.lrn-mode-list button b { font-variant-numeric: tabular-nums; font-size: 18px; }

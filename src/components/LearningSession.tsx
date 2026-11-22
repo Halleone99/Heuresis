@@ -9,7 +9,7 @@ import {
 import { answerMentions, appliedCoverage, roundHistory, type RoundHistory } from "../lib/appliedExercises";
 import { packShape } from "../lib/teachingShape";
 import {
-  LEARN_SETUP_MESSAGE, READY_SCORE, ROUND_MAX, ROUND_SIZE, STAGE_LABEL, mixedLearnPartner,
+  LEARN_SETUP_MESSAGE, READY_SCORE, ROUND_MAX, ROUND_SIZE, STAGE_LABEL, firstLearnRound, randomLearnCard, MIX_DAILY_MAX,
   cacheRound, forgetCachedRound, learnSchemaMissing, loadLearnOverview, loadLearnRound, markLearnCorrected, openLearnRound,
   pointsFor, recordLearnAttempt, roundResult, stateForCycle,
   type LearnAttempt, type LearnOverview, type LearnRound,
@@ -32,7 +32,8 @@ type Props = {
 
 type Entry = { card: CardWithStats; topic: LearnTopic; view: LearnCard; status: LearnStatus };
 type Current = { entry: Entry; round: LearnRound; plan: Exercise[] };
-type Screen = "loading" | "setup" | "failed" | "empty" | "exercise" | "summary" | "finished";
+type Screen = "loading" | "select" | "setup" | "failed" | "empty" | "exercise" | "summary" | "finished";
+type LearnPhase = "first" | "mixed";
 /** How the answer on screen is being given: scored, or as unscored practice. */
 type Mode = "scored" | "again" | "practice";
 type Shown = { verdict: Verdict; mode: Mode; points: number; assisted: boolean };
@@ -112,6 +113,9 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const overview = useRef<LearnOverview | null>(null);
   const lastRound = useRef(new Map<string, number>());
   const scores = useRef(new Map<string, number>());
+  const dailyPoints = useRef(new Map<string, number>());
+  const blockedToday = useRef(new Set<string>());
+  const sessionPhase = useRef<LearnPhase | null>(null);
   /** What each card's previous round showed and where it went wrong, so the next round can build on it. */
   const histories = useRef(new Map<string, RoundHistory>());
   const outbox = useRef<Array<{ roundId: string; cardId: string; attempt: LearnAttempt; complete?: boolean }>>([]);
@@ -133,13 +137,26 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const attempts = current?.round.attempts ?? [];
   const result = useMemo(() => roundResult(attempts, current?.round.baseScore), [attempts, current?.round.baseScore]);
   const mode: Mode = practice ? "practice" : again ? "again" : "scored";
-  const queue = useMemo(() => learnQueue(entries), [entries]);
+  const firstLearning = current ? firstLearnRound(current.round) : false;
+  const available = learnQueue(entries).filter(entry => !blockedToday.current.has(entry.card.id));
+  const firstPool = available.filter(isIntroduction);
+  const mixedPool = available.filter(entry => !isIntroduction(entry));
+  const queue = sessionPhase.current === "first" ? firstPool : sessionPhase.current === "mixed" ? mixedPool : available;
   const ready = useMemo(() => entries.filter((entry) => entry.status === "ready" && !moved.includes(entry.card.id)), [entries, moved]);
-  const upcoming = useMemo(() => queue.filter((entry) => entry.card.id !== current?.entry.card.id), [queue, current]);
-  // Rotate by card identity, not by exercise index. Keep a different card between high-mastery answers.
-  const ordered = entries.filter((entry) => entry.status !== "ready" && !moved.includes(entry.card.id));
-  const mixedNext = mixedLearnPartner(ordered, current?.entry.card.id ?? "", result.score, scores.current);
+  const upcoming = queue.filter(entry => entry.card.id !== current?.entry.card.id);
+  function isIntroduction(entry: Entry) {
+    const known = stateForCycle(overview.current?.cards.get(entry.card.id), readAcquisition(entry.card.data).cycle);
+    return !known?.last && !lastRound.current.has(entry.card.id) && (!known?.active || known.active.roundNumber === 1);
+  }
+  function chooseNext(pool: Entry[], currentId = "") {
+    const introductions = pool.filter(isIntroduction);
+    return introductions[0] ?? randomLearnCard(pool, currentId);
+  }
+  // First acquisition stays on one card; mixed learning switches after scored answers.
+  const mixedCandidates = upcoming.filter(entry => !isIntroduction(entry));
+  const mixedNext = !firstLearning && mixedCandidates.length ? randomLearnCard(mixedCandidates) : undefined;
   const mixing = Boolean(mixedNext);
+  const dailyDone = Boolean(current && blockedToday.current.has(current.entry.card.id));
 
   /* ---------------------------------------------------------------- saving */
 
@@ -150,8 +167,20 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     try {
       while (outbox.current.length) {
         const next = outbox.current[0];
-        await recordLearnAttempt(next.roundId, next.attempt);
+        const savedRound = await recordLearnAttempt(next.roundId, next.attempt);
         outbox.current.shift();
+        // Another device may already have spent today's allowance.
+        if (savedRound && !savedRound.attempts.some(a => a.position === next.attempt.position)) {
+          blockedToday.current.add(next.cardId);
+          scores.current.set(next.cardId, roundResult(savedRound.attempts, savedRound.baseScore).score);
+          forgetCachedRound(next.cardId);
+          outbox.current = outbox.current.filter(a => a.cardId !== next.cardId);
+          setCurrent(null);
+          setProblem("This card has reached its learning allowance for today.");
+          setScreen("finished");
+          dirty.current = true;
+          continue;
+        }
         // The device copy of a finished round is only dropped once the server has its last answer.
         if (next.complete || next.attempt.position === ROUND_SIZE) forgetCachedRound(next.cardId);
       }
@@ -232,12 +261,19 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         for (const item of usable) {
           const state = stateForCycle(loaded.cards.get(item.card.id), readAcquisition(item.card.data).cycle);
           scores.current.set(item.card.id, state?.active?.score ?? state?.last?.score ?? 0);
+          dailyPoints.current.set(item.card.id, state?.dailyPoints ?? 0);
+          if (state?.blockedToday) blockedToday.current.add(item.card.id);
         }
         const next = usable.map((item) => ({ ...item, status: learnStatus(item.card, loaded.cards.get(item.card.id)) }));
         setEntries(next); setUnlearnable(all.length - usable.length);
-        const first = learnQueue(next)[0];
+        const eligible = learnQueue(next).filter(entry => !blockedToday.current.has(entry.card.id));
+        const fresh = eligible.filter(isIntroduction);
+        const mixed = eligible.filter(entry => !isIntroduction(entry));
+        if (fresh.length && mixed.length) { setScreen("select"); return; }
+        sessionPhase.current = fresh.length ? "first" : mixed.length ? "mixed" : null;
+        const first = fresh[0] ?? randomLearnCard(mixed);
         if (first) await startCard(first);
-        else setScreen(next.some((entry) => entry.status === "ready") ? "finished" : "empty");
+        else setScreen(next.length ? "finished" : "empty");
       } catch (failure) {
         if (cancelled) return;
         if (learnSchemaMissing(failure)) setScreen("setup");
@@ -255,6 +291,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     const outcome = roundResult(done.round.attempts, done.round.baseScore);
     scores.current.set(done.entry.card.id, outcome.score);
     lastRound.current.set(done.entry.card.id, done.round.roundNumber);
+    if (firstLearnRound(done.round)) blockedToday.current.add(done.entry.card.id);
     histories.current.set(done.entry.card.id, roundHistory(done.plan, done.round.attempts, outcome.score));
     setEntries((all) => all.map((entry) => entry.card.id === done.entry.card.id ? { ...entry, status: outcome.ready ? "ready" : "retry" } : entry));
     setFinishedCards((count) => count + 1);
@@ -291,6 +328,11 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     setGain(attempt.points);
     const outcome = roundResult(round.attempts, round.baseScore);
     scores.current.set(round.cardId, outcome.score);
+    if (!firstLearnRound(round) && attempt.points > 0) {
+      const earned = (dailyPoints.current.get(round.cardId) ?? 0) + attempt.points;
+      dailyPoints.current.set(round.cardId, earned);
+      if (earned >= MIX_DAILY_MAX) blockedToday.current.add(round.cardId);
+    }
     outbox.current.push({ roundId: round.id, cardId: round.cardId, attempt, complete: outcome.complete });
     void flush();
   }
@@ -306,10 +348,24 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       return;
     }
     setAgain(false); setGain(0);
-    if (result.complete || mixing) {
+    if (result.complete || mixing || dailyDone) {
       if (outbox.current.length || flushing.current) { void flush(); return; }
-      if (result.complete) { completeRound(current); return; }
+      if (result.complete) {
+        completeRound(current);
+        if (!firstLearning && !result.ready) {
+          const next = mixedNext ?? chooseNext(upcoming) ?? (!dailyDone ? current.entry : undefined);
+          if (next) void startCard(next);
+          else { setCurrent(null); setScreen("finished"); }
+        }
+        return;
+      }
       if (mixedNext) { void startCard(mixedNext); return; }
+      if (dailyDone) {
+        const next = chooseNext(upcoming);
+        if (next) void startCard(next);
+        else { setCurrent(null); setScreen("finished"); }
+        return;
+      }
     }
     const next = current.round.attempts.length;
     setStep(next); resetAnswer(current.plan[next]);
@@ -345,8 +401,14 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     } finally { setMoving(false); }
   }
 
+  function startPhase(phase: LearnPhase) {
+    sessionPhase.current = phase;
+    const next = phase === "first" ? firstPool[0] : randomLearnCard(mixedPool);
+    if (next) void startCard(next);
+  }
+
   function nextCard() {
-    const next = upcoming[0];
+    const next = chooseNext(upcoming);
     if (next) void startCard(next);
     else { setCurrent(null); setScreen("finished"); }
   }
@@ -604,9 +666,9 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       <div className="lrn-feedback-actions">
         {audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear pronunciation" title="Hear pronunciation" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null}
         {canRetry ? <button type="button" className="lrn-quiet" onClick={tryAgain}><RotateCcw size={15} aria-hidden="true" /> Try again</button> : null}
-        <button type="button" ref={primary} className="lrn-primary" disabled={!practice && (result.complete || mixing) && (saving === "saving" || notSaved)} onClick={proceed}>
+        <button type="button" ref={primary} className="lrn-primary" disabled={!practice && (result.complete || mixing || dailyDone) && (saving === "saving" || notSaved)} onClick={proceed}>
           {practice ? (practice.at + 1 < practice.positions.length ? "Next" : "Back to summary")
-            : result.complete ? "See result" : mixing ? "Next card" : "Continue"}
+            : result.ready || (result.complete && firstLearning) ? "See result" : mixing || dailyDone || result.complete ? "Next card" : "Continue"}
           <ArrowRight size={17} aria-hidden="true" />
         </button>
       </div>
@@ -617,11 +679,12 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     const mistakes = done.round.attempts.filter((attempt) => !attempt.correct || attempt.assisted);
     const wasMoved = moved.includes(done.entry.card.id);
     const needs: string[] = [];
-    if (result.score < READY_SCORE) needs.push(`Reach at least ${READY_SCORE} of ${ROUND_MAX} points.`);
+    if (!result.ready) needs.push(blockedToday.current.has(done.entry.card.id) ? "Done for today. Continue tomorrow." : `${READY_SCORE - result.score} points to Review.`);
 
     const waiting = saving === "saving" || outbox.current.length > 0;
     return <div className="lrn-summary">
-      <p className="lrn-ask">Learning round complete</p>
+      <p className="lrn-ask">{result.ready ? "Learning complete" : firstLearnRound(done.round) ? "First learning complete" : "Learning round complete"}</p>
+      {result.ready ? <CheckCircle2 className="lrn-success-icon" size={40} aria-hidden="true" /> : null}
       <h2 className="lrn-score-line"><b>{result.score}</b><span>/ {ROUND_MAX}</span></h2>
       <p className="lrn-card-line" lang={done.entry.view.han ? "zh-Hans" : undefined}><strong>{done.entry.view.form}</strong> {done.entry.view.meaning}</p>
       <dl className="lrn-facts">
@@ -651,8 +714,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
             {moving ? "Moving…" : waiting ? "Saving…" : "Move to Review"} <ArrowRight size={17} aria-hidden="true" /></button>
           : result.ready
             ? <button type="button" ref={primary} className="lrn-primary" onClick={upcoming.length ? nextCard : leave}>{upcoming.length ? "Continue learning another card" : "Return to Learn"} <ArrowRight size={17} aria-hidden="true" /></button>
-            : <button type="button" ref={primary} className="lrn-primary" disabled={waiting || notSaved} onClick={() => void startCard(mixing && mixedNext ? mixedNext : done.entry)}>{waiting ? "Saving…" : mixing ? "Continue learning another card" : "Start another round"} <ArrowRight size={17} aria-hidden="true" /></button>}
-        {upcoming.length && !mixing && !(result.ready && wasMoved) ? <button type="button" className="lrn-quiet" onClick={nextCard}>Continue learning another card</button> : null}
+            : <button type="button" ref={primary} className="lrn-primary" disabled={waiting || notSaved} onClick={() => blockedToday.current.has(done.entry.card.id) ? nextCard() : void startCard(mixedNext ?? done.entry)}>{waiting ? "Saving…" : blockedToday.current.has(done.entry.card.id) ? (upcoming.length ? "Continue learning another card" : "Finish for today") : mixing ? "Continue learning another card" : "Start another round"} <ArrowRight size={17} aria-hidden="true" /></button>}
+        {upcoming.length && (result.ready || !mixing) && !(result.ready && wasMoved) && !(firstLearning && !result.ready) ? <button type="button" className="lrn-quiet" onClick={nextCard}>Continue learning another card</button> : null}
         {mistakes.some((attempt) => !attempt.correct) ? <button type="button" className="lrn-quiet" onClick={practiseMistakes}>Review mistakes</button> : null}
         {!(result.ready && wasMoved && !upcoming.length) ? <button type="button" className="lrn-quiet" onClick={leave}>Return to Learn</button> : null}
       </div>
@@ -661,16 +724,18 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   function renderFinished() {
     const still = entries.filter((entry) => entry.status !== "ready").length;
+    const doneToday = entries.filter(entry => entry.status !== "ready" && blockedToday.current.has(entry.card.id)).length;
     return <div className="lrn-summary">
       <p className="lrn-ask">{finishedCards ? "Learning complete" : "Learn"}</p>
       <h2 className="lrn-title">{ready.length
         ? `${ready.length} ${ready.length === 1 ? "card is" : "cards are"} ready for Review`
-        : moved.length ? "Everything ready has moved to Review" : "Nothing left to learn here"}</h2>
+        : doneToday ? "Done for today" : moved.length ? "Everything ready has moved to Review" : "Nothing left to learn here"}</h2>
       {ready.length ? <ul className="lrn-ready-list">{ready.slice(0, 8).map((entry) => <li key={entry.card.id} lang={entry.view.han ? "zh-Hans" : undefined}>
         <CheckCircle2 size={15} aria-hidden="true" /><strong>{entry.view.form}</strong><span>{entry.view.meaning}</span></li>)}
         {ready.length > 8 ? <li className="is-more">and {ready.length - 8} more</li> : null}</ul> : null}
       <p className="lrn-note">{[
         moved.length ? `${moved.length} moved to Review in this session.` : "",
+        doneToday ? `${doneToday} ${doneToday === 1 ? "card is" : "cards are"} ready to practise tomorrow.` : "",
         still ? `${still} still in Learn.` : "",
         "Moving a card only makes it available in Review; it does not count as a review.",
       ].filter(Boolean).join(" ")}</p>
@@ -678,6 +743,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       <div className="lrn-actions">
         {ready.length ? <button type="button" ref={primary} className="lrn-primary is-ready" disabled={moving} onClick={() => void moveToReview(ready)}>
           {moving ? "Moving…" : `Move ${ready.length === 1 ? "it" : `all ${ready.length}`} to Review`} <ArrowRight size={17} aria-hidden="true" /></button> : null}
+        {firstPool.length && sessionPhase.current !== "first" ? <button type="button" className="lrn-quiet" onClick={() => startPhase("first")}>First learning · {firstPool.length}</button> : null}
+        {mixedPool.length && sessionPhase.current !== "mixed" ? <button type="button" className="lrn-quiet" onClick={() => startPhase("mixed")}>Mixed learning · {mixedPool.length}</button> : null}
         <button type="button" ref={ready.length ? undefined : primary} className={ready.length ? "lrn-quiet" : "lrn-primary"} onClick={leave}>Return to Learn</button>
       </div>
     </div>;
@@ -691,12 +758,23 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       <div className="lrn-context"><strong>{title}</strong>
         {inRound ? <span>Card {Math.min(startedCount, cardTotal)} of {cardTotal}</span> : null}</div>
       {inRound ? <div className={`lrn-status${gain ? " has-gain" : ""}`} aria-live="polite">
-        {screen === "exercise" ? <span className="lrn-step">{stepLabel}{exercise && !practice ? <i> · {exerciseLabel(exercise)}</i> : null}</span> : null}
+        {screen === "exercise" ? <span className="lrn-step">{firstLearning || practice ? stepLabel : "Daily practice"}{exercise && !practice ? <i> · {exerciseLabel(exercise)}</i> : null}</span> : null}
+        <span className="lrn-phase">{firstLearning ? "First learning" : "Mixed learning"}</span>
         <span className="lrn-points">{gain && shown ? <b key={attempts.length}>{gain > 0 ? "+" : ""}{gain} · </b> : null}{result.score}/{ROUND_MAX} <small>points</small></span>
       </div> : null}
-      {inRound ? segments() : null}
+      {inRound && firstLearning ? segments() : null}
     </header>
 
+    {screen === "select" ? <main className="lrn-stage is-summary">
+      <div className="lrn-summary">
+        <p className="lrn-ask">Learn</p><h2 className="lrn-title">Choose your learning session</h2>
+        <div className="lrn-mode-list">
+          <button type="button" onClick={() => startPhase("first")}><span><strong>First learning</strong><small>Five exercises per new card · up to 50 points</small></span><b>{firstPool.length}</b><ArrowRight size={17} aria-hidden="true" /></button>
+          <button type="button" onClick={() => startPhase("mixed")}><span><strong>Mixed learning</strong><small>Random recall · up to 20 points per card today</small></span><b>{mixedPool.length}</b><ArrowRight size={17} aria-hidden="true" /></button>
+        </div>
+        <p className="lrn-note">{entries.filter(e => e.status !== "ready" && blockedToday.current.has(e.card.id)).length} done for today · {ready.length} ready for Review</p>
+      </div>
+    </main> : null}
     {screen === "loading" ? <div className="lrn-state" role="status">Preparing your exercises…</div> : null}
     {screen === "setup" ? <div className="lrn-state"><h2 className="lrn-title">Learn is almost ready</h2><p>{LEARN_SETUP_MESSAGE}</p>
       <button type="button" className="lrn-primary" onClick={leave}>Return to Learn</button></div> : null}
@@ -736,7 +814,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       </footer>
     </> : null}
 
-    {screen === "summary" && current ? <main className="lrn-stage is-summary">{renderSummary(current)}</main> : null}
+    {screen === "summary" && current ? <main className={`lrn-stage is-summary${result.ready ? " lrn-success-stage" : ""}`}>{renderSummary(current)}</main> : null}
     {screen === "finished" ? <main className="lrn-stage is-summary">{renderFinished()}</main> : null}
   </div>, document.body);
 }

@@ -18,7 +18,19 @@ export const ROUND_SIZE = 5;
 export const POINTS_PER_EXERCISE = 10;
 export const ROUND_MAX = 100;
 export const READY_SCORE = 100;
-export const MIX_SCORE = 50;
+export const MIX_SCORE = 50; // exercise difficulty threshold
+export const MIX_DAILY_MAX = 20;
+
+/** First acquisition is a completed-round distinction, not a score reset. */
+export function firstLearnRound(round: Pick<LearnRound, "roundNumber" | "baseScore">): boolean {
+  return round.roundNumber === 1 && (round.baseScore ?? 0) === 0;
+}
+
+export function randomLearnCard<T extends { card: { id: string } }>(entries: T[], currentId = "", random = Math.random): T | undefined {
+  const other = entries.filter(entry => entry.card.id !== currentId);
+  const pool = other.length ? other : entries;
+  return pool.length ? pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))] : undefined;
+}
 
 /** A high-mastery card gets a different card before its next scored exercise. */
 export function mixedLearnPartner<T extends { card: { id: string } }>(entries: T[], currentId: string, score: number, scores: ReadonlyMap<string, number>): T | undefined {
@@ -98,6 +110,8 @@ export function roundResult(attempts: Array<Pick<LearnAttempt, "position" | "cor
 export type CardLearnState = {
   cardId: string;
   cycle: number;
+  dailyPoints?: number;
+  blockedToday?: boolean;
   active: { id: string; roundNumber: number; answered: number; score: number } | null;
   last: { id: string; roundNumber: number; score: number; correctCount: number; recallCorrect: boolean; ready: boolean; completedAt: string | null } | null;
 };
@@ -194,6 +208,7 @@ export async function loadLearnOverview(cardIds: string[], now = Date.now()): Pr
     const last = row.last && typeof row.last === "object" ? row.last as Record<string, unknown> : null;
     cards.set(row.card_id, {
       cardId: row.card_id, cycle: int(row.cycle),
+      dailyPoints: int(row.daily_points), blockedToday: row.blocked_today === true,
       active: active && typeof active.id === "string"
         ? { id: active.id, roundNumber: Math.max(1, int(active.round_number)), answered: Math.min(ROUND_SIZE, int(active.answered)), score: int(active.score) } : null,
       last: last && typeof last.id === "string" ? {
