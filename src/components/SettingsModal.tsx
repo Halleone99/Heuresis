@@ -7,6 +7,7 @@ import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
 import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
+import { readAutoPronunciation, writeAutoPronunciation } from "../lib/reviewAudio";
 import SortingSettings from "./SortingSettings";
 import CardColoursEditor from "./CardColoursEditor";
 import StructureSettings from "./StructureSettings";
@@ -251,6 +252,7 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
 
 function StudySettings() {
   const [dailyTarget, setDailyTarget] = useState(readNewCardQuota);
+  const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
 
   return <section className="heuresis-study-settings" aria-label="Study preferences">
     <div className="settings-section-heading">
@@ -266,6 +268,17 @@ function StudySettings() {
           if (Number.isFinite(value)) setDailyTarget(saveNewCardQuota(value));
         }} />
       <small>1–50 new cards per day</small>
+    </label>
+    <div className="settings-section-heading">
+      <strong>Language audio</strong>
+      <span>Hear the correct word or sentence after checking or revealing an answer. Manual playback remains available.</span>
+    </div>
+    <label className="heuresis-study-target">
+      <span>Automatic pronunciation</span>
+      <input type="checkbox" checked={autoPronunciation} onChange={(event) => {
+        const next = event.currentTarget.checked;
+        setAutoPronunciation(next); writeAutoPronunciation(next);
+      }} />
     </label>
     <p className="heuresis-study-device-note">Saved on this device. Your study progress and review history are still saved in your account.</p>
   </section>;

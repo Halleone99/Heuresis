@@ -246,3 +246,6 @@
   .lrn-stage, .lrn-feedback, .lrn-points b, .lrn-check-points { animation: none; }
   .lrn-choice, .lrn-tile, .lrn-progress i, .lrn-primary { transition: none; }
 }
+
+/* A small replay control, not a second primary action. */
+.lrn .lrn-pronunciation { min-width: 40px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; align-self: center; padding: 6px 10px; }

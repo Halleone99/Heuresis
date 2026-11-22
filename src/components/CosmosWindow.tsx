@@ -57,7 +57,7 @@ import { signHeuresisCardImages } from "../lib/cardMedia";
 import { isAndroidRuntime, prefersSingleWindowNavigation, returnToHeuresisApp } from "../lib/platform";
 import { supabase } from "../lib/supabase";
 import { nextReviewRouteParams, readReviewRoute, readReviewSelection } from "../lib/cosmosWindow";
-import { reviewSpeechLanguage, reviewSpokenPrompt, canSpeak, speakReviewText, stopReviewAudio, type ReviewSpeechRole } from "../lib/reviewAudio";
+import { reviewSpeechLanguage, reviewSpokenPrompt, canSpeak, speakReviewText, stopReviewAudio, readAutoPronunciation, targetSpeechLocale, type ReviewSpeechRole } from "../lib/reviewAudio";
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
@@ -67,7 +67,7 @@ import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
 import { useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import { packShape } from "../lib/teachingShape";
 import { appliedReviewQuestion } from "../lib/appliedReview";
-import { checkExercise, type Verdict } from "../lib/learnExercises";
+import { writtenForm, checkExercise, type Verdict } from "../lib/learnExercises";
 import AppliedReviewQuestion from "./AppliedReviewQuestion";
 import "./cosmos.css";
 import "./review-card.css";
@@ -916,6 +916,16 @@ export default function CosmosWindow() {
         } else setSuggestion(suggested);
       }
       setRevealed(true);
+      if (structuredWords && readAutoPronunciation()) {
+        const termKey = fieldByRole(pack.cardType, "term")?.key ?? pack.cardType?.field_schema[0]?.key;
+        const source = fieldText(card.data, termKey);
+        const locale = targetSpeechLocale((reviewCollection ? languageFromCollection(reviewCollection) : null)
+          ?? languageFromName(pack.title) ?? languageFromName(pack.cardType?.name) ?? languageFromScript(source));
+        // Automatic reinforcement is not evidence of a listening-first attempt.
+        if (source && locale && canSpeak(locale) && !(method === "hear" && template.front.includes(termKey ?? ""))) {
+          speakReviewText(writtenForm(source), locale);
+        }
+      }
       // Record observed practice, not merely the selected input mode.
       if ((method === "handwrite" && hasWriting) || (method === "say" && saidAnswer) || (method === "type" && typed.trim())) void markLearning([method]);
       if (method === "hear" && saidAnswer) void markLearning(["say"]);
@@ -1232,6 +1242,9 @@ export default function CosmosWindow() {
   const frontKeys = mode === "review" ? (template?.front ?? []) : [];
   const backKeys = mode === "review" ? (template?.back ?? []) : [];
   const detailKeys = mode === "review" ? (template?.details ?? []) : [];
+  const targetLocale = structuredWords ? targetSpeechLocale((reviewCollection ? languageFromCollection(reviewCollection) : null)
+    ?? languageFromName(pack.title) ?? languageFromName(type?.name) ?? languageFromScript(fieldText(card.data, term?.key))) : null;
+  const pronunciationAvailable = Boolean(targetLocale && canSpeak(targetLocale));
   const activeLearning = new Set(selectedActions[card.id] ?? []);
   const methodCounts = reviewMethodCounts(card, learningCounts[card.id]);
   const badges = tags.filter((tag) => tag.is_badge).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
@@ -1268,7 +1281,7 @@ export default function CosmosWindow() {
     return <section className="cosmos-details-section" key={dimensionId} aria-label={def.label}>
       <header><h3>{def.label}</h3><span>{def.sub}</span><b>{countFor(dimensionId) || ""}</b></header>
       {dimensionId === "notes" && card.note?.trim() ? <article className="cosmos-field"><small>Card note</small><p>{card.note}</p></article> : null}
-      {entries.map((entry) => <article className="cosmos-field" key={entry.key}><small>{entry.label}</small><p>{entry.value}</p></article>)}
+      {entries.map((entry) => <article className="cosmos-field" key={entry.key}><small>{entry.label}</small><p>{entry.value}{mode === "review" && revealed && pronunciationAvailable && type?.field_schema.find((field) => field.key === entry.key)?.role === "example" ? <button type="button" className="review-icon review-speak" aria-label="Hear example" title="Hear example" onClick={() => playAudio(entry.value)}><Volume2 size={16}/></button> : null}</p></article>)}
       {showRelated ? relatedRows.map((row) => <article className="cosmos-related" key={row.relation_id}><div><strong>{row.term}</strong>{row.reading ? <em>{row.reading}</em> : null}</div><span className={`relation-${row.relation_type}`}>{relationLabel(row.relation_type)}</span>{row.meaning ? <p>{row.meaning}</p> : null}{mode === "sort" ? <button title="Remove relation" onClick={() => void removeRelation(row)}><X size={11} /></button> : null}</article>) : null}
       {dimensionBlocks.map((block) => block.type === "image"
         ? <figure className="cosmos-image-block" key={block.id}>
@@ -1277,7 +1290,7 @@ export default function CosmosWindow() {
           </figure>
         : block.type === "example"
           ? <article className="cosmos-text-block cosmos-example-block" key={block.id}>
-              <p>{block.source}</p>
+              <p>{block.source}{mode === "review" && revealed && pronunciationAvailable ? <button type="button" className="review-icon review-speak" aria-label="Hear example" title="Hear example" onClick={() => playAudio(block.source)}><Volume2 size={16}/></button> : null}</p>
               {block.reading ? <p className="cosmos-example-reading">{block.reading}</p> : null}
               {block.translation ? <p className="cosmos-example-translation">{block.translation}</p> : null}
               {mode === "sort" ? <button title="Remove example" onClick={() => void removeTextBlock(block.id)}><X size={11} /></button> : null}
@@ -1328,8 +1341,8 @@ export default function CosmosWindow() {
   function playAudio(text: string, fieldKey?: string) {
     if (!pack) return;
     const spokenRole: ReviewSpeechRole = fieldKey === term?.key ? "term" : fieldKey === meaning?.key ? "meaning" : "other";
-    const locale = reviewSpeechLanguage(text, pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenRole);
-    if (!speakReviewText(text, locale, () => { void markLearning(["hear"]); })) {
+    const locale = spokenRole !== "meaning" && targetLocale ? targetLocale : reviewSpeechLanguage(text, pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenRole);
+    if (!speakReviewText(spokenRole === "term" ? writtenForm(text) : text, locale, () => { void markLearning(["hear"]); })) {
       setNotice("No voice installed for " + locale + " on this device.");
     }
   }
@@ -1361,12 +1374,12 @@ export default function CosmosWindow() {
       if (!value) return null;
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
-      const termToPlay = redesignReview && revealed && recapField && key === term?.key;
+      const termToPlay = revealed && pronunciationAvailable && (key === term?.key || field?.role === "example");
       return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
         {rule ? <i className="cosmos-rule" /> : null}
         <span data-hl={revealed ? "" : undefined} lang={field?.role === "meaning" || field?.role === "example_translation" ? "en" :
           languageFromScript(value) ?? languageFromName(pack.title) ?? "en"}>{value}</span>
-        {termToPlay ? <button type="button" className="review-icon review-speak" aria-label="Hear term" title="Hear term" onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
+        {termToPlay ? <button type="button" className="review-icon review-speak" aria-label={key === term?.key ? "Hear term" : "Hear example"} title={key === term?.key ? "Hear term" : "Hear example"} onClick={() => playAudio(value, key)}><Volume2 size={16}/></button> : null}
       </div>;
     };
 
@@ -1381,7 +1394,7 @@ export default function CosmosWindow() {
         {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
         {used.map((key, position) => renderField(key, position, false))}
       </>}
-      {revealed && chineseTerm && !redesignReview ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
+      {revealed && pronunciationAvailable && chineseTerm && ![...recap, ...used].includes(term?.key ?? "") ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
       {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
         {!redesignReview ? <span>Answer by</span> : null}

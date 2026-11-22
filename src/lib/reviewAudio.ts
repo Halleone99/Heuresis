@@ -125,3 +125,35 @@ export function stopReviewAudio() {
   try { window.HeuresisAndroidSpeech?.stop(); } catch { /* device may be stopping */ }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
+
+const AUTO_PRONUNCIATION_KEY = "heuresis.language.autoplay.v1";
+export function readAutoPronunciation(): boolean {
+  try { return localStorage.getItem(AUTO_PRONUNCIATION_KEY) !== "off"; } catch { return true; }
+}
+export function writeAutoPronunciation(on: boolean): void {
+  try { localStorage.setItem(AUTO_PRONUNCIATION_KEY, on ? "on" : "off"); } catch { /* device preference */ }
+  if (!on) stopReviewAudio();
+}
+const TARGET_LOCALES: Record<string, string> = {
+  en: "en-GB", de: "de-DE", ru: "ru-RU", zh: "zh-CN", fr: "fr-FR",
+  es: "es-ES", it: "it-IT", ja: "ja-JP", ko: "ko-KR", pt: "pt-PT",
+};
+export function targetSpeechLocale(language: string | null | undefined): string | null {
+  return language ? TARGET_LOCALES[language] ?? null : null;
+}
+/** Speak only actual source-language text, never a gloss, pinyin or a gapped prompt. */
+export function learningFeedbackSpeech(
+  card: { form: string; language: string | null; rule?: unknown; examples: { source: string }[] },
+  exercise: { kind: string; solution: string; prompt: { text: string }; explain: string },
+): { text: string; locale: string } | null {
+  const locale = targetSpeechLocale(card.language);
+  if (!locale || card.rule) return null;
+  let text = card.form;
+  if (exercise.kind === "build-sentence" || exercise.kind === "example-write") text = exercise.solution;
+  else if (exercise.kind === "example-meaning") text = exercise.prompt.text;
+  else if (exercise.kind === "cloze-choice" || exercise.kind === "cloze-type") {
+    text = card.examples.find((example) => exercise.explain === example.source
+      || exercise.explain.startsWith(example.source + " — "))?.source ?? card.form;
+  }
+  return text.trim() ? { text, locale } : null;
+}

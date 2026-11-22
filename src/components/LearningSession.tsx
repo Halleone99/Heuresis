@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Delete, Lightbulb, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Delete, Lightbulb, RotateCcw, Volume2, X } from "lucide-react";
 import type { CardWithStats } from "../lib/heuresis";
 import {
   buildRound, checkExercise, exerciseLabel, learnable, readPlan, toLearnCard,
@@ -17,6 +17,7 @@ import {
 import { isLearnCard, learnQueue, learnStatus, type LearnStatus, type LearnTopic } from "../lib/learnSession";
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import { enterReview, readAcquisition, saveAcquisition } from "../lib/learningStage";
+import { canSpeak, learningFeedbackSpeech, readAutoPronunciation, speakReviewText, stopReviewAudio } from "../lib/reviewAudio";
 import "./learning-session.css";
 
 type Props = {
@@ -81,6 +82,17 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const [practice, setPractice] = useState<{ positions: number[]; at: number } | null>(null);
   const [again, setAgain] = useState(false);
   const [shown, setShown] = useState<Shown | null>(null);
+  const [, refreshSpeech] = useState(0);
+  useEffect(() => {
+    const ready = () => refreshSpeech((value) => value + 1);
+    window.addEventListener("heuresis-speech-ready", ready);
+    window.speechSynthesis?.addEventListener?.("voiceschanged", ready);
+    return () => {
+      window.removeEventListener("heuresis-speech-ready", ready);
+      window.speechSynthesis?.removeEventListener?.("voiceschanged", ready);
+      stopReviewAudio();
+    };
+  }, []);
   const [choiceId, setChoiceId] = useState<string | null>(null);
   const [tileIds, setTileIds] = useState<string[]>([]);
   const [gapFill, setGapFill] = useState<Array<{ ch: string; bank: number } | null>>([]);
@@ -154,6 +166,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   /* --------------------------------------------------------------- loading */
 
   const resetAnswer = useCallback((next: Exercise | null) => {
+    stopReviewAudio();
     answering.current = false;
     setShown(null); setChoiceId(null); setTileIds([]); setText(""); setHinted(false); setJudging(false); setCovered([]);
     setGapFill(next?.format === "gaps" ? next.cells.filter((cell) => cell.gap).map(() => null) : []);
@@ -254,10 +267,13 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   function submit(given: ExerciseInput) {
     if (!current || !exercise || shown || answering.current) return;
     const verdict = checkExercise(exercise, given);
+    const audio = learningFeedbackSpeech(current.entry.view, exercise);
+    const playFeedback = () => { if (audio && readAutoPronunciation() && canSpeak(audio.locale)) speakReviewText(audio.text, audio.locale); };
     if (mode !== "scored") {
       // Practising the right answer after feedback helps, and never changes the score.
       if (verdict.correct) void markLearnCorrected(current.round.id, exercise.position).catch(() => undefined);
       setShown({ verdict, mode, points: 0, assisted: false });
+      playFeedback();
       return;
     }
     if (current.round.attempts.some((attempt) => attempt.position === exercise.position)) return;
@@ -271,6 +287,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     cacheRound(round);
     setCurrent({ ...current, round });
     setShown({ verdict, mode, points: attempt.points, assisted: hinted });
+    playFeedback();
     setGain(attempt.points);
     const outcome = roundResult(round.attempts, round.baseScore);
     scores.current.set(round.cardId, outcome.score);
@@ -280,6 +297,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   function proceed() {
     if (!current || !shown) return;
+    stopReviewAudio();
     if (practice) {
       if (practice.at + 1 < practice.positions.length) {
         const next = { ...practice, at: practice.at + 1 };
@@ -402,6 +420,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (IME(event)) return;
     if (event.key === "Escape") { event.preventDefault(); leave(); return; }
     if (screen !== "exercise" || !exercise) return;
+    if (event.target instanceof HTMLElement && event.target.closest("[data-pronunciation]") && (event.key === "Enter" || event.key === " ")) return;
     const typing = event.target instanceof HTMLInputElement;
     if (shown) {
       // Enter moves on; Space too, except on a focused button, where it already activates it.
@@ -574,6 +593,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       ? state.mode !== "scored" ? "Practice does not change your score." : state.assisted ? "A hinted answer earns no points." : ""
       : verdict.message;
     const canRetry = !verdict.correct && item.format !== "choice";
+    const audio = current ? learningFeedbackSpeech(current.entry.view, item) : null;
     return <div className={`lrn-feedback ${verdict.correct ? "is-right" : "is-wrong"}`} role="status" aria-live="polite">
       <div className="lrn-feedback-text">
         <strong>{verdict.correct ? <Check size={18} aria-hidden="true" /> : <X size={18} aria-hidden="true" />}{heading}
@@ -582,6 +602,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         {note ? <p>{stressed(note)}</p> : null}
       </div>
       <div className="lrn-feedback-actions">
+        {audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear pronunciation" title="Hear pronunciation" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null}
         {canRetry ? <button type="button" className="lrn-quiet" onClick={tryAgain}><RotateCcw size={15} aria-hidden="true" /> Try again</button> : null}
         <button type="button" ref={primary} className="lrn-primary" disabled={!practice && (result.complete || mixing) && (saving === "saving" || notSaved)} onClick={proceed}>
           {practice ? (practice.at + 1 < practice.positions.length ? "Next" : "Back to summary")
@@ -693,6 +714,10 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         <p className="lrn-ask">{exercise.prompt.ask}</p>
         <h2 className={`lrn-prompt${Array.from(exercise.prompt.text).length > 46 ? " is-long" : ""}${exercise.prompt.style === "case" ? " is-case" : ""}`} lang={exercise.prompt.lang}>{exercise.prompt.text}</h2>
         {exercise.prompt.sub ? <p className="lrn-sub">{exercise.prompt.sub}</p> : null}
+        {!shown && current && ["choose-meaning", "example-meaning", "build-meaning", "type-meaning"].includes(exercise.kind) && (() => {
+          const audio = learningFeedbackSpeech(current.entry.view, exercise);
+          return audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear prompt" title="Hear prompt" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null;
+        })()}
         {renderAnswer(exercise)}
       </main>
       <footer className="lrn-bottom">
