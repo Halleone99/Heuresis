@@ -32,7 +32,7 @@ import { LessonCleanupDialog } from "./components/workspace/LessonCleanupDialog"
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch, type PaletteCommand } from "./components/workspace/WorkspaceSearch";
-import { useHeuresisBackground, type BackgroundPageKey } from "./hooks/useHeuresisBackground";
+import { useHeuresisBackground, type BackgroundPageKey, type BackgroundSettings } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
@@ -76,6 +76,17 @@ type BackgroundStyle = CSSProperties & {
   "--heuresis-background-position"?: string;
   "--heuresis-background-fit"?: string;
 };
+
+function wallpaperStyle({ imageUrl, settings }: { imageUrl: string | null; settings: BackgroundSettings }): BackgroundStyle {
+  return {
+    "--heuresis-background-image": imageUrl && settings.enabled ? `url("${imageUrl}")` : "none",
+    "--heuresis-background-opacity": String(settings.opacity),
+    "--heuresis-background-veil": String(settings.veil),
+    "--heuresis-background-blur": `${settings.blur}px`,
+    "--heuresis-background-position": settings.position,
+    "--heuresis-background-fit": settings.fit,
+  };
+}
 
 const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; key: string }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, key: "1" },
@@ -237,6 +248,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     heuresis: useHeuresisBackground("heuresis"),
     "heuresis-overview": useHeuresisBackground("heuresis-overview"),
     "heuresis-study": useHeuresisBackground("heuresis-study"),
+    "heuresis-new-cards": useHeuresisBackground("heuresis-new-cards"),
     "heuresis-notebook": useHeuresisBackground("heuresis-notebook"),
     "heuresis-mistakes": useHeuresisBackground("heuresis-mistakes"),
     "heuresis-reading": useHeuresisBackground("heuresis-reading"),
@@ -520,14 +532,10 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     : syncState.lastSyncedAt
       ? `Last synchronised ${new Date(syncState.lastSyncedAt).toLocaleString()}`
       : "Download the full library to this device for offline use.";
-  const backgroundStyle: BackgroundStyle = {
-    "--heuresis-background-image": background.imageUrl && background.settings.enabled ? `url("${background.imageUrl}")` : "none",
-    "--heuresis-background-opacity": String(background.settings.opacity),
-    "--heuresis-background-veil": String(background.settings.veil),
-    "--heuresis-background-blur": `${background.settings.blur}px`,
-    "--heuresis-background-position": background.settings.position,
-    "--heuresis-background-fit": background.settings.fit,
-  };
+  const backgroundStyle = wallpaperStyle(background);
+  const newCardsBackground = backgrounds["heuresis-new-cards"];
+  const newCardsBackgroundStyle = newCardsBackground.hasImage && newCardsBackground.settings.enabled
+    ? wallpaperStyle(newCardsBackground) : undefined;
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
   function openPack(pack: PackWithType, cardId: string | null = null) { setActivePackId(pack.id); setFocusCardId(cardId); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
   function openCapture(pack: PackWithType | null = null, collectionId: string | null = null) {
@@ -723,11 +731,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </Suspense> : null}
           {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-          {section === "study" && !loading && !error && view === "library" ? <LibraryView collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={(mode) => openCollections(true, mode)} /> : null}
+          {section === "study" && !loading && !error && view === "library" ? <LibraryView newCardsBackgroundStyle={newCardsBackgroundStyle} collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={(mode) => openCollections(true, mode)} /> : null}
           {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
           {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
           {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
-          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
+          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} newCardsBackgroundStyle={newCardsBackgroundStyle} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">

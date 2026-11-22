@@ -43,6 +43,7 @@ import { MOD_KEY } from "./workspace/ui";
 type Props = {
   pack: PackWithType;
   collection: Collection | null;
+  newCardsBackgroundStyle?: CSSProperties;
   /** A card opened from Search: selected and scrolled into view once the cards load. */
   focusCardId?: string | null;
   onFocusCardShown?: () => void;
@@ -178,7 +179,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   );
 }
 
-export default function PackView({ pack, collection, focusCardId = null, onFocusCardShown, onBack, onCapture, onSettings, onChanged }: Props) {
+export default function PackView({ pack, collection, newCardsBackgroundStyle, focusCardId = null, onFocusCardShown, onBack, onCapture, onSettings, onChanged }: Props) {
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [referenceCards, setReferenceCards] = useState<CardWithStats[]>([]);
   const [tags, setTags] = useState<HeuresisTag[]>([]);
@@ -744,7 +745,7 @@ export default function PackView({ pack, collection, focusCardId = null, onFocus
       {learningOpen ? <LearningSession topics={[{ pack, language: packLanguage(pack, collection?.title), cards }]}
         title={[collection?.title, pack.title].filter(Boolean).join(" · ")}
         onClose={closeLearning} onChanged={() => void refreshAll()} /> : null}
-      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} onLearning={openLearning} /> : null}
+      {sortOpen ? <SortModal pack={pack} cards={cards} tags={tags} backgroundStyle={newCardsBackgroundStyle} onClose={() => setSortOpen(false)} onChanged={() => void refreshAll()} onReview={() => void startReview()} onLearning={openLearning} /> : null}
       {browseOpen ? <BrowseModal pack={pack} cards={cards} onClose={() => setBrowseOpen(false)} onComplete={() => void refreshAll()} /> : null}
       {importOpen ? <ImportModal pack={pack} onClose={() => setImportOpen(false)} onDone={() => refreshAll()} /> : null}
     </section>

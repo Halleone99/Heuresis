@@ -1,7 +1,4 @@
 /* Two connected Details wings in New-card Sort. */
-.sort-modal--session .sort-session-stage {
-  overflow:visible;
-}
 .sort-modal--session .sort-card { z-index:2; }
 .sort-backdrop .sort-modal--session #sort-language-details,
 .sort-backdrop .sort-modal--session #sort-knowledge-details {

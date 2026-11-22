@@ -61,7 +61,10 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
   }
 
   const selectedLabel = PAGE_BACKGROUND_CHOICES.find((choice) => choice.key === selectedPage)?.label ?? "This page";
-  const shownBackground = background.hasImage ? background : backgrounds.heuresis;
+  const studyBackground = backgrounds["heuresis-study"];
+  const inheritsStudy = selectedPage === "heuresis-new-cards" && studyBackground.hasImage && studyBackground.settings.enabled;
+  const fallbackLabel = inheritsStudy ? "Study" : "All pages";
+  const shownBackground = background.hasImage ? background : inheritsStudy ? studyBackground : backgrounds.heuresis;
   const shownImage = shownBackground.imageUrl;
   const dim = dimPercent(background.settings.opacity, background.settings.veil);
   const looks = [
@@ -137,7 +140,7 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
           </select>
           <span className="pb-page-status">
             {selectedPage === "heuresis" ? (background.hasImage ? "Shared background" : "No shared background")
-              : background.hasImage ? "Custom background" : shownImage ? "Using All pages" : "No background"}
+              : background.hasImage ? "Custom background" : shownImage ? "Using " + fallbackLabel : "No background"}
           </span>
         </div>
         <div className="pb-toolbar-actions">
@@ -146,8 +149,8 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
             {background.syncing ? "Saving…" : background.hasImage ? "Change image" : "Upload image"}</button>
           {background.hasImage ? <button type="button" className="pb-quiet-action"
             disabled={background.syncing || Boolean(applyingPreset)} onClick={() => void remove()}
-            title={selectedPage === "heuresis" ? "Remove shared image" : "Restore the All pages background"}>
-            <Trash2 size={14} /> {selectedPage === "heuresis" ? "Remove" : "Use All pages"}</button> : null}
+            title={selectedPage === "heuresis" ? "Remove shared image" : "Restore the " + fallbackLabel + " background"}>
+            <Trash2 size={14} /> {selectedPage === "heuresis" ? "Remove" : "Use " + fallbackLabel}</button> : null}
         </div>
       </div>
       <input ref={fileRef} className="hidden-file" type="file"
@@ -172,12 +175,12 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
                 <small>{selectedLabel.toUpperCase()}</small>
                 <strong>Ich stelle fest, dass …</strong>
                 <span>To notice or establish something</span>
-                <em>Review · Remember</em>
+                <em>{selectedPage === "heuresis-new-cards" ? "Learn" : "Review · Remember"}</em>
               </span>
             </button>
             <span className="background-preview-caption">
               {background.hasImage ? "Preview · click the image to adjust its focus"
-                : shownImage ? "Previewing your shared background"
+                : shownImage ? "Previewing the " + fallbackLabel + " background"
                   : "Choose an atmosphere or upload an image"}
             </span>
           </div>

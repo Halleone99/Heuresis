@@ -1,5 +1,5 @@
-import { ArrowRight, BookOpen, Brain, Check, ChevronDown, Clock3, Palette, PanelLeftOpen, Quote, RotateCcw, Search, Shuffle, Tag, Trash2, Undo2, Volume2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, BookOpen, Brain, Check, ChevronDown, Clock3, Palette, PanelLeftOpen, Quote, RotateCcw, Search, Shuffle, Tag, Trash2, Type, Undo2, Volume2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
@@ -29,6 +29,7 @@ type Props = {
   pack: PackWithType;
   cards: CardWithStats[];
   tags: HeuresisTag[];
+  backgroundStyle?: CSSProperties;
   startCardId?: string | null;
   /** One-tap daily quota launcher bypasses setup with this many unsorted cards. */
   quickStartCount?: number;
@@ -71,7 +72,7 @@ function shuffled<T>(items: T[]) {
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
-export default function SortModal({ pack, cards, tags, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
+export default function SortModal({ pack, cards, tags, backgroundStyle, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
   useAndroidStudyWakeLock(true);
   const releaseBackEntry = useAndroidOverlayBack("new", () => { void closeSort(); });
   const exitSort = (preserveForLearning = false) => { releaseBackEntry(preserveForLearning); onClose(); };
@@ -144,6 +145,8 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const [localBadges, setLocalBadges] = useState<HeuresisTag[]>(() => tags.filter(tag => tag.is_badge));
   const [badgeEditorOpen, setBadgeEditorOpen] = useState(false);
   const [colourEditorOpen, setColourEditorOpen] = useState(false);
+  const [formattingOpen, setFormattingOpen] = useState(false);
+  const formattingButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { setLocalBadges(tags.filter(tag => tag.is_badge)); }, [tags]);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -212,7 +215,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   useEffect(() => {
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
-    setEditingCard(false); setNoteOpen(Boolean(card?.note));
+    setEditingCard(false); setNoteOpen(Boolean(card?.note)); setFormattingOpen(false);
     setLeftOpen(false); setRightOpen(false); setLeftCount(0); setRightCount(0);
     setDetailsRequest(null); setExampleActive(false);
     setConfirmDiscard(false); setAddingLabel(false); setLabelDraft(""); setBadgeEditorOpen(false);
@@ -414,6 +417,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       // but never steals Escape from Quick Capture or another dialog on top.
       if (event.key === "Escape" && confirmDiscard) { event.preventDefault(); setConfirmDiscard(false); return; }
       if (event.key === "Escape" && !(target instanceof Element && target.closest(".qc-panel, .ws-dialog"))) {
+        if (formattingOpen) {
+          event.preventDefault();
+          setFormattingOpen(false);
+          formattingButton.current?.focus();
+          return;
+        }
         if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setLeftOpen(false); setRightOpen(false); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
@@ -434,6 +443,7 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
         chooseImportance(key === "1" || key === "c" ? "core" : key === "2" || key === "u" ? "useful" : "peripheral");
         return;
       }
+      if (key === "enter" && target instanceof Element && target.closest("button, summary, a")) return;
       if (key === "enter") { event.preventDefault(); void learn(IMPORTANCE_RANK[importance], "learning"); return; }
       if (key === "r") { event.preventDefault(); void learn(IMPORTANCE_RANK[importance], "review"); return; }
       if (key === "e") { event.preventDefault(); toggleBothDetails(); return; }
@@ -454,7 +464,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
   const decided = learned + discarded;
-  const languageLabel = pack.cardType?.name?.replace(/\b(cards?|vocabulary|words?)\b/gi, "").trim() || "CARD";
   const selectedLanguage = languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
     ?? languageFromScript(card ? fieldText(card.data, term?.key) : "") ?? "en";
   const exampleField = fieldByRole(pack.cardType, "example");
@@ -470,9 +479,13 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
     setDetailsRequest({ ...request, nonce: Date.now() });
   }
 
+  const showSetup = filtersOpen && unsorted.length > 0;
+
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
-  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={filtersOpen && unsorted.length ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (enrichmentOpen ? " sort-modal--editing" : "")} role="dialog" aria-modal="true" aria-label="New cards">
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={showSetup ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (enrichmentOpen ? " sort-modal--editing" : "")}
+    style={showSetup ? undefined : backgroundStyle} data-custom-background={!showSetup && backgroundStyle ? "new-cards" : undefined}
+    role="dialog" aria-modal="true" aria-label="New cards">
 
     <header className="sort-topbar">
       <div className="sort-new-heading"><span className="sort-stage-chip">● New</span><strong>{pack.title}</strong></div>
@@ -587,13 +600,16 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
       </div>
       <article ref={sortCardRef} className="sort-card" data-card-id={card.id} aria-label="New flashcard">
         <div className="sort-new-card-header">
-          <div className="sort-header-ident">
-            <span><small>{languageLabel.toUpperCase()}</small><i>·</i> New card</span>
-            <div className="sort-header-tags">
-              {tags.filter(tag => !tag.is_badge && tagIds.includes(tag.id)).map(tag =>
-                <button type="button" key={tag.id} disabled={busy} onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}># {tag.name}</button>)}
-              <button type="button" disabled={busy} onClick={() => setTagsOpen(v => !v)} aria-label="Add tag" title="Add tag (T)">+</button>
-            </div>
+          <div className="sort-header-tags">
+            <button type="button" disabled={busy} onClick={() => setTagsOpen(v => !v)}
+              aria-label="Add tag" aria-expanded={tagsOpen} title="Add tag (T)"><Tag size={14} /> Tag</button>
+            {tags.filter(tag => !tag.is_badge && tagIds.includes(tag.id)).map(tag =>
+              <button type="button" key={tag.id} disabled={busy} onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}># {tag.name}</button>)}
+            {tagsOpen ? <div className="sort-new-tag-popover">
+              {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
+              {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}
+              {!tags.length ? <p>Create tags in Settings.</p> : null}
+            </div> : null}
           </div>
           <div className="sort-header-tools">
             <button type="button" className="sort-header-icon" disabled={busy} aria-label="Listen to term" title="Listen"
@@ -602,6 +618,25 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
                 const locale = reviewSpeechLanguage(text, pack.title, pack.cardType?.name ?? "", "term");
                 if (!speakReviewText(text, locale)) setMessage("No voice installed for " + locale + " on this device.");
               }}><Volume2 size={17} /></button>
+            <button type="button" className={"sort-header-icon" + (showExamples ? " on" : "")}
+              aria-label="Show examples" aria-pressed={showExamples} title="Examples" onClick={toggleExamples}><Quote size={17}/></button>
+            <button ref={formattingButton} type="button" className={"sort-header-icon" + (formattingOpen ? " on" : "")}
+              aria-label="Formatting" title="Formatting" aria-expanded={formattingOpen} aria-controls="sort-formatting-tools"
+              onMouseDown={event => event.preventDefault()} onClick={() => setFormattingOpen(value => !value)}><Type size={17} /></button>
+            <div id="sort-formatting-tools" className="sort-format-popover" hidden={!formattingOpen}>
+              <FormattingRail rootRef={sortCardRef} cardId={card.id} language={selectedLanguage}
+                textVersion={JSON.stringify(card.data)}
+                onOpenFormatting={() => {
+                  setFormattingOpen(false);
+                  setRightOpen(true);
+                  window.requestAnimationFrame(() => document.getElementById("sort-formatting-section")?.scrollIntoView({ block:"nearest" }));
+                }} />
+            </div>
+            <button type="button" className={"sort-new-details" + (enrichmentOpen ? " on" : "")}
+              aria-expanded={enrichmentOpen} aria-controls="sort-language-details sort-knowledge-details" disabled={busy}
+              onClick={toggleBothDetails} title="Details (E)">
+              <PanelLeftOpen size={15}/> Details {detailsCount ? <b>{detailsCount}</b> : null}
+            </button>
             <div className="sort-discard-anchor">
               <button type="button" className="sort-header-icon" disabled={busy} aria-label="Discard card" title="Discard (D)"
                 onClick={() => setConfirmDiscard(true)}><Trash2 size={17} /></button>
@@ -610,14 +645,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
                 <button type="button" className="danger" autoFocus onClick={() => { setConfirmDiscard(false); void discard(); }}>Discard</button></div>
               </div> : null}
             </div>
-            <span className="sort-header-divider" />
-            <button type="button" className={"sort-header-icon" + (showExamples ? " on" : "")}
-              aria-label="Show examples" aria-pressed={showExamples} title="Examples" onClick={toggleExamples}><Quote size={17}/></button>
-            <button type="button" className={"sort-new-details" + (enrichmentOpen ? " on" : "")}
-              aria-expanded={enrichmentOpen} aria-controls="sort-language-details sort-knowledge-details" disabled={busy}
-              onClick={toggleBothDetails} title="Details (E)">
-              <PanelLeftOpen size={15}/> Details {detailsCount ? <b>{detailsCount}</b> : null}
-            </button>
           </div>
         </div>
         <div className="sort-new-content">
@@ -627,15 +654,6 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
               className="term" onEditingChange={setEditingCard}
               onCommit={(value) => saveInlineField(term.key, value)} /> : null}
 
-          </div>
-          <div className="sort-card-labels">
-            {cardLabels(card.data).map(label => <span key={label}>{label}<button type="button" title={"Remove " + label} aria-label={"Remove " + label}
-              disabled={busy} onClick={() => removeLabel(label)}>×</button></span>)}
-            {addingLabel ? <input autoFocus value={labelDraft} aria-label="New grammar label" placeholder="Add label…"
-              onChange={e => setLabelDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); addLabel(); }
-                if (e.key === "Escape") { e.stopPropagation(); setAddingLabel(false); } }} />
-              : <button type="button" title="Add label (I)" aria-label="Add label" onClick={() => setAddingLabel(true)}>+</button>}
           </div>
           <span className="sort-new-rule" aria-hidden="true" />
           {reading ? <InlineSortText key={card.id + reading.key} value={fieldText(card.data, reading.key)}
@@ -663,27 +681,33 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
               : <button type="button" className="sort-new-add-example" disabled={busy}
                 onClick={() => openDetailsFor({ dim: "examples" })}>+ Example sentence</button>}
           </div> : null}
-          <div className="sort-new-tags sort-badge-row">
-            {localBadges.map(tag =>
-              <button type="button" key={tag.id} className={tagIds.includes(tag.id) ? "is-badge active" : "is-badge"}
-                aria-pressed={tagIds.includes(tag.id)} disabled={busy} onClick={() => void toggleTag(tag.id)}
-                title={tag.name} style={tag.color ? {borderColor: tag.color} : undefined}>{tag.name}</button>)}
-            <button type="button" className="sort-new-add-tag" aria-expanded={badgeEditorOpen} disabled={busy}
-              onClick={() => setBadgeEditorOpen(value => !value)} aria-label="Create badge" title="Create badge (B)">+</button>
-            {badgeEditorOpen ? <BadgeCreator badges={localBadges} onClose={() => setBadgeEditorOpen(false)}
-              onCreated={badgeCreated} onDeleted={badgeDeleted} /> : null}
-            {tagsOpen ? <div className="sort-new-tag-popover">
-              {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
-              {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}
-              {!tags.length ? <p>Create tags in Settings.</p> : null}
-            </div> : null}
-          </div>
-          <div className="sort-new-note">
-            {noteOpen ? <textarea rows={2} autoFocus aria-label="Quick note" placeholder="Something to remember…"
-              value={noteDraft} disabled={busy}
-              onChange={(event) => setNoteDraft(event.target.value)}
-              onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); event.preventDefault(); setNoteOpen(false); } }} />
-              : <button type="button" onClick={() => setNoteOpen(true)}>+ Note</button>}
+          <div className="sort-new-annotation">
+            <div className="sort-card-labels">
+              {cardLabels(card.data).map(label => <span key={label}>{label}<button type="button" title={"Remove " + label} aria-label={"Remove " + label}
+                disabled={busy} onClick={() => removeLabel(label)}>×</button></span>)}
+              {addingLabel ? <input autoFocus value={labelDraft} aria-label="New grammar label" placeholder="Add label…"
+                onChange={e => setLabelDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); addLabel(); }
+                  if (e.key === "Escape") { e.stopPropagation(); setAddingLabel(false); } }} />
+                : <button type="button" title="Add label (I)" aria-label="Add label" onClick={() => setAddingLabel(true)}>+ Label</button>}
+            </div>
+            <div className="sort-new-tags sort-badge-row">
+              {localBadges.map(tag =>
+                <button type="button" key={tag.id} className={tagIds.includes(tag.id) ? "is-badge active" : "is-badge"}
+                  aria-pressed={tagIds.includes(tag.id)} disabled={busy} onClick={() => void toggleTag(tag.id)}
+                  title={tag.name} style={tag.color ? {borderColor: tag.color} : undefined}>{tag.name}</button>)}
+              <button type="button" className="sort-new-add-tag" aria-expanded={badgeEditorOpen} disabled={busy}
+                onClick={() => setBadgeEditorOpen(value => !value)} aria-label="Create badge" title="Create badge (B)">+ Badge</button>
+              {badgeEditorOpen ? <BadgeCreator badges={localBadges} onClose={() => setBadgeEditorOpen(false)}
+                onCreated={badgeCreated} onDeleted={badgeDeleted} /> : null}
+            </div>
+            <div className="sort-new-note">
+              {noteOpen ? <textarea rows={2} autoFocus aria-label="Quick note" placeholder="Something to remember…"
+                value={noteDraft} disabled={busy}
+                onChange={(event) => setNoteDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); event.preventDefault(); setNoteOpen(false); } }} />
+                : <button type="button" onClick={() => setNoteOpen(true)}>+ Note</button>}
+            </div>
           </div>
         </div>
         <div className="sort-new-footer">
@@ -696,18 +720,12 @@ export default function SortModal({ pack, cards, tags, startCardId = null, quick
             </button>)}
           </div>
           <div className={"sort-new-secondary sort-destination-actions" + (decisionWaiting ? " is-waiting" : "")}>
-            <button type="button" disabled={busy} onClick={() => void learn(IMPORTANCE_RANK[importance], "learning")}><BookOpen size={16}/> Learn</button>
+            <button type="button" className="sort-learn-primary" disabled={busy} onClick={() => void learn(IMPORTANCE_RANK[importance], "learning")}><BookOpen size={16}/> Learn</button>
             <button type="button" disabled={busy} onClick={() => void learn(IMPORTANCE_RANK[importance], "review")}><RotateCcw size={16}/> Review</button>
             <button type="button" disabled={busy} onClick={() => void later()}><Clock3 size={16}/> Later</button>
           </div>
           {message ? <p className="sort-error" role="alert">{message}</p> : null}
         </div>
-        <FormattingRail rootRef={sortCardRef} cardId={card.id} language={selectedLanguage}
-          textVersion={JSON.stringify(card.data)}
-          onOpenFormatting={() => {
-            setRightOpen(true);
-            window.requestAnimationFrame(() => document.getElementById("sort-formatting-section")?.scrollIntoView({ block:"nearest" }));
-          }} />
       </article>
       {lastRemoval ? <div className="sort-new-undo" role="status">
         <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :

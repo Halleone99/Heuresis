@@ -23,6 +23,7 @@ export const PAGE_BACKGROUND_CHOICES = [
   { key: "heuresis", label: "All pages" },
   { key: "heuresis-overview", label: "Overview" },
   { key: "heuresis-study", label: "Study" },
+  { key: "heuresis-new-cards", label: "New cards" },
   { key: "heuresis-notebook", label: "Notebook" },
   { key: "heuresis-mistakes", label: "Mistake Log" },
   { key: "heuresis-reading", label: "Reading" },

@@ -1,8 +1,8 @@
 /* New session only: setup remains on the existing Sort styles. */
 .sort-backdrop:has(.sort-modal--session) {
   padding: 0 !important;
-  background: var(--ws-page);
-  backdrop-filter: none;
+  background: var(--ws-sunken) !important;
+  backdrop-filter: none !important;
 }
 .sort-backdrop .sort-modal.sort-modal--session {
   --new-blue: var(--ws-accent);
@@ -10,26 +10,39 @@
   width: 100vw !important;
   height: 100dvh !important;
   max-height: none;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--ws-page) 28%, transparent) 0%,
-    color-mix(in srgb, var(--ws-page) 85%, transparent) 180px,
-    var(--ws-page) 100%),
-    var(--heuresis-background-image, none);
-  background-position: center, var(--heuresis-background-position, center);
-  background-size: cover, var(--heuresis-background-fit, cover);
-  background-repeat: no-repeat;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: radial-gradient(ellipse at 50% 32%, var(--ws-surface-2), transparent 74%), var(--ws-sunken) !important;
+  isolation: isolate;
   grid-template-rows: 58px minmax(0, 1fr);
   overflow: hidden;
+}
+.sort-modal--session::before,
+.sort-modal--session::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.sort-modal--session::before {
+  background: var(--heuresis-background-image, none) var(--heuresis-background-position, center) /
+    var(--heuresis-background-fit, cover) no-repeat;
+  opacity: var(--heuresis-background-opacity, 0);
+  filter: blur(var(--heuresis-background-blur, 0px));
+}
+.heuresis-desktop[data-custom-background] .sort-modal--session::after,
+.sort-modal--session[data-custom-background]::after {
+  background: var(--ws-page);
+  opacity: var(--heuresis-background-veil, 0);
 }
 .sort-modal--session .sort-topbar {
   position:relative;
   height:58px !important;
   padding:0 26px !important;
   border:0 !important;
-  background:transparent !important;
+  background:color-mix(in srgb, var(--ws-sunken) 91%, transparent) !important;
   grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
   z-index:10;
 }
@@ -49,13 +62,13 @@
 .sort-modal--session .sort-topbar-actions>button { display:grid;place-items:center;min-width:34px;min-height:34px;border:0;background:transparent;color:var(--ws-muted);cursor:pointer; }
 .sort-modal--session .sort-topbar-actions>button:hover {color:var(--ws-ink);}
 .sort-modal--session .sort-topbar-actions>.sort-filter-open {display:inline-flex;gap:6px;font-size:12px;}
-.sort-modal--session .sort-session-stage {position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;overflow-y:auto;padding:22px 24px 68px;}
+.sort-modal--session .sort-session-stage {position:relative;display:flex;flex-direction:column;align-items:center;justify-content:safe center;min-height:0;overflow-y:auto;padding:24px 24px 56px;}
 .sort-modal--session .sort-card {
   flex:none;position:relative;display:flex;flex-direction:column;
   width:min(780px,calc(100vw - 48px));min-height:min(620px,calc(100dvh - 148px));
   padding:0 !important; margin:0; border:1px solid var(--ws-line-strong) !important;
-  border-radius:20px; background:color-mix(in srgb,var(--ws-raised) 80%,transparent) !important;
-  backdrop-filter:blur(14px);box-shadow:0 30px 70px -40px rgba(0,0,0,.7);cursor:default;
+  border-radius:20px; background:var(--ws-raised) !important;
+  box-shadow:0 24px 64px -34px rgba(0,0,0,.58);cursor:default;
   text-align:center;overflow:visible;
 }
 .sort-modal--session .sort-new-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:22px 25px 0;}
@@ -66,7 +79,7 @@
 .sort-modal--session .sort-new-details.on{background:color-mix(in srgb,var(--new-blue) 15%,transparent);border-color:var(--new-blue);}
 .sort-modal--session .sort-new-details b{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:50%;background:color-mix(in srgb,var(--new-blue) 22%,transparent);font:600 10px var(--ws-sans,Inter,sans-serif);}
 .sort-modal--session .sort-new-content{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;width:100%;padding:22px 40px 12px;}
-.sort-modal--session .sort-new-term{display:flex;align-items:center;justify-content:center;gap:15px;width:100%;}
+.sort-modal--session .sort-new-term{display:flex;align-items:center;justify-content:center;width:100%;container-type:inline-size;}
 .sort-modal--session .sort-new-audio{border:0;background:transparent;color:var(--ws-muted);padding:7px;cursor:pointer;}
 .sort-modal--session .sort-new-rule{width:44px;height:1px;margin:2px 0 0;background:var(--new-blue);}
 .sort-modal--session .sort-inline-wrap{display:block;width:100%;max-width:100%;min-width:0;}
@@ -74,7 +87,7 @@
 .sort-modal--session .sort-inline-text:hover:not(:disabled){background:color-mix(in srgb,var(--ws-ink) 4%,transparent);}
 .sort-modal--session .sort-inline-text:focus{border-color:color-mix(in srgb,var(--new-blue) 60%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--new-blue) 12%,transparent);}
 .sort-modal--session .sort-inline-text::placeholder{font-style:italic;color:var(--ws-muted);}
-.sort-modal--session .sort-inline-text.term{font:400 clamp(54px,7.2vw,104px)/1.2 Georgia,serif;height:1.45em;}
+.sort-modal--session .sort-inline-text.term{font:400 clamp(25px, 9.3cqi, 62px)/1.12 "EB Garamond", "Noto Serif", Georgia, serif;}
 .sort-modal--session .sort-inline-text.reading{font:400 22px/1.4 "Noto Serif",Georgia,serif;color:var(--ws-muted);height:2em;}
 .sort-modal--session .sort-inline-text.meaning{max-width:670px;min-height:0;margin:0 auto;font:400 clamp(27px,3vw,41px)/1.25 Georgia,serif;}
 .sort-modal--session .sort-new-example{display:grid;gap:0;width:100%;max-width:600px;}
@@ -145,7 +158,6 @@
   opacity:0;visibility:hidden;transform:translateX(12px);transition:opacity .3s,transform .3s,visibility .3s;
 }
 .sort-backdrop .sort-modal--session.sort-modal--editing .sort-editing-tools.is-open{opacity:1;visibility:visible;transform:none;}
-.sort-modal--session .sort-session-stage{transition:padding .3s;}
 .sort-modal--session .sort-card{max-width:100%;}
 .sort-modal--session .sort-enrichment{display:block;min-height:0;border:0;background:transparent;overflow:visible;}
 .sort-modal--session .sort-enrich-list{display:grid;gap:22px;padding:0;}
@@ -220,24 +232,22 @@
 .sort-modal--session .sort-enrich-error{margin:8px 0 0;padding:0;border:0;font:12px/1.4 var(--ws-sans,Inter,sans-serif);color:var(--c-cinnabar);}
 .sort-modal--session .sort-inline-error{display:block;color:var(--c-cinnabar);font:11px var(--ws-sans,Inter,sans-serif);}
 
-/* Not enough room on both sides: Details takes the left and the card moves right. */
+/* Keep the Details position inside narrower windows. */
 @media(max-width:1519px){
   .sort-backdrop .sort-modal--session .sort-editing-tools,
   .sort-backdrop .sort-modal--session.sort-modal--editing .sort-editing-tools{right:auto;left:28px;}
-  .sort-modal--session.sort-modal--editing .sort-session-stage{padding-left:376px;}
 }
 /* Narrow windows: Details becomes a drawer over the card. */
 @media(max-width:1180px){
   .sort-backdrop .sort-modal--session .sort-editing-tools,
   .sort-backdrop .sort-modal--session.sort-modal--editing .sort-editing-tools{position:fixed;left:0;top:58px;bottom:0;max-height:none;width:min(340px,90vw);padding:20px 22px;background:color-mix(in srgb,var(--ws-surface) 96%,transparent);backdrop-filter:blur(16px);border-right:1px solid var(--ws-line);box-shadow:var(--ws-shadow-2);transform:translateX(-16px);}
-  .sort-modal--session.sort-modal--editing .sort-session-stage{padding-left:24px;}
 }
 @media(max-width:760px){
   .sort-modal--session .sort-topbar{padding:0 12px !important;}
   .sort-modal--session .sort-top-progress .sort-progress-track{width:55px;}
   .sort-modal--session .sort-topbar strong{max-width:110px;font-size:16px;}
   .sort-modal--session .sort-session-stage{padding:12px 12px 62px;justify-content:flex-start;}
-  .sort-modal--session .sort-card{width:100%;min-height:calc(100dvh - 140px);}
+  .sort-modal--session .sort-card{width:100%;}
   .sort-modal--session .sort-new-content{padding:18px 18px 8px;}
   .sort-modal--session .sort-new-card-header{padding:17px 17px 0;}
   .sort-modal--session .sort-new-card-header>span{font-size:16px;}
@@ -245,7 +255,6 @@
   .sort-modal--session .sort-new-ratings{grid-template-columns:1fr;}
   .sort-modal--session .sort-new-ratings>button{min-height:66px;border-right:0;border-bottom:1px solid var(--ws-line);padding:13px 15px;}
   .sort-modal--session .sort-new-ratings small{margin-top:3px;}
-  .sort-modal--session .sort-inline-text.term{font-size:55px;}
 }
 @media(prefers-reduced-motion:reduce){
  .sort-modal--session .sort-editing-tools{transition:none;}
