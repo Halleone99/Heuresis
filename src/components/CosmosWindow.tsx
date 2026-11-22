@@ -1239,6 +1239,8 @@ export default function CosmosWindow() {
   const term = fieldByRole(type, "term") ?? type?.field_schema[0] ?? null;
   const reading = fieldByRole(type, "reading");
   const meaning = fieldByRole(type, "meaning") ?? type?.field_schema[1] ?? null;
+  const englishReference = type?.field_schema.some((field) => field.key === "english_reference")
+    ? fieldText(card.data, "english_reference").trim() : "";
   const frontKeys = mode === "review" ? (template?.front ?? []) : [];
   const backKeys = mode === "review" ? (template?.back ?? []) : [];
   const detailKeys = mode === "review" ? (template?.details ?? []) : [];
@@ -1254,7 +1256,7 @@ export default function CosmosWindow() {
       assessState(directionEvidence(card, null, events)).state, progressDirectionIds) : null;
 
   const fieldEntriesFor = (dimension: DimensionId) => (type?.field_schema ?? []).flatMap((field) => {
-    if (fieldDimension(field) !== dimension) return [];
+    if (field.key === "english_reference" || fieldDimension(field) !== dimension) return [];
     const value = fieldText(card.data, field.key);
     return value ? [{ key: field.key, label: field.label, value }] : [];
   });
@@ -1393,6 +1395,7 @@ export default function CosmosWindow() {
         {recap.map((key, position) => renderField(key, position, true))}
         {recap.length && used.some((key) => fieldText(card.data, key)) ? <i className="cosmos-rule cosmos-answer-rule" aria-hidden="true" /> : null}
         {used.map((key, position) => renderField(key, position, false))}
+        {englishReference ? <div className="cosmos-english-reference" lang="en">{englishReference}</div> : null}
       </>}
       {revealed && pronunciationAvailable && chineseTerm && ![...recap, ...used].includes(term?.key ?? "") ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
@@ -1517,7 +1520,7 @@ export default function CosmosWindow() {
           exercise={appliedQuestion} revealed={revealed} verdict={appliedVerdict} choiceId={appliedChoice}
           tileIds={appliedTiles} written={appliedWritten} covered={appliedCovered}
           onChoice={setAppliedChoice} onTiles={setAppliedTiles} onWritten={setAppliedWritten} onCovered={setAppliedCovered}/>
-          : renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}</div>}</div>
+          : renderReviewCore() : <div className="cosmos-card-copy revealed"><div className="cosmos-core-field role-term"><span>{fieldText(card.data, term?.key) || "Untitled"}</span></div>{reading ? <div className="cosmos-core-field role-reading"><span>{fieldText(card.data, reading.key)}</span></div> : null}<i className="cosmos-rule" />{meaning ? <div className="cosmos-core-field role-meaning"><span>{fieldText(card.data, meaning.key)}</span></div> : null}{englishReference ? <div className="cosmos-english-reference" lang="en">{englishReference}</div> : null}</div>}</div>
         {redesignReview ? <footer className="cosmos-review-foot">
           {!revealed ? appliedQuestion ? <div className="applied-review-footer">
               <button type="button" disabled={busy} onClick={() => void reveal(true)}>I don't know</button>

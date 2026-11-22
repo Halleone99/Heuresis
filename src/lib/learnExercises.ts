@@ -126,6 +126,8 @@ export type LearnCard = {
   form: string;
   reading: string;
   meaning: string;
+  /** Optional supporting gloss, never a scored answer. */
+  englishReference?: string;
   examples: LearnExample[];
   language: LanguageKey | null;
   han: boolean;
@@ -191,6 +193,8 @@ export function toLearnCard(card: CardWithStats, pack: PackWithType, language: L
   const form = writtenForm(term);
   return {
     id: card.id, term, form, reading, meaning, examples,
+    englishReference: type?.field_schema.some((field) => field.key === "english_reference")
+      ? clean(fieldText(card.data, "english_reference")) : undefined,
     language: language ?? languageFromScript(term),
     han: HAN.test(form), wordSized: isWordSized(term),
   };

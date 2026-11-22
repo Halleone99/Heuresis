@@ -50,6 +50,7 @@
 .lrn-prompt.is-long { font-size: clamp(22px, 4.4vw, 30px); line-height: 1.28; }
 .lrn-prompt:lang(zh), .lrn-prompt:lang(ja) { letter-spacing: .04em; line-height: 1.3; }
 .lrn-sub { margin: 10px 0 0; font-size: 16px; color: var(--ws-text); }
+.lrn-english-reference { margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--ws-muted); }
 
 .lrn-choices { display: grid; gap: 10px; margin-top: clamp(20px, 4vh, 36px); }
 .lrn-choices.is-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

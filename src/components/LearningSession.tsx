@@ -792,6 +792,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         <p className="lrn-ask">{exercise.prompt.ask}</p>
         <h2 className={`lrn-prompt${Array.from(exercise.prompt.text).length > 46 ? " is-long" : ""}${exercise.prompt.style === "case" ? " is-case" : ""}`} lang={exercise.prompt.lang}>{exercise.prompt.text}</h2>
         {exercise.prompt.sub ? <p className="lrn-sub">{exercise.prompt.sub}</p> : null}
+        {current?.entry.view.englishReference ? <p className="lrn-english-reference" lang="en">{current.entry.view.englishReference}</p> : null}
         {!shown && current && ["choose-meaning", "example-meaning", "build-meaning", "type-meaning"].includes(exercise.kind) && (() => {
           const audio = learningFeedbackSpeech(current.entry.view, exercise);
           return audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear prompt" title="Hear prompt" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null;

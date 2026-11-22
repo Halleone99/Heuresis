@@ -97,6 +97,7 @@
   text-align:center;
 }
 .cosmos-card-copy { width:100%; display:flex; flex-direction:column; align-items:center; }
+.cosmos-english-reference { margin-top:10px; color:var(--ws-muted, var(--muted)); font:400 15px/1.45 var(--serif); text-align:center; overflow-wrap:anywhere; max-width:100%; }
 .cosmos-core-field { width:100%; white-space:pre-wrap; overflow-wrap:anywhere; }
 .cosmos-core-field.role-term { font:400 clamp(44px,5vw,74px)/1.18 var(--serif); }
 .cosmos-core-field.role-reading { margin-top:15px; color:var(--muted); font:13px/1.55 var(--mono); letter-spacing:.035em; }
