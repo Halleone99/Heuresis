@@ -18,6 +18,7 @@ import { isLearnCard, learnQueue, learnStatus, type LearnStatus, type LearnTopic
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import { enterReview, readAcquisition, saveAcquisition } from "../lib/learningStage";
 import { canSpeak, learningFeedbackSpeech, readAutoPronunciation, speakReviewText, stopReviewAudio } from "../lib/reviewAudio";
+import { isChineseLearningCard, learningReading, learningSubtitle, readLearningPinyin, withoutLearningReading, writeLearningPinyin } from "../lib/learningPinyin";
 import "./learning-session.css";
 
 type Props = {
@@ -83,6 +84,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const [practice, setPractice] = useState<{ positions: number[]; at: number } | null>(null);
   const [again, setAgain] = useState(false);
   const [shown, setShown] = useState<Shown | null>(null);
+  const [showPinyin, setShowPinyin] = useState(readLearningPinyin);
   const [, refreshSpeech] = useState(0);
   useEffect(() => {
     const ready = () => refreshSpeech((value) => value + 1);
@@ -134,6 +136,43 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (practice) return current.plan[practice.positions[practice.at] - 1] ?? null;
     return current.plan[Math.min(step, ROUND_SIZE - 1)] ?? null;
   }, [current, practice, step]);
+  const chinese = Boolean(current && isChineseLearningCard(current.entry.view));
+  // Tone recognition must never reveal the pronunciation being tested.
+  const pinyinVisible = chinese && showPinyin && exercise?.kind !== "choose-reading";
+  const readings = useMemo(() => {
+    const result = new Map<string, string>();
+    if (!current || !pinyinVisible) return result;
+    const { topic, view } = current.entry;
+    const cards = topic.cards.map((card) => toLearnCard(card, topic.pack, topic.language)).filter(isChineseLearningCard);
+    const ambiguous = new Set<string>();
+    function remember(text: string, reading: string) {
+      if (!text || !reading || ambiguous.has(text)) return;
+      if (result.has(text) && result.get(text) !== reading) { result.delete(text); ambiguous.add(text); }
+      else result.set(text, reading);
+    }
+    for (const card of cards) {
+      remember(card.form, card.reading);
+      for (const example of card.examples) remember(example.source, example.reading);
+    }
+    if (view.reading) result.set(view.form, view.reading);
+    for (const example of view.examples) if (example.reading) result.set(example.source, example.reading);
+    return result;
+  }, [current?.entry, pinyinVisible]);
+  function togglePinyin() {
+    const next = !showPinyin;
+    setShowPinyin(next);
+    writeLearningPinyin(next);
+  }
+  function readingFor(value: string) {
+    return pinyinVisible ? learningReading(value, readings.get(value)) : "";
+  }
+  function withPinyin(value: string): ReactNode {
+    const reading = readingFor(value);
+    return reading ? <><span>{stressed(value)}</span><small className="lrn-pinyin" lang="zh-Latn">{reading}</small></> : stressed(value);
+  }
+  const promptSubtitle = exercise && current ? learningSubtitle(exercise, current.entry.view, pinyinVisible) : exercise?.prompt.sub;
+  const subtitleHasReading = Boolean(promptSubtitle && exercise && ["example-meaning", "type-meaning", "build-meaning", "missing-character"].includes(exercise.kind));
+  const promptPinyin = exercise && !subtitleHasReading ? readingFor(exercise.prompt.text) : "";
   const attempts = current?.round.attempts ?? [];
   const result = useMemo(() => roundResult(attempts, current?.round.baseScore), [attempts, current?.round.baseScore]);
   const mode: Mode = practice ? "practice" : again ? "again" : "scored";
@@ -482,7 +521,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (IME(event)) return;
     if (event.key === "Escape") { event.preventDefault(); leave(); return; }
     if (screen !== "exercise" || !exercise) return;
-    if (event.target instanceof HTMLElement && event.target.closest("[data-pronunciation]") && (event.key === "Enter" || event.key === " ")) return;
+    if (event.target instanceof HTMLElement && event.target.closest("[data-pronunciation], [data-pinyin-toggle]") && (event.key === "Enter" || event.key === " ")) return;
     const typing = event.target instanceof HTMLInputElement;
     if (shown) {
       // Enter moves on; Space too, except on a focused button, where it already activates it.
@@ -569,7 +608,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
           const state = !locked ? "" : choice.id === item.answerId ? " is-right" : choice.id === choiceId ? " is-wrong" : " is-dim";
           return <button type="button" key={choice.id} className={`lrn-choice${state}`} lang={choice.lang} disabled={locked}
             aria-pressed={choice.id === choiceId} onClick={() => choose(choice.id)}>
-            <kbd aria-hidden="true">{index + 1}</kbd><span>{stressed(choice.label)}</span>
+            <kbd aria-hidden="true">{index + 1}</kbd><span>{withPinyin(choice.label)}</span>
             {locked && choice.id === item.answerId ? <Check size={18} aria-label="Correct answer" /> : null}
             {locked && choice.id === choiceId && choice.id !== item.answerId ? <X size={18} aria-label="Your answer" /> : null}
           </button>;
@@ -581,12 +620,12 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       return <div className={`lrn-build${item.stacked ? " is-stacked" : ""}`}>
         <div className={`lrn-built${picked.length ? "" : " is-empty"}${item.joiner ? " is-words" : ""}`} lang={item.lang} aria-label="Your answer" aria-live="polite">
           {picked.length ? picked.map((tile) => <button type="button" key={tile.id} className="lrn-tile is-picked" disabled={locked}
-            aria-label={`Remove ${tile.text}`} onClick={() => setTileIds((ids) => ids.filter((id) => id !== tile.id))}>{tile.text}</button>)
+            aria-label={`Remove ${tile.text}`} onClick={() => setTileIds((ids) => ids.filter((id) => id !== tile.id))}>{withPinyin(tile.text)}</button>)
             : <span>{item.stacked ? "Tap the steps in order" : "Tap the pieces in order"}</span>}
         </div>
         <div className="lrn-tiles" lang={item.lang} role="group" aria-label={item.stacked ? "Steps" : "Pieces"}>
           {item.tiles.map((tile) => <button type="button" key={tile.id} className="lrn-tile" disabled={locked || tileIds.includes(tile.id)}
-            onClick={() => setTileIds((ids) => [...ids, tile.id])}>{tile.text}</button>)}
+            onClick={() => setTileIds((ids) => [...ids, tile.id])}>{withPinyin(tile.text)}</button>)}
         </div>
       </div>;
     }
@@ -656,12 +695,13 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       : verdict.message;
     const canRetry = !verdict.correct && item.format !== "choice";
     const audio = current ? learningFeedbackSpeech(current.entry.view, item) : null;
+    const feedbackText = (value: string) => current && !showPinyin && item.kind !== "choose-reading" ? withoutLearningReading(value, current.entry.view) : value;
     return <div className={`lrn-feedback ${verdict.correct ? "is-right" : "is-wrong"}`} role="status" aria-live="polite">
       <div className="lrn-feedback-text">
         <strong>{verdict.correct ? <Check size={18} aria-hidden="true" /> : <X size={18} aria-hidden="true" />}{heading}
           {state.points ? <em>{state.points > 0 ? "+" : ""}{state.points}</em> : null}</strong>
-        {!verdict.correct ? <p className="lrn-solution" lang={"lang" in item ? item.lang : undefined}>{stressed(item.solution)}</p> : null}
-        {note ? <p>{stressed(note)}</p> : null}
+        {!verdict.correct ? <p className="lrn-solution" lang={"lang" in item ? item.lang : undefined}>{stressed(feedbackText(item.solution))}</p> : null}
+        {note ? <p>{stressed(feedbackText(note))}</p> : null}
       </div>
       <div className="lrn-feedback-actions">
         {audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear pronunciation" title="Hear pronunciation" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null}
@@ -759,6 +799,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         {inRound ? <span>Card {Math.min(startedCount, cardTotal)} of {cardTotal}</span> : null}</div>
       {inRound ? <div className={`lrn-status${gain ? " has-gain" : ""}`} aria-live="polite">
         {screen === "exercise" ? <span className="lrn-step">{firstLearning || practice ? stepLabel : "Daily practice"}{exercise && !practice ? <i> · {exerciseLabel(exercise)}</i> : null}</span> : null}
+        {chinese && screen === "exercise" && exercise?.kind !== "choose-reading" ? <button type="button" className="lrn-pinyin-toggle" data-pinyin-toggle aria-pressed={showPinyin} aria-label="Show pinyin" title={showPinyin ? "Hide pinyin" : "Show pinyin"} onClick={togglePinyin}>Pinyin <span aria-hidden="true">{showPinyin ? "On" : "Off"}</span></button> : null}
         <span className="lrn-phase">{firstLearning ? "First learning" : "Mixed learning"}</span>
         <span className="lrn-points">{gain && shown ? <b key={attempts.length}>{gain > 0 ? "+" : ""}{gain} · </b> : null}{result.score}/{ROUND_MAX} <small>points</small></span>
       </div> : null}
@@ -791,7 +832,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
         {mode !== "scored" ? <p className="lrn-practice">Practice · no points</p> : null}
         <p className="lrn-ask">{exercise.prompt.ask}</p>
         <h2 className={`lrn-prompt${Array.from(exercise.prompt.text).length > 46 ? " is-long" : ""}${exercise.prompt.style === "case" ? " is-case" : ""}`} lang={exercise.prompt.lang}>{exercise.prompt.text}</h2>
-        {exercise.prompt.sub ? <p className="lrn-sub">{exercise.prompt.sub}</p> : null}
+        {promptPinyin ? <p className="lrn-pinyin lrn-prompt-pinyin" lang="zh-Latn">{promptPinyin}</p> : null}
+        {promptSubtitle ? <p className="lrn-sub">{promptSubtitle}</p> : null}
         {current?.entry.view.englishReference ? <p className="lrn-english-reference" lang="en">{current.entry.view.englishReference}</p> : null}
         {!shown && current && ["choose-meaning", "example-meaning", "build-meaning", "type-meaning"].includes(exercise.kind) && (() => {
           const audio = learningFeedbackSpeech(current.entry.view, exercise);

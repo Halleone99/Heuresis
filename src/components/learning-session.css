@@ -263,3 +263,17 @@
 .lrn-mode-list button span { flex: 1; display: grid; gap: 4px; }
 .lrn-mode-list button small { color: var(--ws-muted); font-size: 12px; }
 .lrn-mode-list button b { font-variant-numeric: tabular-nums; font-size: 18px; }
+
+/* Optional Chinese learning aid. Uses the active theme and leaves all answers unchanged. */
+.lrn .lrn-pinyin-toggle {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  padding: 5px 9px; border: 1px solid var(--ws-line); border-radius: 999px;
+  background: transparent; color: var(--ws-muted); font-size: 12px; cursor: pointer;
+}
+.lrn .lrn-pinyin-toggle[aria-pressed="true"] { border-color: var(--ws-accent-line); background: var(--ws-accent-soft); color: var(--ws-ink); }
+.lrn-pinyin-toggle span { font-size: 10px; font-weight: 600; }
+.lrn-pinyin { display: block; margin: 3px 0 0; color: var(--ws-muted); font: 400 12px/1.3 Inter, system-ui, sans-serif; letter-spacing: 0; }
+.lrn-prompt-pinyin { margin-top: 7px; font-size: 15px; }
+.lrn-tile .lrn-pinyin { text-align: center; }
+.lrn-choice .lrn-pinyin { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .lrn .lrn-pinyin-toggle { padding: 4px 7px; font-size: 11px; } }
