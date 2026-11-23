@@ -62,6 +62,8 @@ import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCardStatus from "./ReviewCardStatus";
+import ReviewMethod21 from "./study21/ReviewMethod21";
+import { useStudyMode } from "../lib/studyMode";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
@@ -74,6 +76,7 @@ import "./cosmos.css";
 import "./review-card.css";
 // Android APK only (MagicPad). Loaded after review-card.css so it wins ties; see the file header.
 import "./review-card-android.css";
+import "./study21/study21.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -309,6 +312,7 @@ async function closeDesktopWindow() {
 function plural(count: number, word: string) { return `${count} ${count === 1 ? word : `${word}s`}`; }
 
 export default function CosmosWindow() {
+  const studyMode = useStudyMode();
   const config = useMemo(parseConfig, []);
   const [pack, setPack] = useState<PackWithType | null>(null);
   const [reviewCollection, setReviewCollection] = useState<Collection | null>(null);
@@ -394,6 +398,7 @@ export default function CosmosWindow() {
   useAndroidStudyWakeLock(mode === "review");
   const relatedReview = config.relatedReview;
   const redesignReview = mode === "review" && !relatedReview;
+  const isStudy21 = redesignReview && studyMode === "2.1";
   const studyBackground = useHeuresisBackground("heuresis-study");
   const sharedBackground = useHeuresisBackground("heuresis");
   const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
@@ -1361,7 +1366,7 @@ export default function CosmosWindow() {
     const empty = mode === "sort" ? chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id) : [];
     return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={combinedAndroidDetails ? "Details: context and notes" : split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
       <header className="cosmos-details-head">
-        <strong>{combinedAndroidDetails ? "Details" : !split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
+        <strong>{isStudy21 && split ? side === "left" ? "Language" : "Knowledge" : combinedAndroidDetails ? "Details" : !split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
         {!split ? <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card" : "Keep open for every card"}
           onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button> : null}
         <button type="button" aria-label={side === "left" ? "Close examples and connections" : "Close facts and notes"}
@@ -1373,7 +1378,8 @@ export default function CosmosWindow() {
           : <>
             {filled.map(renderDimension)}
             {!filled.length ? <p className="cosmos-empty cosmos-details-empty">{mode === "review" ? "No saved context for this card." : "Nothing recorded yet. Add what helps you remember this card."}</p> : null}
-            {split && revealed && side === "right" && pack ? <FormattingRuleList language={
+            {isStudy21 && split && side === "right" ? <div className="study21-direction-block"><strong>This direction</strong><p>State · {currentBars?.mastered ? "Mastered" : currentBars?.bars === 4 ? "Known" : currentBars?.bars ? "Building" : "Starting"}</p><p>Results · {events?.filter(event => event.cardId === card.id).length ?? 0} recorded</p></div> : null}
+            {split && revealed && side === "right" && pack && !isStudy21 ? <FormattingRuleList language={
               languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
               ?? languageFromScript(fieldText(card.data, term?.key)) ?? "en"} /> : null}
             {mode === "sort" && empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
@@ -1402,7 +1408,7 @@ export default function CosmosWindow() {
       .filter((key) => fieldText(card.data, key)) : [];
     const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : promptKeys;
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
-    const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !recap.includes(key));
+    const used = (keys.length ? keys : fallbackKeys).filter((key) => (!revealed || !recap.includes(key)) && (!isStudy21 || !revealed || !["example", "example_reading", "example_translation"].includes(type?.field_schema.find(field => field.key === key)?.role ?? "")));
     const spokenPrompt = reviewSpokenPrompt(promptKeys, card.data, reading?.key);
     const canListen = Boolean(spokenPrompt) && canSpeak(reviewSpeechLanguage(spokenPrompt?.text ?? "", pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenPrompt?.key === term?.key ? "term" : spokenPrompt?.key === meaning?.key ? "meaning" : "other"));
     const chineseTerm = fieldText(card.data, term?.key);
@@ -1442,7 +1448,7 @@ export default function CosmosWindow() {
       </>}
       {revealed && pronunciationAvailable && chineseTerm && ![...recap, ...used].includes(term?.key ?? "") ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
-      {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
+      {!revealed ? isStudy21 ? <ReviewMethod21 value={method} onChange={setMethod} canListen={canListen} /> : <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
         {!redesignReview ? <span>Answer by</span> : null}
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
           .map(([value,label]) =>
@@ -1474,7 +1480,8 @@ export default function CosmosWindow() {
   const directionName = template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
-  return <main className="cosmos-shell" data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+  return <main className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+    {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: Math.min(100, (routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length || 1) * 100) + "%" }}/></div> : null}
     {redesignReview ? <header className="cosmos-topbar">
       <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>
       <div className="review-top-progress">
@@ -1482,7 +1489,7 @@ export default function CosmosWindow() {
         <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
       </div>
       <div className="review-top-tools" role="group" aria-label="Review tools">
-        {!isAndroidRuntime() ? <>
+        {isStudy21 ? <button type="button" className="study21-review-details" disabled={!revealed} title={revealed ? "Details" : "After the reveal"} aria-expanded={leftContextOpen || detailsOpen} onClick={() => {const open = !(leftContextOpen || detailsOpen);setLeftContextOpen(open);setDetailsOpen(open && window.innerWidth >= 1208);}}><PanelLeftOpen size={16}/> Details <small>{detailsTotal}</small></button> : !isAndroidRuntime() ? <>
           <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
             aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
             {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
@@ -1526,6 +1533,7 @@ export default function CosmosWindow() {
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
       / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
+    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);}}>KNOWLEDGE</button> : null}</nav> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article ref={reviewCardRef} className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>

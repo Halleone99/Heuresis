@@ -12,6 +12,8 @@ import {
   stopReviewAudio, writeAutoPronunciation, writePreferredVoice,
 } from "../lib/reviewAudio";
 import SortingSettings from "./SortingSettings";
+import { SegmentedChoice } from "./SegmentedChoice";
+import { useStudyMode, writeStudyMode } from "../lib/studyMode";
 import CardColoursEditor from "./CardColoursEditor";
 import StructureSettings from "./StructureSettings";
 import { BUILD_COMMIT, buildPlatform } from "../lib/buildInfo";
@@ -369,8 +371,12 @@ function VoiceSettings() {
 function StudySettings() {
   const [dailyTarget, setDailyTarget] = useState(readNewCardQuota);
   const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
+  const studyMode = useStudyMode();
 
   return <section className="heuresis-study-settings" aria-label="Study preferences">
+    <div className="settings-section-heading"><strong>Study mode</strong><span>Changes the New cards and Review windows.</span></div>
+    <SegmentedChoice label="Study mode" value={studyMode} onChange={(value) => writeStudyMode(value as "classic" | "2.1")}
+      options={[{ value: "classic", label: "Classic" }, { value: "2.1", label: "2.1" }]} />
     <div className="settings-section-heading">
       <strong>Daily new cards</strong>
       <span>Choose how many new cards you want to introduce each day. This does not limit reviews already due.</span>

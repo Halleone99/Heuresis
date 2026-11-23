@@ -28,6 +28,8 @@ const conceptLabels: Record<Dimension, string> = {
 const LEFT_ORDER: Dimension[] = ["examples", "neighbours", "components", "structure", "origin"];
 const RIGHT_ORDER: Dimension[] = ["facts", "hook", "picture", "notes"];
 const ORDER: Dimension[] = [...LEFT_ORDER, ...RIGHT_ORDER];
+const LEFT_ORDER21: Dimension[] = ["examples", "neighbours", "components", "structure"];
+const RIGHT_ORDER21: Dimension[] = ["origin", "facts", "hook", "picture", "notes"];
 const EXAMPLE_ROLES = ["example", "example_reading", "example_translation"];
 
 function dimensionForField(field: FieldDef): Dimension | null {
@@ -75,11 +77,12 @@ export function firstExampleBlock(data: CardWithStats["data"]): { id: string; se
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, request, side = "all", onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
+export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
   pack: PackWithType;
   card: CardWithStats;
   request?: DetailsRequest | null;
   side?: "language" | "knowledge" | "all";
+  study21?: boolean;
   onBlockedChange: (blocked: boolean) => void;
   onChanged: () => void;
   onCountChange?: (count: number) => void;
@@ -91,7 +94,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   const labels = conceptual ? conceptLabels : languageLabels;
   const structuredWords = !conceptual;
   const schema = pack.cardType?.field_schema ?? [];
-  const activeDims = side === "language" ? LEFT_ORDER : side === "knowledge" ? RIGHT_ORDER : ORDER;
+  const activeDims = side === "language" ? (study21 ? LEFT_ORDER21 : LEFT_ORDER) : side === "knowledge" ? (study21 ? RIGHT_ORDER21 : RIGHT_ORDER) : ORDER;
   const inputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState(card.data);
   // The card face edits the same fields (term, example…): follow its saves instead of keeping a stale copy.
@@ -423,7 +426,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
             <li key={rule.id}><span>{rule.text} · {rule.style} · {rule.card_id ? "Card" : "All"}</span>
               <button type="button" aria-label={"Remove formatting for " + rule.text}
                 onClick={() => void removeFormatting(rule.id)}>×</button></li>)}</ul>
-        : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
+        : study21 ? null : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
     </section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>
@@ -432,7 +435,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
         <p key={tag.id}>Lesson: {tag.name}</p>)}
       <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p>
     </section> : null}
-    <p className="sort-enrich-hint">Click any text to change it · Enter keeps it · Esc undoes</p>
+    {!study21 ? <p className="sort-enrich-hint">Click any text to change it · Enter keeps it · Esc undoes</p> : null}
     <p className={"sort-enrich-saved" + (saved ? " is-on" : "")} aria-live="polite">{saved ? "✓ Saved" : ""}</p>
     {error ? <p className="sort-enrich-error" role="alert">{error}</p> : null}
   </aside>;
