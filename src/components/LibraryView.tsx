@@ -32,7 +32,7 @@ type Props = {
 };
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
-type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number; total: number; remainingIds?: string[] };
+type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number; total: number; remainingIds?: string[]; validated?: number; toLearning?: number; toReview?: number; discarded?: number; leftForLater?: number };
 const STUDY_SELECTION_KEY = "heuresis.study.selection.v1";
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
@@ -108,7 +108,9 @@ export default function LibraryView({ collections, packs, newCardsBackgroundStyl
         refreshReviews(); setNewError("This session's remaining cards have already been classified."); return;
       }
       setQuickSort({ pack, cards, tags, count: resume ? remainingIds!.length : Math.min(count, unsorted.length),
-        total: resume?.total ?? Math.min(count, unsorted.length), remainingIds });
+        total: resume?.total ?? Math.min(count, unsorted.length), remainingIds,
+        validated: resume?.validated, toLearning: resume?.toLearning, toReview: resume?.toReview,
+        discarded: resume?.discarded, leftForLater: resume?.leftForLater });
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
     } finally { setNewOpening(false); }
@@ -435,7 +437,7 @@ export default function LibraryView({ collections, packs, newCardsBackgroundStyl
               return <div className={"study-desk-topic" + (chosen ? " chosen" : "")} key={pack.id}>
                 <div className="study-desk-topic-copy">
                   <strong>{pack.title}</strong>
-                  <small>{plural(pack.card_count, "card")}{resume ? <span className="study-desk-session"> · New · {resume.remainingIds.length} of {resume.total} left</span> : null}</small>
+                  <small>{plural(pack.card_count, "card")}{resume ? <span className="study-desk-session"> · New · {Math.max(0, resume.total - (resume.validated ?? 0))} of {resume.total} left</span> : null}</small>
                 </div>
                 <div className="study-desk-counts" aria-label="New, Learn and Review cards available today">
                   {(["new", "learn", "review"] as const).map((stage, index) =>
@@ -491,7 +493,9 @@ export default function LibraryView({ collections, packs, newCardsBackgroundStyl
         </aside>
       </div> : <div className="library-empty study-knowledge-empty"><BookOpen size={22} /><strong>{knowledgeMode === "applied" ? "Applied knowledge starts here." : "No language collections yet."}</strong><p>{knowledgeMode === "applied" ? "Create a collection for customs, Incoterms, compliance or another practical subject. Your language decks stay in Languages." : "Create your first language collection to begin studying."}</p><button type="button" className="library-new-collection" onClick={() => onNewCollection(knowledgeMode)}><Plus size={14} /> New {knowledgeMode === "applied" ? "Applied" : "Languages"} collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
-        backgroundStyle={newCardsBackgroundStyle} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds }} onClose={closeQuickSort} onChanged={() => undefined}
+        backgroundStyle={newCardsBackgroundStyle} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds, validated: quickSort.validated,
+          toLearning: quickSort.toLearning, toReview: quickSort.toReview,
+          discarded: quickSort.discarded, leftForLater: quickSort.leftForLater }} onClose={closeQuickSort} onChanged={() => undefined}
         onLearning={() => void startLearning(quickSort.pack)} /> : null}
       {learningSession ? <LearningSession topics={learningSession.topics} title={learningSession.title}
         onClose={closeLearning} onChanged={refreshReviews} /> : null}

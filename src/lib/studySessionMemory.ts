@@ -5,6 +5,12 @@ export type OpenStudySession = {
   kind: "new" | "review";
   packId: string;
   remainingIds: string[];
+  /** Accepted into Learn or Review; visits, Later and Discard do not count. */
+  validated?: number;
+  toLearning?: number;
+  toReview?: number;
+  discarded?: number;
+  leftForLater?: number;
   total: number;
   updatedAt: number;
 };

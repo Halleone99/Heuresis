@@ -34,7 +34,7 @@ type Props = {
   /** One-tap daily quota launcher bypasses setup with this many unsorted cards. */
   quickStartCount?: number;
   /** Only Study-home fixed New sessions persist, and only those can Resume. */
-  studySession?: { total: number; remainingIds?: string[] };
+  studySession?: { total: number; remainingIds?: string[]; validated?: number; toLearning?: number; toReview?: number; discarded?: number; leftForLater?: number };
   onClose: () => void;
   onChanged: () => void;
   /** Offered when the pass is finished: the next useful learning action. */
@@ -91,8 +91,11 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
       const selected = ordered.find((item) => item.id === startCardId);
       return selected ? [selected, ...ordered.filter((item) => item.id !== startCardId)] : ordered;
     }
-    return fastStart ? ordered.slice(0, Math.floor(quickStartCount!)) : ordered;
+    // New sessions have a *validation target*, not a fixed number of cards to display.
+    // Keep replacements available if a card is marked Later or discarded.
+    return ordered;
   });
+  const [target, setTarget] = useState<number | null>(() => studySession?.total ?? (fastStart ? Math.min(unsorted.length, Math.floor(quickStartCount!)) : null));
   // The topic's New button retains its setup screen; the daily quota can begin immediately.
   const [filtersOpen, setFiltersOpen] = useState(!startCardId && !fastStart);
   const [sessionStarted, setSessionStarted] = useState(Boolean(startCardId || fastStart));
@@ -126,7 +129,8 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     if (!candidates.length || !validCount) return;
     const selection = randomOrder ? shuffled(candidates) : [...candidates];
     try { localStorage.setItem(ORDER_KEY, randomOrder ? "random" : "topic"); } catch { /* preference only */ }
-    setQueue(selection.slice(0, selectedCount));
+    setQueue(selection);
+    setTarget(selectedCount);
     setIndex(0);
     setLearned(0); setToLearning(0); setToReview(0); setDiscarded(0); setLeftForLater(0); setLastRemoval(null);
     setSessionStarted(true);
@@ -134,13 +138,6 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
   }
 
   const [index, setIndex] = useState(0);
-  useEffect(() => {
-    if (!studySession || !sessionStarted) return;
-    const remainingIds = queue.slice(index).map((item) => item.id);
-    rememberOpenStudy(remainingIds.length ? {
-      kind: "new", packId: pack.id, total: studySession.total, remainingIds, updatedAt: Date.now(),
-    } : null, pack.id);
-  }, [studySession, sessionStarted, queue, index, pack.id]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [localBadges, setLocalBadges] = useState<HeuresisTag[]>(() => tags.filter(tag => tag.is_badge));
   const [badgeEditorOpen, setBadgeEditorOpen] = useState(false);
@@ -193,14 +190,27 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     window.addEventListener("heuresis-speech-ready", ready);
     return () => window.removeEventListener("heuresis-speech-ready", ready);
   }, []);
-  const [learned, setLearned] = useState(0);
-  const [toLearning, setToLearning] = useState(0);
-  const [toReview, setToReview] = useState(0);
-  const [discarded, setDiscarded] = useState(0);
-  const [leftForLater, setLeftForLater] = useState(0);
+  const [learned, setLearned] = useState(studySession?.validated ?? 0);
+  const [toLearning, setToLearning] = useState(studySession?.toLearning ?? 0);
+  const [toReview, setToReview] = useState(studySession?.toReview ?? 0);
+  const [discarded, setDiscarded] = useState(studySession?.discarded ?? 0);
+  const [leftForLater, setLeftForLater] = useState(studySession?.leftForLater ?? 0);
   const [lastRemoval, setLastRemoval] = useState<Removal | null>(null);
 
-  const card = queue[index] ?? null;
+  const progressTarget = target ?? queue.length;
+  const goalReached = target !== null && learned >= target;
+  const card = goalReached ? null : queue[index] ?? null;
+  // Save actual validations, not positions visited. Later must not use up a slot,
+  // including after closing and resuming a fixed-size Study session.
+  useEffect(() => {
+    if (!studySession || !sessionStarted) return;
+    const remainingIds = queue.slice(index).map((entry) => entry.id);
+    rememberOpenStudy(!goalReached && remainingIds.length ? {
+      kind: "new", packId: pack.id, total: progressTarget, remainingIds,
+      validated: learned, toLearning, toReview, discarded, leftForLater,
+      updatedAt: Date.now(),
+    } : null, pack.id);
+  }, [studySession, sessionStarted, queue, index, pack.id, progressTarget, goalReached, learned, toLearning, toReview, discarded, leftForLater]);
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
@@ -463,7 +473,6 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
 
   const renderTag = (tag: HeuresisTag, compactLesson = false) => <button key={tag.id} disabled={busy} title={tag.name} className={`${tagIds.includes(tag.id) ? "selected" : ""} ${tag.is_badge ? "badge" : ""}`} aria-pressed={tagIds.includes(tag.id)} onClick={() => void toggleTag(tag.id)}>{compactLesson ? tag.name.match(/\d+/)?.[0] ?? tag.name : tag.name}</button>;
   const finished = Boolean(queue.length && !card);
-  const decided = learned + discarded;
   const selectedLanguage = languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
     ?? languageFromScript(card ? fieldText(card.data, term?.key) : "") ?? "en";
   const exampleField = fieldByRole(pack.cardType, "example");
@@ -489,7 +498,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
 
     <header className="sort-topbar">
       <div className="sort-new-heading"><span className="sort-stage-chip">● New</span><strong>{pack.title}</strong></div>
-      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={card ? `Card ${index + 1} of ${queue.length}` : `${decided} cards decided`}><span>{card ? `${index + 1} of ${queue.length}` : `${queue.length} of ${queue.length}`}</span>{card ? <div className="sort-progress-track"><div style={{width: `${((index + 1) / queue.length) * 100}%`}} /></div> : null}</div>}
+      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={`${learned} of ${progressTarget} new cards validated`}><span>{learned} of {progressTarget}</span><div className="sort-progress-track"><div style={{width: `${progressTarget ? Math.min(100, learned / progressTarget * 100) : 0}%`}} /></div></div>}
       <div className="sort-topbar-actions">
         {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
         {sessionStarted && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
@@ -535,7 +544,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
             <input id="sort-session-count" type="number" inputMode="numeric" min={1} step={1} value={count}
               aria-invalid={!validCount} aria-describedby={!validCount || requestedCount > candidates.length ? "sort-count-help" : undefined}
               onChange={(event) => setCount(event.target.value)} />
-            <div className="sort-setup-count-info"><span>cards in this session</span><small>{candidates.length} available</small></div>
+            <div className="sort-setup-count-info"><span>cards to validate</span><small>{candidates.length} available</small></div>
             <button type="button" className="sort-setup-all" disabled={!candidates.length} onClick={() => setCount(String(candidates.length))}>All {candidates.length}</button>
           </div>
           {!validCount || requestedCount > candidates.length ? <small id="sort-count-help" className="sort-setup-count-help" role="status">
@@ -558,7 +567,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
       </div>
       <div className="sort-setup-bottom">
         <div className="sort-setup-selection" role="status">
-          <strong>{selectedCount} {selectedCount === 1 ? "card" : "cards"} selected</strong>
+          <strong>Target: {selectedCount} validated {selectedCount === 1 ? "card" : "cards"}</strong>
           <small>From {candidates.length} matching new {candidates.length === 1 ? "card" : "cards"}</small>
         </div>
         <button type="button" className="sort-setup-start" disabled={!selectedCount} onClick={beginSort}>
@@ -568,8 +577,9 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     </div> : null}
 
     {!filtersOpen && (!unsorted.length && !queue.length || finished) ? <div className="sort-finished">
-      <p className="eyebrow">{finished ? "SESSION COMPLETE" : "NO NEW CARDS"}</p>
-      <h2>{finished ? queue.length + " new " + (queue.length === 1 ? "card" : "cards") + " met" : "All cards have been classified."}</h2>
+      <p className="eyebrow">{finished ? learned >= progressTarget ? "SESSION COMPLETE" : "NO MORE CARDS IN THIS PASS" : "NO NEW CARDS"}</p>
+      <h2>{finished ? `${learned} of ${progressTarget} new cards validated` : "All cards have been classified."}</h2>
+      {finished && learned < progressTarget ? <p>Cards marked Later remain available for another session. They do not count towards your target.</p> : null}
       {finished ? <div className="sort-summary-stats">
         <span><b>{toLearning}</b> to Learn</span><span><b>{toReview}</b> to Review</span>
         <span><b>{discarded}</b> discarded</span><span><b>{leftForLater}</b> for later</span>
