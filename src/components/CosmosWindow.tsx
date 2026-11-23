@@ -62,6 +62,7 @@ import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCardStatus from "./ReviewCardStatus";
+import SortEnrichmentPanel, { type DirectionInfo21 } from "./SortEnrichmentPanel";
 import ReviewMethod21 from "./study21/ReviewMethod21";
 import { useStudyMode } from "../lib/studyMode";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
@@ -1312,6 +1313,22 @@ export default function CosmosWindow() {
     ? cardBarProgress(card, events?.filter((entry) => entry.cardId === card.id) ?? null,
       assessState(directionEvidence(card, null, events)).state, progressDirectionIds) : null;
 
+  const directionInfo21: DirectionInfo21 | undefined = isStudy21 && template ? (() => {
+    const pair = sessionTemplates.length === 2 ? sessionTemplates.find(candidate => candidate.id !== template.id) : null;
+    const stateName = (id: string) => {
+      const state = assessState(directionEvidence(card, id, events, { includeUnattributed: id === legacyId })).state;
+      return ({ "not-tried": "Not tried", "needs-work": "Needs work", developing: "Developing", holding: "Holding", strong: "Strong" } as Record<string, string>)[state] ?? state;
+    };
+    const counts = card.stats.by_template?.[template.id];
+    const countText = counts
+      ? ([["missed", counts.again], ["partial", counts.hard], ["recalled", counts.good], ["easy", counts.easy]] as const)
+        .filter(([,value]) => (Number(value) || 0) > 0).map(([label,value]) => String(value) + " " + label).join(" · ") || "No results"
+      : "No direction-specific results";
+    const recent = (events ?? []).filter(event => event.cardId === card.id && event.templateId === template.id).sort((a,b) => b.at - a.at)[0];
+    return { state: stateName(template.id), lastSeen: recent ? new Date(recent.at).toLocaleDateString() : "—",
+      results: countText, otherWay: pair ? pair.name + " · " + stateName(pair.id) : "—" };
+  })() : undefined;
+
   const fieldEntriesFor = (dimension: DimensionId) => (type?.field_schema ?? []).flatMap((field) => {
     if (field.key === "english_reference" || fieldDimension(field) !== dimension) return [];
     const value = fieldText(card.data, field.key);
@@ -1365,6 +1382,14 @@ export default function CosmosWindow() {
     const split = mode === "review";
     const open = side === "left" ? leftContextOpen : detailsOpen;
     if (!open || (split && !revealed) || (!split && !detailsAvailable)) return null;
+    if (isStudy21 && split) return <aside className={`cosmos-details cosmos-details-${side} study21-shared-details`}
+      aria-label={side === "left" ? "Language details" : "Knowledge details"}>
+      <button type="button" className="study21-shared-close" aria-label={side === "left" ? "Close Language details" : "Close Knowledge details"}
+        onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); if (!(side === "left" ? detailsOpen : leftContextOpen)) rememberStudy21Details(false); }}>×</button>
+      <SortEnrichmentPanel pack={pack} card={card} side={side === "left" ? "language" : "knowledge"} study21 readOnly
+        directionInfo={side === "right" ? directionInfo21 : undefined} quickNote={card.note ?? ""}
+        onChanged={() => undefined} onBlockedChange={() => undefined} />
+    </aside>;
     const combinedAndroidDetails = split && side === "right" && isAndroidRuntime();
     const chosen = split
       ? dimensions.filter((def) => combinedAndroidDetails || (side === "left"
@@ -1387,7 +1412,6 @@ export default function CosmosWindow() {
           : <>
             {filled.map(renderDimension)}
             {!filled.length ? <p className="cosmos-empty cosmos-details-empty">{mode === "review" ? "No saved context for this card." : "Nothing recorded yet. Add what helps you remember this card."}</p> : null}
-            {isStudy21 && split && side === "right" ? <div className="study21-direction-block"><strong>This direction</strong><p>State · {currentBars?.mastered ? "Mastered" : currentBars?.bars === 4 ? "Known" : currentBars?.bars ? "Building" : "Starting"}</p><p>Results · {events?.filter(event => event.cardId === card.id).length ?? 0} recorded</p></div> : null}
             {split && revealed && side === "right" && pack && !isStudy21 ? <FormattingRuleList language={
               languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
               ?? languageFromScript(fieldText(card.data, term?.key)) ?? "en"} /> : null}
