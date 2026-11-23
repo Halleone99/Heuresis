@@ -349,6 +349,17 @@ export async function recordLearnAttempt(roundId: string, attempt: LearnAttempt)
   return mapRound(data);
 }
 
+/** An explicit learner correction, persisted by an owner-scoped RPC (not an extra attempt). */
+export async function acceptLearnAttempt(roundId: string, position: number): Promise<LearnRound> {
+  const { data, error } = await db().rpc("heuresis_learn_accept_answer", {
+    p_round_id: roundId, p_position: position,
+  });
+  if (error) throw error;
+  const round = mapRound(data);
+  if (!round) throw new Error("The corrected learning round was not returned.");
+  return round;
+}
+
 /** The learner practised the right answer after feedback. Worth recording; worth no points. */
 /**
  * One stored round with its answers (plan and first attempts), or null when it cannot be read

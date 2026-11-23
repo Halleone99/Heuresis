@@ -50,6 +50,7 @@ punctuation and spacing.
 - Mixed learning: shuffle eligible introduced cards after each scored answer. At most 20 positive points per card and learning cycle per UTC calendar day; wrong answers do not restore allowance. Partial rounds resume on a later day without losing points.
 - At 100, the success panel offers Move to Review or leave the card ready. The daily allowance is enforced in the database by migration `20261122180000_heuresis_daily_learn.sql`.
 - At higher mastery, use independent recall, contextual cloze, saved-example reconstruction and production, and applied cases where the card supports them.
+- After a wrongly marked scored answer, **I was right** lets the learner explicitly accept it as correct. This restores the exercise's rightful score (or zero if a hint was used), recalculates mastery and is stored as a manual override; it is not a second attempt. This is independent of the unscored **Try again** practice.
 - Optional correction/review of mistakes is unscored practice. Separate Review scheduling is unchanged.
 - Existing completed rounds and previously earned readiness are retained. New rounds build from the last completed score in the current cycle.
 
