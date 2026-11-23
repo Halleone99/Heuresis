@@ -407,7 +407,7 @@ export default function CosmosWindow() {
     if (!isStudy21 || !revealed || !detailsPinned) return;
     setLeftContextOpen(true);
     setDetailsOpen(window.innerWidth >= 1208);
-  }, [isStudy21, revealed, card?.id, detailsPinned]);
+  }, [isStudy21, revealed, index, detailsPinned]);
   const studyBackground = useHeuresisBackground("heuresis-study");
   const sharedBackground = useHeuresisBackground("heuresis");
   const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
@@ -1490,7 +1490,7 @@ export default function CosmosWindow() {
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
   return <main className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
-    {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: Math.min(100, (routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length || 1) * 100) + "%" }}/></div> : null}
+    {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: Math.min(100, (routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / ((routeProgress?.total ?? queue.length) || 1) * 100) + "%" }}/></div> : null}
     {redesignReview ? <header className="cosmos-topbar">
       <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>
       <div className="review-top-progress">
