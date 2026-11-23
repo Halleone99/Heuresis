@@ -7,13 +7,14 @@ import { fieldText, patchCardData, type CardWithStats, type FieldDef, type PackW
 import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, setRelatedRelationType, type RelatedCatalogueRow, type RelationType } from "../lib/related";
 import { removeHeuresisCardImage, signHeuresisCardImages, uploadHeuresisCardImage } from "../lib/cardMedia";
 import { languageFromName, languageFromScript } from "../lib/languages";
-import { deleteHighlightRule, listHighlightRules, type HighlightRule } from "../lib/highlights";
+import { AUTO_LAYERS, deleteHighlightRule, listHighlightRules, readAutoLayers, writeAutoLayers, type AutoLayer, type HighlightRule } from "../lib/highlights";
 
 const BLOCKS_KEY = "_workspace_blocks";
 export type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "hook" | "picture" | "notes";
 type TextBlock = { id: string; type: "text"; text: string; dim: Dimension };
 type ImageBlock = { id: string; type: "image"; path: string; caption: string; dim: Dimension };
 type Block = TextBlock | ImageBlock;
+export type DirectionInfo21 = { state: string; lastSeen: string; results: string; otherWay: string };
 /** Asks the panel to start adding to a section, or to edit one block, from outside (the card). */
 export type DetailsRequest = { dim: Dimension; blockId?: string; nonce: number };
 const ids = new Set<Dimension>(["examples", "neighbours", "components", "structure", "origin", "facts", "hook", "picture", "notes"]);
@@ -77,12 +78,14 @@ export function firstExampleBlock(data: CardWithStats["data"]): { id: string; se
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, quickNote, onQuickNoteChange, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
+export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, readOnly = false, directionInfo, quickNote, onQuickNoteChange, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
   pack: PackWithType;
   card: CardWithStats;
   request?: DetailsRequest | null;
   side?: "language" | "knowledge" | "all";
   study21?: boolean;
+  readOnly?: boolean;
+  directionInfo?: DirectionInfo21;
   quickNote?: string;
   onQuickNoteChange?: (value: string) => void;
   onBlockedChange: (blocked: boolean) => void;
@@ -116,6 +119,8 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   const [related, setRelated] = useState<RelatedCatalogueRow[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [formatRules, setFormatRules] = useState<HighlightRule[]>([]);
+  const [autoLayers, setAutoLayers] = useState(readAutoLayers);
+  const toggleAutoLayer = (id: AutoLayer) => { const next = { ...autoLayers, [id]: !autoLayers[id] }; setAutoLayers(next); writeAutoLayers(next); };
   const selectedLang = languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
     ?? languageFromScript(fieldText(data, schema.find(f => f.role === "term")?.key)) ?? "en";
   useEffect(() => {
@@ -140,7 +145,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   // Keep the session in place while an editor is open, even before the first keystroke.
   const [inlineBusy, setInlineBusy] = useState(false);
   const blocked = busy || inlineBusy || adding !== null;
-  useLayoutEffect(() => { onBlockedChange(blocked); }, [blocked, onBlockedChange]);
+  useLayoutEffect(() => { onBlockedChange(!readOnly && blocked); }, [blocked, onBlockedChange, readOnly]);
   useEffect(() => () => { onBlockedChange(false); window.clearTimeout(savedTimer.current); }, [onBlockedChange]);
 
   const filledFields = (dim: Dimension) => schema.filter((field) => dimensionForField(field) === dim && Boolean(fieldText(data, field.key).trim()));
@@ -152,8 +157,9 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
       return dim !== null && activeDims.includes(dim) && Boolean(fieldText(data, field.key).trim());
     }).length;
     onCountChange?.(visibleFields + blocks.filter(block => activeDims.includes(block.dim)).length
-      + (activeDims.includes("neighbours") ? related.length : 0));
-  }, [data, blocks, related, schema, onCountChange, side]);
+      + (activeDims.includes("neighbours") ? related.length : 0)
+      + (study21 && activeDims.includes("notes") && (quickNote ?? "").trim() ? 1 : 0));
+  }, [data, blocks, related, schema, onCountChange, side, study21, quickNote, activeDims]);
 
   useEffect(() => {
     if (!structuredWords) return;
@@ -175,7 +181,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
 
   // "+ Example sentence" and a tap on the card's example open the matching editor here.
   useEffect(() => {
-    if (!request) return;
+    if (!request || readOnly) return;
     const block = request.blockId ? blocks.find((item): item is TextBlock => item.id === request.blockId && item.type === "text") : undefined;
     openAdd(request.dim, request.dim === "neighbours" && structuredWords ? "word" : "text", block, true);
   }, [request?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -322,7 +328,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   function textEditor(dim: Dimension) {
     return <div className="sort-enrich-editor" onBlurCapture={commitEditor}>
       <RichEditor ref={detailEditor} resetKey={(editingId ?? "new") + ":" + card.id + ":" + dim}
-        value={draft} compactToolbar ariaLabel={"Write " + labels[dim].toLowerCase()}
+        value={draft} compactToolbar={!study21} compactStudy21={study21} ariaLabel={"Write " + labels[dim].toLowerCase()}
         placeholder={dim === "examples" ? "Sentence, then reading, then translation…" : "Add a useful detail…"}
         onChange={setDraft} onSave={() => void track(saveText()).catch(() => undefined)} onDone={() => void track(saveText()).catch(() => undefined)}
         onEscape={stopAdding} autoFocus />
@@ -336,7 +342,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     return field.label;
   }
 
-  const emptyDims = activeDims.filter((dim) => dim !== adding && dim !== revealed && !filledFields(dim).length
+  const emptyDims = readOnly ? [] : activeDims.filter((dim) => dim !== adding && dim !== revealed && !filledFields(dim).length
     && !blocks.some((block) => block.dim === dim) && !(dim === "neighbours" && structuredWords && related.length));
 
   return <aside className={"sort-enrichment sort-enrichment--" + side} aria-label={side === "knowledge" ? "Knowledge details" : "Language details"}>
@@ -348,15 +354,16 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
         && (revealed === dim || Boolean(fieldText(data, field.key).trim())));
       const owned = blocks.filter((block) => block.dim === dim);
       const rows = dim === "neighbours" && structuredWords ? related : [];
-      const count = fields.length + owned.length + rows.length;
+      const noteExists = study21 && dim === "notes" && Boolean((quickNote ?? "").trim() || (!readOnly && onQuickNoteChange));
+      const count = fields.length + owned.length + rows.length + (noteExists ? 1 : 0);
       if (!count && adding !== dim && revealed !== dim) return null;
       const firstEmpty = revealed === dim ? fields.find((field) => !fieldText(data, field.key).trim())?.key : undefined;
       return <section className="sort-enrich-section" key={dim}>
         <div className="sort-enrich-heading"><span>{labels[dim]}</span>
-          <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
+          {!readOnly ? <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
             disabled={blocked} onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>
             <Plus size={14} />
-          </button>
+          </button> : null}
         </div>
         <div className="sort-enrich-contents">
           {fields.length ? <div className={"sort-enrich-item sort-enrich-field" + (dim === "examples" ? " is-example" : "")}
@@ -369,23 +376,25 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
             }}>
             {fields.map((field) => <div key={field.key} className={"sort-enrich-line role-" + (field.role || "field")}>
               {dim === "examples" || fields.length === 1 ? null : <small>{field.label}</small>}
-              <InlineSortText value={fieldText(data, field.key)} label={field.label} placeholder={fieldPlaceholder(field)}
+              {readOnly ? <p className="study21-field-readonly">{fieldText(data, field.key)}</p> : <InlineSortText value={fieldText(data, field.key)} label={field.label} placeholder={fieldPlaceholder(field)}
                 multiline={field.role !== "example_reading"} autoFocus={field.key === firstEmpty}
                 disabled={busy || adding !== null} onEditingChange={setInlineBusy}
-                onCommit={(value) => track(saveField(field.key, value))} />
+                onCommit={(value) => track(saveField(field.key, value))} />}
             </div>)}
           </div> : null}
           {owned.map((block) => block.type === "text"
             ? editingId === block.id && adding === dim ? <div key={block.id}>{textEditor(dim)}</div>
-            : <div className="sort-enrich-item editable" data-dim={dim} key={block.id}>
-              <button type="button" className="sort-enrich-text-open" disabled={blocked} onClick={() => openAdd(dim, "text", block)}
-                aria-label={"Edit " + labels[dim].toLowerCase()}><RichText text={block.text} className="sort-enrich-rich" /></button>
-              <div className="sort-enrich-item-tools">
-                <button type="button" disabled={blocked} onClick={() => void track(removeText(block.id))} aria-label="Remove detail" title="Remove"><X size={13}/></button>
-              </div>
+            : <div className={"sort-enrich-item" + (readOnly ? " readonly" : " editable")} data-dim={dim} key={block.id}>
+              {readOnly ? <RichText text={block.text} className="sort-enrich-rich"/> : <>
+                <button type="button" className="sort-enrich-text-open" disabled={blocked} onClick={() => openAdd(dim, "text", block)}
+                  aria-label={"Edit " + labels[dim].toLowerCase()}><RichText text={block.text} className="sort-enrich-rich" /></button>
+                <div className="sort-enrich-item-tools">
+                  <button type="button" disabled={blocked} onClick={() => void track(removeText(block.id))} aria-label="Remove detail" title="Remove"><X size={13}/></button>
+                </div></>}
             </div>
-            : <figure className="sort-enrich-item sort-enrich-image" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}<figcaption><InlineSortText value={block.caption} label="Image caption" placeholder="Add a caption" disabled={busy || adding !== null} onEditingChange={setInlineBusy} onCommit={(value) => track(saveImageCaption(block.id, value))} /></figcaption></figure>)}
+            : <figure className="sort-enrich-item sort-enrich-image" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}<figcaption>{readOnly ? block.caption : <InlineSortText value={block.caption} label="Image caption" placeholder="Add a caption" disabled={busy || adding !== null} onEditingChange={setInlineBusy} onCommit={(value) => track(saveImageCaption(block.id, value))} />}</figcaption></figure>)}
           {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item sort-enrich-related">
+            {readOnly ? <><div className="study21-relation-word"><strong>{row.term}</strong><span className={"sort-enrich-relation relation-" + row.relation_type}>{row.relation_type}</span></div>{row.reading ? <p className="related-reading">{row.reading}</p> : null}{row.meaning ? <p className="related-meaning">{row.meaning}</p> : null}</> : <>
             <InlineSortText value={row.term} label="Related word" required disabled={busy || adding !== null} className="related-term"
               onEditingChange={setInlineBusy} onCommit={(value) => track(saveRelatedField(row, "term", value))} />
             {row.reading ? <InlineSortText value={row.reading} label="Related reading" placeholder="reading" disabled={busy || adding !== null} className="related-reading"
@@ -396,9 +405,10 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
               title="Change relation type" disabled={blocked} onClick={() => void track(cycleRelation(row))}>{row.relation_type}</button>
             <div className="sort-enrich-item-tools">
               <button type="button" disabled={blocked} onClick={() => void track(unlink(row))} aria-label="Remove related word" title="Remove"><X size={13} /></button>
-            </div>
+            </div></>}
           </div>)}
-          {adding === dim && !editingId ? mode === "word"
+          {study21 && dim === "notes" && (quickNote !== undefined || onQuickNoteChange) ? (readOnly ? (quickNote?.trim() ? <p className="sort-enrich-item study21-note-value">{quickNote}</p> : null) : <textarea className="study21-note-entry" rows={2} value={quickNote ?? ""} placeholder="My note" aria-label="My note" onChange={event => onQuickNoteChange?.(event.target.value)} />) : null}
+          {!readOnly && adding === dim && !editingId ? mode === "word"
             ? <div className="sort-enrich-editor sort-enrich-word-editor" onBlurCapture={commitEditor}>
               <input autoFocus aria-label="Related word" placeholder="Word or expression" value={word} onChange={(event) => setWord(event.target.value)}
                 onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); stopAdding(); } }} />
@@ -416,12 +426,12 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
         </div>
       </section>;
     })}</div>
-    {emptyDims.length ? <div className="sort-enrich-add-empty">
+    {!readOnly && emptyDims.length ? <div className="sort-enrich-add-empty">
       <small>Add</small>
       <div>{emptyDims.map((dim) => <button key={dim} type="button" disabled={blocked}
         onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>+ {labels[dim]}</button>)}</div>
     </div> : null}
-    {side === "knowledge" ? <section id="sort-formatting-section" className="sort-enrich-section sort-panel-formatting">
+    {side === "knowledge" && !readOnly ? <section id="sort-formatting-section" className="sort-enrich-section sort-panel-formatting">
       <div className="sort-enrich-heading"><span>Formatting</span></div>
       {formatRules.filter(rule => rule.lang === selectedLang).length
         ? <ul>{formatRules.filter(rule => rule.lang === selectedLang).map(rule =>
@@ -429,8 +439,8 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
               <button type="button" aria-label={"Remove formatting for " + rule.text}
                 onClick={() => void removeFormatting(rule.id)}>×</button></li>)}</ul>
         : study21 ? null : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
+      {study21 ? <div className="study21-auto-layers"><small>Automatic</small>{(AUTO_LAYERS[selectedLang] ?? []).map(layer => <button type="button" key={layer.id} aria-pressed={autoLayers[layer.id]} onClick={() => toggleAutoLayer(layer.id)}>{layer.name}</button>)}</div> : null}
     </section> : null}
-    {study21 && side === "knowledge" && onQuickNoteChange ? <section className="sort-enrich-section study21-quick-note"><div className="sort-enrich-heading"><span>Quick note</span></div><textarea rows={2} value={quickNote ?? ""} placeholder="My note" aria-label="Quick note" onChange={event => onQuickNoteChange(event.target.value)} /></section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>
       <p>Pack: {pack.title}</p>
@@ -438,6 +448,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
         <p key={tag.id}>Lesson: {tag.name}</p>)}
       <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p>
     </section> : null}
+    {study21 && directionInfo && readOnly && side === "knowledge" ? <section className="study21-direction-block"><strong>This direction</strong><dl><dt>State</dt><dd>{directionInfo.state}</dd><dt>Last seen</dt><dd>{directionInfo.lastSeen}</dd><dt>Results</dt><dd>{directionInfo.results}</dd><dt>Other way</dt><dd>{directionInfo.otherWay}</dd></dl></section> : null}
     {!study21 ? <p className="sort-enrich-hint">Click any text to change it · Enter keeps it · Esc undoes</p> : null}
     <p className={"sort-enrich-saved" + (saved ? " is-on" : "")} aria-live="polite">{saved ? "✓ Saved" : ""}</p>
     {error ? <p className="sort-enrich-error" role="alert">{error}</p> : null}
