@@ -393,7 +393,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       scores.current.set(round.cardId, score.score);
       if (!firstLearnRound(round) && corrected.points > 0) {
         const original = current.round.attempts.find((attempt) => attempt.position === exercise.position);
-        const extra = Math.max(0, corrected.points - (original?.points ?? 0));
+        const extra = Math.max(0, corrected.points - Math.max(0, original?.points ?? 0));
         const earned = (dailyPoints.current.get(round.cardId) ?? 0) + extra;
         dailyPoints.current.set(round.cardId, earned);
         if (earned >= MIX_DAILY_MAX) blockedToday.current.add(round.cardId);
@@ -409,7 +409,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   }
 
   function proceed() {
-    if (!current || !shown) return;
+    if (!current || !shown || correcting) return;
     stopReviewAudio();
     if (practice) {
       if (practice.at + 1 < practice.positions.length) {
@@ -443,7 +443,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   }
 
   function tryAgain() {
-    if (!exercise) return;
+    if (!exercise || correcting) return;
     setAgain(true); resetAnswer(exercise);
   }
 
@@ -741,12 +741,12 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       </div>
       <div className="lrn-feedback-actions">
         {audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear pronunciation" title="Hear pronunciation" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null}
-        {canRetry ? <button type="button" className="lrn-quiet" onClick={tryAgain}><RotateCcw size={15} aria-hidden="true" /> Try again</button> : null}
+        {canRetry ? <button type="button" className="lrn-quiet" disabled={correcting} onClick={tryAgain}><RotateCcw size={15} aria-hidden="true" /> Try again</button> : null}
         {!verdict.correct && state.mode === "scored" ? <button type="button" className="lrn-quiet lrn-overrule"
           disabled={correcting || saving !== "idle" || outbox.current.length > 0} onClick={() => void acceptAsCorrect()}
           title="Accept your answer and correct the learning score">
           <CheckCircle2 size={16} aria-hidden="true" /> {correcting ? "Correcting…" : "I was right"}</button> : null}
-        <button type="button" ref={primary} className="lrn-primary" disabled={!practice && (result.complete || mixing || dailyDone) && (saving === "saving" || notSaved)} onClick={proceed}>
+        <button type="button" ref={primary} className="lrn-primary" disabled={correcting || (!practice && (result.complete || mixing || dailyDone) && (saving === "saving" || notSaved))} onClick={proceed}>
           {practice ? (practice.at + 1 < practice.positions.length ? "Next" : "Back to summary")
             : result.ready || (result.complete && firstLearning) ? "See result" : mixing || dailyDone || result.complete ? "Next card" : "Continue"}
           <ArrowRight size={17} aria-hidden="true" />
