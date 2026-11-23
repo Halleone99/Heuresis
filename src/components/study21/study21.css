@@ -159,3 +159,36 @@
 
 .study21 .study21-error {text-align:center;color:#e08a76;margin:10px 0 0;font-size:12px;}
 .study21 .study21-discard-confirm {z-index:40;top:76px;right:24px;left:auto;position:fixed;border-radius:14px;background:rgba(20,27,36,.96);border:1px solid rgba(255,255,255,.12);color:#f4f7fa;padding:16px;box-shadow:0 18px 40px rgba(0,0,0,.28);}
+
+/* Later specificity adjustments preserve the Classic styles while matching the new full-window layout. */
+.sort-backdrop .sort-modal--session.study21 #sort-language-details,
+.sort-backdrop .sort-modal--session.study21 #sort-knowledge-details {top:12px;}
+.sort-backdrop .sort-modal--session.study21 .sort-topbar {grid-row:1;}
+.sort-backdrop .sort-modal--session.study21 .sort-session-stage {grid-row:2;}
+.study21 .study21-quick-note textarea {box-sizing:border-box;width:100%;min-height:56px;resize:vertical;padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.04);color:#dce5ef;font:400 14px/1.5 Inter,system-ui,sans-serif;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-card {border:0;box-shadow:none;background:transparent;backdrop-filter:none;border-radius:0;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details {position:relative;flex:0 0 min(368px,calc((100vw - 628px)/2));width:min(368px,calc((100vw - 628px)/2));min-width:0;opacity:1;overflow:auto;top:auto;bottom:auto;height:auto;max-height:none;border:1px solid rgba(255,255,255,.08);border-radius:22px;background:rgba(20,27,36,.86);backdrop-filter:blur(28px);}
+.cosmos-shell.study21[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details-head {display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-details-body {padding:15px 18px 20px;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-details-section>header h3 {font:500 13.5px Inter,system-ui,sans-serif;letter-spacing:normal;text-transform:none;color:#b9a6e6;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-details .cosmos-example-translation {font:400 14px/1.45 Inter,system-ui,sans-serif;color:#a9b8c9;}
+.cosmos-shell.study21[data-mode="review"] .review-ratings {display:flex;grid-template-columns:none;gap:5px;overflow:visible;}
+.cosmos-shell.study21[data-mode="review"] .review-ratings button {display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex:1;min-height:48px;padding:0 14px;border:0;border-radius:14px;}
+.cosmos-shell.study21[data-mode="review"] .review-ratings button::before {content:"";position:static;inset:auto;display:block;flex:none;width:7px;height:7px;border-radius:50%;opacity:1;background:var(--tone);}
+.cosmos-shell.study21[data-mode="review"] .review-ratings .review-rating-head {display:flex;align-items:center;font:500 13px Inter,system-ui,sans-serif;color:#dce5ef;}
+.cosmos-shell.study21[data-mode="review"] .review-card-status-name {font:500 14px Inter,system-ui,sans-serif;letter-spacing:normal;color:#dfe6ee;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-card-copy .cosmos-rule {width:44px;height:2px;background:#b9a6e6;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-core-field.role-term {overflow-wrap:break-word;word-break:normal;text-wrap:balance;font-family:"Noto Serif","Noto Serif SC",Georgia,serif;}
+.cosmos-shell.study21[data-mode="review"] .cosmos-review-foot .review-reveal {height:48px;width:220px;background:rgba(185,166,230,.19);color:#e9e4fb;box-shadow:inset 0 0 0 1px rgba(185,166,230,.3);font:500 14px Inter,system-ui,sans-serif;}
+.cosmos-shell.study21[data-mode="review"] .review-missed {padding:14px 16px;border:1px solid rgba(255,255,255,.08);border-radius:19px;background:rgba(16,22,30,.55);}
+.cosmos-shell.study21[data-mode="review"] .study21-direction-block {border-top:1px solid rgba(255,255,255,.1);padding:14px 0;color:#a9b8c9;font-size:12px;}
+.cosmos-shell.study21[data-mode="review"] .study21-direction-block strong {font:500 13px Inter,system-ui,sans-serif;color:#dce5ef;}
+.cosmos-shell.study21[data-mode="review"] .study21-direction-block p {margin:10px 0 0;}
+.cosmos-shell.study21[data-mode="review"] .study21-review-scrim {position:fixed;inset:0;z-index:28;border:0;background:rgba(4,8,14,.45);}
+@media (max-width:1207px) and (min-width:780px) {
+  .cosmos-shell.study21[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details {position:relative;top:auto;bottom:auto;left:auto;right:auto;flex-basis:min(340px,calc(100vw - 550px));width:min(340px,calc(100vw - 550px));min-height:0;}
+}
+@media (max-width:779px) {
+  .cosmos-shell.study21[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-details {position:fixed;top:76px;bottom:20px;left:50%;right:auto;transform:translateX(-50%);width:min(380px,calc(100vw - 32px));height:auto;max-height:none;z-index:30;}
+  .cosmos-shell.study21[data-mode="review"] .review-ratings {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
+}

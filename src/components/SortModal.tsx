@@ -636,7 +636,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
       <div id="sort-knowledge-details" className={"sort-editing-tools sort-editing-tools--right" + (rightOpen ? " is-open" : "")}>
         <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => setRightOpen(false)}>×</button>
         <SortEnrichmentPanel key={card.id + "-knowledge"} pack={pack} card={card} side="knowledge" onChanged={onChanged}
-          study21={isStudy21} request={detailsRequest && !(["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
+          study21={isStudy21} quickNote={noteDraft} onQuickNoteChange={setNoteDraft} request={detailsRequest && !(["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
@@ -648,6 +648,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
             {tags.filter(tag => !tag.is_badge && tagIds.includes(tag.id)).map(tag =>
               <button type="button" key={tag.id} disabled={busy} onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}># {tag.name}</button>)}
             {tagsOpen ? <div className="sort-new-tag-popover">
+              {isStudy21 ? <div><small>LABELS</small>{cardLabels(card.data).map(label => <button type="button" key={label} onClick={() => removeLabel(label)} title={"Remove " + label}>{label} ×</button>)}{addingLabel ? <input autoFocus value={labelDraft} aria-label="New label" placeholder="Label" onChange={event => setLabelDraft(event.target.value)} onKeyDown={event => {if(event.key==="Enter"){event.preventDefault();addLabel();}if(event.key==="Escape"){event.preventDefault();setAddingLabel(false);}}}/> : <button type="button" onClick={() => setAddingLabel(true)}>+ Label</button>}</div> : null}
               {isStudy21 && localBadges.length ? <div><small>BADGES</small>{localBadges.map(tag => renderTag(tag))}</div> : null}
               {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
               {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}

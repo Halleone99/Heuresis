@@ -399,6 +399,15 @@ export default function CosmosWindow() {
   const relatedReview = config.relatedReview;
   const redesignReview = mode === "review" && !relatedReview;
   const isStudy21 = redesignReview && studyMode === "2.1";
+  const rememberStudy21Details = (open: boolean) => {
+    setDetailsPinned(open);
+    try { localStorage.setItem(DETAILS_PIN_KEY, open ? "1" : "0"); } catch { /* device only */ }
+  };
+  useEffect(() => {
+    if (!isStudy21 || !revealed || !detailsPinned) return;
+    setLeftContextOpen(true);
+    setDetailsOpen(window.innerWidth >= 1208);
+  }, [isStudy21, revealed, card?.id, detailsPinned]);
   const studyBackground = useHeuresisBackground("heuresis-study");
   const sharedBackground = useHeuresisBackground("heuresis");
   const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
@@ -1370,7 +1379,7 @@ export default function CosmosWindow() {
         {!split ? <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card" : "Keep open for every card"}
           onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button> : null}
         <button type="button" aria-label={side === "left" ? "Close examples and connections" : "Close facts and notes"}
-          onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); }}><PanelRightClose size={15} /></button>
+          onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); if (isStudy21 && !(side === "left" ? detailsOpen : leftContextOpen)) rememberStudy21Details(false); }}><PanelRightClose size={15} /></button>
       </header>
       <div className="cosmos-details-body">
         {split && !revealed
@@ -1489,7 +1498,7 @@ export default function CosmosWindow() {
         <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
       </div>
       <div className="review-top-tools" role="group" aria-label="Review tools">
-        {isStudy21 ? <button type="button" className="study21-review-details" disabled={!revealed} title={revealed ? "Details" : "After the reveal"} aria-expanded={leftContextOpen || detailsOpen} onClick={() => {const open = !(leftContextOpen || detailsOpen);setLeftContextOpen(open);setDetailsOpen(open && window.innerWidth >= 1208);}}><PanelLeftOpen size={16}/> Details <small>{detailsTotal}</small></button> : !isAndroidRuntime() ? <>
+        {isStudy21 ? <button type="button" className="study21-review-details" disabled={!revealed} title={revealed ? "Details" : "After the reveal"} aria-expanded={leftContextOpen || detailsOpen} onClick={() => {const open = !(leftContextOpen || detailsOpen);setLeftContextOpen(open);setDetailsOpen(open && window.innerWidth >= 1208);rememberStudy21Details(open);}}><PanelLeftOpen size={16}/> Details <small>{detailsTotal}</small></button> : !isAndroidRuntime() ? <>
           <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
             aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
             {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
@@ -1533,7 +1542,8 @@ export default function CosmosWindow() {
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
       / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
-    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);}}>KNOWLEDGE</button> : null}</nav> : null}
+    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);rememberStudy21Details(true);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);rememberStudy21Details(true);}}>KNOWLEDGE</button> : null}</nav> : null}
+    {isStudy21 && revealed && window.innerWidth < 780 && (leftContextOpen || detailsOpen) ? <button type="button" className="study21-review-scrim" aria-label="Close details" onClick={() => {setLeftContextOpen(false);setDetailsOpen(false);rememberStudy21Details(false);}}/> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article ref={reviewCardRef} className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>

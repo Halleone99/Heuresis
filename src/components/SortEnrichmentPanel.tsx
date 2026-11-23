@@ -77,12 +77,14 @@ export function firstExampleBlock(data: CardWithStats["data"]): { id: string; se
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
+export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, quickNote, onQuickNoteChange, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
   pack: PackWithType;
   card: CardWithStats;
   request?: DetailsRequest | null;
   side?: "language" | "knowledge" | "all";
   study21?: boolean;
+  quickNote?: string;
+  onQuickNoteChange?: (value: string) => void;
   onBlockedChange: (blocked: boolean) => void;
   onChanged: () => void;
   onCountChange?: (count: number) => void;
@@ -428,6 +430,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
                 onClick={() => void removeFormatting(rule.id)}>×</button></li>)}</ul>
         : study21 ? null : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
     </section> : null}
+    {study21 && side === "knowledge" && onQuickNoteChange ? <section className="sort-enrich-section study21-quick-note"><div className="sort-enrich-heading"><span>Quick note</span></div><textarea rows={2} value={quickNote ?? ""} placeholder="My note" aria-label="Quick note" onChange={event => onQuickNoteChange(event.target.value)} /></section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>
       <p>Pack: {pack.title}</p>
