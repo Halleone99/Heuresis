@@ -266,12 +266,16 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     return save;
   }
 
+  function rememberDetails21(open: boolean) {
+    if (studyMode !== "2.1") return;
+    try { localStorage.setItem("heuresis.sort.details.v1", open ? "1" : "0"); } catch { /* device preference */ }
+  }
   function toggleBothDetails() {
     if (studyMode === "2.1") {
       const next = stageWidth >= 1208 ? !(leftOpen && rightOpen) : !(leftOpen || rightOpen);
       setLeftOpen(next);
       setRightOpen(next && stageWidth >= 1208);
-      try { localStorage.setItem("heuresis.sort.details.v1", next ? "1" : "0"); } catch { /* device preference */ }
+      rememberDetails21(next);
     } else {
       const next = !(leftOpen && rightOpen);
       setLeftOpen(next); setRightOpen(next);
@@ -449,7 +453,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
           formattingButton.current?.focus();
           return;
         }
-        if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setLeftOpen(false); setRightOpen(false); return; }
+        if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setLeftOpen(false); setRightOpen(false); rememberDetails21(false); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
       }
@@ -502,6 +506,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     const onLeft = ["examples","neighbours","components","structure"].includes(request.dim) || (studyMode !== "2.1" && request.dim === "origin");
     if (onLeft) { setLeftOpen(true); if (studyMode === "2.1" && stageWidth < 1208) setRightOpen(false); }
     else { setRightOpen(true); if (studyMode === "2.1" && stageWidth < 1208) setLeftOpen(false); }
+    rememberDetails21(true);
     setDetailsRequest({ ...request, nonce: Date.now() });
   }
 
@@ -623,18 +628,18 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
       </button> : null}
     </div> : null}
     {!filtersOpen && card ? <div className="sort-session-stage">
-      {isStudy21 && stageWidth < 780 && enrichmentOpen ? <button type="button" className="study21-panel-scrim" aria-label="Close details" onClick={() => {setLeftOpen(false);setRightOpen(false);}}/> : null}
-      {isStudy21 && !leftOpen ? <button className="study21-edge-tab left" type="button" onClick={() => {setLeftOpen(true);if (stageWidth < 1208) setRightOpen(false);}}>LANGUAGE · {leftCount}</button> : null}
-      {isStudy21 && !rightOpen ? <button className="study21-edge-tab right" type="button" onClick={() => {setRightOpen(true);if (stageWidth < 1208) setLeftOpen(false);}}>KNOWLEDGE · {rightCount}</button> : null}
+      {isStudy21 && stageWidth < 780 && enrichmentOpen ? <button type="button" className="study21-panel-scrim" aria-label="Close details" onClick={() => {setLeftOpen(false);setRightOpen(false);rememberDetails21(false);}}/> : null}
+      {isStudy21 && !leftOpen ? <button className="study21-edge-tab left" type="button" onClick={() => {setLeftOpen(true);if (stageWidth < 1208) setRightOpen(false);rememberDetails21(true);}}>LANGUAGE · {leftCount}</button> : null}
+      {isStudy21 && !rightOpen ? <button className="study21-edge-tab right" type="button" onClick={() => {setRightOpen(true);if (stageWidth < 1208) setLeftOpen(false);rememberDetails21(true);}}>KNOWLEDGE · {rightCount}</button> : null}
       <div id="sort-language-details" className={"sort-editing-tools sort-editing-tools--left" + (leftOpen ? " is-open" : "")}>
-        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => setLeftOpen(false)}>×</button>
+        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => { setLeftOpen(false); if (!rightOpen) rememberDetails21(false); }}>×</button>
         <SortEnrichmentPanel key={card.id + "-language"} pack={pack} card={card} side="language" onChanged={onChanged}
           study21={isStudy21} request={detailsRequest && (["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setLeftBlocked} onCountChange={setLeftCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <div id="sort-knowledge-details" className={"sort-editing-tools sort-editing-tools--right" + (rightOpen ? " is-open" : "")}>
-        <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => setRightOpen(false)}>×</button>
+        <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => { setRightOpen(false); if (!leftOpen) rememberDetails21(false); }}>×</button>
         <SortEnrichmentPanel key={card.id + "-knowledge"} pack={pack} card={card} side="knowledge" onChanged={onChanged}
           study21={isStudy21} quickNote={noteDraft} onQuickNoteChange={setNoteDraft} request={detailsRequest && !(["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
