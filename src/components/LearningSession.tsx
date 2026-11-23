@@ -10,7 +10,7 @@ import { answerMentions, appliedCoverage, roundHistory, type RoundHistory } from
 import { packShape } from "../lib/teachingShape";
 import {
   LEARN_SETUP_MESSAGE, READY_SCORE, ROUND_MAX, ROUND_SIZE, STAGE_LABEL, firstLearnRound, randomLearnCard, MIX_DAILY_MAX,
-  cacheRound, forgetCachedRound, learnSchemaMissing, loadLearnOverview, loadLearnRound, markLearnCorrected, openLearnRound,
+  acceptLearnAttempt, cacheRound, forgetCachedRound, learnSchemaMissing, loadLearnOverview, loadLearnRound, markLearnCorrected, openLearnRound,
   pointsFor, recordLearnAttempt, roundResult, stateForCycle,
   type LearnAttempt, type LearnOverview, type LearnRound,
 } from "../lib/learnRounds";
@@ -37,7 +37,7 @@ type Screen = "loading" | "select" | "setup" | "failed" | "empty" | "exercise" |
 type LearnPhase = "first" | "mixed";
 /** How the answer on screen is being given: scored, or as unscored practice. */
 type Mode = "scored" | "again" | "practice";
-type Shown = { verdict: Verdict; mode: Mode; points: number; assisted: boolean };
+type Shown = { verdict: Verdict; mode: Mode; points: number; assisted: boolean; overridden?: boolean };
 
 /**
  * A stress mark (а́) is a small combining accent that many interface fonts place badly over
@@ -107,6 +107,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const [gain, setGain] = useState(0);
   const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
   const [saveProblem, setSaveProblem] = useState("");
+  const [correcting, setCorrecting] = useState(false);
+  const [correctionProblem, setCorrectionProblem] = useState("");
   const [moving, setMoving] = useState(false);
   const [moved, setMoved] = useState<string[]>([]);
   const [finishedCards, setFinishedCards] = useState(0);
@@ -236,7 +238,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   const resetAnswer = useCallback((next: Exercise | null) => {
     stopReviewAudio();
     answering.current = false;
-    setShown(null); setChoiceId(null); setTileIds([]); setText(""); setHinted(false); setJudging(false); setCovered([]);
+    setShown(null); setCorrectionProblem(""); setChoiceId(null); setTileIds([]); setText(""); setHinted(false); setJudging(false); setCovered([]);
     setGapFill(next?.format === "gaps" ? next.cells.filter((cell) => cell.gap).map(() => null) : []);
   }, []);
 
@@ -376,8 +378,38 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     void flush();
   }
 
+  async function acceptAsCorrect() {
+    if (!current || !exercise || !shown || shown.mode !== "scored" || shown.verdict.correct || correcting ||
+      outbox.current.length || flushing.current || saving !== "idle") return;
+    setCorrecting(true); setCorrectionProblem("");
+    try {
+      // The server accepts the latest incorrect attempt exactly once and recalculates mastery.
+      const round = await acceptLearnAttempt(current.round.id, exercise.position);
+      const corrected = round.attempts.find((attempt) => attempt.position === exercise.position);
+      if (!corrected?.correct) throw new Error("The correction was not saved.");
+      setCurrent({ ...current, round });
+      cacheRound(round);
+      const score = roundResult(round.attempts, round.baseScore);
+      scores.current.set(round.cardId, score.score);
+      if (!firstLearnRound(round) && corrected.points > 0) {
+        const original = current.round.attempts.find((attempt) => attempt.position === exercise.position);
+        const extra = Math.max(0, corrected.points - Math.max(0, original?.points ?? 0));
+        const earned = (dailyPoints.current.get(round.cardId) ?? 0) + extra;
+        dailyPoints.current.set(round.cardId, earned);
+        if (earned >= MIX_DAILY_MAX) blockedToday.current.add(round.cardId);
+      }
+      setShown({ ...shown, verdict: { ...shown.verdict, correct: true }, points: corrected.points, overridden: true });
+      setGain(corrected.points);
+      changed.current();
+    } catch (failure) {
+      setCorrectionProblem(message(failure, "Could not correct this answer. Please try again."));
+    } finally {
+      setCorrecting(false);
+    }
+  }
+
   function proceed() {
-    if (!current || !shown) return;
+    if (!current || !shown || correcting) return;
     stopReviewAudio();
     if (practice) {
       if (practice.at + 1 < practice.positions.length) {
@@ -411,7 +443,7 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   }
 
   function tryAgain() {
-    if (!exercise) return;
+    if (!exercise || correcting) return;
     setAgain(true); resetAnswer(exercise);
   }
 
@@ -524,6 +556,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (event.target instanceof HTMLElement && event.target.closest("[data-pronunciation], [data-pinyin-toggle]") && (event.key === "Enter" || event.key === " ")) return;
     const typing = event.target instanceof HTMLInputElement;
     if (shown) {
+      // Focused buttons activate themselves, including the manual correction control.
+      if (event.target instanceof HTMLButtonElement) return;
       // Enter moves on; Space too, except on a focused button, where it already activates it.
       if (event.key === "Enter" || (event.key === " " && !(event.target instanceof HTMLButtonElement))) { event.preventDefault(); proceed(); }
       return;
@@ -605,12 +639,13 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (item.format === "choice") {
       return <div className={`lrn-choices is-${item.layout}`} role="group" aria-label="Answers">
         {item.choices.map((choice, index) => {
-          const state = !locked ? "" : choice.id === item.answerId ? " is-right" : choice.id === choiceId ? " is-wrong" : " is-dim";
+          const accepted = choice.id === item.answerId || Boolean(shown?.overridden && choice.id === choiceId);
+          const state = !locked ? "" : accepted ? " is-right" : choice.id === choiceId ? " is-wrong" : " is-dim";
           return <button type="button" key={choice.id} className={`lrn-choice${state}`} lang={choice.lang} disabled={locked}
             aria-pressed={choice.id === choiceId} onClick={() => choose(choice.id)}>
             <kbd aria-hidden="true">{index + 1}</kbd><span>{withPinyin(choice.label)}</span>
-            {locked && choice.id === item.answerId ? <Check size={18} aria-label="Correct answer" /> : null}
-            {locked && choice.id === choiceId && choice.id !== item.answerId ? <X size={18} aria-label="Your answer" /> : null}
+            {locked && accepted ? <Check size={18} aria-label={choice.id === item.answerId ? "Expected answer" : "Manually accepted answer"} /> : null}
+            {locked && choice.id === choiceId && !accepted ? <X size={18} aria-label="Your answer" /> : null}
           </button>;
         })}
       </div>;
@@ -687,10 +722,10 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
 
   function renderFeedback(item: Exercise, state: Shown) {
     const { verdict } = state;
-    const heading = verdict.correct
+    const heading = state.overridden ? "Marked correct" : verdict.correct
       ? state.mode !== "scored" ? "Correct" : state.assisted ? "Correct, with a hint" : "Correct"
       : "Not quite";
-    const note = verdict.correct
+    const note = state.overridden ? "You accepted this answer as correct." : verdict.correct
       ? state.mode !== "scored" ? "Practice does not change your score." : state.assisted ? "A hinted answer earns no points." : ""
       : verdict.message;
     const canRetry = !verdict.correct && item.format !== "choice";
@@ -702,11 +737,16 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
           {state.points ? <em>{state.points > 0 ? "+" : ""}{state.points}</em> : null}</strong>
         {!verdict.correct ? <p className="lrn-solution" lang={"lang" in item ? item.lang : undefined}>{stressed(feedbackText(item.solution))}</p> : null}
         {note ? <p>{stressed(feedbackText(note))}</p> : null}
+        {correctionProblem ? <p className="lrn-correction-error" role="alert">{correctionProblem}</p> : null}
       </div>
       <div className="lrn-feedback-actions">
         {audio && canSpeak(audio.locale) ? <button type="button" data-pronunciation className="lrn-quiet lrn-pronunciation" aria-label="Hear pronunciation" title="Hear pronunciation" onClick={() => speakReviewText(audio.text, audio.locale)}><Volume2 size={17} aria-hidden="true" /></button> : null}
-        {canRetry ? <button type="button" className="lrn-quiet" onClick={tryAgain}><RotateCcw size={15} aria-hidden="true" /> Try again</button> : null}
-        <button type="button" ref={primary} className="lrn-primary" disabled={!practice && (result.complete || mixing || dailyDone) && (saving === "saving" || notSaved)} onClick={proceed}>
+        {canRetry ? <button type="button" className="lrn-quiet" disabled={correcting} onClick={tryAgain}><RotateCcw size={15} aria-hidden="true" /> Try again</button> : null}
+        {!verdict.correct && state.mode === "scored" ? <button type="button" className="lrn-quiet lrn-overrule"
+          disabled={correcting || saving !== "idle" || outbox.current.length > 0} onClick={() => void acceptAsCorrect()}
+          title="Accept your answer and correct the learning score">
+          <CheckCircle2 size={16} aria-hidden="true" /> {correcting ? "Correcting…" : "I was right"}</button> : null}
+        <button type="button" ref={primary} className="lrn-primary" disabled={correcting || (!practice && (result.complete || mixing || dailyDone) && (saving === "saving" || notSaved))} onClick={proceed}>
           {practice ? (practice.at + 1 < practice.positions.length ? "Next" : "Back to summary")
             : result.ready || (result.complete && firstLearning) ? "See result" : mixing || dailyDone || result.complete ? "Next card" : "Continue"}
           <ArrowRight size={17} aria-hidden="true" />

@@ -127,14 +127,31 @@ check(Boolean(find("de5", "choose-article")) && find("de5", "choose-article").an
 const preposition = find("de3", "choose-preposition");
 check(Boolean(preposition) && preposition.prompt.text === "sich freuen ＿" && preposition.answerId === "auf", "German verb: its preposition (sich freuen ＿)");
 const cloze = find("de3", "cloze-choice");
-check(Boolean(cloze) && cloze.prompt.text === "Ich ＿＿＿ mich auf das Wochenende.", "German: the conjugated verb is found in its example (freue)");
+check(Boolean(cloze) && cloze.prompt.text === "Ich ＿＿＿ mich auf das Wochenende." && cloze.choices.find((c) => c.id === cloze.answerId)?.label === "freue", "German: conjugated 'freue', not the card's infinitive, is the correct choice");
 const separable = locateInSentence({ form: "anrufen", han: false, language: "de" }, "Ich rufe dich morgen an.");
 check(Boolean(separable) && "Ich rufe dich morgen an.".slice(separable.start, separable.end) === "rufe", "German: a separable verb is found by its stem (rufe … an)");
 check(kindsOf("de6")[4] === "recall-build" || kindsOf("de6")[4] === "recall-type", "German sentence: word order is rebuilt or typed at the end");
 const stress = find("ru1", "choose-stress");
 check(Boolean(stress) && stress.prompt.text === "говорить" && stress.choices.find((choice) => choice.id === stress.answerId).label === "говори́ть", "Russian: where the stress falls (говори́ть)");
-check(Boolean(find("ru1", "cloze-choice")) && find("ru1", "cloze-choice").prompt.text === "Я ＿＿＿ по-русски.", "Russian: the inflected form is found in its sentence (говорю)");
+check(Boolean(find("ru1", "cloze-choice")) && find("ru1", "cloze-choice").prompt.text === "Я ＿＿＿ по-русски." && find("ru1", "cloze-choice").choices.find((c) => c.id === find("ru1", "cloze-choice").answerId)?.label === "говорю", "Russian: the inflected 'говорю' fills the gap, not the infinitive");
 check(!kindsOf("ru4").includes("choose-stress"), "Russian card without a stress mark: no stress question is invented");
+const fear = card("ru-fear", "преодолевать, преодолеть страх", "to overcome fear", {
+  language: "ru", examples: [example("Я хочу преодолевать свой страх.", "I want to overcome my fear.")],
+});
+const fearRivals = [
+  fear,
+  card("ru-fear-short", "преодолевать", "to overcome obstacles", { language: "ru" }),
+  card("ru-responsibility", "брать на себя ответственность", "to take responsibility", { language: "ru" }),
+  card("ru-conclusion", "делать вывод", "to draw a conclusion", { language: "ru" }),
+  card("ru-give", "подавать", "to hand in", { language: "ru" }),
+];
+const fearCloze = buildRound({ card: fear, pool: fearRivals, round: 1, seed: "fear-context" })
+  .find((exercise) => exercise.kind === "cloze-choice");
+check(Boolean(fearCloze) && fearCloze.prompt.text === "Я хочу ＿＿＿ свой страх." &&
+  fearCloze.choices.find((choice) => choice.id === fearCloze.answerId)?.label === "преодолевать" &&
+  fearCloze.choices.every((choice) => choice.id === fearCloze.answerId || !choice.label.includes("преодолевать")) &&
+  checkExercise(fearCloze, { format: "choice", choiceId: fearCloze.answerId }).correct,
+  "Russian regression: only the actual gap word is correct; overlapping full expressions are excluded");
 const missing = find("zh1", "missing-character");
 check(Boolean(missing) && /＿/.test(missing.prompt.text) && missing.choices.every((choice) => HAN.test(choice.label)), "Chinese: the missing character among other characters");
 const tones = seen.get("zh4").find((exercise) => exercise.kind === "choose-reading") ?? buildRound({ card: topics["Chinese (HSK 2)"][1], pool: topics["Chinese (HSK 2)"], round: 2, seed: "t" }).find((exercise) => exercise.kind === "choose-reading");

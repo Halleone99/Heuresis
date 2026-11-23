@@ -643,21 +643,43 @@ export function locateInSentence(card: Pick<LearnCard, "form" | "han" | "languag
   return null;
 }
 
+/** A distractor must never contain the very word that fills the blank. */
+function containsClozeAnswer(candidate: string, answer: string): boolean {
+  const label = fold(candidate).trim();
+  const target = fold(answer).trim();
+  if (!target) return false;
+  let offset = 0;
+  while (offset < label.length) {
+    const at = label.indexOf(target, offset);
+    if (at < 0) break;
+    const before = at === 0 || !LETTER.test(label[at - 1]);
+    const after = at + target.length === label.length || !LETTER.test(label[at + target.length]);
+    if (before && after) return true;
+    offset = at + 1;
+  }
+  return false;
+}
+
 const clozeChoice: Builder = ({ card, pool, round }, random) => {
   const example = exampleFor(card, round, (item) => Boolean(locateInSentence(card, item.source)));
   if (!example) return null;
-  const rivals = pickRivals(card, pool, random, "form");
-  if (rivals.length < 2) return null;
   const range = locateInSentence(card, example.source)!;
+  // A term can contain glosses or alternative forms. Only the word actually present in
+  // the saved example can fill its gap ("говорю", not "говорить"; "преодолевать", not
+  // "преодолевать, преодолеть страх").
+  const answer = example.source.slice(range.start, range.end);
+  const rivals = pickRivals(card, pool, random, "form", 8)
+    .filter((other) => !containsClozeAnswer(other.form, answer)).slice(0, 3);
+  if (!answer.trim() || rivals.length < 2) return null;
   const gapped = `${example.source.slice(0, range.start)}＿＿＿${example.source.slice(range.end)}`;
   const choices = shuffle<Choice>([
-    { id: card.id, label: card.form, lang: tag(card) },
+    { id: card.id, label: answer, lang: tag(card) },
     ...rivals.map((other) => ({ id: other.id, label: other.form, lang: tag(other), note: `${other.form} means “${other.meaning}”.` })),
   ], random);
   return {
     format: "choice", kind: "cloze-choice", layout: card.wordSized ? "grid" : "list", choices, answerId: card.id,
     prompt: { ask: "Which word belongs in this sentence?", text: gapped, sub: example.translation || undefined, lang: tag(card) },
-    solution: card.form,
+    solution: answer,
     explain: `${example.source}${example.translation ? ` — ${example.translation}` : ""}`,
   };
 };

@@ -190,7 +190,12 @@
 .lrn-feedback-text em { font-style: normal; font-variant-numeric: tabular-nums; padding: 1px 8px; border-radius: 999px; background: var(--ws-good); color: var(--ws-page); font-size: 13px; }
 .lrn-feedback-text p { margin: 4px 0 0; font-size: 14px; color: var(--ws-text); overflow-wrap: anywhere; }
 .lrn-feedback-text .lrn-solution { font-size: 17px; font-weight: 600; color: var(--ws-ink); }
-.lrn-feedback-actions { flex: none; }
+.lrn-feedback-actions { flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.lrn-overrule { border-color: color-mix(in srgb, var(--ws-good) 40%, var(--ws-line)); color: var(--ws-ink); white-space: nowrap; }
+.lrn-overrule svg { color: var(--ws-good); }
+.lrn-overrule:hover:not(:disabled) { background: var(--ws-good-soft); border-color: var(--ws-good); }
+.lrn-overrule:disabled { opacity: .48; cursor: default; }
+.lrn-correction-error { color: var(--ws-bad) !important; }
 .lrn-alert { margin: 0 auto; font-size: 13px; color: var(--ws-bad); display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 
 /* Round summary and session end. */
