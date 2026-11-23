@@ -1256,8 +1256,18 @@ export default function CosmosWindow() {
         const grade = grades[event.key];
         if (revealed && grade) { event.preventDefault(); selectGrade(grade); return; }
         if (revealed && event.key === "Enter" && suggestion && !appliedQuestion) { event.preventDefault(); selectGrade(suggestion.grade); return; }
-        if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
-        if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
+        if (isStudy21 && (event.key.toLowerCase() === "e" || event.key.toLowerCase() === "d")) {
+          event.preventDefault();
+          const language = event.key.toLowerCase() === "e";
+          const next = language ? !leftContextOpen : !detailsOpen;
+          preferredPanel.current = language ? "language" : "knowledge";
+          if (language) { setLeftContextOpen(next); if (window.innerWidth < 1208) setDetailsOpen(false); }
+          else { setDetailsOpen(next); if (window.innerWidth < 1208) setLeftContextOpen(false); }
+          rememberStudy21Details(next);
+        } else {
+          if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
+          if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
+        }
       } else {
         if (/^[1-5]$/.test(event.key)) { event.preventDefault(); void setInterest(Number(event.key)); }
         else if (event.key === "ArrowRight" || event.key === "Enter") { event.preventDefault(); void nextSort(); }
@@ -1563,7 +1573,7 @@ export default function CosmosWindow() {
         <span className="review-top-separator" aria-hidden="true"/>
         {item?.reasons.length ? <button type="button" className="review-icon" aria-label="Why this card"
           title="Why this card" aria-expanded={whyOpen} onClick={()=>setWhyOpen(value=>!value)}><CircleHelp size={17}/></button> : null}
-        <button type="button" className="cosmos-close" aria-label="Close (Esc)" title="Close (Esc)" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18}/></button>
+        <button type="button" className="cosmos-close" aria-label="Close" title={isStudy21 ? "Close" : "Close (Esc)"} onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18}/></button>
       </div>
     </header> : <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
@@ -1645,7 +1655,7 @@ export default function CosmosWindow() {
               <button type="button" disabled={busy} onClick={() => void reveal(true)}>I don't know</button>
               <button type="button" className="primary" disabled={busy || !appliedInputReady()}
                 onClick={() => void reveal()}>{appliedQuestion.format === "judge" ? "Show checklist" : "Check answer"}</button>
-            </div> : <button type="button" className="review-reveal" title="Reveal (Space)" disabled={busy}
+            </div> : <button type="button" className="review-reveal" title={isStudy21 ? "Reveal" : "Reveal (Space)"} disabled={busy}
             onClick={() => void reveal()}>Reveal</button>
           : gradedMistake ? <div className="review-missed" data-grade={gradedMistake} role="status">
               <div className="review-missed-line">
