@@ -15,7 +15,8 @@ export type CosmosLaunch = {
   tagId?: string;
   tagIds?: string[];
   reviewFlags?: string[];
-  includeMastered?: boolean;
+  includeMastered?: boolean; // Legacy explicit mixed sessions; not used by the Review UI.
+  masteredOnly?: boolean;
   query?: string;
   /** Exact card selection for filtered and targeted reviews. */
   cardIds?: string[];
@@ -64,14 +65,14 @@ export function readReviewRoute(token: string): ReviewRouteEntry[] {
 }
 
 /** The same popup advances to the next topic; each topic retains its own session. */
-export function nextReviewRouteParams(token: string, currentPackId: string): URLSearchParams | null {
+export function nextReviewRouteParams(token: string, currentPackId: string, masteredOnly = false): URLSearchParams | null {
   const route = readReviewRoute(token);
   const index = route.findIndex((entry) => entry.packId === currentPackId);
   if (index < 0) throw new Error("This topic is no longer part of the Review-all session.");
   const next = route[index + 1];
   return next ? buildParams({
     mode: "review", packId: next.packId, source: "all", order: "weakest",
-    count: "all", cardIds: next.cardIds, reviewRouteToken: token,
+    count: "all", cardIds: next.cardIds, reviewRouteToken: token, masteredOnly,
   }) : null;
 }
 
@@ -112,6 +113,7 @@ function buildParams(options: CosmosLaunch) {
   tagIds.forEach((tagId) => params.append("tag", tagId));
   (options.reviewFlags ?? []).forEach((flag) => params.append("flag", flag));
   if (options.includeMastered) params.set("mastered", "1");
+  if (options.masteredOnly && options.mode === "review") params.set("masteredOnly", "1");
   if (options.query?.trim()) params.set("q", options.query.trim());
   if (options.cardIds) {
     const ids = Array.from(new Set(options.cardIds.filter(Boolean)));

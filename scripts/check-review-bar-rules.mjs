@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { loadTs } from "./lib/load-ts.mjs";
 
-const { cardBarProgress, reviewedSuccessfullyToday, reviewEligible } = loadTs("src/lib/cardProgress.ts", { "./supabase": { supabase: null } });
+const { cardBarProgress, reviewedSuccessfullyToday, reviewEligible, reviewEligibleForMode } = loadTs("src/lib/cardProgress.ts", { "./supabase": { supabase: null } });
 const DAY = 86_400_000;
 const start = Date.UTC(2026, 9, 1, 12);
 const events = [];
@@ -15,6 +15,8 @@ function card() {
 const read = () => cardBarProgress(card(), events, null);
 
 assert.deepEqual(read(), { bars: 0, mastered: false, estimated: false });
+assert.equal(reviewEligibleForMode(read(), events, null, false, start), true, "Unmastered cards enter ordinary Review");
+assert.equal(reviewEligibleForMode(read(), events, null, true, start), false, "Unmastered cards never enter Review mastered");
 add(0, "good");
 assert.equal(read().bars, 1);
 add(0, "good");
@@ -34,6 +36,9 @@ add(1, "good");
 assert.equal(read().mastered, false, "Same-day second confirmation cannot master");
 add(2, "good");
 assert.equal(read().mastered, true, "Next-day success masters Known");
+assert.equal(reviewEligibleForMode(read(), events, null, false, start + 3 * DAY), false, "Mastered cards never enter ordinary Review");
+assert.equal(reviewEligibleForMode(read(), events, null, true, start + 3 * DAY), true, "Only Mastered cards enter Review mastered");
+assert.equal(reviewEligibleForMode(read(), events, null, true, start + 2 * DAY), false, "Freshly mastered cards cannot be practised twice today");
 assert.equal(reviewEligible(read(), events, null, false, start + 3 * DAY), false, "Freshly Mastered cards stay out of normal review");
 assert.equal(reviewEligible(read(), events, null, false, start + 183 * DAY), false, "Mastered cards never return automatically, even after 180 days");
 assert.equal(reviewEligible(read(), events, null, false, start + 365 * DAY), false, "Mastered remains retired beyond a year");
@@ -42,6 +47,7 @@ assert.equal(reviewEligible(read(), events, null, true, start + 2 * DAY), false,
 add(183, "again");
 assert.equal(read().bars, 3, "A mastered miss removes a bar");
 assert.equal(read().mastered, false, "A mastered miss removes mastery");
+assert.equal(reviewEligibleForMode(read(), events, null, true, start + 184 * DAY), false, "Lost mastery removes a card from mastered-only practice");
 add(183, "good");
 assert.equal(read().bars, 4, "Same-day recovery returns to Known");
 add(183, "good");

@@ -48,7 +48,7 @@ import { mistakeDifference } from "../lib/mistakeDiff";
 import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
-import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
+import { cardBarProgress, reviewEligible, reviewEligibleForMode } from "../lib/cardProgress";
 import { enterLearning, inReview, readAcquisition, saveAcquisition, suggestRelearning } from "../lib/learningStage";
 import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW_LAST_METHOD_KEY } from "../lib/reviewMethodCounts";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
@@ -108,6 +108,7 @@ type Config = {
   tagIds: string[];
   reviewFlags: string[];
   includeMastered: boolean;
+  masteredOnly: boolean;
   query: string;
   selectionToken: string;
   reviewRouteToken: string;
@@ -171,6 +172,7 @@ function parseConfig(): Config {
     tagIds: params.getAll("tag").filter(Boolean),
     reviewFlags: params.getAll("flag").filter(Boolean),
     includeMastered: params.get("mastered") === "1",
+    masteredOnly: params.get("masteredOnly") === "1",
     query: params.get("q")?.trim() ?? "",
     selectionToken: params.get("selection") ?? "",
     reviewRouteToken: params.get("route") ?? "",
@@ -526,7 +528,7 @@ export default function CosmosWindow() {
           listTags(),
           loadStudySetup(nextPack.id, nextPack.card_type_id),
           relatedReview ? listRelatedCatalogue(nextPack.id) : Promise.resolve([]),
-          wantsHistory ? loadGradeEvents(nextPack.id).catch(() => null) : Promise.resolve(null),
+          wantsHistory ? loadGradeEvents(nextPack.id) : Promise.resolve(null),
         ]);
         if (cancelled) return;
 
@@ -551,8 +553,11 @@ export default function CosmosWindow() {
           const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
           const oldState = assessState(directionEvidence(entry, null, grades)).state;
           const progress = cardBarProgress(entry, grades, oldState, progressPair);
-          return reviewEligible(progress, grades, entry.stats.last_encountered_at,
-            config.includeMastered, Date.now(), activeTemplates.map((template) => template.id));
+          const now = Date.now();
+          const directions = activeTemplates.map((template) => template.id);
+          return config.includeMastered && !config.masteredOnly
+            ? reviewEligible(progress, grades, entry.stats.last_encountered_at, true, now, directions)
+            : reviewEligibleForMode(progress, grades, entry.stats.last_encountered_at, config.masteredOnly, now, directions);
         });
         // A filtered or targeted review must never quietly fall back to every card.
         const selection = config.selectionToken ? readReviewSelection(config.packId, config.selectionToken) : [];
@@ -589,8 +594,12 @@ export default function CosmosWindow() {
             pool = pool.filter((entry) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
-              return reviewEligible(cardBarProgress(entry, grades, oldState, progressPair), grades, entry.stats.last_encountered_at,
-                config.includeMastered, Date.now(), activeTemplates.map((template) => template.id));
+              const progress = cardBarProgress(entry, grades, oldState, progressPair);
+              const now = Date.now();
+              const directions = activeTemplates.map((template) => template.id);
+              return config.includeMastered && !config.masteredOnly
+                ? reviewEligible(progress, grades, entry.stats.last_encountered_at, true, now, directions)
+                : reviewEligibleForMode(progress, grades, entry.stats.last_encountered_at, config.masteredOnly, now, directions);
             });
           }
           if (config.order === "random") pool = shuffle(pool);
@@ -634,7 +643,9 @@ export default function CosmosWindow() {
             ? "There are no related words to review yet."
             : config.mode === "sort"
               ? "There are no cards in this sorting selection."
-              : "There are no sorted cards in this review selection. Use Sort first, or change the selection in Adjust.");
+              : config.masteredOnly
+                ? "No Mastered cards are available to review today. Newly mastered cards become available for optional practice tomorrow."
+                : "There are no sorted cards in this review selection. Use Sort first, or change the selection in Adjust.");
         }
 
         const sessionTemplateId = activeTemplates.length === 1 ? activeTemplates[0].id : null;
@@ -691,7 +702,7 @@ export default function CosmosWindow() {
     if (!done || !pack || !config.reviewRouteToken || routeAdvancing.current) return;
     let params: URLSearchParams | null;
     try {
-      params = nextReviewRouteParams(config.reviewRouteToken, pack.id);
+      params = nextReviewRouteParams(config.reviewRouteToken, pack.id, config.masteredOnly);
     } catch (failure) {
       setRouteError(failure instanceof Error ? failure.message : "Could not continue Review all.");
       return;
@@ -1099,8 +1110,12 @@ export default function CosmosWindow() {
         if (answered.has(entry.id)) return false;
         const grades = events?.filter((event) => event.cardId === entry.id) ?? null;
         const oldState = assessState(directionEvidence(entry, null, grades)).state;
-        return reviewEligible(cardBarProgress(entry, grades, oldState, progressDirectionIds),
-          grades, entry.stats.last_encountered_at, config.includeMastered, Date.now(), sessionTemplates.map((item) => item.id));
+        const progress = cardBarProgress(entry, grades, oldState, progressDirectionIds);
+        const now = Date.now();
+        const directions = sessionTemplates.map((item) => item.id);
+        return config.includeMastered && !config.masteredOnly
+          ? reviewEligible(progress, grades, entry.stats.last_encountered_at, true, now, directions)
+          : reviewEligibleForMode(progress, grades, entry.stats.last_encountered_at, config.masteredOnly, now, directions);
       });
       return recommendSession({ cards: eligibleCards, directions, events, size: MORE_SIZE, exclude, recent: lastCard ? [lastCard] : [] })
         .map((rec) => ({ cardId: rec.cardId, templateId: rec.templateId, reasons: rec.reasons, state: rec.state }));

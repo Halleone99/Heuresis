@@ -71,6 +71,19 @@ export function reviewEligible(
   return !progress.mastered;
 }
 
+/** A review session is either ordinary OR mastered-only, never a mixture. */
+export function reviewEligibleForMode(
+  progress: CardBarProgress,
+  history: GradeEvent[] | null,
+  lastReviewed: string | null,
+  masteredOnly: boolean,
+  now = Date.now(),
+  selectedDirectionIds?: string[],
+): boolean {
+  return progress.mastered === masteredOnly
+    && reviewEligible(progress, history, lastReviewed, masteredOnly, now, selectedDirectionIds);
+}
+
 /**
  * Progress has four bars and a separate Mastered confirmation.
  *

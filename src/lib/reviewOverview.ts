@@ -1,5 +1,5 @@
 import { listCards, type CardWithStats, type PackWithType } from "./heuresis";
-import { cardBarProgress, reviewEligible, reviewedSuccessfullyToday } from "./cardProgress";
+import { cardBarProgress, reviewEligible, reviewEligibleForMode, reviewedSuccessfullyToday } from "./cardProgress";
 import { assessState, directionEvidence, type GradeEvent } from "./knowledgeState";
 import { defaultDirections } from "./recommend";
 import { loadGradeEvents } from "./reviewEvidence";
@@ -55,6 +55,8 @@ export type TopicReviewSummary = Counts & {
   packId: string;
   /** Cards to include in an explicitly requested full-topic review. */
   readyCardIds: string[];
+  /** Verified Mastered cards available for an explicitly requested session. */
+  masteredCardIds: string[];
 };
 export type ReviewOverview = Counts & {
   topics: Record<string, TopicReviewSummary>;
@@ -120,7 +122,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       learnCards: 0, learnDue: 0, learnReady: 0,
       learnExercisesToday: activity?.attemptsToday ?? 0, learnExercisesLast7: activity?.attemptsWeek ?? 0,
       learnScoredLast7: activity?.attemptsWeek ?? 0, learnCorrectLast7: activity?.correctWeek ?? 0,
-      reviewedToday: 0, reverseTomorrow: 0, newReady: 0, newToday: 0, newLast7: 0, reviewsLast7: 0, readyCardIds: [],
+      reviewedToday: 0, reverseTomorrow: 0, newReady: 0, newToday: 0, newLast7: 0, reviewsLast7: 0, readyCardIds: [], masteredCardIds: [],
     };
 
     for (const card of cards) {
@@ -195,6 +197,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       const progress = cardBarProgress(card, grades, oldState, pair, now);
       if (oldState === "strong" || progress.mastered) summary.strongCards += 1;
       if (reviewEligible(progress, grades, card.stats.last_encountered_at, false, now, directions)) summary.readyCardIds.push(card.id);
+      if (reviewEligibleForMode(progress, grades, card.stats.last_encountered_at, true, now, directions)) summary.masteredCardIds.push(card.id);
       if (grades && reviewedSuccessfullyToday(grades, now) && pair.length && progress.pendingDirections?.length === 1) {
         summary.reverseTomorrow += 1;
       }

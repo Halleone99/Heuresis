@@ -56,9 +56,13 @@ assert.equal(nextParams.get("count"), "all");
 assert.equal(nextParams.get("route"), route);
 assert.deepEqual(routeApi.readReviewSelection("next-topic", nextParams.get("selection")), ["d", "e", "f", "g", "h"]);
 assert.equal(routeApi.nextReviewRouteParams(route, "next-topic"), null);
+const nextMastered = routeApi.nextReviewRouteParams(route, "first-topic", true);
+assert.equal(nextMastered.get("masteredOnly"), "1", "Mastered-only sessions remain mastered-only across topics");
+assert.match(readFileSync("src/components/StudyModal.tsx", "utf8"), /reviewEligibleForMode\(/, "The topic launcher uses exclusive mastery filtering");
+assert.doesNotMatch(readFileSync("src/components/StudyModal.tsx", "utf8"), /Include mastered cards/, "The old mixed-status checkbox is removed");
 assert.match(readFileSync("src/components/ReviewCentre.tsx", "utf8"), /reviewRouteToken: token/,
   "Review all passes the route token to the popup");
-assert.match(cosmos, /nextReviewRouteParams\(config\.reviewRouteToken, pack\.id\)/,
+assert.match(cosmos, /nextReviewRouteParams\(config\.reviewRouteToken, pack\.id, config\.masteredOnly\)/,
   "The popup advances through every topic in the route");
 assert.match(cosmos, /await recordStudyEvent|recordStudyEvent\(/, "Each topic keeps recording grades");
 

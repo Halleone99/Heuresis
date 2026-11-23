@@ -102,3 +102,13 @@
   .reviews-centre-topic { padding: 13px 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .library-reviews-entry { transition: none; } }
+
+.reviews-centre-session-modes {display:inline-flex;gap:4px;padding:4px;margin:0 0 18px;
+  border:1px solid var(--ws-line-strong);border-radius:12px;background:var(--ws-surface);}
+.reviews-centre-session-modes button {padding:10px 15px;border:0;border-radius:9px;background:transparent;
+  color:var(--ws-muted);font-size:12px;cursor:pointer;}
+.reviews-centre-session-modes button.selected {background:var(--ws-raised);color:var(--ws-ink);
+  box-shadow:var(--ws-shadow-1);}
+@media(max-width:440px){.reviews-centre-session-modes{width:100%;display:flex;}
+  .reviews-centre-session-modes button{flex:1;padding:10px 8px;}}
+

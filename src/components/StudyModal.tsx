@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type CardWithStats, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { openCosmosWindow, type CosmosOrder } from "../lib/cosmosWindow";
-import { cardBarProgress, reviewEligible } from "../lib/cardProgress";
+import { cardBarProgress, reviewEligibleForMode } from "../lib/cardProgress";
 import { assessState, directionEvidence, type GradeEvent } from "../lib/knowledgeState";
 import { loadGradeEvents } from "../lib/reviewEvidence";
 import { directionPairs } from "../lib/recommend";
@@ -13,7 +13,7 @@ import { inReview } from "../lib/learningStage";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
 import "./study.css";
 
-type Props = { pack: PackWithType; cards: CardWithStats[]; onClose: () => void; onComplete: () => void };
+type Props = { pack: PackWithType; cards: CardWithStats[]; initialMode?: "review" | "mastered"; onClose: () => void; onComplete: () => void };
 type SpecialFlag = "favourite" | "important" | "missed";
 
 function flagged(card: CardWithStats, flag: SpecialFlag) {
@@ -23,7 +23,7 @@ function flagged(card: CardWithStats, flag: SpecialFlag) {
 }
 
 /** Compact session setup: size, a single order rule, and combinable filters. */
-export default function StudyModal({ pack, cards, onClose, onComplete }: Props) {
+export default function StudyModal({ pack, cards, initialMode = "review", onClose, onComplete }: Props) {
   const remembered = useMemo(() => readReviewPrefs(pack.id), [pack.id]);
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
@@ -33,7 +33,8 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     remembered.order === "random" ? "random" : remembered.order === "oldest" ? "oldest" : "weakest");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [flags, setFlags] = useState<SpecialFlag[]>([]);
-  const [includeMastered, setIncludeMastered] = useState(false);
+  const [reviewMode, setReviewMode] = useState<"review" | "mastered">(initialMode);
+  const masteredOnly = reviewMode === "mastered";
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,13 +85,14 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
     if (flags.some((flag) => !flagged(card, flag))) return false;
     const events = history ? eventsByCard.get(card.id) ?? [] : null;
     const legacyState = assessState(directionEvidence(card, null, events)).state;
-    return reviewEligible(cardBarProgress(card, events, legacyState, pairedIds), events, card.stats.last_encountered_at, includeMastered, Date.now(), selectedTemplateIds);
-  }), [cards, eventsByCard, flags, history, includeMastered, tagIds, pairedIds, selectedTemplateIds]);
+    return reviewEligibleForMode(cardBarProgress(card, events, legacyState, pairedIds), events,
+      card.stats.last_encountered_at, masteredOnly, Date.now(), selectedTemplateIds);
+  }), [cards, eventsByCard, flags, history, masteredOnly, tagIds, pairedIds, selectedTemplateIds]);
   const requestedSize = Number(sizeInput);
   const validSize = /^\d+$/.test(sizeInput) && Number.isSafeInteger(requestedSize) && requestedSize >= 1 && requestedSize <= 500;
   const sessionCount = validSize ? Math.min(requestedSize, eligible.length) : 0;
-  const activeFilterCount = tagIds.length + flags.length + Number(includeMastered);
-  const clearFilters = () => { setTagIds([]); setFlags([]); setIncludeMastered(false); };
+  const activeFilterCount = tagIds.length + flags.length;
+  const clearFilters = () => { setTagIds([]); setFlags([]); };
 
   const toggleTag = (id: string) => setTagIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   const toggleFlag = (flag: SpecialFlag) => setFlags((current) => current.includes(flag) ? current.filter((value) => value !== flag) : [...current, flag]);
@@ -103,7 +105,7 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
       await openCosmosWindow({
         mode: "review", packId: pack.id, templateIds: selectedTemplateIds,
         source: "all", order: order as CosmosOrder, count: sessionCount,
-        tagIds, reviewFlags: flags, includeMastered,
+        tagIds, reviewFlags: flags, masteredOnly,
       });
       onComplete();
       onClose();
@@ -119,7 +121,13 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
         <button type="button" className="study-close" disabled={busy} onClick={onClose} aria-label="Close"><X size={18} /></button>
       </header>
       <div className="study-launch compact-study-screen">
-        <div className="compact-study-heading"><h2>Review cards</h2><div className="compact-study-meta"><span><b>{eligible.length}</b> available</span></div></div>
+        <div className="compact-study-heading"><h2>{masteredOnly ? "Review mastered" : "Review cards"}</h2><div className="compact-study-meta"><span><b>{eligible.length}</b> available</span></div></div>
+        <div className="review-kind-switch" role="group" aria-label="Choose review type">
+          <button type="button" className={!masteredOnly ? "selected" : ""} aria-pressed={!masteredOnly}
+            onClick={() => setReviewMode("review")}>Review</button>
+          <button type="button" className={masteredOnly ? "selected" : ""} aria-pressed={masteredOnly}
+            onClick={() => setReviewMode("mastered")}>Review mastered</button>
+        </div>
         {loading ? <div className="study-state" role="status">Loading cards and review history…</div> : null}
         {!loading && !selectedTemplateIds.length ? <div className="study-state">No review direction is configured for this topic.</div> : null}
         <div className="compact-study-controls review-controls">
@@ -153,13 +161,12 @@ export default function StudyModal({ pack, cards, onClose, onComplete }: Props) 
             <div className="review-filter-chips">{([["favourite","Favourite"],["important","Important"],["missed","Frequently missed"]] as const).map(([id,label]) =>
               <button type="button" key={id} aria-pressed={flags.includes(id)}
                 className={flags.includes(id) ? "selected" : ""} onClick={() => toggleFlag(id)}>{label}</button>)}</div>
-            <label className="review-include-mastered"><input type="checkbox" checked={includeMastered}
-              onChange={(event) => setIncludeMastered(event.target.checked)}/> Include mastered cards</label>
+ 
           </div>
         </details>
         {error ? <div className="study-error" role="alert">{error}</div> : null}
         <div className="compact-study-footer"><button type="button" className="study-start" disabled={loading || !selectedTemplateIds.length || !eligible.length || !validSize || busy}
-          onClick={() => void startReview()}>{busy ? "Opening…" : "Start review · " + sessionCount + (sessionCount === 1 ? " card" : " cards")} <ArrowRight size={16}/></button></div>
+          onClick={() => void startReview()}>{busy ? "Opening…" : (masteredOnly ? "Review mastered · " : "Start review · ") + sessionCount + (sessionCount === 1 ? " card" : " cards")} <ArrowRight size={16}/></button></div>
       </div>
     </section>
   </div>;
