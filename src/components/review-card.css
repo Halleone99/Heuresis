@@ -263,7 +263,7 @@
 .cosmos-shell[data-mode="review"] .review-card-status[data-trend="up"] .review-card-status-change {color:var(--c-sage)}
 .cosmos-shell[data-mode="review"] .review-card-status[data-trend="down"] .review-card-status-change {color:var(--c-cinnabar)}
 .cosmos-shell[data-mode="review"] .review-card-status[data-changed="true"] .review-card-status-change {animation:review-card-status-arrive .36s ease-out both}
-.cosmos-shell[data-mode="review"] .review-card-status-change.is-gain {
+.cosmos-shell[data-mode="review"] .review-card-status[data-changed="true"] .review-card-status-change.is-gain {
   color:var(--c-sage);font:600 12px/1 var(--mono);
   animation:review-card-gain .95s cubic-bezier(.18,.75,.24,1) both;
 }
