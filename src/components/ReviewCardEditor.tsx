@@ -141,6 +141,8 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(schema.map((field) => [field.key, fieldText(card.data, field.key)])));
   const [note, setNote] = useState(card.note ?? "");
+  const [acceptedAnswers, setAcceptedAnswers] = useState(() =>
+    Array.isArray(card.data["_accepted_answers"]) ? card.data["_accepted_answers"].join("\n") : "");
   const [appliedKind, setAppliedKind] = useState(appliedCardKind(card.data));
   const [blocks, setBlocks] = useState<EditableBlock[]>(() => editableBlocks(card));
   const [saving, setSaving] = useState(false);
@@ -174,19 +176,25 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
         schema.some((field) => fieldText(latest.data, field.key) !== fieldText(card.data, field.key)) ||
         (packShape(pack) === "rule" && appliedCardKind(latest.data) !== appliedCardKind(card.data)) ||
         (latest.note ?? "") !== (card.note ?? "") ||
-        JSON.stringify(originalRows(latest)) !== JSON.stringify(originalRows(card))
+        JSON.stringify(originalRows(latest)) !== JSON.stringify(originalRows(card)) ||
+        JSON.stringify(latest.data["_accepted_answers"] ?? []) !== JSON.stringify(card.data["_accepted_answers"] ?? [])
       ) throw new Error("This card was changed elsewhere. Close and reopen Modify to avoid overwriting it.");
 
       const workspaceBlocks = knowledgeRows(card, blocks, pack);
+      const acceptedEntries = [...new Set(acceptedAnswers.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean))];
+      const hasAcceptedEdits = Boolean(acceptedAnswers.trim() || Array.isArray(card.data["_accepted_answers"]));
       await updateCard(pack, card.id, packShape(pack) === "rule" ? { ...values, [APPLIED_KIND_KEY]: appliedKind } : values, {
         note,
         favourite: latest.favourite,
         interest_rank: latest.interest_rank,
         expectedUpdatedAt: latest.updated_at,
         workspaceBlocks,
+        ...(hasAcceptedEdits ? { acceptedAnswers: acceptedEntries } : {}),
       });
       const refreshed = await getCard(card.id).catch(() => null);
-      const nextData: CardWithStats["data"] = { ...card.data, [BLOCK_KEY]: workspaceBlocks, ...(packShape(pack) === "rule" ? { [APPLIED_KIND_KEY]: appliedKind } : {}) };
+      const nextData: CardWithStats["data"] = { ...card.data, [BLOCK_KEY]: workspaceBlocks,
+        ...(hasAcceptedEdits ? { _accepted_answers: acceptedEntries } : {}),
+        ...(packShape(pack) === "rule" ? { [APPLIED_KIND_KEY]: appliedKind } : {}) };
       for (const field of schema) {
         const value = (values[field.key] ?? "").trim();
         if (value) nextData[field.key] = value;
@@ -232,6 +240,17 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
         {groups.prompt.map(renderField)}
         <div className="cosmos-edit-section-label cosmos-edit-back-label"><span>BACK</span><small>Reference answer</small></div>
         {groups.answer.map(renderField)}
+        {packShape(pack) !== "rule" ? <details className="cosmos-edit-more">
+          <summary>Accepted answers <span>Optional</span></summary>
+          <div className="cosmos-edit-more-body">
+            <label className="cosmos-edit-field">
+              <span>Additional correct expressions — one per line</span>
+              <textarea rows={3} value={acceptedAnswers} onChange={(event) => setAcceptedAnswers(event.target.value)}
+                placeholder={"подавать заявление\nподать заявление"} />
+            </label>
+            <p>Use only for complete alternative answers. Heuresis also recognises unambiguous forms automatically.</p>
+          </div>
+        </details> : null}
         {groups.extra.length ? <details className="cosmos-edit-more">
           <summary>More card fields <span>+ {groups.extra.length}</span></summary>
           <div className="cosmos-edit-more-body">{groups.extra.map(renderField)}</div>

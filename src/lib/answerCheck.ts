@@ -93,10 +93,27 @@ function words(value: string) { return value.trim().split(/\s+/).filter(Boolean)
  * A word or short phrase rather than a sentence: its gloss may be a list of
  * alternatives ("immediately, at once"); a sentence's translation is not.
  */
+/**
+ * Expand compact Russian infinitive pairs with a shared complement.
+ * "подавать / подать заявление" means two complete expressions;
+ * "читать / прочитать" and already complete alternatives stay separate.
+ * Never infer a shared tail for a non-infinitive or ambiguous slash.
+ */
+export function expandSlashAlternatives(value: string): string[] {
+  const text = value.trim();
+  const shared = text.match(/^(\S+)\s*\/\s*(\S+)\s+(.+)$/u);
+  const russianInfinitive = (part: string) => /^[\p{Script=Cyrillic}\p{M}-]+(?:ть|ти|чь)(?:ся|сь)?$/u.test(part);
+  if (shared && russianInfinitive(shared[1]) && russianInfinitive(shared[2])) {
+    return [shared[1] + " " + shared[3], shared[2] + " " + shared[3]];
+  }
+  return text.split(/\s*\/\s*/u).map((part) => part.trim()).filter(Boolean);
+}
+
 export function isWordSized(value: string) {
   const text = value.replace(/(?:\s*,\s*[-–‑¨][^,;/|]*)+$/u, "").trim();
   if (!text || SENTENCE_END.test(text) || /[,，;；]/.test(text)) return false;
-  return hasHan(text) ? (text.match(/\p{Script=Han}/gu) ?? []).length <= 4 : words(text) <= 3;
+  return hasHan(text) ? (text.match(/\p{Script=Han}/gu) ?? []).length <= 4
+    : expandSlashAlternatives(text).every((form) => words(form) <= 3);
 }
 
 /** Free translations and long sentences cannot be judged by spelling. */
@@ -126,14 +143,18 @@ export function acceptedAnswers(values: ExpectedAnswer[]) {
     // German noun notation: plural / genitive endings after a comma are not part of the answer.
     const base = value.replace(/(?:\s*,\s*[-–‑¨][^,;/|]*)+$/u, "").trim();
     if (base && base !== value) answers.add(base);
-    const strong = base.split(/\s*(?:[;；|/]|(?:^|\s)\d+[.)](?=\s))\s*/u).map((part) => part.trim()).filter(usable);
-    for (const part of strong) answers.add(part);
+    const strong = base.split(/\s*(?:[;；|]|(?:^|\s)\d+[.)](?=\s))\s*/u).map((part) => part.trim()).filter(usable);
+    for (const part of strong) {
+      for (const alternative of expandSlashAlternatives(part)) if (usable(alternative)) answers.add(alternative);
+    }
     const listLike = kind === "gloss" && !hasHan(base) && !SENTENCE_END.test(base);
     if (!listLike) continue;
     for (const part of strong) {
       const pieces = part.split(/\s*[,，、]\s*|\s+or\s+/u).map((piece) => piece.trim()).filter(Boolean);
       if (pieces.length < 2 || pieces.some((piece) => words(piece) > 3)) continue;
-      for (const piece of pieces) if (usable(piece)) answers.add(piece);
+      for (const piece of pieces) {
+        for (const alternative of expandSlashAlternatives(piece)) if (usable(alternative)) answers.add(alternative);
+      }
     }
   }
   return Array.from(answers);

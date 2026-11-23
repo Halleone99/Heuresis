@@ -183,5 +183,32 @@ const meaning = buildRound({ card: topics["A topic with two cards"][0], pool: to
 check(Boolean(meaning) && checkExercise(meaning, { format: "type", text: "Table" }).correct && !checkExercise(meaning, { format: "type", text: "lamp" }).correct, "A typed meaning is checked as a gloss");
 check(!checkExercise(seen.get("de1")[4], { format: "type", text: "" }).correct, "An empty answer (I don’t know) is wrong, never an error");
 
+console.log("— complete expressions and explicit alternatives");
+const aspectCard = card("aspect-shared", "подавать / подать заявление", "to submit an application", { language: "ru" });
+const aspectRecall = buildRound({ card: aspectCard, pool: [aspectCard], round: 1, seed: "aspect-shared" })[4];
+const aspectCheck = (text) => checkExercise(aspectRecall, { format: "type", text });
+check(writtenForm(aspectCard.term) === "подавать заявление"
+  && aspectRecall.solution === "подавать заявление", "Russian aspect shorthand preserves the shared object in the answer and feedback");
+check(aspectCheck("подавать заявление").correct && aspectCheck("подать заявление").correct,
+  "Russian: either complete aspectual phrase is correct");
+check(!aspectCheck("подавать").correct && !aspectCheck("подать").correct,
+  "Russian: bare verbs are not accepted when the card requires a full expression");
+for (const [term, impf, perf] of [
+  ["обращать / обратить внимание", "обращать внимание", "обратить внимание"],
+  ["преодолевать / преодолеть трудности", "преодолевать трудности", "преодолеть трудности"],
+  ["неправильно понимать / неправильно понять", "неправильно понимать", "неправильно понять"],
+]) {
+  const entry = card("aspect-" + term, term, "test", { language: "ru" });
+  const recall = buildRound({ card: entry, pool: [entry], round: 1, seed: "aspect-example" })[4];
+  check(checkExercise(recall, { format: "type", text: impf }).correct
+    && checkExercise(recall, { format: "type", text: perf }).correct,
+    "Russian: both complete forms of " + term);
+}
+const manual = card("manual", "заявление", "an application",
+  { language: "ru", acceptedAlternatives: ["заявка"] });
+const manualRecall = buildRound({ card: manual, pool: [manual], round: 1, seed: "explicit" })[4];
+check(checkExercise(manualRecall, { format: "type", text: "заявка" }).correct,
+  "A saved explicitly accepted alternative is recognised in recall");
+
 console.log(failed ? `FAILED (${failed})` : "All Learn exercise checks passed.");
 process.exit(failed ? 1 : 0);

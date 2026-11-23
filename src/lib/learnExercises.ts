@@ -1,4 +1,4 @@
-import { acceptedAnswers, isWordSized, normaliseAnswer, numberedPinyinToMarks, suggestResult, type ExpectedAnswer } from "./answerCheck";
+import { acceptedAnswers, expandSlashAlternatives, isWordSized, normaliseAnswer, numberedPinyinToMarks, suggestResult, type ExpectedAnswer } from "./answerCheck";
 import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from "./heuresis";
 import { languageFromName, languageFromScript, type LanguageKey } from "./languages";
 import { ROUND_SIZE, STAGE_LABEL, STAGE_ORDER, type LearnStage } from "./learnRounds";
@@ -128,6 +128,8 @@ export type LearnCard = {
   meaning: string;
   /** Optional supporting gloss, never a scored answer. */
   englishReference?: string;
+  /** Exact accepted recall variants, beyond what the display expression provides. */
+  acceptedAlternatives?: string[];
   examples: LearnExample[];
   language: LanguageKey | null;
   han: boolean;
@@ -148,7 +150,8 @@ function clean(value: string) { return value.normalize("NFC").replace(/\s+/g, " 
 /** "der Hund, -e" → "der Hund"; "machen / tun" → "machen"; "wissen (über)" → "wissen". */
 export function writtenForm(term: string) {
   let text = clean(term).replace(/(?:\s*,\s*[-–‑¨][^,;/|]*)+$/u, "");
-  text = text.split(/\s*(?:[;；|]|\s\/\s)\s*/u)[0] ?? text;
+  text = text.split(/\s*[;；|]\s*/u)[0] ?? text;
+  text = expandSlashAlternatives(text)[0] ?? text;
   text = text.replace(/\([^)]*\)|（[^）]*）/g, " ");
   return clean(text) || clean(term);
 }
@@ -195,6 +198,8 @@ export function toLearnCard(card: CardWithStats, pack: PackWithType, language: L
     id: card.id, term, form, reading, meaning, examples,
     englishReference: type?.field_schema.some((field) => field.key === "english_reference")
       ? clean(fieldText(card.data, "english_reference")) : undefined,
+    acceptedAlternatives: Array.isArray(card.data["_accepted_answers"])
+      ? card.data["_accepted_answers"].filter((value) => typeof value === "string" && Boolean(value.trim())) : [],
     language: language ?? languageFromScript(term),
     han: HAN.test(form), wordSized: isWordSized(term),
   };
@@ -789,19 +794,21 @@ function firstLetters(form: string) {
 const recallType: Builder = ({ card, hard }) => {
   const accepted: ExpectedAnswer[] = [{ value: card.term, kind: "exact" }];
   if (card.form !== card.term) accepted.push({ value: card.form, kind: "exact" });
+  for (const alternative of card.acceptedAlternatives ?? []) accepted.push({ value: alternative, kind: "exact" });
   if (card.han && card.reading && !hard) accepted.push({ value: card.reading, kind: "exact" });
   return {
     format: "type", kind: "recall-type", accepted, lang: tag(card), language: card.language,
     placeholder: card.han ? (card.reading && !hard ? "Characters, or pinyin with tones (yi3 qian2)" : "Type the characters") : "Type your answer",
     hint: card.han ? undefined : firstLetters(card.form),
-    prompt: { ask: card.wordSized ? "Write it from memory." : "Write the sentence from memory.", text: card.meaning },
+    prompt: { ask: /[.!?。！？…]\s*$/u.test(card.form) ? "Write the sentence from memory." : card.form.includes(" ") ? "Write the expression from memory." : "Write it from memory.", text: card.meaning },
     solution: written(card), explain: "",
   };
 };
 
 /** Last resort for a card with almost no data: the answer is typed with its outline shown. */
 const recallGuided: Builder = ({ card }) => ({
-  format: "type", kind: "recall-guided", accepted: [{ value: card.term, kind: "exact" }, { value: card.form, kind: "exact" }],
+  format: "type", kind: "recall-guided", accepted: [{ value: card.term, kind: "exact" }, { value: card.form, kind: "exact" },
+    ...(card.acceptedAlternatives ?? []).map((value) => ({ value, kind: "exact" as const }))],
   lang: tag(card), language: card.language, placeholder: "Type the whole answer",
   prompt: { ask: "Complete it from its outline.", text: card.meaning, sub: card.han ? card.reading || undefined : firstLetters(card.form) },
   solution: written(card), explain: "",

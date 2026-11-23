@@ -461,6 +461,8 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
   expectedUpdatedAt?: string;
   /** Optional full edit of the card's structured knowledge, merged atomically with its fields. */
   workspaceBlocks?: string[];
+  /** Optional manually confirmed complete recall variants for ambiguous cards. */
+  acceptedAnswers?: string[];
 }) {
   const visibleData = cleanCardValues(pack, values);
   const { data: existing, error: readError } = await db().from("heuresis_cards").select("data").eq("id", cardId).single();
@@ -474,6 +476,7 @@ export async function updateCard(pack: PackWithType, cardId: string, values: Rec
     ...preserved,
     ...visibleData,
     ...(extras.workspaceBlocks !== undefined ? { [WORKSPACE_BLOCKS_KEY]: extras.workspaceBlocks } : {}),
+    ...(extras.acceptedAnswers !== undefined ? { _accepted_answers: extras.acceptedAnswers.map((value) => value.trim()).filter(Boolean) } : {}),
   };
   const rank = extras.interest_rank == null ? null : Math.min(5, Math.max(1, Math.round(extras.interest_rank)));
   let mutation = db().from("heuresis_cards").update({
