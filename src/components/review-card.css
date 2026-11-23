@@ -250,6 +250,10 @@
 .cosmos-shell[data-mode="review"] .review-card-status-bars i:nth-child(3) {height:11px}
 .cosmos-shell[data-mode="review"] .review-card-status-bars i:nth-child(4) {height:14px}
 .cosmos-shell[data-mode="review"] .review-card-status-bars i.filled {background:var(--c-sage);opacity:1}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i.is-new {
+  transform-origin:bottom;
+  animation:review-card-bar-earned .95s cubic-bezier(.18,.75,.24,1) both;
+}
 .cosmos-shell[data-mode="review"] .review-card-status-name {font:500 11px/1.2 var(--sans);letter-spacing:.025em;color:var(--ws-muted)}
 .cosmos-shell[data-mode="review"] .review-card-status[data-level="mastered"] .review-card-status-name {color:var(--c-sage)}
 .cosmos-shell[data-mode="review"] .review-card-status-change {
@@ -259,11 +263,26 @@
 .cosmos-shell[data-mode="review"] .review-card-status[data-trend="up"] .review-card-status-change {color:var(--c-sage)}
 .cosmos-shell[data-mode="review"] .review-card-status[data-trend="down"] .review-card-status-change {color:var(--c-cinnabar)}
 .cosmos-shell[data-mode="review"] .review-card-status[data-changed="true"] .review-card-status-change {animation:review-card-status-arrive .36s ease-out both}
+.cosmos-shell[data-mode="review"] .review-card-status-change.is-gain {
+  color:var(--c-sage);font:600 12px/1 var(--mono);
+  animation:review-card-gain .95s cubic-bezier(.18,.75,.24,1) both;
+}
 @keyframes review-card-status-arrive {from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@keyframes review-card-bar-earned {
+  0%{opacity:.35;transform:scaleY(.4)}
+  45%{opacity:1;transform:scaleY(1.16)}
+  100%{opacity:1;transform:scaleY(1)}
+}
+@keyframes review-card-gain {
+  0%{opacity:0;transform:translateY(7px) scale(.84)}
+  55%{opacity:1;transform:translateY(-3px) scale(1.13)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
 @media(max-width:760px){
   .cosmos-shell[data-mode="review"] .review-card-head {flex-wrap:wrap;row-gap:9px}
   .cosmos-shell[data-mode="review"] .review-card-status {gap:6px;padding:4px 8px}
 }
 @media(prefers-reduced-motion:reduce){
-  .cosmos-shell[data-mode="review"] .review-card-status-change {animation:none!important}
+  .cosmos-shell[data-mode="review"] .review-card-status-change,
+  .cosmos-shell[data-mode="review"] .review-card-status-bars i.is-new {animation:none!important}
 }

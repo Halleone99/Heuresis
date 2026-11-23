@@ -21,6 +21,8 @@ export default function ReviewCardStatus({ progress, historyAvailable, change }:
   const label = progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : progress.bars === 0 ? "Starting" : "Building";
   const reliable = historyAvailable && !progress.estimated;
   const delta = change && reliable ? change.barsAfter - change.barsBefore : 0;
+  // "Recalled" is only a bar gain after the progress engine confirms a completed direction pair.
+  const gainedFrom = change && reliable && delta > 0 ? change.barsBefore : -1;
   const justMastered = Boolean(change && reliable && !change.masteredBefore && change.masteredAfter);
   const trend: "up" | "down" | "level" = justMastered || delta > 0 ? "up" : delta < 0 ? "down" : "level";
 
@@ -39,12 +41,12 @@ export default function ReviewCardStatus({ progress, historyAvailable, change }:
     data-trend={trend} data-changed={trend !== "level"} role="status" aria-live="polite"
     aria-label={detail} title={detail}>
     <span className="review-card-status-bars" aria-hidden="true">
-      {[0, 1, 2, 3].map((bar) => <i key={bar} className={bar < progress.bars ? "filled" : ""}/>)}
+      {[0, 1, 2, 3].map((bar) => <i key={bar} className={`${bar < progress.bars ? "filled" : ""}${gainedFrom >= 0 && bar >= gainedFrom && bar < progress.bars ? " is-new" : ""}`}/>)}
     </span>
     <span className="review-card-status-name">{label}</span>
-    {trend !== "level" ? <span className="review-card-status-change" aria-hidden="true">
-      {trend === "up" ? <ArrowUpRight size={12}/> : <ArrowDownRight size={12}/>}
-      {!justMastered ? <span>{delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`}</span> : null}
+    {trend !== "level" ? <span className={`review-card-status-change${delta > 0 ? " is-gain" : ""}`} aria-hidden="true">
+      {delta > 0 ? <span>+${delta}</span> : trend === "up" ? <ArrowUpRight size={12}/> : <ArrowDownRight size={12}/>}
+      {delta < 0 ? <span>−${Math.abs(delta)}</span> : null}
     </span> : null}
   </span>;
 }

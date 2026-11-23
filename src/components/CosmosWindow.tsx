@@ -1025,8 +1025,10 @@ export default function CosmosWindow() {
           await new Promise<void>((resolve) => window.setTimeout(resolve,
             window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 700 : 1250));
         } else if (redesignReview && events) {
-          // Let the learner see the actual bar change before automatic advance.
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 600));
+          // Keep the confirmed +1 and new-bar animation on screen before advancing.
+          // A successful direction awaiting its reverse never claims an unearned bar.
+          await new Promise<void>((resolve) => window.setTimeout(resolve,
+            after.bars > before.bars && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1050 : 600));
         }
         await advance(remainingQueue, index + 1);
       }
