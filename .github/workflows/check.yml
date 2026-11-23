@@ -67,6 +67,7 @@ jobs:
       - run: node scripts/check-offline-revision-chain.mjs
       - run: node scripts/check-data-integrity-regressions.mjs
       - run: node scripts/check-study-workflow-polish.mjs
+      - run: node scripts/check-study21-contract.mjs
       - run: node scripts/check-final-clarity.mjs
       - run: node scripts/check-learning-stage.mjs
       - run: node scripts/check-review-engine.mjs
