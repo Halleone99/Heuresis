@@ -8,7 +8,7 @@ import { useAppearance, type PalettePreference } from "../lib/theme";
 import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import {
-  availableSpeechVoices, readAutoPronunciation, readPreferredVoice, speakReviewText,
+  availableSpeechVoices, readAutoPronunciation, readPreferredVoice, russianNeuralSpeechAvailable, speakReviewText,
   stopReviewAudio, writeAutoPronunciation, writePreferredVoice,
 } from "../lib/reviewAudio";
 import SortingSettings from "./SortingSettings";
@@ -270,6 +270,7 @@ function VoiceSettings() {
   const [locale, setLocale] = useState<VoiceLocale>("zh-CN");
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState("");
+  const [russianNeuralReady, setRussianNeuralReady] = useState<boolean | null>(null);
   const [selected, setSelected] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(VOICE_LANGUAGES.map(({ locale: id }) => [id, readPreferredVoice(id)])));
   const options = useMemo(() => availableSpeechVoices(locale), [locale, revision, selected]);
@@ -288,6 +289,16 @@ function VoiceSettings() {
     };
   }, []);
 
+  useEffect(() => {
+    if (locale !== "ru-RU") return;
+    let active = true;
+    setRussianNeuralReady(null);
+    void russianNeuralSpeechAvailable().then((ready) => {
+      if (active) setRussianNeuralReady(ready);
+    });
+    return () => { active = false; };
+  }, [locale, revision]);
+
   function choose(id: string | null) {
     writePreferredVoice(locale, id);
     setSelected((old) => ({ ...old, [locale]: id }));
@@ -295,14 +306,14 @@ function VoiceSettings() {
     stopReviewAudio();
   }
   function sample(id: string | null) {
-    const queued = speakReviewText(current.sample, locale, undefined, id);
+    const queued = speakReviewText(current.sample, locale, undefined, id, (message) => setNotice(message));
     setNotice(queued ? "" : "This voice could not start. Check the speech voices installed on your device.");
   }
 
   return <div className="heuresis-voice-settings">
     <div className="settings-section-heading">
       <strong>Choose a voice</strong>
-      <span>Listen before choosing. Your selection is used in both Learning and Review; no subscription or API key needed.</span>
+      <span>Listen before choosing. Device voices are free; Russian neural voices need a configured Azure Speech resource.</span>
     </div>
     <div className="heuresis-voice-languages" role="group" aria-label="Pronunciation language">
       {VOICE_LANGUAGES.map((language) =>
@@ -324,18 +335,25 @@ function VoiceSettings() {
       {options.map((voice, index) =>
         <div className="heuresis-voice-row" key={voice.id}>
           <button type="button" className="heuresis-voice-select" aria-pressed={active === voice.id}
+            disabled={voice.provider === "azure" && russianNeuralReady !== true}
             onClick={() => choose(voice.id)}>
             <span className="heuresis-voice-indicator">{active === voice.id ? <Check size={13} /> : null}</span>
             <span className="heuresis-voice-description">
               <strong>Voice {index + 1}<span className="heuresis-voice-name"> · {voice.name}</span></strong>
-              <small>{voice.lang} · {voice.offline ? "Works offline" : "Requires a connection"}{voice.quality >= 400 ? " · High quality" : ""}</small>
+              <small>{voice.provider === "azure"
+                ? russianNeuralReady === true ? "Microsoft neural · Online" : "Microsoft neural · Setup required"
+                : voice.lang + " · " + (voice.offline ? "Works offline" : "Requires a connection") + (voice.quality >= 400 ? " · High quality" : "")}</small>
             </span>
           </button>
           <button type="button" className="heuresis-voice-play" aria-label={"Test " + voice.name + " in " + current.label}
+            disabled={voice.provider === "azure" && russianNeuralReady !== true}
             title="Listen to a sample" onClick={() => sample(voice.id)}><Volume2 size={17} /></button>
         </div>)}
     </div>
-    {missing ? <p className="heuresis-voice-alert" role="status">Your previously chosen voice is not installed here. Playback will use the system default until you choose another.</p> : null}
+    {missing ? <p className="heuresis-voice-alert" role="status">Your previously chosen voice is not available here. Playback will use the system default until you choose another.</p> : null}
+    {locale === "ru-RU" && russianNeuralReady === false
+      ? <p className="heuresis-voice-footnote">To unlock Svetlana, Dariya and Dmitry, configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in Supabase Edge Function secrets. Device voices continue working.</p>
+      : null}
     {options.length === 0
       ? <p className="heuresis-voice-alert" role="status">No alternative {current.label.toLowerCase()} voices were found. The system default may still work. Install or enable language voices in your device's text-to-speech settings, then refresh.</p>
       : options.length < 5

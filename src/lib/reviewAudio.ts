@@ -1,3 +1,5 @@
+import { supabase } from "./supabase";
+
 /**
  * Choose text-to-speech language from the *actual spoken field*, not merely
  * the topic. In a German → English card, the German term and English gloss
@@ -57,7 +59,23 @@ declare global {
 
 
 /** Free device/browser voices only: never invent a voice a device cannot play. */
-export type SpeechVoiceOption = { id: string; name: string; lang: string; offline: boolean; quality: number };
+export type SpeechVoiceOption = { id: string; name: string; lang: string; offline: boolean; quality: number; provider?: "azure" };
+const RUSSIAN_NEURAL_VOICES: SpeechVoiceOption[] = [
+  { id: "azure:ru-RU-SvetlanaNeural", name: "Svetlana", lang: "ru-RU", offline: false, quality: 1000, provider: "azure" },
+  { id: "azure:ru-RU-DariyaNeural", name: "Dariya", lang: "ru-RU", offline: false, quality: 990, provider: "azure" },
+  { id: "azure:ru-RU-DmitryNeural", name: "Dmitry", lang: "ru-RU", offline: false, quality: 980, provider: "azure" },
+];
+const isRussianNeuralVoice = (id: string | null | undefined) =>
+  RUSSIAN_NEURAL_VOICES.some((voice) => voice.id === id);
+
+/** Cloud voices are offered only when the protected server has an Azure resource configured. */
+export async function russianNeuralSpeechAvailable(): Promise<boolean> {
+  if (!supabase || (typeof navigator !== "undefined" && !navigator.onLine)) return false;
+  try {
+    const { data, error } = await supabase.functions.invoke("heuresis-neural-speech", { body: { action: "status" } });
+    return !error && data?.available === true;
+  } catch { return false; }
+}
 const VOICE_PREFERENCE_PREFIX = "heuresis.language.voice.v1.";
 const languagePart = (locale: string) => locale.toLowerCase().split("-")[0];
 const browserVoiceId = (voice: SpeechSynthesisVoice) => `browser:${voice.voiceURI}:${voice.name}:${voice.lang}`;
@@ -105,21 +123,41 @@ export function availableSpeechVoices(locale: string): SpeechVoiceOption[] {
       (/natural|enhanced|premium|neural|high quality/i.test(voice.name) ? 40 : 0);
     return score(b) - score(a) || a.name.localeCompare(b.name);
   });
-  // Keep a previously chosen voice visible even if new voices outrank it.
+  // Russian: the three Azure voices plus up to two available device voices.
+  // Cloud availability is checked separately in Settings; never pretend an unconfigured voice can play.
+  const shortlist = locale.toLowerCase() === "ru-ru"
+    ? [...RUSSIAN_NEURAL_VOICES, ...ranked.slice(0, 2)] : ranked.slice(0, 5);
   const selected = readPreferredVoice(locale);
   const chosen = ranked.find((voice) => voice.id === selected);
-  if (chosen && !ranked.slice(0, 5).some((voice) => voice.id === selected))
-    return [...ranked.slice(0, 4), chosen];
-  return ranked.slice(0, 5);
+  if (chosen && !shortlist.some((voice) => voice.id === selected))
+    return [...shortlist.slice(0, 4), chosen];
+  return shortlist;
 }
 
 let currentAudioId = "";
 let currentOnStart: (() => void) | undefined;
+let cloudAudio: HTMLAudioElement | null = null;
+let cloudAudioUrl: string | null = null;
 let sequence = 0;
+
+function releaseCloudAudio() {
+  const audio = cloudAudio;
+  cloudAudio = null;
+  if (audio) {
+    audio.onplaying = null;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.pause();
+    audio.removeAttribute("src");
+  }
+  if (cloudAudioUrl) URL.revokeObjectURL(cloudAudioUrl);
+  cloudAudioUrl = null;
+}
 
 /** Check the *requested language* before exposing Hear on the Android WebView. */
 export function canSpeak(language: string): boolean {
   if (typeof window === "undefined") return false;
+  if (language === "ru-RU" && isRussianNeuralVoice(readPreferredVoice(language)) && supabase && navigator.onLine) return true;
   if (window.HeuresisAndroidSpeech) {
     try { return window.HeuresisAndroidSpeech.isAvailable(language); } catch { return false; }
   }
@@ -127,7 +165,10 @@ export function canSpeak(language: string): boolean {
 }
 
 /** A successful queue request is not playback. onStarted runs only when speech actually begins. */
-export function speakReviewText(text: string, language: string, onStarted?: () => void, voiceOverride?: string | null): boolean {
+export function speakReviewText(
+  text: string, language: string, onStarted?: () => void, voiceOverride?: string | null,
+  onNeuralFailure?: (message: string) => void,
+): boolean {
   if (!text.trim() || typeof window === "undefined") return false;
   stopReviewAudio();
   const utteranceId = `heuresis-${++sequence}`;
@@ -135,6 +176,48 @@ export function speakReviewText(text: string, language: string, onStarted?: () =
   currentOnStart = onStarted;
 
   const selectedVoice = voiceOverride === undefined ? readPreferredVoice(language) : voiceOverride;
+  if (language === "ru-RU" && isRussianNeuralVoice(selectedVoice)) {
+    // The remote request cannot be cancelled everywhere. The utterance ID prevents
+    // stale audio from starting when the user changes card or presses Stop.
+    const id = utteranceId;
+    const fail = () => {
+      if (currentAudioId !== id) return;
+      releaseCloudAudio();
+      currentAudioId = "";
+      currentOnStart = undefined;
+      if (onNeuralFailure) onNeuralFailure("Russian neural speech is unavailable. Configure Azure Speech in Supabase, then try again.");
+      else speakReviewText(text, language, onStarted, null); // silent offline/device fallback for study
+    };
+    void (async () => {
+      try {
+        if (!supabase || !navigator.onLine) { fail(); return; }
+        const { data, error } = await supabase.functions.invoke("heuresis-neural-speech", {
+          body: { action: "speak", voice: selectedVoice!.slice("azure:".length), text: text.trim() },
+        });
+        if (currentAudioId !== id) return;
+        if (error || !(data instanceof Blob) || !data.size) { fail(); return; }
+        cloudAudioUrl = URL.createObjectURL(data);
+        const audio = new Audio();
+        cloudAudio = audio;
+        audio.onplaying = () => {
+          if (currentAudioId !== id) return;
+          const callback = currentOnStart;
+          currentOnStart = undefined;
+          callback?.();
+        };
+        audio.onended = () => {
+          if (currentAudioId !== id) return;
+          currentAudioId = "";
+          currentOnStart = undefined;
+          releaseCloudAudio();
+        };
+        audio.onerror = fail;
+        audio.src = cloudAudioUrl;
+        await audio.play();
+      } catch { fail(); }
+    })();
+    return true;
+  }
   const native = window.HeuresisAndroidSpeech;
   if (native) {
     try {
@@ -192,6 +275,7 @@ export function speakReviewText(text: string, language: string, onStarted?: () =
 export function stopReviewAudio() {
   currentAudioId = "";
   currentOnStart = undefined;
+  releaseCloudAudio();
   if (typeof window === "undefined") return;
   try { window.HeuresisAndroidSpeech?.stop(); } catch { /* device may be stopping */ }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
