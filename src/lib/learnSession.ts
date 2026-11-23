@@ -1,7 +1,7 @@
 import { listCards, type CardWithStats, type Collection, type PackWithType } from "./heuresis";
 import type { LanguageKey } from "./languages";
 import { packLanguage } from "./learnExercises";
-import { stateForCycle, type CardLearnState } from "./learnRounds";
+import { READY_SCORE, stateForCycle, type CardLearnState } from "./learnRounds";
 import { inLearning, legacyReady, readAcquisition } from "./learningStage";
 import { cardHasCompletedSort } from "./sort";
 
@@ -31,7 +31,7 @@ export function learnStatus(card: CardWithStats, state: CardLearnState | undefin
   const acquisition = readAcquisition(card.data);
   const current = stateForCycle(state ?? undefined, acquisition.cycle);
   if (current?.active) return "started";
-  if (current?.last) return current.last.ready ? "ready" : "retry";
+  if (current?.last) return current.last.score >= READY_SCORE ? "ready" : "retry";
   return legacyReady(acquisition) ? "ready" : "fresh";
 }
 

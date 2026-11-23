@@ -183,12 +183,19 @@ function mapRound(raw: unknown): LearnRound | null {
   return { id: row.id, cardId: row.card_id, cycle: int(row.cycle), roundNumber: Math.max(1, int(row.round_number)), status, plan: row.plan, baseScore: int(row.base_score), attempts };
 }
 
+/** The caller's local calendar day, shared by overview, round opening and scoring. */
+function localDayStart(now = Date.now()): Date {
+  const day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
 /**
  * Learning state for the given cards and activity per topic, in a single request.
  * `dayStart` / `weekStart` are the caller's local boundaries, so "today" is the learner's day.
  */
 export async function loadLearnOverview(cardIds: string[], now = Date.now()): Promise<LearnOverview> {
-  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const dayStart = localDayStart(now);
   const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - 6);
   const { data, error } = await db().rpc("heuresis_learn_overview", {
     p_card_ids: Array.from(new Set(cardIds.filter(Boolean))),
@@ -213,7 +220,7 @@ export async function loadLearnOverview(cardIds: string[], now = Date.now()): Pr
         ? { id: active.id, roundNumber: Math.max(1, int(active.round_number)), answered: Math.min(ROUND_SIZE, int(active.answered)), score: int(active.score) } : null,
       last: last && typeof last.id === "string" ? {
         id: last.id, roundNumber: Math.max(1, int(last.round_number)), score: int(last.score), correctCount: int(last.correct_count),
-        recallCorrect: last.recall_correct === true, ready: last.ready === true,
+        recallCorrect: last.recall_correct === true, ready: int(last.score) >= READY_SCORE,
         completedAt: typeof last.completed_at === "string" ? last.completed_at : null,
       } : null,
     });
@@ -312,8 +319,9 @@ export async function openLearnRound(input: {
     if (fresh.plan.length !== ROUND_SIZE) throw new Error("A Learning round needs exactly five exercises.");
     return { id: crypto.randomUUID(), cardId: input.cardId, cycle: input.cycle, roundNumber: fresh.roundNumber, status: "active" as const, plan: fresh.plan, baseScore: fresh.baseScore ?? 0, attempts: [] };
   })();
-  const { data, error } = await db().rpc("heuresis_learn_begin_round", {
+  const { data, error } = await db().rpc("heuresis_learn_begin_round_v2", {
     p_round_id: proposed.id, p_card_id: input.cardId, p_cycle: input.cycle, p_plan: proposed.plan,
+    p_day_start: localDayStart().toISOString(),
   });
   if (error) throw error;
   const server = mapRound(data);
@@ -340,10 +348,11 @@ export async function openLearnRound(input: {
  * request is waiting in the offline queue.
  */
 export async function recordLearnAttempt(roundId: string, attempt: LearnAttempt): Promise<LearnRound | null> {
-  const { data, error } = await db().rpc("heuresis_learn_record_attempt", {
+  const { data, error } = await db().rpc("heuresis_learn_record_attempt_v2", {
     p_round_id: roundId, p_position: attempt.position, p_stage: attempt.stage,
     p_exercise_type: attempt.exerciseType, p_correct: attempt.correct, p_assisted: attempt.assisted,
     p_response: attempt.response.slice(0, 1000), p_expected: attempt.expected.slice(0, 1000),
+    p_day_start: localDayStart().toISOString(),
   });
   if (error) throw error;
   return mapRound(data);

@@ -50,7 +50,7 @@ punctuation and spacing.
 - At 100 the card becomes Ready for Review, even if fewer than five exercises were needed in the last round.
 - First learning: five consecutive exercises in a card's first round (up to 50 points). No more scored practice for that card on the day it completes. A later drop to zero does not restart the introduction.
 - Mixed learning: shuffle eligible introduced cards after each scored answer. At most 20 positive points per card and learning cycle per UTC calendar day; wrong answers do not restore allowance. Partial rounds resume on a later day without losing points.
-- At 100, the success panel offers Move to Review or leave the card ready. The daily allowance is enforced in the database by migration `20261122180000_heuresis_daily_learn.sql`.
+- At 100, the success panel offers Move to Review or leave the card ready. The daily allowance is enforced across sessions by `20261123120000_heuresis_learn_readiness_daily_limit.sql`, using the learner's local day boundary.
 - At higher mastery, use independent recall, contextual cloze, saved-example reconstruction and production, and applied cases where the card supports them.
 - After a wrongly marked scored answer, **I was right** lets the learner explicitly accept it as correct. This restores the exercise's rightful score (or zero if a hint was used), recalculates mastery and is stored as a manual override; it is not a second attempt. This is independent of the unscored **Try again** practice.
 - Optional correction/review of mistakes is unscored practice. Separate Review scheduling is unchanged.
