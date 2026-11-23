@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { loadTs } from "./lib/load-ts.mjs";
 
 const source = readFileSync("src/lib/pinyinUnicode.ts", "utf8");
 const compiled = ts.transpileModule(source, {
@@ -42,3 +43,24 @@ assert.ok(css.includes('--ws-serif: "Noto Serif"'));
 const main = readFileSync("src/main.tsx", "utf8");
 assert.ok(main.includes('@fontsource/noto-serif/400.css'));
 console.log(`Pinyin Unicode: ${examples.length} cases and load/save/font guards passed.`);
+
+const { learningBuildTileReadings } = loadTs("src/lib/learningPinyin.ts");
+const card = (form, reading, examples = []) => ({ form, reading, examples, han: true, language: "zh" });
+const build = (text, distractors = []) => {
+  const answer = Array.from(text);
+  return { kind: "build-term", format: "build", answer, joiner: "",
+    tiles: [...answer, ...distractors].map((part, index) => ({ id: `t${index}`, text: part })) };
+};
+const sentence = learningBuildTileReadings(build("这个太难了", ["要"]), card("这个太难了", "Zhège tài nán le."));
+assert.deepEqual(Array.from({ length: 5 }, (_, i) => sentence.get(`t${i}`)),
+  ["zhè", "ge", "tài", "nán", "le"], "Use saved connected Pinyin rather than liǎo for sentence-final 了");
+const bank = learningBuildTileReadings(build("银行", ["了"]), card("银行", "yín háng"));
+assert.equal(bank.get("t1"), "háng", "Bank uses háng rather than xíng");
+assert.equal(bank.get("t2"), "", "Do not guess an isolated polyphonic distractor");
+const grown = learningBuildTileReadings(build("长大"), card("长大", "zhǎng dà"));
+assert.equal(grown.get("t0"), "zhǎng", "Contextual polyphonic character");
+const fromExample = learningBuildTileReadings(
+  { ...build("这个太难了"), kind: "build-sentence" },
+  card("难", "nán", [{ source: "这个太难了。", reading: "zhè ge tài nán le", translation: "This is too difficult." }]));
+assert.equal(fromExample.get("t4"), "le", "Example reading takes precedence for example reconstruction");
+console.log("Learning Pinyin: contextual tile readings, joined saved syllables, polyphones and distractors passed.");

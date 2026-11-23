@@ -18,7 +18,7 @@ import { isLearnCard, learnQueue, learnStatus, type LearnStatus, type LearnTopic
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import { enterReview, readAcquisition, saveAcquisition } from "../lib/learningStage";
 import { canSpeak, learningFeedbackSpeech, readAutoPronunciation, speakReviewText, stopReviewAudio } from "../lib/reviewAudio";
-import { isChineseLearningCard, learningReading, learningSubtitle, readLearningPinyin, withoutLearningReading, writeLearningPinyin } from "../lib/learningPinyin";
+import { isChineseLearningCard, learningBuildTileReadings, learningReading, learningSubtitle, readLearningPinyin, withoutLearningReading, writeLearningPinyin } from "../lib/learningPinyin";
 import "./learning-session.css";
 
 type Props = {
@@ -160,6 +160,11 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     for (const example of view.examples) if (example.reading) result.set(example.source, example.reading);
     return result;
   }, [current?.entry, pinyinVisible]);
+  const tileReadings = useMemo(() =>
+    exercise?.format === "build" && current && pinyinVisible
+      ? learningBuildTileReadings(exercise, current.entry.view)
+      : new Map<string, string>(),
+  [exercise, current?.entry.view, pinyinVisible]);
   function togglePinyin() {
     const next = !showPinyin;
     setShowPinyin(next);
@@ -168,8 +173,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   function readingFor(value: string) {
     return pinyinVisible ? learningReading(value, readings.get(value)) : "";
   }
-  function withPinyin(value: string): ReactNode {
-    const reading = readingFor(value);
+  function withPinyin(value: string, override?: string): ReactNode {
+    const reading = override === undefined ? readingFor(value) : override;
     return reading ? <><span>{stressed(value)}</span><small className="lrn-pinyin" lang="zh-Latn">{reading}</small></> : stressed(value);
   }
   const promptSubtitle = exercise && current ? learningSubtitle(exercise, current.entry.view, pinyinVisible) : exercise?.prompt.sub;
@@ -656,12 +661,12 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       return <div className={`lrn-build${item.stacked ? " is-stacked" : ""}`}>
         <div className={`lrn-built${picked.length ? "" : " is-empty"}${item.joiner ? " is-words" : ""}`} lang={item.lang} aria-label="Your answer" aria-live="polite">
           {picked.length ? picked.map((tile) => <button type="button" key={tile.id} className="lrn-tile is-picked" disabled={locked}
-            aria-label={`Remove ${tile.text}`} onClick={() => setTileIds((ids) => ids.filter((id) => id !== tile.id))}>{withPinyin(tile.text)}</button>)
+            aria-label={`Remove ${tile.text}`} onClick={() => setTileIds((ids) => ids.filter((id) => id !== tile.id))}>{withPinyin(tile.text, tileReadings.get(tile.id))}</button>)
             : <span>{item.stacked ? "Tap the steps in order" : "Tap the pieces in order"}</span>}
         </div>
         <div className="lrn-tiles" lang={item.lang} role="group" aria-label={item.stacked ? "Steps" : "Pieces"}>
           {item.tiles.map((tile) => <button type="button" key={tile.id} className="lrn-tile" disabled={locked || tileIds.includes(tile.id)}
-            onClick={() => setTileIds((ids) => [...ids, tile.id])}>{withPinyin(tile.text)}</button>)}
+            onClick={() => setTileIds((ids) => [...ids, tile.id])}>{withPinyin(tile.text, tileReadings.get(tile.id))}</button>)}
         </div>
       </div>;
     }
