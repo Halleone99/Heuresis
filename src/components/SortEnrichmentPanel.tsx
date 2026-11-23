@@ -443,10 +443,12 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     </section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>
-<p>{study21 ? "Collection" : "Pack"}: {pack.title}</p>
-      {card.tags.filter(tag => /^Lesson\s+\d+/i.test(tag.name)).map(tag =>
-        <p key={tag.id}>Lesson: {tag.name}</p>)}
-      <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p>
+      {study21 ? <dl className="study21-source-values"><dt>Collection</dt><dd>{pack.title}</dd>
+        {card.tags.filter(tag => /^Lesson\s+\d+/i.test(tag.name)).map(tag => <div key={tag.id} className="study21-source-pair"><dt>Lesson</dt><dd>{tag.name}</dd></div>)}
+        <dt>Captured</dt><dd>{new Date(card.created_at).toLocaleDateString()}</dd></dl>
+        : <><p>Pack: {pack.title}</p>
+          {card.tags.filter(tag => /^Lesson\s+\d+/i.test(tag.name)).map(tag => <p key={tag.id}>Lesson: {tag.name}</p>)}
+          <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p></>}
     </section> : null}
     {study21 && directionInfo && readOnly && side === "knowledge" ? <section className="study21-direction-block"><strong>This direction</strong><dl><dt>State</dt><dd>{directionInfo.state}</dd><dt>Last seen</dt><dd>{directionInfo.lastSeen}</dd><dt>Results</dt><dd>{directionInfo.results}</dd><dt>Other way</dt><dd>{directionInfo.otherWay}</dd></dl></section> : null}
     {!study21 ? <p className="sort-enrich-hint">Click any text to change it · Enter keeps it · Esc undoes</p> : null}

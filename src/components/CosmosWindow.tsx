@@ -64,6 +64,7 @@ import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCardStatus from "./ReviewCardStatus";
 import SortEnrichmentPanel, { type DirectionInfo21 } from "./SortEnrichmentPanel";
 import ReviewMethod21 from "./study21/ReviewMethod21";
+import { useStageWidth } from "./study21/useStageWidth";
 import { useStudyMode } from "../lib/studyMode";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
@@ -327,12 +328,14 @@ export default function CosmosWindow() {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const reviewCardRef = useRef<HTMLElement>(null);
+  const cosmosShellRef = useRef<HTMLElement>(null);
   const [appliedChoice, setAppliedChoice] = useState("");
   const [appliedTiles, setAppliedTiles] = useState<string[]>([]);
   const [appliedWritten, setAppliedWritten] = useState("");
   const [appliedCovered, setAppliedCovered] = useState<string[]>([]);
   const [appliedVerdict, setAppliedVerdict] = useState<Verdict | null>(null);
   const [loading, setLoading] = useState(true);
+  const reviewWidth = useStageWidth(cosmosShellRef, !loading);
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
@@ -1436,6 +1439,24 @@ export default function CosmosWindow() {
     }
   }
 
+  const reviewCenterWidth = (() => {
+    const bothSide = Math.min(368, Math.floor((reviewWidth - 628) / 2));
+    const wide = bothSide >= 290;
+    const singleSide = Math.min(368, reviewWidth - 524);
+    const pushes = wide || singleSide >= 260;
+    const panel = wide ? bothSide : Math.max(0, singleSide);
+    return Math.max(260, reviewWidth - (pushes && leftContextOpen ? panel + 40 : 64)
+      - (pushes && detailsOpen ? panel + 40 : 64));
+  })();
+  function reviewFontSize(text: string, meaningField: boolean): number {
+    const length = Array.from(text).reduce((sum, ch) => sum + (/\p{Script=Han}/u.test(ch) ? 1.9 : 1), 0);
+    const longest = Math.max(1, ...text.split(/\s+/).map(word => Array.from(word)
+      .reduce((sum, ch) => sum + (/\p{Script=Han}/u.test(ch) ? 1.9 : 1), 0)));
+    const base = meaningField ? length <= 36 ? 40 : length <= 70 ? 31 : 25
+      : length <= 14 ? 104 : length <= 22 ? 88 : length <= 34 ? 66 : length <= 52 ? 52 : 42;
+    return Math.max(28, Math.min(base, Math.floor(Math.max(200, reviewCenterWidth - 110) / (longest * (meaningField ? .55 : .57)))));
+  }
+
   const renderReviewCore = () => {
     const configuredPromptKeys = frontKeys.length ? frontKeys : [term?.key, reading?.key].filter(Boolean) as string[];
     const chineseRecognition = template && pack && templateDirection(pack, template) === "recognition"
@@ -1464,7 +1485,8 @@ export default function CosmosWindow() {
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
       const termToPlay = revealed && pronunciationAvailable && (key === term?.key || field?.role === "example");
-      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
+      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}
+        style={isStudy21 && (field?.role === "term" || field?.role === "meaning") ? { fontSize: Math.min(recapField ? 50 : 104, reviewFontSize(value, field.role === "meaning")) } : undefined}>
         {rule ? <i className="cosmos-rule" /> : null}
         <span data-hl={revealed ? "" : undefined} lang={field?.role === "meaning" || field?.role === "example_translation" ? "en" :
           languageFromScript(value) ?? languageFromName(pack.title) ?? "en"}>{value}</span>
@@ -1518,7 +1540,7 @@ export default function CosmosWindow() {
   const directionName = template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
-  return <main className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+  return <main ref={cosmosShellRef} className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
     {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: Math.min(100, (routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / ((routeProgress?.total ?? queue.length) || 1) * 100) + "%" }}/></div> : null}
     {redesignReview ? <header className="cosmos-topbar">
       <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>
