@@ -16,6 +16,8 @@ type Props = {
   ariaLabel?: string;
   extraTools?: ReactNode;
   compactToolbar?: boolean;
+  /** A deliberately limited B / I / U toolbar for Study 2.1 detail editing. */
+  compactStudy21?: boolean;
 };
 
 type BlockKind = "p" | "h2" | "h3" | "h4" | "ul" | "ol" | "quote" | CalloutVariant;
@@ -131,7 +133,7 @@ function normaliseQuote(quote: HTMLElement) {
 }
 
 export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEditor(
-  { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools, compactToolbar = false }, handleRef,
+  { value, resetKey, onChange, placeholder, autoFocus, onEscape, onSave, onDone, ariaLabel = "Document text", extraTools, compactToolbar = false, compactStudy21 = false }, handleRef,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
@@ -167,7 +169,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
   const [colourHint, setColourHint] = useState("");
   const [sourceText, setSourceText] = useState(value);
   const [empty, setEmpty] = useState(!value.trim());
-  const [active, setActive] = useState<{ block: BlockKind; bold: boolean; italic: boolean; mark: boolean }>({ block: "p", bold: false, italic: false, mark: false });
+  const [active, setActive] = useState<{ block: BlockKind; bold: boolean; italic: boolean; underline: boolean; mark: boolean }>({ block: "p", bold: false, italic: false, underline: false, mark: false });
   const latest = useRef(value);
   // Preserve selections while tapping the toolbar (especially on touch screens).
   const savedSelection = useRef<Range | null>(null);
@@ -268,9 +270,9 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
         : quote ? (variant ?? "quote")
           : closest("H2") || closest("H1") ? "h2"
             : closest("H3") ? "h3" : closest("H4") ? "h4" : "p";
-    let bold = false; let italic = false;
-    try { bold = document.queryCommandState("bold"); italic = document.queryCommandState("italic"); } catch { /* optional */ }
-    setActive({ block, bold, italic, mark: Boolean(closest("MARK")) });
+    let bold = false; let italic = false; let underline = false;
+    try { bold = document.queryCommandState("bold"); italic = document.queryCommandState("italic"); underline = document.queryCommandState("underline"); } catch { /* optional */ }
+    setActive({ block, bold, italic, underline, mark: Boolean(closest("MARK")) });
   }, [closest]);
 
   useEffect(() => {
@@ -566,7 +568,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     // Windows AltGr is reported as Ctrl+Alt by WebView2. Never intercept
     // characters such as } and ² as formatting shortcuts.
     if (event.nativeEvent.getModifierState("AltGraph")) return;
-    if (mod && event.key === "Enter") { event.preventDefault(); onDone?.(); return; }
+    if ((compactStudy21 && event.key === "Enter" && !event.shiftKey) || (mod && event.key === "Enter")) { event.preventDefault(); onDone?.(); return; }
     if (mod && !event.shiftKey && event.code === "KeyS") { event.preventDefault(); onSave?.(); return; }
     if (mod && event.shiftKey && !event.altKey && event.code === "Digit1") { event.preventDefault(); setBlock("h2"); return; }
     if (mod && event.shiftKey && !event.altKey && event.code === "Digit2") { event.preventDefault(); setBlock("h3"); return; }
@@ -575,8 +577,8 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
     if (mod && event.shiftKey && event.code === "Digit8") { event.preventDefault(); setBlock("ul"); return; }
     if (mod && event.shiftKey && event.code === "Digit7") { event.preventDefault(); setBlock("ol"); return; }
     if (mod && event.shiftKey && event.code === "KeyH") { event.preventDefault(); toggleMark(); return; }
-    if (mod && !event.shiftKey && (event.code === "KeyB" || event.code === "KeyI")) {
-      event.preventDefault(); run(() => exec(event.code === "KeyB" ? "bold" : "italic")); return;
+    if (mod && !event.shiftKey && (event.code === "KeyB" || event.code === "KeyI" || (compactStudy21 && event.code === "KeyU"))) {
+      event.preventDefault(); run(() => exec(event.code === "KeyB" ? "bold" : event.code === "KeyI" ? "italic" : "underline")); return;
     }
     if (event.key === "Tab" && (closest("TD") || closest("TH"))) {
       event.preventDefault();
@@ -725,8 +727,16 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
       title={shortcut ? `${label} (${shortcut})` : label} disabled={source}
       onMouseDown={(event) => event.preventDefault()} onClick={onPress}>{icon}</button>;
 
-  return <div className={`nb-editor-shell ${source ? "is-source" : ""} ${compactToolbar ? "is-compact-toolbar" : ""}`}>
+  return <div className={`nb-editor-shell ${source ? "is-source" : ""} ${compactToolbar ? "is-compact-toolbar" : ""} ${compactStudy21 ? "is-study21-editor" : ""}`}>
     <div className="nb-toolbar" role="toolbar" aria-label="Formatting">
+      {compactStudy21 ? <>
+        <div className="study21-compact-tools" role="group" aria-label="Text formatting">
+          {tool("Bold", "", <strong>B</strong>, () => run(() => exec("bold")), active.bold)}
+          {tool("Italic", "", <i>I</i>, () => run(() => exec("italic")), active.italic)}
+          {tool("Underline", "", <u>U</u>, () => run(() => exec("underline")), active.underline)}
+        </div>
+        <div className="study21-compact-actions"><button type="button" onClick={onEscape}>Cancel</button><button type="button" onClick={onSave}>Save</button></div>
+      </> : <>
       {!compactToolbar ? <div className="nb-toolbar-group">
         {tool("Body text", "", <Pilcrow size={15} />, () => setBlock("p"), active.block === "p")}
         {tool("Heading", `${MOD}+Shift+1`, <Heading1 size={15} />, () => setBlock(active.block === "h2" ? "p" : "h2"), active.block === "h2")}
@@ -802,6 +812,7 @@ export const RichEditor = forwardRef<RichEditorHandle, Props>(function RichEdito
           onMouseDown={(event) => event.preventDefault()} onClick={toggleSource}><Code2 size={15} /></button>
       </div> : null}
       {extraTools}
+      </>}
     </div>
     <div className="nb-editor-surface">
       {empty && !source && placeholder ? <div className="nb-placeholder" aria-hidden="true">{placeholder}</div> : null}

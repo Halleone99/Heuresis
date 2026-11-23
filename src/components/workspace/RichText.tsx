@@ -27,6 +27,7 @@ function InlineText({ text, resolve }: { text: string; resolve?: LinkResolver })
     if (part.type === "em") return <em key={index}><InlineText text={part.text} resolve={resolve} /></em>;
     if (part.type === "mark") return <mark key={index}><InlineText text={part.text} resolve={resolve} /></mark>;
     if (part.type === "strike") return <s key={index}><InlineText text={part.text} resolve={resolve} /></s>;
+    if (part.type === "underline") return <u key={index}><InlineText text={part.text} resolve={resolve} /></u>;
     if (part.type === "colour") return <span key={index} data-ink={part.colour}><InlineText text={part.text} resolve={resolve}/></span>;
     if (part.type === "tint") return <mark key={index} data-tone={part.colour}><InlineText text={part.text} resolve={resolve}/></mark>;
     if (part.type === "link") {
