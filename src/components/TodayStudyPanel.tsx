@@ -10,7 +10,7 @@ type StatsView = "activity" | "today" | "quality";
 type CountKey =
   | "ready" | "reviewCards" | "strongCards" | "reviewFirstTryLast7" | "reviewGradedLast7"
   | "movedToReviewLast7" | "returnedToLearnLast7" | "learnEnteredCohort" | "learnSucceededCohort"
-  | "learnCards" | "learnReady" | "learnExercisesToday" | "learnExercisesLast7"
+  | "learnCards" | "learnDue" | "learnReady" | "learnExercisesToday" | "learnExercisesLast7"
   | "learnScoredLast7" | "learnCorrectLast7" | "reviewedToday" | "reverseTomorrow"
   | "newReady" | "newToday" | "newLast7" | "reviewsLast7";
 type Props = {
@@ -92,7 +92,10 @@ export default function TodayStudyPanel({
   const count = (key: CountKey) => scopePacks.reduce((n, p) => n + (overview?.topics[p.id]?.[key] ?? 0), 0);
   const newReady = count("newReady");
   const learnCards = count("learnCards");
+  const learnDue = count("learnDue");
   const learnReady = count("learnReady");
+  // Ready-to-move cards still have an action in Learn; daily-capped cards do not.
+  const learnActionable = overview?.learnAvailable ? learnDue + learnReady : 0;
   const ready = count("ready");
   const reviewCards = count("reviewCards");
   const reviewedToday = count("reviewedToday");
@@ -108,10 +111,12 @@ export default function TodayStudyPanel({
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
   const nextTopic = newTopics[0] ?? null;
   const topicReady = nextTopic ? overview?.topics[nextTopic.id]?.newReady ?? 0 : 0;
-  const learningPacks = scopePacks.filter((p) => (overview?.topics[p.id]?.learnCards ?? 0) > 0);
-  const stageCounts: Record<StudyMode, number> = { new: newReady, learn: learnCards, review: ready };
-  const volumeCounts: Record<StudyMode, number> = { new: newReady, learn: learnCards, review: reviewCards };
-  const volumeTotal = newReady + learnCards + reviewCards;
+  const learningPacks = scopePacks.filter((p) => overview?.learnAvailable &&
+    ((overview.topics[p.id]?.learnDue ?? 0) + (overview.topics[p.id]?.learnReady ?? 0)) > 0);
+  const stageCounts: Record<StudyMode, number> = { new: newReady, learn: learnActionable, review: ready };
+  // Widths represent today’s actual workload, not the full historical stage inventory.
+  const volumeCounts = stageCounts;
+  const volumeTotal = newReady + learnActionable + ready;
   const maximum = mode === "new" ? topicReady : ready;
   const days = useMemo(() => localWindow(offset), [offset]);
 
@@ -129,12 +134,13 @@ export default function TodayStudyPanel({
   useEffect(() => {
     if (!overview) return;
     if (stageCounts[mode] > 0) return;
-    const next: StudyMode = ready > 0 ? "review" : learnCards > 0 ? "learn" : "new";
+    const next: StudyMode = ready > 0 ? "review" : learnActionable > 0 ? "learn" : newReady > 0 ? "new" : mode;
+    if (next === mode) return; // Keep the completed stage visible when nothing is left today.
     setModeState(next);
     setAllStages(false);
     setSessionOpen(false);
     try { sessionStorage.setItem(MODE_KEY, next); } catch { /* only a preference */ }
-  }, [selection, mode, overview, ready, learnCards, newReady]);
+  }, [selection, mode, overview, ready, learnActionable, newReady]);
 
   useEffect(() => {
     if (view !== "activity" || !overview) return;
@@ -180,7 +186,7 @@ export default function TodayStudyPanel({
     if (!launchRequest || !overview || selection !== "topic:" + launchRequest.topicId
         || handledLaunch.current === launchRequest.nonce) return;
     handledLaunch.current = launchRequest.nonce;
-    const target: StudyMode = stageCounts[mode] ? mode : ready ? "review" : learnCards ? "learn" : "new";
+    const target: StudyMode = stageCounts[mode] ? mode : ready ? "review" : learnActionable ? "learn" : newReady ? "new" : mode;
     if (target !== mode) {
       setModeState(target);
       try { sessionStorage.setItem(MODE_KEY, target); } catch { /* preference only */ }
@@ -296,7 +302,8 @@ export default function TodayStudyPanel({
       ],
     },
     learn: {
-      done: learnReady, of: learnCards, title: "ready for Review", note: countText(Math.max(0, learnCards - learnReady)) + " still working through the exercises",
+      done: learnReady, of: learnCards, title: "ready for Review",
+      note: countText(learnDue) + " to practise today · " + countText(learnReady) + " ready to move",
       facts: [
         { icon: "layers", count: count("learnExercisesToday"), label: "exercises today" },
         { icon: "trend", count: learnExercisesLast7, label: "exercises this week" },
@@ -371,7 +378,7 @@ export default function TodayStudyPanel({
           style={{ flexGrow: Math.max(volumeCounts[stage], volumeTotal * .24, 1) }}
           onClick={() => chooseMode(stage)}>
           <span className="sh-stage-label"><i className="sh-dot" /><span className="sh-stage-name">{MODES[stage]}</span>
-            <strong>{overview ? countText(stageCounts[stage]) : "—"}</strong><small>{stage === "new" ? "new cards" : stage === "learn" ? "in progress" : "to review"}</small>
+            <strong>{overview ? countText(stageCounts[stage]) : "—"}</strong><small>{stage === "new" ? "not started" : stage === "learn" ? "to practise or move" : "due now"}</small>
           </span><i className="sh-stage-track" />
         </button>)}
       </div>

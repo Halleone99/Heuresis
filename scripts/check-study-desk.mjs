@@ -3,11 +3,20 @@ import { readFileSync } from "node:fs";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 const library = read("src/components/LibraryView.tsx");
 const panel = read("src/components/TodayStudyPanel.tsx");
+const overview = read("src/lib/reviewOverview.ts");
 const sort = read("src/components/SortModal.tsx");
 const style = read("src/study-home.css");
 const storage = read("src/lib/studySessionMemory.ts");
 
 assert.match(library, /selection=\{selection\} onSelectionChange=\{chooseStudyScope\}/);
+// The prominent numbers are live workload, not the number of cards assigned to a stage.
+assert.match(overview, /"learnCards", "learnDue", "learnReady"/);
+assert.match(overview, /!learningState\?\.blockedToday\) summary\.learnDue \+= 1/);
+assert.match(overview, /reviewEligible\(progress, grades/);
+assert.match(panel, /learnActionable = overview\?\.learnAvailable \? learnDue \+ learnReady : 0/);
+assert.match(library, /stats\.learnDue \+ stats\.learnReady/);
+assert.match(library, /stats\.ready\] : null/);
+assert.match(library, /const canStudy = actionable \? actionable\.some/);
 assert.match(library, /className="library-desk study-desk"/);
 assert.match(library, /readOpenStudy\(pack.id\)/);
 assert.match(library, /startNewCards\(pack, session.remainingIds.length, session\)/);

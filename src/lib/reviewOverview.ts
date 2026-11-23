@@ -5,7 +5,7 @@ import { defaultDirections } from "./recommend";
 import { loadGradeEvents } from "./reviewEvidence";
 import { cardHasCompletedSort, SORTED_AT_KEY } from "./sort";
 import { inReview, legacyExerciseTimes, readAcquisition } from "./learningStage";
-import { loadLearnOverview, type LearnOverview } from "./learnRounds";
+import { loadLearnOverview, stateForCycle, type LearnOverview } from "./learnRounds";
 import { isLearnCard, learnStatus } from "./learnSession";
 import { loadStudySetup, type StudyTemplate } from "./study";
 
@@ -32,6 +32,8 @@ type Counts = {
   learnSucceededCohort: number;
   /** Learn: every card currently in Learn (including those ready for Review). */
   learnCards: number;
+  /** Learn: cards eligible for scored practice today (daily cap and mastery excluded). */
+  learnDue: number;
   /** Learn: cards that met the Review criteria and wait to be moved. */
   learnReady: number;
   /** Learning exercises answered today / in the last seven local days. */
@@ -64,7 +66,7 @@ export type ReviewOverview = Counts & {
 
 const COUNT_KEYS: Array<keyof Counts> = [
   "ready", "reviewCards", "strongCards", "reviewFirstTryLast7", "reviewGradedLast7",
-  "movedToReviewLast7", "returnedToLearnLast7", "learnEnteredCohort", "learnSucceededCohort", "learnCards", "learnReady", "learnExercisesToday", "learnExercisesLast7", "learnScoredLast7", "learnCorrectLast7",
+  "movedToReviewLast7", "returnedToLearnLast7", "learnEnteredCohort", "learnSucceededCohort", "learnCards", "learnDue", "learnReady", "learnExercisesToday", "learnExercisesLast7", "learnScoredLast7", "learnCorrectLast7",
   "reviewedToday", "reverseTomorrow", "newReady", "newToday", "newLast7", "reviewsLast7",
 ];
 
@@ -115,7 +117,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       packId: pack.id, ready: 0, reviewCards: 0, strongCards: 0,
       reviewFirstTryLast7: 0, reviewGradedLast7: 0, movedToReviewLast7: 0,
       returnedToLearnLast7: 0, learnEnteredCohort: 0, learnSucceededCohort: 0,
-      learnCards: 0, learnReady: 0,
+      learnCards: 0, learnDue: 0, learnReady: 0,
       learnExercisesToday: activity?.attemptsToday ?? 0, learnExercisesLast7: activity?.attemptsWeek ?? 0,
       learnScoredLast7: activity?.attemptsWeek ?? 0, learnCorrectLast7: activity?.correctWeek ?? 0,
       reviewedToday: 0, reverseTomorrow: 0, newReady: 0, newToday: 0, newLast7: 0, reviewsLast7: 0, readyCardIds: [],
@@ -181,7 +183,9 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       }
       if (isLearnCard(card)) {
         summary.learnCards += 1;
-        if (learnStatus(card, learn.cards.get(card.id)) === "ready") summary.learnReady += 1;
+        const learningState = stateForCycle(learn.cards.get(card.id), acquisition.cycle);
+        if (learnStatus(card, learningState) === "ready") summary.learnReady += 1;
+        else if (learn.available && !learningState?.blockedToday) summary.learnDue += 1;
         continue;
       }
       if (!inReview(card)) continue;

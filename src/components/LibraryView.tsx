@@ -428,20 +428,28 @@ export default function LibraryView({ collections, packs, newCardsBackgroundStyl
               if (resume?.kind !== "new") resume = null;
               if (stats?.newReady === 0 && resume) { rememberOpenStudy(null, pack.id); resume = null; }
               const chosen = selection === "topic:" + pack.id;
+              const actionable = stats ? [stats.newReady,
+                reviewOverview?.learnAvailable ? stats.learnDue + stats.learnReady : 0,
+                stats.ready] : null;
+              const canStudy = actionable ? actionable.some((count) => count > 0) : true;
               return <div className={"study-desk-topic" + (chosen ? " chosen" : "")} key={pack.id}>
                 <div className="study-desk-topic-copy">
                   <strong>{pack.title}</strong>
                   <small>{plural(pack.card_count, "card")}{resume ? <span className="study-desk-session"> · New · {resume.remainingIds.length} of {resume.total} left</span> : null}</small>
                 </div>
-                <div className="study-desk-counts" aria-label="New, Learn and Review card counts">
-                  {(["newReady", "learnCards", "reviewCards"] as const).map((key, index) =>
-                    <span className={["new", "learn", "review"][index]} key={key}>
-                      <i />{stats ? stats[key].toLocaleString("en-GB") : "—"}
+                <div className="study-desk-counts" aria-label="New, Learn and Review cards available today">
+                  {(["new", "learn", "review"] as const).map((stage, index) =>
+                    <span className={stage} key={stage} title={stats ? [
+                      `${stats.newReady} new cards`,
+                      `${stats.learnDue} to practise · ${stats.learnReady} ready to move · ${stats.learnCards} in Learn`,
+                      `${stats.ready} due now · ${stats.reviewCards} in Review`,
+                    ][index] : undefined}>
+                      <i />{actionable ? actionable[index].toLocaleString("en-GB") : "—"}
                     </span>)}
                 </div>
                 <button type="button" className={"study-desk-action" + (resume ? " resume" : "")}
-                  disabled={newOpening || learningOpening || reviewOpening || (Boolean(stats) && !stats!.newReady && !stats!.learnCards && !stats!.ready)}
-                  title={stats && !stats.newReady && !stats.learnCards && !stats.ready ? "Nothing to study in this topic right now" : undefined}
+                  disabled={newOpening || learningOpening || reviewOpening || !canStudy}
+                  title={!canStudy ? "Nothing to study in this topic right now" : undefined}
                   onClick={() => resume ? resumeTopic(pack, resume) : studyTopic(pack)}>{resume ? "Resume" : "Study"}</button>
               </div>;
             })}
