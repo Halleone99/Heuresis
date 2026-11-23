@@ -263,3 +263,12 @@
   .sort-backdrop .sort-modal.sort-modal--session.study21 .sort-topbar {padding:0 12px;}
   .sort-backdrop .sort-modal.sort-modal--session.study21:has(.sort-editing-tools.is-open) .study21-edge-tab {display:none;}
 }
+
+.cosmos-shell.study21[data-mode="review"] .review-card-head {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;padding:20px 0 0;min-height:66px;}
+.cosmos-shell.study21[data-mode="review"] .review-card-head .review-card-status {order:-1;}
+.cosmos-shell.study21[data-mode="review"] .review-direction {font:500 11px Inter,system-ui,sans-serif;letter-spacing:.14em;color:#a9b8c9;text-transform:uppercase;}
+.cosmos-shell.study21[data-mode="review"] .review-card-status-bars i {border-radius:1.5px;opacity:1;background:rgba(255,255,255,.16);}
+.cosmos-shell.study21[data-mode="review"] .review-card-status-bars i.filled {background:#b9a6e6;}
+.cosmos-shell.study21[data-mode="review"] .review-card-status[data-trend=up] .review-card-status-change {color:#9cc5a1;}
+.cosmos-shell.study21[data-mode="review"] .review-card-status[data-trend=down] .review-card-status-change {color:#e08a76;}
+.cosmos-shell.study21[data-mode="review"] .review-card-status {min-height:34px;padding:0 15px 0 13px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(16,22,30,.5);backdrop-filter:blur(16px);}

@@ -329,7 +329,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     return <div className="sort-enrich-editor" onBlurCapture={commitEditor}>
       <RichEditor ref={detailEditor} resetKey={(editingId ?? "new") + ":" + card.id + ":" + dim}
         value={draft} compactToolbar={!study21} compactStudy21={study21} ariaLabel={"Write " + labels[dim].toLowerCase()}
-        placeholder={dim === "examples" ? "Sentence, then reading, then translation…" : "Add a useful detail…"}
+        placeholder={study21 ? dim === "examples" ? "Sentence" : labels[dim] : dim === "examples" ? "Sentence, then reading, then translation…" : "Add a useful detail…"}
         onChange={setDraft} onSave={() => void track(saveText()).catch(() => undefined)} onDone={() => void track(saveText()).catch(() => undefined)}
         onEscape={stopAdding} autoFocus />
     </div>;

@@ -11,7 +11,7 @@ type Props = {
 
 export default function ReviewMethod21({ value, onChange, canListen }: Props) {
   const [open, setOpen] = useState(false);
-  return <div className="study21-answer-method">
+  return <div className="study21-answer-method" onKeyDown={event => {if (event.key === "Escape" && open) {event.preventDefault();event.stopPropagation();setOpen(false);}}}>
     <span>ANSWER</span>
     <div className="study21-answer-anchor">
       <button type="button" className="study21-answer-pill" aria-expanded={open}

@@ -724,7 +724,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
                 <span>{blockExample.sentence}</span>{blockExample.translation ? <em>{blockExample.translation}</em> : null}
               </button>
               : <button type="button" className="sort-new-add-example" disabled={busy}
-                onClick={() => openDetailsFor({ dim: "examples" })}>+ Example sentence</button>}
+                onClick={() => openDetailsFor({ dim: "examples" })}>{isStudy21 ? "+ Example" : "+ Example sentence"}</button>}
           </div> : null}
           <div className="sort-new-annotation">
             <div className="sort-card-labels">

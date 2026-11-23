@@ -18,7 +18,7 @@ const HINT: Record<Importance, string> = {
 
 export default function NewDock21({ importance, disabled, onImportance, onLearn, onReview }: Props) {
   const [open, setOpen] = useState(false);
-  return <div className="study21-new-dock">
+  return <div className="study21-new-dock" onKeyDown={event => {if (event.key === "Escape" && open) {event.preventDefault();event.stopPropagation();setOpen(false);}}}>
     <div className="study21-type-row">
       <span>TYPE</span>
       <div className="study21-type-anchor">
