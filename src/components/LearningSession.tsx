@@ -174,7 +174,8 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
   }
   const promptSubtitle = exercise && current ? learningSubtitle(exercise, current.entry.view, pinyinVisible) : exercise?.prompt.sub;
   const subtitleHasReading = Boolean(promptSubtitle && exercise && ["example-meaning", "type-meaning", "build-meaning", "missing-character"].includes(exercise.kind));
-  const promptPinyin = exercise && !subtitleHasReading ? readingFor(exercise.prompt.text) : "";
+  // During reconstruction only the selectable tiles get Pinyin, not the prompt above them.
+  const promptPinyin = exercise && exercise.format !== "build" && !subtitleHasReading ? readingFor(exercise.prompt.text) : "";
   const attempts = current?.round.attempts ?? [];
   const result = useMemo(() => roundResult(attempts, current?.round.baseScore), [attempts, current?.round.baseScore]);
   const mode: Mode = practice ? "practice" : again ? "again" : "scored";

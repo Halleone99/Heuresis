@@ -30,6 +30,9 @@ export function learningSubtitle(item: Exercise, card: LearnCard, show: boolean)
   const sub = item.prompt.sub;
   if (!isChineseLearningCard(card) || !sub) return sub;
   if (item.kind === "choose-reading") return sub;
+  // Reconstructing characters must show Pinyin on the tiles, never the complete answer above them.
+  // This also protects rounds already saved with the full reading in their prompt subtitle.
+  if (item.format === "build" && ["build-term", "recall-build", "build-meaning"].includes(item.kind)) return undefined;
   if (item.kind === "missing-character") return show ? sub : card.meaning || undefined;
   if (item.kind === "example-meaning" || item.kind === "type-meaning" || item.kind === "build-meaning"
       || item.kind === "build-term" || item.kind === "recall-guided") return show ? sub : undefined;
