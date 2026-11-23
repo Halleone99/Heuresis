@@ -770,7 +770,8 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
             <button type="button" disabled={busy} onClick={() => void later()}><Clock3 size={16}/> Later</button>
           </div>
           {message ? <p className="sort-error" role="alert">{message}</p> : null}
-        </div>
+        </div>}
+      {isStudy21 && message ? <p className="sort-error study21-error" role="alert">{message}</p> : null}
       {isStudy21 && confirmDiscard ? <div className="sort-discard-confirm study21-discard-confirm" role="alertdialog" aria-label="Discard this card?"><strong>Discard this card?</strong><div><button type="button" onClick={() => setConfirmDiscard(false)}>Cancel</button><button type="button" className="danger" onClick={() => {setConfirmDiscard(false);void discard();}}>Discard</button></div></div> : null}
       </article>
       {lastRemoval ? <div className="sort-new-undo" role="status">
