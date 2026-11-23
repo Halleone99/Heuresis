@@ -42,6 +42,8 @@ type AndroidSpeech = {
   isAvailable(locale: string): boolean;
   isReady(): boolean;
   speak(text: string, locale: string, rate: number, utteranceId: string): boolean;
+  speakWithVoice?(text: string, locale: string, rate: number, utteranceId: string, voiceId: string): boolean;
+  voices?(locale: string): string;
   stop(): void;
   keepScreenOn(on: boolean): void;
 };
@@ -51,6 +53,64 @@ declare global {
     heuresisSpeechStarted?: (utteranceId: string) => void;
     heuresisSpeechFailed?: (utteranceId: string) => void;
   }
+}
+
+
+/** Free device/browser voices only: never invent a voice a device cannot play. */
+export type SpeechVoiceOption = { id: string; name: string; lang: string; offline: boolean; quality: number };
+const VOICE_PREFERENCE_PREFIX = "heuresis.language.voice.v1.";
+const languagePart = (locale: string) => locale.toLowerCase().split("-")[0];
+const browserVoiceId = (voice: SpeechSynthesisVoice) => `browser:${voice.voiceURI}:${voice.name}:${voice.lang}`;
+
+export function readPreferredVoice(locale: string): string | null {
+  try { return localStorage.getItem(VOICE_PREFERENCE_PREFIX + locale); } catch { return null; }
+}
+export function writePreferredVoice(locale: string, voiceId: string | null): void {
+  try {
+    if (voiceId === null) localStorage.removeItem(VOICE_PREFERENCE_PREFIX + locale);
+    else localStorage.setItem(VOICE_PREFERENCE_PREFIX + locale, voiceId);
+  } catch { /* Per-device preference; speech still works with system defaults. */ }
+}
+
+/** Up to five real voices per language, ranked for quality, local availability and locale fit. */
+export function availableSpeechVoices(locale: string): SpeechVoiceOption[] {
+  if (typeof window === "undefined") return [];
+  let voices: SpeechVoiceOption[] = [];
+  const android = window.HeuresisAndroidSpeech;
+  if (android) {
+    try {
+      if (typeof android.voices === "function") {
+        const list: unknown = JSON.parse(android.voices(locale));
+        if (Array.isArray(list)) {
+          voices = list.filter((item): item is SpeechVoiceOption =>
+            item !== null && typeof item === "object" &&
+            typeof item.id === "string" && typeof item.name === "string" &&
+            typeof item.lang === "string" && typeof item.quality === "number" &&
+            typeof item.offline === "boolean");
+        }
+      }
+    } catch { /* Earlier Android builds can continue using the default voice. */ }
+  } else if ("speechSynthesis" in window) {
+    voices = window.speechSynthesis.getVoices().map((voice) => ({
+      id: browserVoiceId(voice), name: voice.name, lang: voice.lang,
+      offline: voice.localService, quality: 300,
+    }));
+  }
+  const primary = languagePart(locale);
+  const relevant = voices.filter((voice) => languagePart(voice.lang) === primary);
+  const ranked = relevant.sort((a, b) => {
+    const score = (voice: SpeechVoiceOption) =>
+      voice.quality + (voice.offline ? 200 : 0) +
+      (voice.lang.toLowerCase() === locale.toLowerCase() ? 350 : 0) +
+      (/natural|enhanced|premium|neural|high quality/i.test(voice.name) ? 40 : 0);
+    return score(b) - score(a) || a.name.localeCompare(b.name);
+  });
+  // Keep a previously chosen voice visible even if new voices outrank it.
+  const selected = readPreferredVoice(locale);
+  const chosen = ranked.find((voice) => voice.id === selected);
+  if (chosen && !ranked.slice(0, 5).some((voice) => voice.id === selected))
+    return [...ranked.slice(0, 4), chosen];
+  return ranked.slice(0, 5);
 }
 
 let currentAudioId = "";
@@ -67,13 +127,14 @@ export function canSpeak(language: string): boolean {
 }
 
 /** A successful queue request is not playback. onStarted runs only when speech actually begins. */
-export function speakReviewText(text: string, language: string, onStarted?: () => void): boolean {
+export function speakReviewText(text: string, language: string, onStarted?: () => void, voiceOverride?: string | null): boolean {
   if (!text.trim() || typeof window === "undefined") return false;
   stopReviewAudio();
   const utteranceId = `heuresis-${++sequence}`;
   currentAudioId = utteranceId;
   currentOnStart = onStarted;
 
+  const selectedVoice = voiceOverride === undefined ? readPreferredVoice(language) : voiceOverride;
   const native = window.HeuresisAndroidSpeech;
   if (native) {
     try {
@@ -87,7 +148,16 @@ export function speakReviewText(text: string, language: string, onStarted?: () =
       window.heuresisSpeechFailed = (id) => {
         if (id === currentAudioId) { currentAudioId = ""; currentOnStart = undefined; }
       };
-      if (!native.isAvailable(language) || !native.speak(text.trim(), language, 0.9, utteranceId)) {
+      // A voice saved on another device may not be installed here. Fall back safely.
+      if (!native.isAvailable(language)) {
+        currentAudioId = ""; currentOnStart = undefined; return false;
+      }
+      let queued = false;
+      if (selectedVoice && typeof native.speakWithVoice === "function") {
+        queued = native.speakWithVoice(text.trim(), language, 0.9, utteranceId, selectedVoice);
+      }
+      if (!queued) queued = native.speak(text.trim(), language, 0.9, utteranceId);
+      if (!queued) {
         currentAudioId = ""; currentOnStart = undefined; return false;
       }
       return true;
@@ -103,7 +173,8 @@ export function speakReviewText(text: string, language: string, onStarted?: () =
     utterance.rate = 0.9;
     const voices = window.speechSynthesis.getVoices();
     const locale = language.toLowerCase();
-    utterance.voice = voices.find((voice) => voice.lang.toLowerCase() === locale)
+    utterance.voice = (selectedVoice ? voices.find((voice) => browserVoiceId(voice) === selectedVoice) : null)
+      ?? voices.find((voice) => voice.lang.toLowerCase() === locale)
       ?? voices.find((voice) => voice.lang.toLowerCase().split("-")[0] === locale.split("-")[0])
       ?? null;
     utterance.onstart = () => {

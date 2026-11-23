@@ -83,6 +83,7 @@ jobs:
           import android.speech.tts.TextToSpeech
           import android.speech.tts.UtteranceProgressListener
           import org.json.JSONObject
+          import org.json.JSONArray
           import java.util.Locale
           import android.util.Base64
           import android.view.View
@@ -142,6 +143,41 @@ jobs:
               fun isAvailable(locale: String): Boolean {
                 val engine = speechEngine ?: return false
                 return speechReady && engine.isLanguageAvailable(Locale.forLanguageTag(locale)) >= TextToSpeech.LANG_AVAILABLE
+              }
+
+
+              // The Settings voice picker uses only the real voices exposed by the
+              // selected Android TTS engine. Never synthesise fictional options.
+              @JavascriptInterface
+              fun voices(locale: String): String {
+                val engine = speechEngine ?: return "[]"
+                if (!speechReady) return "[]"
+                val language = Locale.forLanguageTag(locale).language
+                val result = JSONArray()
+                engine.voices?.forEach { voice ->
+                  if (voice.locale.language == language) {
+                    result.put(JSONObject()
+                      .put("id", voice.name)
+                      .put("name", voice.name)
+                      .put("lang", voice.locale.toLanguageTag())
+                      .put("offline", !voice.isNetworkConnectionRequired)
+                      .put("quality", voice.quality))
+                  }
+                }
+                return result.toString()
+              }
+
+              @JavascriptInterface
+              fun speakWithVoice(text: String, locale: String, rate: Float, utteranceId: String, voiceId: String): Boolean {
+                val engine = speechEngine ?: return false
+                if (!isAvailable(locale)) return false
+                val language = Locale.forLanguageTag(locale).language
+                val selected = engine.voices?.firstOrNull {
+                  it.name == voiceId && it.locale.language == language
+                } ?: return false
+                if (engine.setVoice(selected) != TextToSpeech.SUCCESS) return false
+                engine.setSpeechRate(rate)
+                return engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS
               }
 
               @JavascriptInterface

@@ -1,5 +1,5 @@
-import { ImagePlus, RotateCcw, Trash2, X, ChevronDown, Check } from "lucide-react";
-import { useRef, useState, type MouseEvent, type DragEvent } from "react";
+import { ImagePlus, RotateCcw, Trash2, X, ChevronDown, Check, Volume2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type DragEvent } from "react";
 import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPageKey, type BackgroundSettings } from "../hooks/useHeuresisBackground";
 import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import { BACKGROUND_PRESETS, createBackgroundPresetImage, presetSwatch, type BackgroundPreset } from "../lib/backgroundPresets";
@@ -7,7 +7,10 @@ import type { Collection, PackWithType } from "../lib/heuresis";
 import { useAppearance, type PalettePreference } from "../lib/theme";
 import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
-import { readAutoPronunciation, writeAutoPronunciation } from "../lib/reviewAudio";
+import {
+  availableSpeechVoices, readAutoPronunciation, readPreferredVoice, speakReviewText,
+  stopReviewAudio, writeAutoPronunciation, writePreferredVoice,
+} from "../lib/reviewAudio";
 import SortingSettings from "./SortingSettings";
 import CardColoursEditor from "./CardColoursEditor";
 import StructureSettings from "./StructureSettings";
@@ -253,6 +256,98 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
   </section>;
 }
 
+
+const VOICE_LANGUAGES = [
+  { locale: "zh-CN", label: "Chinese", sample: "你好，今天我们一起练习中文发音。" },
+  { locale: "en-GB", label: "English", sample: "Good morning. Let's practise a few useful words together." },
+  { locale: "ru-RU", label: "Russian", sample: "Здравствуйте! Сегодня мы будем учить новые слова." },
+  { locale: "de-DE", label: "German", sample: "Guten Morgen! Heute üben wir gemeinsam die Aussprache." },
+] as const;
+type VoiceLocale = (typeof VOICE_LANGUAGES)[number]["locale"];
+
+/** One shortlist per language. A row selects; its separate loudspeaker plays a sample. */
+function VoiceSettings() {
+  const [locale, setLocale] = useState<VoiceLocale>("zh-CN");
+  const [revision, setRevision] = useState(0);
+  const [notice, setNotice] = useState("");
+  const [selected, setSelected] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(VOICE_LANGUAGES.map(({ locale: id }) => [id, readPreferredVoice(id)])));
+  const options = useMemo(() => availableSpeechVoices(locale), [locale, revision, selected]);
+  const current = VOICE_LANGUAGES.find((option) => option.locale === locale)!;
+  const active = selected[locale] ?? null;
+  const missing = active && !options.some((option) => option.id === active);
+
+  useEffect(() => {
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener("heuresis-speech-ready", refresh);
+    window.speechSynthesis?.addEventListener?.("voiceschanged", refresh);
+    return () => {
+      window.removeEventListener("heuresis-speech-ready", refresh);
+      window.speechSynthesis?.removeEventListener?.("voiceschanged", refresh);
+      stopReviewAudio();
+    };
+  }, []);
+
+  function choose(id: string | null) {
+    writePreferredVoice(locale, id);
+    setSelected((old) => ({ ...old, [locale]: id }));
+    setNotice("");
+    stopReviewAudio();
+  }
+  function sample(id: string | null) {
+    const queued = speakReviewText(current.sample, locale, undefined, id);
+    setNotice(queued ? "" : "This voice could not start. Check the speech voices installed on your device.");
+  }
+
+  return <div className="heuresis-voice-settings">
+    <div className="settings-section-heading">
+      <strong>Choose a voice</strong>
+      <span>Listen before choosing. Your selection is used in both Learning and Review; no subscription or API key needed.</span>
+    </div>
+    <div className="heuresis-voice-languages" role="group" aria-label="Pronunciation language">
+      {VOICE_LANGUAGES.map((language) =>
+        <button key={language.locale} type="button" aria-pressed={language.locale === locale}
+          onClick={() => { stopReviewAudio(); setLocale(language.locale); setNotice(""); }}>
+          {language.label}
+        </button>)}
+    </div>
+    <div className="heuresis-voice-list" aria-label={current.label + " speech voices"}>
+      <div className="heuresis-voice-row">
+        <button type="button" className="heuresis-voice-select" aria-pressed={!active}
+          onClick={() => choose(null)}>
+          <span className="heuresis-voice-indicator">{!active ? <Check size={13} /> : null}</span>
+          <span className="heuresis-voice-description"><strong>System default</strong><small>Use the device's preferred voice</small></span>
+        </button>
+        <button type="button" className="heuresis-voice-play" aria-label={"Test system default in " + current.label}
+          title="Listen to a sample" onClick={() => sample(null)}><Volume2 size={17} /></button>
+      </div>
+      {options.map((voice, index) =>
+        <div className="heuresis-voice-row" key={voice.id}>
+          <button type="button" className="heuresis-voice-select" aria-pressed={active === voice.id}
+            onClick={() => choose(voice.id)}>
+            <span className="heuresis-voice-indicator">{active === voice.id ? <Check size={13} /> : null}</span>
+            <span className="heuresis-voice-description">
+              <strong>Voice {index + 1}<span className="heuresis-voice-name"> · {voice.name}</span></strong>
+              <small>{voice.lang} · {voice.offline ? "Works offline" : "Requires a connection"}{voice.quality >= 400 ? " · High quality" : ""}</small>
+            </span>
+          </button>
+          <button type="button" className="heuresis-voice-play" aria-label={"Test " + voice.name + " in " + current.label}
+            title="Listen to a sample" onClick={() => sample(voice.id)}><Volume2 size={17} /></button>
+        </div>)}
+    </div>
+    {missing ? <p className="heuresis-voice-alert" role="status">Your previously chosen voice is not installed here. Playback will use the system default until you choose another.</p> : null}
+    {options.length === 0
+      ? <p className="heuresis-voice-alert" role="status">No alternative {current.label.toLowerCase()} voices were found. The system default may still work. Install or enable language voices in your device's text-to-speech settings, then refresh.</p>
+      : options.length < 5
+        ? <p className="heuresis-voice-footnote">{options.length} alternative {options.length === 1 ? "voice" : "voices"} available on this device. Up to five are shown when installed.</p>
+        : <p className="heuresis-voice-footnote">The five highest-ranked voices available on this device are shown. Availability differs between devices.</p>}
+    {notice ? <p className="heuresis-voice-alert" role="alert">{notice}</p> : null}
+    <button type="button" className="heuresis-voice-refresh" onClick={() => setRevision((value) => value + 1)}>
+      <RotateCcw size={13} /> Refresh available voices
+    </button>
+  </div>;
+}
+
 function StudySettings() {
   const [dailyTarget, setDailyTarget] = useState(readNewCardQuota);
   const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
@@ -283,6 +378,7 @@ function StudySettings() {
         setAutoPronunciation(next); writeAutoPronunciation(next);
       }} />
     </label>
+    <VoiceSettings />
     <p className="heuresis-study-device-note">Saved on this device. Your study progress and review history are still saved in your account.</p>
   </section>;
 }

@@ -262,3 +262,57 @@
   .settings-modal .pb-preset-grid {grid-template-columns:repeat(3,minmax(0,1fr));}
   .settings-modal .pb-look-options {grid-template-columns:repeat(2,minmax(0,1fr));}
 }
+
+/* Pronunciation studio: compact language switcher and individually testable voices. */
+.heuresis-voice-settings { max-width:720px; margin:18px 0 22px; }
+.heuresis-voice-languages { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
+.heuresis-voice-languages button {
+  border:1px solid var(--ws-line); border-radius:999px; background:var(--ws-surface);
+  color:var(--ws-text); padding:9px 15px; font:500 11px Inter, sans-serif; cursor:pointer;
+}
+.heuresis-voice-languages button[aria-pressed="true"] {
+  background:var(--ws-primary); border-color:var(--ws-primary); color:var(--ws-on-primary);
+}
+.heuresis-voice-list { display:grid; gap:7px; }
+.heuresis-voice-row {
+  display:grid; grid-template-columns:minmax(0,1fr) 43px; gap:5px;
+  padding:5px; background:var(--ws-surface); border:1px solid var(--ws-line);
+  border-radius:11px; align-items:stretch;
+}
+.heuresis-voice-select {
+  display:flex; min-width:0; align-items:center; gap:11px; text-align:left;
+  padding:9px 10px; color:var(--ws-text); border:0; border-radius:7px;
+  background:transparent; cursor:pointer;
+}
+.heuresis-voice-select[aria-pressed="true"] { background:var(--ws-surface-2); }
+.heuresis-voice-indicator {
+  display:grid; place-items:center; width:19px; height:19px; flex:0 0 19px;
+  border:1px solid var(--ws-line); border-radius:50%; color:var(--ws-on-primary);
+}
+.heuresis-voice-select[aria-pressed="true"] .heuresis-voice-indicator {
+  background:var(--ws-primary); border-color:var(--ws-primary);
+}
+.heuresis-voice-description { display:grid; min-width:0; gap:4px; }
+.heuresis-voice-description strong { font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.heuresis-voice-name { font-weight:400; color:var(--ws-muted); }
+.heuresis-voice-description small { color:var(--ws-muted); font-size:10px; }
+.heuresis-voice-play {
+  display:grid; place-items:center; align-self:stretch; min-width:40px; min-height:42px;
+  color:var(--ws-text); border:1px solid transparent; border-radius:8px;
+  background:transparent; cursor:pointer;
+}
+.heuresis-voice-play:hover, .heuresis-voice-play:focus-visible {
+  color:var(--ws-primary); border-color:var(--ws-line); background:var(--ws-surface-2);
+}
+.heuresis-voice-select:focus-visible, .heuresis-voice-languages button:focus-visible,
+.heuresis-voice-refresh:focus-visible { outline:2px solid var(--ws-primary); outline-offset:2px; }
+.heuresis-voice-alert, .heuresis-voice-footnote {
+  font-size:11px; line-height:1.6; margin:11px 0 0; color:var(--ws-muted);
+}
+.heuresis-voice-alert { color:var(--ws-text); }
+.heuresis-voice-refresh {
+  display:inline-flex; align-items:center; gap:6px; margin-top:12px;
+  border:0; background:transparent; color:var(--ws-muted); cursor:pointer;
+  font:500 11px Inter, sans-serif; padding:5px 0;
+}
+.heuresis-voice-refresh:hover { color:var(--ws-text); }
