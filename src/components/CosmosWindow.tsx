@@ -400,14 +400,18 @@ export default function CosmosWindow() {
   const relatedReview = config.relatedReview;
   const redesignReview = mode === "review" && !relatedReview;
   const isStudy21 = redesignReview && studyMode === "2.1";
+  const lastAutoOpenIndex = useRef<number | null>(null);
+  const preferredPanel = useRef<"language" | "knowledge">("language");
   const rememberStudy21Details = (open: boolean) => {
+    lastAutoOpenIndex.current = index;
     setDetailsPinned(open);
     try { localStorage.setItem(DETAILS_PIN_KEY, open ? "1" : "0"); } catch { /* device only */ }
   };
   useEffect(() => {
-    if (!isStudy21 || !revealed || !detailsPinned) return;
-    setLeftContextOpen(true);
-    setDetailsOpen(window.innerWidth >= 1208);
+    if (!isStudy21 || !revealed || !detailsPinned || lastAutoOpenIndex.current === index) return;
+    lastAutoOpenIndex.current = index;
+    setLeftContextOpen(window.innerWidth >= 1208 || preferredPanel.current === "language");
+    setDetailsOpen(window.innerWidth >= 1208 || preferredPanel.current === "knowledge");
   }, [isStudy21, revealed, index, detailsPinned]);
   const studyBackground = useHeuresisBackground("heuresis-study");
   const sharedBackground = useHeuresisBackground("heuresis");
@@ -1231,6 +1235,7 @@ export default function CosmosWindow() {
       if (event.key === "Escape" && !typing) {
         event.preventDefault();
         if (whyOpen) { setWhyOpen(false); return; }
+        if (isStudy21 && (leftContextOpen || detailsOpen)) { setLeftContextOpen(false); setDetailsOpen(false); rememberStudy21Details(false); return; }
         if (mode === "sort" && detailsOpen && !detailsPinned) { setDetailsOpen(false); return; }
         void closeSession().then(() => closeDesktopWindow());
         return;
@@ -1522,7 +1527,7 @@ export default function CosmosWindow() {
         <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
       </div>
       <div className="review-top-tools" role="group" aria-label="Review tools">
-        {isStudy21 ? <button type="button" className="study21-review-details" disabled={!revealed} title={revealed ? "Details" : "After the reveal"} aria-expanded={leftContextOpen || detailsOpen} onClick={() => {const open = !(leftContextOpen || detailsOpen);setLeftContextOpen(open);setDetailsOpen(open && window.innerWidth >= 1208);rememberStudy21Details(open);}}><PanelLeftOpen size={16}/> Details <small>{detailsTotal}</small></button> : !isAndroidRuntime() ? <>
+        {isStudy21 ? <button type="button" className="study21-review-details" disabled={!revealed} title={revealed ? "Details" : "After the reveal"} aria-expanded={leftContextOpen || detailsOpen} onClick={() => {const open = !(leftContextOpen || detailsOpen);setLeftContextOpen(open && (window.innerWidth >= 1208 || preferredPanel.current === "language"));setDetailsOpen(open && (window.innerWidth >= 1208 || preferredPanel.current === "knowledge"));rememberStudy21Details(open);}}><PanelLeftOpen size={16}/> Details <small>{detailsTotal}</small></button> : !isAndroidRuntime() ? <>
           <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
             aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
             {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
@@ -1566,7 +1571,7 @@ export default function CosmosWindow() {
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
       / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
-    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);rememberStudy21Details(true);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);rememberStudy21Details(true);}}>KNOWLEDGE</button> : null}</nav> : null}
+    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {preferredPanel.current = "language";setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);rememberStudy21Details(true);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {preferredPanel.current = "knowledge";setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);rememberStudy21Details(true);}}>KNOWLEDGE</button> : null}</nav> : null}
     {isStudy21 && revealed && window.innerWidth < 780 && (leftContextOpen || detailsOpen) ? <button type="button" className="study21-review-scrim" aria-label="Close details" onClick={() => {setLeftContextOpen(false);setDetailsOpen(false);rememberStudy21Details(false);}}/> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
@@ -1639,7 +1644,7 @@ export default function CosmosWindow() {
                     if(event.key==="Escape"){event.preventDefault();event.stopPropagation();event.currentTarget.blur();}
                     else if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){
                       event.preventDefault();event.stopPropagation();event.currentTarget.blur();
-                      if(missNote.trim())setMissNoteAdded(true);
+                      if(isStudy21){void advance(queue,index+1);}else if(missNote.trim())setMissNoteAdded(true);
                     }
                   }}/>}
             </div>

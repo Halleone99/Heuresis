@@ -346,7 +346,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     && !blocks.some((block) => block.dim === dim) && !(dim === "neighbours" && structuredWords && related.length));
 
   return <aside className={"sort-enrichment sort-enrichment--" + side} aria-label={side === "knowledge" ? "Knowledge details" : "Language details"}>
-    {side !== "all" ? <h2 className="sort-panel-title">{side === "language" ? (conceptual ? "Concept" : "Language") : "Knowledge"}</h2> : null}
+    {side !== "all" ? <h2 className="sort-panel-title">{side === "language" ? (conceptual ? "Concept" : "Language") : "Knowledge"}{study21 ? <small className="study21-panel-count">{activeDims.reduce((sum, dim) => sum + filledFields(dim).length + blocks.filter(block => block.dim === dim).length + (dim === "neighbours" ? related.length : 0) + (dim === "notes" && (quickNote ?? "").trim() ? 1 : 0), 0)}</small> : null}</h2> : null}
     {side !== "language" ? <input type="file" ref={inputRef} hidden accept="image/*"
       onChange={event => { void uploadPicture(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} /> : null}
     <div className="sort-enrich-list">{activeDims.map((dim) => {
@@ -358,8 +358,8 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
       const count = fields.length + owned.length + rows.length + (noteExists ? 1 : 0);
       if (!count && adding !== dim && revealed !== dim) return null;
       const firstEmpty = revealed === dim ? fields.find((field) => !fieldText(data, field.key).trim())?.key : undefined;
-      return <section className="sort-enrich-section" key={dim}>
-        <div className="sort-enrich-heading"><span>{labels[dim]}</span>
+      return <section className="sort-enrich-section" key={dim} data-dim={dim}>
+        <div className="sort-enrich-heading"><span>{labels[dim]}</span>{study21 && count > 0 ? <small className="study21-section-count">{count}</small> : null}
           {!readOnly ? <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
             disabled={blocked} onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>
             <Plus size={14} />
@@ -395,14 +395,14 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
             : <figure className="sort-enrich-item sort-enrich-image" key={block.id}>{imageUrls[block.path] ? <img src={imageUrls[block.path]} alt={block.caption || "Card illustration"} /> : <span>Image unavailable</span>}<figcaption>{readOnly ? block.caption : <InlineSortText value={block.caption} label="Image caption" placeholder="Add a caption" disabled={busy || adding !== null} onEditingChange={setInlineBusy} onCommit={(value) => track(saveImageCaption(block.id, value))} />}</figcaption></figure>)}
           {rows.map((row) => <div key={row.relation_id} className="sort-enrich-item sort-enrich-related">
             {readOnly ? <><div className="study21-relation-word"><strong>{row.term}</strong><span className={"sort-enrich-relation relation-" + row.relation_type}>{row.relation_type}</span></div>{row.reading ? <p className="related-reading">{row.reading}</p> : null}{row.meaning ? <p className="related-meaning">{row.meaning}</p> : null}</> : <>
-            <InlineSortText value={row.term} label="Related word" required disabled={busy || adding !== null} className="related-term"
-              onEditingChange={setInlineBusy} onCommit={(value) => track(saveRelatedField(row, "term", value))} />
+            <div className={study21 ? "study21-relation-word" : ""}><InlineSortText value={row.term} label="Related word" required disabled={busy || adding !== null} className="related-term"
+              onEditingChange={setInlineBusy} onCommit={(value) => track(saveRelatedField(row, "term", value))} />{study21 ? <button type="button" className={"sort-enrich-relation relation-" + row.relation_type} title="Change relation type" disabled={blocked} onClick={() => void track(cycleRelation(row))}>{row.relation_type}</button> : null}</div>
             {row.reading ? <InlineSortText value={row.reading} label="Related reading" placeholder="reading" disabled={busy || adding !== null} className="related-reading"
               onEditingChange={setInlineBusy} onCommit={(value) => track(saveRelatedField(row, "reading", value))} /> : null}
             <InlineSortText value={row.meaning} label="Related meaning" placeholder="meaning" disabled={busy || adding !== null} className="related-meaning"
               onEditingChange={setInlineBusy} onCommit={(value) => track(saveRelatedField(row, "meaning", value))} />
-            <button type="button" className={"sort-enrich-relation relation-" + row.relation_type}
-              title="Change relation type" disabled={blocked} onClick={() => void track(cycleRelation(row))}>{row.relation_type}</button>
+            {!study21 ? <button type="button" className={"sort-enrich-relation relation-" + row.relation_type}
+              title="Change relation type" disabled={blocked} onClick={() => void track(cycleRelation(row))}>{row.relation_type}</button> : null}
             <div className="sort-enrich-item-tools">
               <button type="button" disabled={blocked} onClick={() => void track(unlink(row))} aria-label="Remove related word" title="Remove"><X size={13} /></button>
             </div></>}
@@ -443,7 +443,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     </section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>
-      <p>Pack: {pack.title}</p>
+<p>{study21 ? "Collection" : "Pack"}: {pack.title}</p>
       {card.tags.filter(tag => /^Lesson\s+\d+/i.test(tag.name)).map(tag =>
         <p key={tag.id}>Lesson: {tag.name}</p>)}
       <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p>
