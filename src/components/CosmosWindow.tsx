@@ -1613,7 +1613,7 @@ export default function CosmosWindow() {
                 : entry))}><ArrowLeftRight size={14}/></button> : null}
           </span>
           <span className="review-head-spacer"/>
-          {revealed && currentBars ? <ReviewCardStatus progress={currentBars}
+          {revealed && currentBars ? <ReviewCardStatus progress={currentBars} study21={isStudy21}
             historyAvailable={events !== null}
             change={gradeFeedback?.cardId === card.id && gradeFeedback.templateId === template?.id ? gradeFeedback : null} /> : null}
           {redesignReview && isAndroidRuntime() && revealed ? <button type="button" className="review-card-details"
