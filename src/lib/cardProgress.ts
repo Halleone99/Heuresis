@@ -50,13 +50,13 @@ export function reviewedSuccessfullyToday(history: GradeEvent[] | null, now = Da
 /**
  * A successful answer completes a reversible card for this calendar day. The
  * opposite direction becomes eligible the next day; the passed side is retained
- * as pending evidence until its partner is successful. One-direction cards keep
- * their original same-day lock.
+ * as pending evidence until its partner is successful. Mastered cards are retired
+ * from ordinary review until the user explicitly chooses to practise them.
  */
 export function reviewEligible(
   progress: CardBarProgress,
   history: GradeEvent[] | null,
-  lastReviewed: string | null,
+  _lastReviewed: string | null,
   includeMastered = false,
   now = Date.now(),
   selectedDirectionIds?: string[],
@@ -68,9 +68,7 @@ export function reviewEligible(
     if (selectedDirectionIds?.length && selectedDirectionIds.every((id) => progress.pendingDirections?.includes(id))) return false;
   } else if (reviewedSuccessfullyToday(history, now)) return false;
   if (includeMastered) return true;
-  if (!progress.mastered) return true;
-  const latest = history?.length ? Math.max(...history.map((event) => event.at)) : Date.parse(lastReviewed ?? "");
-  return Number.isFinite(latest) && now - latest >= 180 * 86_400_000;
+  return !progress.mastered;
 }
 
 /**

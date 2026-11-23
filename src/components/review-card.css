@@ -204,3 +204,33 @@
 .cosmos-shell[data-mode="review"] .cosmos-card-copy:not(.revealed) .cosmos-core-field.is-sentence.is-gloss {max-width:16ch;font-size:clamp(42px,5vw,66px);line-height:1.15}
 /* After reveal the card already shows the answer in full; the pad's own "Answer" copy only repeated it. */
 .cosmos-shell[data-mode="review"] .cosmos-handwrite-compare .cosmos-handwrite-reference {display:none}
+/* Subtle confirmation on a newly completed Mastered card. */
+.cosmos-shell[data-mode="review"] .cosmos-mastery-moment {
+  position:absolute;inset:0;z-index:25;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;pointer-events:none;
+  background:color-mix(in srgb,var(--ws-raised) 94%,transparent);
+  backdrop-filter:blur(12px);
+  animation:heuresis-mastery-wash 1.25s ease-in-out both;
+}
+.cosmos-shell[data-mode="review"] .cosmos-mastery-seal {
+  width:76px;height:76px;display:grid;place-items:center;
+  border-radius:50%;border:1px solid color-mix(in srgb,var(--c-sage) 52%,var(--ws-line));
+  background:color-mix(in srgb,var(--c-sage) 11%,var(--ws-raised));
+  color:var(--c-sage);box-shadow:0 0 0 9px color-mix(in srgb,var(--c-sage) 7%,transparent);
+  animation:heuresis-mastery-seal .65s cubic-bezier(.17,.89,.33,1.2) both;
+}
+.cosmos-shell[data-mode="review"] .cosmos-mastery-moment strong {
+  font:400 clamp(38px,5vw,54px)/1 var(--serif);color:var(--ws-ink);
+  letter-spacing:-.025em;
+}
+.cosmos-shell[data-mode="review"] .cosmos-mastery-moment small {
+  font:600 10px/1.4 var(--sans);color:var(--ws-muted);
+  letter-spacing:.17em;text-transform:uppercase;
+}
+@keyframes heuresis-mastery-wash {
+  0%{opacity:0} 20%,85%{opacity:1} 100%{opacity:0}
+}
+@keyframes heuresis-mastery-seal {
+  from{opacity:0;transform:translateY(12px) scale(.82)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}

@@ -362,6 +362,7 @@ export default function CosmosWindow() {
   /** The pack's default direction, which also carries results recorded without a direction. */
   const [legacyId, setLegacyId] = useState<string | null>(null);
   const [results, setResults] = useState<SessionResult[]>([]);
+  const [masteryMoment, setMasteryMoment] = useState<string | null>(null);
   const [roundStart, setRoundStart] = useState(0);
   const [method, setMethodState] = useState<ReviewMethod>(() => readReviewMethod());
   const [connectionsOpen, setConnectionsOpen] = useState(false);
@@ -549,7 +550,7 @@ export default function CosmosWindow() {
           const oldState = assessState(directionEvidence(entry, null, grades)).state;
           const progress = cardBarProgress(entry, grades, oldState, progressPair);
           return reviewEligible(progress, grades, entry.stats.last_encountered_at,
-            config.includeMastered || Boolean(config.selectionToken), Date.now(), activeTemplates.map((template) => template.id));
+            config.includeMastered, Date.now(), activeTemplates.map((template) => template.id));
         });
         // A filtered or targeted review must never quietly fall back to every card.
         const selection = config.selectionToken ? readReviewSelection(config.packId, config.selectionToken) : [];
@@ -587,7 +588,7 @@ export default function CosmosWindow() {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
               return reviewEligible(cardBarProgress(entry, grades, oldState, progressPair), grades, entry.stats.last_encountered_at,
-                config.includeMastered || selection.length > 0, Date.now(), activeTemplates.map((template) => template.id));
+                config.includeMastered, Date.now(), activeTemplates.map((template) => template.id));
             });
           }
           if (config.order === "random") pool = shuffle(pool);
@@ -943,6 +944,7 @@ export default function CosmosWindow() {
       await recordStudyEvent({ cardId: nextItem.cardId, packId: pack.id, sessionId: sessionRef.current, templateId: nextItem.templateId, eventType: "encountered" });
     }
     setIndex(nextIndex);
+    setMasteryMoment(null);
     setRevealed(false);
     setAppliedChoice(""); setAppliedTiles([]); setAppliedWritten(""); setAppliedCovered([]); setAppliedVerdict(null);
     setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setMissNote(""); setMissNoteAdded(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
@@ -979,6 +981,15 @@ export default function CosmosWindow() {
         barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered }]);
       // Local evidence, so retries and the summary see this answer at once.
       setEvents((current) => current ? [...current, graded] : current);
+      const didMaster = isSuccess(grade) && !before.mastered && after.mastered;
+      // Do not present a newly Mastered card again later in this automatic queue.
+      const remainingQueue = didMaster && !config.includeMastered
+        ? queue.filter((candidate, position) => position <= index || candidate.cardId !== card.id)
+        : queue;
+      if (remainingQueue !== queue) {
+        setQueue(remainingQueue);
+        setManualRest((current) => current.filter((candidate) => candidate.cardId !== card.id));
+      }
       if (grade === "again" || grade === "hard") {
         // Record the result immediately; the optional explanation never controls grading.
         setGradedMistake(grade);
@@ -992,7 +1003,14 @@ export default function CosmosWindow() {
             explanation: "", repeated: suggestRelearning([...(events ?? []), graded].filter((entry) => entry.cardId === card.id)), submitted: false,
           };
         }
-      } else await advance(queue, index + 1);
+      } else {
+        if (didMaster) {
+          setMasteryMoment(card.id);
+          await new Promise<void>((resolve) => window.setTimeout(resolve,
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 700 : 1250));
+        }
+        await advance(remainingQueue, index + 1);
+      }
       return true;
     } catch (answerError) {
       setNotice(answerError instanceof Error ? answerError.message : "Could not save the result.");
@@ -1486,6 +1504,10 @@ export default function CosmosWindow() {
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article ref={reviewCardRef} className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
+        {masteryMoment === card.id ? <div className="cosmos-mastery-moment" role="status" aria-live="polite">
+          <span className="cosmos-mastery-seal" aria-hidden="true"><Check size={30} strokeWidth={1.6}/></span>
+          <strong>Mastered</strong><small>Card complete</small>
+        </div> : null}
         {redesignReview ? <header className="review-card-head">
           <span className="review-kicker">{reviewLanguage || "Review"}</span>
           <span className="review-head-dot" aria-hidden="true"/>
