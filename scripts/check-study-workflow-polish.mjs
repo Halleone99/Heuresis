@@ -21,9 +21,9 @@ assert.match(study, /onKeyDown=\{\(event\) => \{ if \(event\.key === "Escape"/, 
 assert.match(study, /previouslyFocused\?\.focus/, "Review returns keyboard focus");
 assert.match(study, /Start review ·/, "Only one clear final Review action");
 assert.match(study, /directionPairs\(templates\)/, "A reversible pair is used for automatic direction selection");
-assert.match(study, /includeMastered/, "Mastered cards are available when explicitly included");
+assert.match(study, /reviewEligibleForMode\(/, "Mastered cards have their own exclusive Review mode");
 assert.match(study, /!busy && event\.currentTarget === event\.target/, "Review cannot be dismissed while the popup is opening");
-assert.match(sort, /\{selectedCount\} \{selectedCount === 1 \? "card" : "cards"\} selected/, "New session displays the actual filtered batch size in the footer");
+assert.match(sort, /Target: \{selectedCount\} validated/, "New session displays the selected validation target, excluding Later");
 assert.match(sort, /Start sorting <ArrowRight/, "New session keeps one clear start action");
 assert.doesNotMatch(sort, /ONE SORT WORKFLOW/, "Sort no longer exposes workflow implementation notes");
 assert.match(sort, /<SortEnrichmentPanel/, "Sort exposes editable card details without hiding the flashcard");
