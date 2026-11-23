@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { loadTs } from "./lib/load-ts.mjs";
 
 const { cardBarProgress, reviewedSuccessfullyToday, reviewEligible, reviewEligibleForMode } = loadTs("src/lib/cardProgress.ts", { "./supabase": { supabase: null } });
@@ -96,4 +97,9 @@ record(4, 0, "good");
 record(4, 1, "good");
 assert.equal(paired(4).mastered, true, "Another day's confirmed pair can grant Mastered");
 assert.equal(reviewEligible(paired(4), pairedEvents, null, false, modern + 4 * DAY + 1, pair), false, "A completed Mastered card stays out");
-console.log("Review bar rules: legacy progression and bidirectional pairs, Easy, same-day eligibility, recovery and Mastered passed.");
+// The compact review header must not duplicate its bar graph or display pending-pair noise.
+const statusUI = readFileSync("src/components/ReviewCardStatus.tsx", "utf8");
+assert.doesNotMatch(statusUI, /Pair pending|review-card-status-count|No bar change/, "Only the graph conveys the four-bar count; pending states stay in the tooltip");
+assert.match(statusUI, /progress\.pendingDirections\?\.length/, "The pending reverse direction remains discoverable");
+assert.match(statusUI, /trend !== "level"/, "Show a change marker only when progress actually changes");
+console.log("Review bar rules: legacy progression, direction pairs and discreet status UI passed.");

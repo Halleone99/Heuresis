@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowLeftRight, ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import type { CardBarProgress } from "../lib/cardProgress";
 import type { StudyGrade } from "../lib/study";
 
@@ -16,51 +16,35 @@ type Props = {
   change?: ReviewChange | null;
 };
 
+/** The bars carry the count; the caption stays quiet and only real movement gets a marker. */
 export default function ReviewCardStatus({ progress, historyAvailable, change }: Props) {
   const label = progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : progress.bars === 0 ? "Starting" : "Building";
   const reliable = historyAvailable && !progress.estimated;
-  const delta = change ? change.barsAfter - change.barsBefore : 0;
-  let changeText = "";
-  let changeTitle = "";
-  let trend: "up" | "down" | "level" = "level";
-  if (change && reliable) {
-    if (!change.masteredBefore && change.masteredAfter) {
-      changeText = "Mastery confirmed";
-      trend = "up";
-    } else if (delta > 0) {
-      changeText = `+${delta} ${delta === 1 ? "bar" : "bars"}`;
-      trend = "up";
-    } else if (delta < 0) {
-      changeText = `−${Math.abs(delta)} ${delta === -1 ? "bar" : "bars"}`;
-      trend = "down";
-    } else if ((change.grade === "good" || change.grade === "easy") && progress.pendingDirections?.length) {
-      changeText = "Pair pending";
-      changeTitle = "This direction is retained. The opposite direction must also be recalled to gain a bar.";
-    } else {
-      changeText = "No bar change";
-    }
-  } else if (!reliable) {
-    changeText = "Estimated";
-    changeTitle = "Complete review history is unavailable; a precise change cannot be verified.";
-  } else if (progress.pendingDirections?.length) {
-    changeText = "Pair pending";
-    changeTitle = "One direction was recalled. The opposite direction is needed to gain a bar.";
-  }
+  const delta = change && reliable ? change.barsAfter - change.barsBefore : 0;
+  const justMastered = Boolean(change && reliable && !change.masteredBefore && change.masteredAfter);
+  const trend: "up" | "down" | "level" = justMastered || delta > 0 ? "up" : delta < 0 ? "down" : "level";
 
-  const statusTitle = `${label} · ${progress.bars}/4 bars.${progress.mastered ? " Mastery confirmed." : " Mastered is confirmed after a later successful review."}`;
-  const accessible = `${statusTitle}${changeText ? ` ${changeText}.` : ""}`;
+  const statusTitle = `${label} · ${progress.bars} of 4 progress bars. ${progress.mastered ? "Mastery confirmed." : "Mastery requires a later successful review."}`;
+  const context = !reliable
+    ? "Progress is estimated because complete review history is unavailable."
+    : progress.pendingDirections?.length
+      ? "One direction was recalled; the opposite direction is needed to gain a bar."
+      : "";
+  const movement = justMastered ? "Mastery confirmed."
+    : delta > 0 ? `Gained ${delta} ${delta === 1 ? "bar" : "bars"}.`
+      : delta < 0 ? `Lost ${Math.abs(delta)} ${delta === -1 ? "bar" : "bars"}.` : "";
+  const detail = [statusTitle, context, movement].filter(Boolean).join(" ");
+
   return <span className="review-card-status" data-level={progress.mastered ? "mastered" : progress.bars === 4 ? "known" : "building"}
-    data-trend={trend} data-changed={Boolean(change && reliable)} role="status" aria-live="polite"
-    aria-label={accessible} title={changeTitle || statusTitle}>
+    data-trend={trend} data-changed={trend !== "level"} role="status" aria-live="polite"
+    aria-label={detail} title={detail}>
     <span className="review-card-status-bars" aria-hidden="true">
       {[0, 1, 2, 3].map((bar) => <i key={bar} className={bar < progress.bars ? "filled" : ""}/>)}
     </span>
     <span className="review-card-status-name">{label}</span>
-    <span className="review-card-status-count">{progress.bars}/4</span>
-    {changeText ? <span className="review-card-status-change" aria-hidden="true">
-      {trend === "up" ? <ArrowUpRight size={12}/> : trend === "down" ? <ArrowDownRight size={12}/> :
-        changeText === "Pair pending" ? <ArrowLeftRight size={12}/> : <ArrowRight size={12}/>}
-      <span>{changeText}</span>
+    {trend !== "level" ? <span className="review-card-status-change" aria-hidden="true">
+      {trend === "up" ? <ArrowUpRight size={12}/> : <ArrowDownRight size={12}/>}
+      {!justMastered ? <span>{delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`}</span> : null}
     </span> : null}
   </span>;
 }
