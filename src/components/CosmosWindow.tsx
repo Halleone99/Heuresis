@@ -1228,6 +1228,9 @@ export default function CosmosWindow() {
           if (event.key === "Escape") { event.preventDefault(); target.blur(); }
           return; // Enter and Shift+Enter are handled in the textarea itself.
         }
+        if (isStudy21 && event.key === "Escape" && (leftContextOpen || detailsOpen)) {
+          event.preventDefault(); setLeftContextOpen(false); setDetailsOpen(false); rememberStudy21Details(false); return;
+        }
         // Let focused buttons handle Enter themselves; otherwise Enter advances.
         if (target?.closest("button,[role=button]") && (event.key === "Enter" || event.key === " ")) return;
         if (!typing && !busy && event.key === "Enter") { event.preventDefault(); void advance(queue, index + 1); }

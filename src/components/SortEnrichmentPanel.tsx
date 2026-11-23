@@ -219,7 +219,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     flashSaved();
   }
   async function saveText() {
-    const text = detailEditor.current?.getMarkdown() || draft;
+    const text = study21 ? (detailEditor.current?.getMarkdown() ?? draft) : (detailEditor.current?.getMarkdown() || draft);
     if (!adding || busy) return;
     if (!text.trim()) {
       // Clearing an existing block removes it; an empty new block is simply dropped.
