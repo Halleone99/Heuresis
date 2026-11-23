@@ -204,3 +204,38 @@
 .cosmos-shell[data-mode="review"] .cosmos-card-copy:not(.revealed) .cosmos-core-field.is-sentence.is-gloss {max-width:16ch;font-size:clamp(42px,5vw,66px);line-height:1.15}
 /* After reveal the card already shows the answer in full; the pad's own "Answer" copy only repeated it. */
 .cosmos-shell[data-mode="review"] .cosmos-handwrite-compare .cosmos-handwrite-reference {display:none}
+
+
+/* Per-card review progress: revealed only, with the actual saved grade delta. */
+.cosmos-shell[data-mode="review"] .review-card-status {
+  display:inline-flex;align-items:center;gap:8px;min-height:32px;max-width:100%;
+  padding:6px 10px;border:1px solid var(--ws-line);border-radius:999px;
+  background:color-mix(in srgb,var(--ws-surface) 40%,transparent);color:var(--ws-text);
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+.cosmos-shell[data-mode="review"] .review-card-status-bars {display:inline-flex;align-items:flex-end;gap:3px;height:14px;flex:none}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i {width:4px;border-radius:3px 3px 1px 1px;background:var(--ws-line-strong);opacity:.7;transition:background .3s ease,opacity .3s ease}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i:nth-child(1) {height:5px}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i:nth-child(2) {height:8px}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i:nth-child(3) {height:11px}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i:nth-child(4) {height:14px}
+.cosmos-shell[data-mode="review"] .review-card-status-bars i.filled {background:var(--c-sage);opacity:1}
+.cosmos-shell[data-mode="review"] .review-card-status-name {font:600 11px/1.15 var(--sans);letter-spacing:.01em}
+.cosmos-shell[data-mode="review"] .review-card-status[data-level="mastered"] .review-card-status-name {color:var(--c-sage)}
+.cosmos-shell[data-mode="review"] .review-card-status-count {font:10px/1 var(--mono);color:var(--ws-muted)}
+.cosmos-shell[data-mode="review"] .review-card-status-change {
+  display:inline-flex;align-items:center;gap:3px;padding-left:8px;border-left:1px solid var(--ws-line);
+  font:600 10px/1.15 var(--sans);color:var(--ws-muted);
+}
+.cosmos-shell[data-mode="review"] .review-card-status[data-trend="up"] .review-card-status-change {color:var(--c-sage)}
+.cosmos-shell[data-mode="review"] .review-card-status[data-trend="down"] .review-card-status-change {color:var(--c-cinnabar)}
+.cosmos-shell[data-mode="review"] .review-card-status[data-changed="true"] .review-card-status-change {animation:review-card-status-arrive .36s ease-out both}
+@keyframes review-card-status-arrive {from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:760px){
+  .cosmos-shell[data-mode="review"] .review-card-head {flex-wrap:wrap;row-gap:9px}
+  .cosmos-shell[data-mode="review"] .review-card-status {gap:6px;padding:6px 8px}
+  .cosmos-shell[data-mode="review"] .review-card-status-change {padding-left:6px}
+}
+@media(prefers-reduced-motion:reduce){
+  .cosmos-shell[data-mode="review"] .review-card-status-change {animation:none!important}
+}
