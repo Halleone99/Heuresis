@@ -524,7 +524,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
   return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={showSetup ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (isStudy21 ? " study21 study21--new" : "") + (enrichmentOpen ? " sort-modal--editing" : "")}
-    style={showSetup ? undefined : isStudy21 ? { ...backgroundStyle, "--study21-panel-w": detailPanelWidth + "px", "--study21-term-size": termSize + "px" } as CSSProperties : backgroundStyle} data-custom-background={!showSetup && backgroundStyle ? "new-cards" : undefined}
+    style={showSetup ? undefined : isStudy21 ? { ...backgroundStyle, "--study21-panel-w": detailPanelWidth + "px", "--study21-term-size": termSize + "px", "--study21-centre-width": Math.max(260, centreWidth) + "px" } as CSSProperties : backgroundStyle} data-custom-background={!showSetup && backgroundStyle ? "new-cards" : undefined}
     role="dialog" aria-modal="true" aria-label="New cards">
 
     {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: (progressTarget ? Math.min(100, learned / progressTarget * 100) : 0) + "%" }} /></div> : null}

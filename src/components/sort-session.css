@@ -259,3 +259,6 @@
 @media(prefers-reduced-motion:reduce){
  .sort-modal--session .sort-editing-tools{transition:none;}
 }
+
+/* Preserve Classic’s original higher-priority session surface without affecting opt-in Study 2.1. */
+.sort-backdrop .sort-modal.sort-modal--session:not(.study21) {background:radial-gradient(ellipse at 50% 32%, var(--ws-surface-2), transparent 74%), var(--ws-sunken) !important;}

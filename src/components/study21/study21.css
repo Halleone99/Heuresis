@@ -19,7 +19,7 @@
 .study21 .study21-top-details small {font-size:11px;color:#a9b8c9;}
 .sort-backdrop .sort-modal--session.study21 .sort-topbar-actions {justify-content:flex-end;}
 .sort-backdrop .sort-modal--session.study21 .sort-session-stage {position:relative;display:flex;justify-content:center;align-items:center;overflow:hidden;padding:22px 40px 105px;height:calc(100% - 64px);min-height:0;}
-.sort-backdrop .sort-modal--session.study21 .sort-card {position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;width:min(600px,100%);max-width:100%;height:auto;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;transition:transform .3s cubic-bezier(.2,.8,.2,1),width .3s;}
+.sort-backdrop .sort-modal--session.study21 .sort-card {position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;width:min(600px,var(--study21-centre-width));max-width:100%;height:auto;min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;transition:transform .3s cubic-bezier(.2,.8,.2,1),width .3s;}
 .sort-backdrop .sort-modal--session.study21 .sort-new-card-header {display:flex;justify-content:center;padding:0;width:100%;order:0;}
 .sort-backdrop .sort-modal--session.study21 .sort-header-tools {display:none;}
 .sort-backdrop .sort-modal--session.study21 .sort-header-tags {justify-content:center;min-height:22px;gap:9px;font:500 11px Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;}
@@ -73,7 +73,7 @@
 .study21 .study21-edge-tab.right {right:0;transform:translateY(-50%);border-radius:12px 0 0 12px;}
 .study21 .study21-panel-scrim {position:absolute;inset:0;z-index:19;border:0;background:rgba(4,8,14,.48);}
 @media (max-width:1207px) {
-  .sort-backdrop .sort-modal--session.study21 .sort-card {width:min(540px,calc(100% - var(--study21-panel-w) - 76px));}
+  .sort-backdrop .sort-modal--session.study21 .sort-card {width:min(540px,var(--study21-centre-width));}
   .sort-backdrop .sort-modal--session.study21:has(#sort-language-details.is-open) .sort-card {transform:translateX(calc(var(--study21-panel-w) / 2));}
   .sort-backdrop .sort-modal--session.study21:has(#sort-knowledge-details.is-open) .sort-card {transform:translateX(calc(var(--study21-panel-w) / -2));}
 }
