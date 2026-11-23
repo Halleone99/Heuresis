@@ -61,6 +61,7 @@ import { reviewSpeechLanguage, reviewSpokenPrompt, canSpeak, speakReviewText, st
 import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
+import ReviewCardStatus from "./ReviewCardStatus";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
@@ -372,6 +373,7 @@ export default function CosmosWindow() {
   const [typed, setTyped] = useState("");
   const [suggestion, setSuggestion] = useState<AnswerSuggestion | null>(null);
   const [gradedMistake, setGradedMistake] = useState<ReviewCorrectionGrade | null>(null);
+  const [gradeFeedback, setGradeFeedback] = useState<SessionResult | null>(null);
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [correctionStatus, setCorrectionStatus] = useState<"synced" | "queued" | null>(null);
   const [missNote, setMissNote] = useState("");
@@ -945,6 +947,7 @@ export default function CosmosWindow() {
     }
     setIndex(nextIndex);
     setMasteryMoment(null);
+    setGradeFeedback(null);
     setRevealed(false);
     setAppliedChoice(""); setAppliedTiles([]); setAppliedWritten(""); setAppliedCovered([]); setAppliedVerdict(null);
     setTyped(""); setSuggestion(null); setGradedMistake(null); setCorrectionOpen(false); setCorrectionStatus(null); setMissNote(""); setMissNoteAdded(false); setHasWriting(false); setSaidAnswer(false); setConnectionsOpen(false);
@@ -977,8 +980,10 @@ export default function CosmosWindow() {
       const before = cardBarProgress(card, previousGrades, legacyState, progressDirectionIds);
       const graded = { cardId: card.id, templateId: template.id, grade, at: Date.now() };
       const after = cardBarProgress(card, previousGrades ? [...previousGrades, graded] : null, legacyState, progressDirectionIds);
-      setResults((current) => [...current, { cardId: card.id, templateId: template.id, grade, stateBefore,
-        barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered }]);
+      const result: SessionResult = { cardId: card.id, templateId: template.id, grade, stateBefore,
+        barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered };
+      setResults((current) => [...current, result]);
+      setGradeFeedback(result);
       // Local evidence, so retries and the summary see this answer at once.
       setEvents((current) => current ? [...current, graded] : current);
       const didMaster = isSuccess(grade) && !before.mastered && after.mastered;
@@ -1008,6 +1013,9 @@ export default function CosmosWindow() {
           setMasteryMoment(card.id);
           await new Promise<void>((resolve) => window.setTimeout(resolve,
             window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 700 : 1250));
+        } else if (redesignReview && events) {
+          // Let the learner see the actual bar change before automatic advance.
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 600));
         }
         await advance(remainingQueue, index + 1);
       }
@@ -1519,9 +1527,9 @@ export default function CosmosWindow() {
                 : entry))}><ArrowLeftRight size={14}/></button> : null}
           </span>
           <span className="review-head-spacer"/>
-          {currentBars ? <span className="review-bars" role="img" aria-label={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}
-            title={currentBars.mastered ? "Mastered" : currentBars.bars === 4 ? "Known" : `${currentBars.bars} of 4 bars`}>
-            {[0,1,2,3].map(i=><i key={i} className={i<currentBars.bars?"filled":""}/>)}</span> : null}
+          {revealed && currentBars ? <ReviewCardStatus progress={currentBars}
+            historyAvailable={events !== null}
+            change={gradeFeedback?.cardId === card.id && gradeFeedback.templateId === template?.id ? gradeFeedback : null} /> : null}
           {redesignReview && isAndroidRuntime() && revealed ? <button type="button" className="review-card-details"
             aria-label="Details: examples, connections, facts and notes" aria-expanded={detailsOpen}
             onClick={() => { setLeftContextOpen(false); setDetailsOpen((value) => !value); }}>
