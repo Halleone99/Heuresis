@@ -846,8 +846,8 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
 
             <div className="topic-status-cell">
               <div className={`card-progress ${status === "unsorted" ? "is-unsorted" : ""} ${progress.mastered ? "is-mastered" : ""}`}
-                title={progress.estimated ? "Progress estimated from older review history" : `${progressLabel}: ${progress.bars}/4 bars`}
-                role="img" aria-label={`${progressLabel}, ${progress.bars} of 4 bars`}>
+                title={progress.estimated ? "Progress estimated from older review history" : progress.mastered && progress.masteryLevel && progress.masteryDueAt !== undefined ? `Mastered · Level ${progress.masteryLevel}/5 · Next review ${new Date(progress.masteryDueAt).toLocaleDateString()}` : `${progressLabel}: ${progress.bars}/4 bars`}
+                role="img" aria-label={`${progressLabel}, ${progress.bars} of 4 bars${progress.masteryLevel ? `, mastery level ${progress.masteryLevel} of 5` : ""}`}>
                 <div className="card-progress-bars">{[0, 1, 2, 3].map((step) =>
                   <span key={step} className={step < progress.bars ? "filled" : ""} />)}</div>
                 <small>{progressLabel}</small>
