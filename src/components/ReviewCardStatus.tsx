@@ -8,6 +8,8 @@ type ReviewChange = {
   barsAfter: number;
   masteredBefore: boolean;
   masteredAfter: boolean;
+  masteryBefore?: number;
+  masteryAfter?: number;
 };
 
 type Props = {
@@ -25,7 +27,9 @@ export default function ReviewCardStatus({ progress, historyAvailable, change, s
   // "Recalled" is only a bar gain after the progress engine confirms a completed direction pair.
   const gainedFrom = change && reliable && delta > 0 ? change.barsBefore : -1;
   const justMastered = Boolean(change && reliable && !change.masteredBefore && change.masteredAfter);
-  const trend: "up" | "down" | "level" = justMastered || delta > 0 ? "up" : delta < 0 ? "down" : "level";
+  const masteryDelta = change && reliable && change.masteredBefore && change.masteryBefore !== undefined
+    ? (change.masteryAfter ?? 0) - change.masteryBefore : 0;
+  const trend: "up" | "down" | "level" = justMastered || delta > 0 || masteryDelta > 0 ? "up" : delta < 0 || masteryDelta < 0 ? "down" : "level";
 
   const statusTitle = `${label} · ${progress.bars} of 4 progress bars. ${progress.mastered ? "Mastery confirmed." : "Mastery requires a later successful review."}`;
   const maintenance = progress.mastered && progress.masteryLevel && progress.masteryDueAt !== undefined
@@ -36,6 +40,7 @@ export default function ReviewCardStatus({ progress, historyAvailable, change, s
       ? "One direction was recalled; the opposite direction is needed to gain a bar."
       : "";
   const movement = justMastered ? "Mastery confirmed."
+    : masteryDelta !== 0 ? `Mastery ${masteryDelta > 0 ? "+" : "−"}${Math.abs(masteryDelta)} ${Math.abs(masteryDelta) === 1 ? "level" : "levels"}.`
     : delta > 0 ? `Gained ${delta} ${delta === 1 ? "bar" : "bars"}.`
       : delta < 0 ? `Lost ${Math.abs(delta)} ${delta === -1 ? "bar" : "bars"}.` : "";
   const detail = [statusTitle, maintenance, context, movement].filter(Boolean).join(" ");
@@ -47,9 +52,9 @@ export default function ReviewCardStatus({ progress, historyAvailable, change, s
       {[0, 1, 2, 3].map((bar) => <i key={bar} className={`${bar < progress.bars ? "filled" : ""}${gainedFrom >= 0 && bar >= gainedFrom && bar < progress.bars ? " is-new" : ""}${study21 && change && reliable && delta < 0 && bar >= change.barsAfter && bar < change.barsBefore ? " is-lost" : ""}`}/>)}
     </span>
     <span className="review-card-status-name">{label}</span>
-    {trend !== "level" ? <span className={`review-card-status-change${delta > 0 ? " is-gain" : ""}`} aria-hidden="true">
-      {delta > 0 ? <span>+${delta}</span> : trend === "up" ? <ArrowUpRight size={12}/> : <ArrowDownRight size={12}/>}
-      {delta < 0 ? <span>−${Math.abs(delta)}</span> : null}
+    {trend !== "level" ? <span className={`review-card-status-change${delta > 0 || masteryDelta > 0 ? " is-gain" : ""}`} aria-hidden="true">
+      {masteryDelta !== 0 ? <span>{masteryDelta > 0 ? "+" : "−"}{Math.abs(masteryDelta)}</span> : delta > 0 ? <span>+${delta}</span> : trend === "up" ? <ArrowUpRight size={12}/> : <ArrowDownRight size={12}/>}
+      {masteryDelta === 0 && delta < 0 ? <span>−${Math.abs(delta)}</span> : null}
     </span> : null}
   </span>;
 }
