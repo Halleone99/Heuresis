@@ -58,7 +58,7 @@ assert.deepEqual(routeApi.readReviewSelection("next-topic", nextParams.get("sele
 assert.equal(routeApi.nextReviewRouteParams(route, "next-topic"), null);
 const nextMastered = routeApi.nextReviewRouteParams(route, "first-topic", true);
 assert.equal(nextMastered.get("masteredOnly"), "1", "Mastered-only sessions remain mastered-only across topics");
-assert.match(readFileSync("src/components/StudyModal.tsx", "utf8"), /reviewEligibleForMode\(/, "The topic launcher uses exclusive mastery filtering");
+assert.match(readFileSync("src/components/StudyModal.tsx", "utf8"), /reviewEligibleForMode\(/, "The topic launcher shares due-maintenance and optional-practice eligibility");
 assert.doesNotMatch(readFileSync("src/components/StudyModal.tsx", "utf8"), /Include mastered cards/, "The old mixed-status checkbox is removed");
 assert.match(readFileSync("src/components/ReviewCentre.tsx", "utf8"), /reviewRouteToken: token/,
   "Review all passes the route token to the popup");
