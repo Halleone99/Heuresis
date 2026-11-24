@@ -1,14 +1,34 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { loadTs } from "./lib/load-ts.mjs";
 
 const pack = readFileSync("src/components/PackView.tsx", "utf8");
 const main = readFileSync("src/main.tsx", "utf8");
 const css = readFileSync("src/topic-tag-first.css", "utf8");
 
-assert.match(pack, /const \[allCardsExpanded, setAllCardsExpanded\] = useState\(false\)/, "Large topics are not forcibly expanded by default");
+const { defaultTopicFilters, decodeTopicFilters, readTopicBrowserOptions, readTopicFilters, saveTopicFilters } = loadTs("src/lib/topicBrowserPrefs.ts", { react: {} });
+const memory = new Map();
+globalThis.localStorage = { getItem: (key) => memory.get(key) ?? null, setItem: (key, value) => memory.set(key, value) };
+assert.equal(defaultTopicFilters().allCardsExpanded, false, "Large topics still collapse by default");
+assert.deepEqual(readTopicBrowserOptions(), { rememberFilters: false, cardManagement: false }, "Optional tools never change an existing user's default");
+assert.deepEqual(decodeTopicFilters("broken json"), defaultTopicFilters());
+assert.deepEqual(decodeTopicFilters('{"statusFilters":["learning","invalid","learning"],"sortDirection":"bad","selectedTagIds":[null,"t1","t1"]}').statusFilters, ["learning"]);
+assert.equal(decodeTopicFilters('{"sortDirection":"bad"}').sortDirection, "asc");
+assert.deepEqual(decodeTopicFilters('{"selectedTagIds":[null,"t1","t1"]}').selectedTagIds, ["t1"]);
+saveTopicFilters("one", { ...defaultTopicFilters(), query: "bonjour", statusFilters: ["learning"], allCardsExpanded: true });
+assert.equal(readTopicFilters("one").query, "", "Remembered filters are opt-in");
+localStorage.setItem("heuresis.topic-browser.options.v1", JSON.stringify({ rememberFilters: true }));
+assert.equal(readTopicFilters("one").query, "bonjour");
+assert.equal(readTopicFilters("two").query, "", "Filter memories are topic-specific");
+assert.equal(readTopicFilters("one").allCardsExpanded, true);
+assert.match(pack, /browserOptions\.rememberFilters \? initialFilters\.allCardsExpanded : readShowAll\(pack\.id\)/, "Only a remembered choice expands a large topic");
+assert.match(pack, /transientSearch\.current = true/, "Opening a search result does not replace normal browsing preferences");
+assert.match(pack, /shown\.filter\(\(card\) => bulkSelected\.includes\(card\.id\)\)/, "Only displayed cards enter bulk selection");
+assert.match(pack, /bulkCards\.filter\(\(card\) => eligible\.has\(card\.id\)\)/, "Selected-card review still obeys existing Review eligibility");
+assert.match(pack, /browserOptions\.cardManagement && !bulkMode/, "Selection stays hidden unless enabled");
 assert.match(pack, /const showCardList = allCardsExpanded \|\| activeFilterCount > 0 \|\| visibleTotal <= 250/, "Small topics show cards immediately; larger topics expand on request");
-assert.match(pack, /!loading && !error && \(showCardList \|\| visibleTotal === 0\)/, "The table preserves explicit expansion for larger topics and the empty state");
-assert.match(pack, /onClick=\{\(\) => setAllCardsExpanded\(true\)\}>Show all/, "Large topics have an explicit Show all action");
+assert.match(pack, /!loading && \(!error \|\| hasData\) && \(showCardList \|\| visibleTotal === 0\)/, "The table preserves explicit expansion for larger topics and the empty state");
+assert.match(pack, /onClick=\{\(\) => \{ setAllCardsExpanded\(true\); saveShowAll\(pack\.id\); \}\}>Show all/, "Large topics have an explicit Show all action");
 assert.match(pack, /const source = \[\.\.\.cards, \.\.\.referenceCards\]/, "All means learning and reference cards");
 assert.match(pack, /setAllCardsExpanded\(true\);\s*setQuery\(""\); setStatusFilters\(isReference/, "Opening a card from Search still reveals it");
 assert.match(pack, /const tagFacets = useMemo\(\(\) => \{/, "Counts are derived from actual card assignments");

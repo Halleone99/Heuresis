@@ -1,4 +1,5 @@
 import { useDialogEscape } from "../hooks/useDialogEscape";
+import { useTopicBrowserOptions } from "../lib/topicBrowserPrefs";
 import { ImagePlus, RotateCcw, Trash2, X, ChevronDown, Check, Volume2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type DragEvent } from "react";
 import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPageKey, type BackgroundSettings } from "../hooks/useHeuresisBackground";
@@ -378,6 +379,7 @@ function VoiceSettings() {
 
 function StudySettings() {
   const [dailyTarget, setDailyTarget] = useState(readNewCardQuota);
+  const { options: browserOptions, choose: chooseBrowserOption } = useTopicBrowserOptions();
   const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
 
   return <section className="heuresis-study-settings" aria-label="Study preferences">
@@ -407,6 +409,18 @@ function StudySettings() {
       }} />
     </label>
     <VoiceSettings />
+    <div className="settings-section-heading">
+      <strong>Topic browser</strong>
+      <span>Optional tools for managing existing cards. Study, Learn and Review are unchanged.</span>
+    </div>
+    <label className="heuresis-study-target">
+      <span>Remember filters per topic</span>
+      <input type="checkbox" checked={browserOptions.rememberFilters} onChange={(event) => chooseBrowserOption("rememberFilters", event.currentTarget.checked)} />
+    </label>
+    <label className="heuresis-study-target">
+      <span>Multiple-card selection</span>
+      <input type="checkbox" checked={browserOptions.cardManagement} onChange={(event) => chooseBrowserOption("cardManagement", event.currentTarget.checked)} />
+    </label>
     <p className="heuresis-study-device-note">Saved on this device. Your study progress and review history are still saved in your account.</p>
   </section>;
 }

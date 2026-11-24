@@ -86,9 +86,9 @@ import "./library-home-quiet.css";
 import "./library-study-refined.css";
 import "./study-home.css";
 import "./study-knowledge-mode.css";
-import "./theme/chrome.css";
 import "./theme/polish.css";
 import "./theme/refined.css";
+import "./theme/chrome.css";
 import { BootScreen } from "./components/ui/LoadingState";
 
 // Secondary windows load their own code only when opened, so the main window
