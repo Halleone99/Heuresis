@@ -334,6 +334,104 @@
   --ws-card-line: #785568;
 }
 
+:root[data-palette="aegean"],
+[data-palette-preview="aegean"] {
+  --ws-card-heading: var(--ws-sans);
+}
+
+:root[data-palette="marigold"],
+[data-palette-preview="marigold"] {
+  --ws-card-heading: "EB Garamond", Georgia, serif;
+}
+
+:root[data-palette="aegean"][data-theme="light"],
+:root[data-theme="light"] [data-palette-preview="aegean"] {
+  --ws-page: #e4edf9;
+  --ws-surface: #f0f5fe;
+  --ws-raised: #ffffff;
+  --ws-surface-2: #eaf0fa;
+  --ws-sunken: #d4e2f4;
+  --ws-ink: #14223d;
+  --ws-text: #334361;
+  --ws-muted: #455778;
+  --ws-accent: #2b46b7;
+  --ws-accent-strong: #20348e;
+  --ws-primary: #2f48bd;
+  --ws-primary-hover: #243898;
+  --ws-on-primary: #ffffff;
+  --ws-bar: #347abc;
+  --ws-chrome: #142344;
+  --ws-card: #f7fbff;
+  --ws-card-secondary: #e8f6f5;
+  --ws-card-line: #9db9de;
+}
+
+:root[data-palette="aegean"][data-theme="dark"],
+:root[data-theme="dark"] [data-palette-preview="aegean"] {
+  --ws-page: #131c36;
+  --ws-surface: #1c2948;
+  --ws-raised: #2c3c61;
+  --ws-surface-2: #222f51;
+  --ws-sunken: #10182b;
+  --ws-ink: #f2f5ff;
+  --ws-text: #cedcf6;
+  --ws-muted: #aabce4;
+  --ws-accent: #a9beff;
+  --ws-accent-strong: #cfdbff;
+  --ws-primary: #b1c5ff;
+  --ws-primary-hover: #d6e0ff;
+  --ws-on-primary: #142245;
+  --ws-bar: #8fcbd1;
+  --ws-chrome: #101b37;
+  --ws-card: #233455;
+  --ws-card-secondary: #18373f;
+  --ws-card-line: #4d6ca3;
+}
+
+:root[data-palette="marigold"][data-theme="light"],
+:root[data-theme="light"] [data-palette-preview="marigold"] {
+  --ws-page: #f5e8c9;
+  --ws-surface: #fdf5e1;
+  --ws-raised: #fffdf5;
+  --ws-surface-2: #f8eccf;
+  --ws-sunken: #eddeb8;
+  --ws-ink: #2e2619;
+  --ws-text: #4c3b22;
+  --ws-muted: #635233;
+  --ws-accent: #805000;
+  --ws-accent-strong: #663d00;
+  --ws-primary: #724900;
+  --ws-primary-hover: #5c3900;
+  --ws-on-primary: #fff9e9;
+  --ws-bar: #9b630c;
+  --ws-chrome: #342b1c;
+  --ws-card: #fffbed;
+  --ws-card-secondary: #f9edcb;
+  --ws-card-line: #c7a65e;
+}
+
+:root[data-palette="marigold"][data-theme="dark"],
+:root[data-theme="dark"] [data-palette-preview="marigold"] {
+  --ws-page: #23211c;
+  --ws-surface: #302c23;
+  --ws-raised: #3f392c;
+  --ws-surface-2: #353025;
+  --ws-sunken: #191813;
+  --ws-ink: #fff3da;
+  --ws-text: #e8dac0;
+  --ws-muted: #c5b494;
+  --ws-accent: #ffcb67;
+  --ws-accent-strong: #ffdf9c;
+  --ws-primary: #f9cc74;
+  --ws-primary-hover: #ffe0a7;
+  --ws-on-primary: #33230c;
+  --ws-bar: #dfaf64;
+  --ws-chrome: #211f19;
+  --ws-card: #383229;
+  --ws-card-secondary: #342b1c;
+  --ws-card-line: #806b41;
+}
+
 /* Semantic study statuses retain their meanings when the palette changes. */
 :root { --stage-unsorted:var(--c-amber); --stage-ready:var(--c-slate); --stage-reviewed:var(--c-sage); }
 

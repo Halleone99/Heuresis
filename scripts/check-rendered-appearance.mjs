@@ -14,7 +14,7 @@ const studyStyles = [
   "./components/study21/study21.css",
 ];
 const css = [...studyStyles, ...imports].map((file) => readFileSync(resolve("src", file.slice(2)), "utf8")).join("\n");
-const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"];
+const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier", "aegean", "marigold"];
 const modes = ["light", "dark"];
 const fixtures = `
 <div class="heuresis-desktop" data-section="study">
@@ -85,6 +85,20 @@ const studyFixtures = `
   <div class="cosmos-work cosmos-review-columns"><article id="review-card" class="cosmos-card">Review</article></div>
 </main>`;
 
+const interfaceFixtures = `
+<div class="heuresis-desktop" data-sidebar="rail" data-section="study">
+  <header class="desktop-chrome"><button class="desktop-nav-item active" id="design-nav">Study</button></header>
+  <div class="heuresis-workspace-layout">
+    <aside class="heuresis-section-sidebar"><nav class="hw-sections"><button class="active" id="design-side">Study</button></nav></aside>
+    <main class="desktop-content">
+      <div class="intelligent-library-head"><h1 id="design-title">Study</h1></div>
+      <section class="study-home" id="design-study">Study progress</section>
+      <section class="nb-home-subject" id="design-note">Notebook</section>
+      <section class="ct-collection-card" id="design-catalogue">Catalogue</section>
+    </main>
+  </div>
+</div>`;
+
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 880 }, reducedMotion: "reduce" });
@@ -141,7 +155,27 @@ try {
       assert.deepEqual(parse(background), expected, `${palette}/${mode} ${card} uses its theme surface`);
     }
   }
-  console.log("Rendered Chrome: 12 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder, plus Study 2.1 card surfaces. Screenshots saved.");
+  for (const mode of modes) for (const palette of ["aegean", "marigold"]) {
+    for (const [design, cardRadius] of [["aperture", "20px"], ["forma", "7px"]]) {
+      await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}" data-design="${design}"><head><style>${css}</style></head><body>${interfaceFixtures}</body></html>`);
+      for (const id of ["design-study", "design-note", "design-catalogue"]) {
+        assert.equal(await page.locator("#" + id).evaluate(el => getComputedStyle(el).borderRadius), cardRadius,
+          `${design}/${mode} ${id} uses the workspace design`);
+      }
+      assert.match(await page.locator("#design-title").evaluate(el => getComputedStyle(el).fontFamily), /^Inter/);
+      const nav = await page.locator("#design-nav").evaluate(el => {
+        const header = getComputedStyle(el.parentElement);
+        return {
+          ink: getComputedStyle(el).color,
+          surface: getComputedStyle(el).backgroundColor,
+          header: header.backgroundColor,
+        };
+      });
+      const background = composite(parse(nav.surface), parse(nav.header));
+      assert.ok(contrast(parse(nav.ink), background) >= 4.5, `${design}/${palette}/${mode} navigation contrast`);
+    }
+  }
+  console.log("Rendered Chrome: 16 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder, plus Study 2.1 card surfaces and both interface designs. Screenshots saved.");
 } finally {
   await browser.close();
 }

@@ -1,0 +1,239 @@
+/* Interface designs control layout and typography. Colour comes from the active theme. */
+:root[data-design="aperture"] {
+  --design-card-radius: 20px;
+  --design-control-radius: 11px;
+  --design-card-shadow: var(--ws-shadow-1);
+  --design-letter-spacing: -.045em;
+  --design-title-weight: 650;
+  --design-grid-gap: clamp(15px, 1.6vw, 22px);
+  --design-header-shadow: var(--ws-shadow-1);
+}
+
+:root[data-design="forma"] {
+  --design-card-radius: 7px;
+  --design-control-radius: 5px;
+  --design-card-shadow: none;
+  --design-letter-spacing: -.034em;
+  --design-title-weight: 700;
+  --design-grid-gap: 10px;
+  --design-header-shadow: inset 0 2px var(--ws-chrome-accent);
+}
+
+:root:is([data-design="aperture"], [data-design="forma"]) {
+  --ws-radius: var(--design-control-radius);
+  --ws-radius-sm: calc(var(--design-control-radius) - 2px);
+  --ws-radius-lg: var(--design-card-radius);
+}
+
+:root:is([data-design="aperture"], [data-design="forma"]) [data-palette-preview] {
+  --ws-card-heading: var(--ws-sans);
+  --ws-card-radius: var(--design-card-radius);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop
+  :is(.intelligent-library-head, .collection-page-head, .modern-topic-title, .nb-scope-head,
+      .lit-reading-topbar, .lit-page-head, .hc-head, .q-page-head, .ct-masthead,
+      .ct-collection-intro, .ct-volume-intro, .ov-head) h1,
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop .ov-title-main,
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .settings-modal .settings-head h2 {
+  /* Some older page headings set their serif stack with !important. */
+  font-family: var(--ws-sans) !important;
+  font-weight: var(--design-title-weight);
+  letter-spacing: var(--design-letter-spacing);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop
+  :is(.study-desk-title, .study-desk-mini-body strong, .nb-subject-copy strong,
+      .nb-topic-card-title, .nb-doc-text strong, .ov-card-name, .ct-collection-card-copy strong,
+      .lit-quote-collection-title) {
+  font-family: var(--ws-sans);
+  font-weight: 600;
+  letter-spacing: -.025em;
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop
+  :is(.study-home, .study-desk-feature, .study-desk-mini, .nb-home-subject:not(.has-cover),
+      .nb-topic-card, .ov-card, .ov-activity, .ct-collection-card, .lit-quote-collection-card,
+      .lit-book-card, .topic-card, .topic-browse-hub, .topic-summary-strip, .hc-study-banner, .q-list > button) {
+  border-color: var(--ws-line-strong);
+  border-radius: var(--design-card-radius);
+  background: var(--ws-card);
+  box-shadow: var(--design-card-shadow);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop
+  :is(.study-desk-mini, .nb-home-subject:not(.has-cover), .nb-topic-card, .ct-collection-card,
+      .lit-book-card, .lit-quote-collection-card):hover {
+  border-color: var(--ws-accent);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop .q-list > button.active {
+  border-color: var(--ws-accent);
+  background: var(--ws-card-secondary);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop
+  :is(.nb-home-subject.has-cover, .ct-article-card, .direction-card, .heuresis-voice-row, .hc-face) {
+  border-radius: var(--design-card-radius);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .heuresis-desktop
+  :is(.ct-collection-cards, .nb-home-subjects, .lit-book-grid, .ov-cards, .topic-grid, .study-desk) {
+  gap: var(--design-grid-gap);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"])
+  :is(.heuresis-desktop, .sort-modal, .cosmos-shell, .capture-composer)
+  :is(.ws-button, .primary-button, .secondary-button, .lit-button, .ct-create, .sh-start,
+      .study-desk-action, .capture-commit, .study21-type-pill, .study21-answer-pill, .review-reveal,
+      .hc-primary, .q-primary) {
+  border-radius: var(--design-control-radius);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"])
+  :is(.sort-modal--session, .cosmos-shell[data-mode="review"]) :is(.sort-card, .cosmos-card) {
+  border-radius: var(--design-card-radius);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .sort-modal--session.study21 .sort-new-content
+  :is(.sort-selectable, .sort-inline-text):is(.term, .meaning),
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .cosmos-shell[data-mode="review"]
+  .cosmos-core-field:is(.role-term, .role-meaning) {
+  font-family: var(--ws-sans);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .settings-layer .settings-modal-wide {
+  border-radius: var(--design-card-radius);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .capture-composer
+  :is(.capture-card-surface, .capture-enrichment) {
+  border-radius: var(--design-card-radius);
+}
+
+:root[data-design="aperture"] .heuresis-desktop :is(.desktop-chrome, .heuresis-section-sidebar, .mobile-workspace-nav) {
+  --ws-chrome: var(--ws-surface);
+  --ws-chrome-text: var(--ws-ink);
+  --ws-chrome-muted: var(--ws-muted);
+  --design-chrome-hover: var(--ws-accent-soft);
+  --design-header-line: var(--ws-line);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop[data-sidebar] .heuresis-section-sidebar {
+  height: calc(100dvh - 64px);
+  top: 56px;
+  margin-top: 8px;
+  border: 1px solid var(--ws-line);
+  border-radius: 0 17px 17px 0;
+  background: var(--ws-surface);
+  box-shadow: var(--ws-shadow-1);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop[data-sidebar] .hw-sections button {
+  border-radius: 13px;
+  color: var(--ws-muted);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop[data-sidebar] .hw-sections button:is(.active, :hover),
+:root[data-theme][data-design="aperture"] .mobile-workspace-nav button.is-active {
+  background: var(--ws-accent-soft);
+  color: var(--ws-ink);
+  box-shadow: inset 0 0 0 1px var(--ws-accent-line);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop[data-sidebar] .hw-sections button.active svg {
+  color: var(--ws-accent-strong);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop .hw-notebook-tree {
+  border-top-color: var(--ws-line);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop .hw-nb-heading { color: var(--ws-muted); }
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop :is(.hw-nb-home, .hw-nb-row).is-active {
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent-strong);
+  box-shadow: none;
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop .desktop-nav-group {
+  gap: 3px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--ws-surface-2);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop .desktop-nav-item {
+  border-radius: 999px;
+  padding-inline: 13px;
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop .desktop-nav-item.active {
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent-strong);
+  box-shadow: inset 0 0 0 1px var(--ws-accent-line);
+}
+
+:root[data-theme][data-design="aperture"] .heuresis-desktop .study-home {
+  border-top-color: var(--ws-line-strong);
+  background: linear-gradient(158deg, var(--ws-card), var(--ws-card-secondary));
+}
+
+:root[data-theme][data-design="aperture"] .settings-tabs button[aria-pressed="true"] {
+  background: var(--ws-accent-soft);
+  border-bottom-color: transparent;
+  border-radius: 11px 11px 0 0;
+  color: var(--ws-accent-strong);
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop .desktop-nav-item {
+  border-radius: 0;
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop .desktop-nav-item.active {
+  box-shadow: inset 0 -2px color-mix(in srgb, var(--ws-chrome-accent) 60%, var(--ws-chrome-text));
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop[data-sidebar] .heuresis-section-sidebar {
+  background: var(--ws-chrome);
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop[data-sidebar] .hw-sections button {
+  border-radius: 4px;
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop
+  :is(.study-home, .study-desk-feature, .ov-activity, .topic-summary-strip, .hc-study-banner) {
+  border-top: 2px solid var(--ws-accent);
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop
+  :is(.intelligent-library-head, .nb-scope-head, .lit-reading-topbar, .hc-head, .q-page-head, .ct-masthead, .ov-head) {
+  border-bottom: 1px solid var(--ws-line-strong);
+  padding-bottom: 12px;
+}
+
+:root[data-theme][data-design="forma"] .heuresis-desktop
+  :is(.ws-eyebrow, .study-desk-eyebrow, .ov-eyebrow, .lit-eyebrow, .q-overline, .sh-stage-name) {
+  font-family: var(--ws-mono);
+  font-weight: 500;
+  letter-spacing: .08em;
+}
+
+:root[data-theme][data-design="forma"] :is(.appearance-palette, .appearance-mode, .appearance-mode button) {
+  border-radius: var(--design-control-radius);
+}
+
+:root[data-theme]:is([data-design="aperture"], [data-design="forma"]) .study-home .sh-start:disabled {
+  background: var(--ws-sunken);
+  color: var(--ws-muted);
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  :root[data-theme][data-design="aperture"] .mobile-workspace-nav {
+    border-radius: 15px 15px 0 0;
+    box-shadow: var(--ws-shadow-1);
+  }
+  :root[data-theme][data-design="forma"] .mobile-workspace-nav button { border-radius: 4px; }
+}

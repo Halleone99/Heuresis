@@ -7,7 +7,7 @@ import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPa
 import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import { BACKGROUND_PRESETS, createBackgroundPresetImage, presetSwatch, type BackgroundPreset } from "../lib/backgroundPresets";
 import type { Collection, PackWithType } from "../lib/heuresis";
-import { PALETTES, useAppearance } from "../lib/theme";
+import { DESIGNS, PALETTES, useAppearance } from "../lib/theme";
 import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import {
@@ -72,10 +72,20 @@ function AppearanceSettings() {
         <span className="appearance-palette-detail">{option.detail}</span>
       </button>)}
     </div>
-    <div className="settings-row">
-      <div className="settings-row-label"><strong>Interface style</strong><span>Choose Classic or Refined styling for the workspace.</span></div>
-      <SegmentedChoice label="Design style" className="appearance-mode" value={design} onChange={chooseDesign}
-        options={[{ value: "classic", label: "Classic" }, { value: "refined", label: "Refined" }]} />
+    <div className="appearance-designs">
+      <h3>Interface design</h3>
+      <div className="appearance-design-options" role="group" aria-label="Design style">
+        {DESIGNS.map((option) => <button key={option.id} className="appearance-palette appearance-design" type="button"
+          aria-pressed={design === option.id} onClick={() => chooseDesign(option.id)}>
+          <span className="appearance-design-preview" data-design-preview={option.id} aria-hidden="true">
+            <span className="design-preview-header"><i /><b /><b /></span>
+            <span className="design-preview-rail"><i /><i /><i /></span>
+            <span className="design-preview-content"><strong>Aa</strong><i /><i /></span>
+          </span>
+          <strong>{option.label}{design === option.id ? <Check size={14} aria-hidden="true" /> : null}</strong>
+          <span className="appearance-palette-detail">{option.detail}</span>
+        </button>)}
+      </div>
     </div>
     <div className="settings-row">
       <div className="settings-row-label"><strong>Overview layout</strong></div>

@@ -13,7 +13,7 @@
   /* Override legacy !important gradient headers so foreground is always readable. */
   background: var(--ws-chrome) !important;
   color: var(--ws-chrome-text);
-  box-shadow: 0 5px 16px rgba(0,0,0,.11);
+  box-shadow: var(--design-header-shadow, 0 5px 16px rgba(0,0,0,.11));
   backdrop-filter: blur(16px);
 }
 :root[data-theme] .desktop-wordmark {
@@ -34,7 +34,7 @@
 :root[data-theme] .desktop-wordmark:hover,
 :root[data-theme] .desktop-account-menu[open] > summary,
 :root[data-theme] .desktop-account-menu > summary:hover {
-  background: rgba(255,255,255,.12);
+  background: var(--design-chrome-hover, rgba(255,255,255,.12));
 }
 :root[data-theme] .desktop-wordmark-name {
   display: inline; color: var(--ws-chrome-text); font: 600 13px/1.2 var(--ws-sans);
@@ -99,7 +99,7 @@
   box-shadow:none;
 }
 :root[data-theme] .desktop-header-actions > .desktop-action:hover {
-  background:rgba(255,255,255,.12);
+  background:var(--design-chrome-hover, rgba(255,255,255,.12));
   color:var(--ws-chrome-text);
 }
 :root[data-theme] .desktop-header-actions > .desktop-action:disabled {
@@ -120,7 +120,7 @@
   color: var(--ws-chrome-muted) !important;
 }
 :root[data-theme] .desktop-header-actions > .desktop-action.desktop-search-action:hover {
-  background: rgba(255,255,255,.12) !important;
+  background: var(--design-chrome-hover, rgba(255,255,255,.12)) !important;
   color: var(--ws-chrome-text) !important;
 }
 :root[data-theme] .desktop-account-menu { position:relative;margin-left:2px; }
@@ -218,7 +218,7 @@
 /* Header artwork matches the application icon; hover replaces the desktop toggle. */
 :root[data-theme] .desktop-chrome {
   padding-left: 17px;
-  border-bottom-color: rgba(255,255,255,.095);
+  border-bottom-color: var(--design-header-line, rgba(255,255,255,.095));
 }
 :root[data-theme] .desktop-wordmark {
   display: inline-flex;
