@@ -1,0 +1,11 @@
+# Heuresis essential polish — 24 November 2026
+Based on the supplied Claude audit at b005e98. Classic stays default. Refined is a local appearance preference, independent of existing palettes and navigation.
+Included: theme-aware shared splash treatment (8-second maximum overlay), secondary-window loading, delayed skeletons in shell and topic, silent topic refresh with stale-result protection, per-topic Show all, sidebar and settings-tab persistence, page titles, Study/Home/All cards labels, success notice timeout, clearer sign-in feedback, guarded Escape in topic, collections, archive and safe settings tabs, and scoped optional appearance.
+Deferred: bulk editing/card moves, unified trash/undo, authentication recovery, account preference sync, network read timeouts, full font and date audit, lazy-loading and dead-code changes. No database changes.
+Validation: targeted source and scope checks only. Full build and browser/desktop checks required before merge. CI suppressed intentionally; no deployment.
+
+## Follow-up: optional topic tools
+Settings → Study → Topic browser: remember filters per topic; multiple-card selection. Both off by default.
+The selection toolbar only appears on explicit entry into Select. Selection is limited to visible cards; the current Review eligibility rules still apply. Metadata updates are limited to 50 cards per action and write only favourite / importance fields. Each write and its undo requires the expected server revision. Unconfirmed or conflicting writes stop the batch, report the confirmed count, and require refresh/sync before retry. Partial success is not presented as an atomic batch. Undo applies only to confirmed changes in the current topic view. No tag replacement, card relocation, deletion, study algorithm change, or database migration.
+The existing 7-second network read deadline and offline cache fallback were found in src/lib/supabase.ts; no second timeout was introduced. Add language-specific fallback in topic terms, exact date tooltips, and persistent error toasts. Keep canonical chrome CSS last and update existing topic browsing checks; add mocked metadata safety checks.
+Full runtime/build verification remains outstanding: the repository cannot be cloned from this environment. Do not merge/deploy until checked. No remote workflow was requested.

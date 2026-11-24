@@ -158,6 +158,7 @@ export type ArticlePage = { id: string; blocks: Block[] };
 
 export type CatalogueSubject = {
   id: string; user_id: string; name: string; sort_order: number; created_at: string; updated_at: string;
+  description: string; illustration: ImageRef | null;
 };
 export type CatalogueVolume = {
   id: string; user_id: string; subject_id: string | null;
@@ -325,7 +326,11 @@ export function normalisePages(raw: unknown): ArticlePage[] {
 
 export function normaliseSubject(row: Record<string, unknown>): CatalogueSubject {
   const created = str(row.created_at, new Date().toISOString());
-  return { id: str(row.id), user_id: str(row.user_id), name: str(row.name), sort_order: num(row.sort_order, 0), created_at: created, updated_at: str(row.updated_at, created) };
+  return {
+    id: str(row.id), user_id: str(row.user_id), name: str(row.name),
+    description: str(row.description), illustration: normaliseImage(row.illustration),
+    sort_order: num(row.sort_order, 0), created_at: created, updated_at: str(row.updated_at, created),
+  };
 }
 export function normaliseVolume(row: Record<string, unknown>): CatalogueVolume {
   const created = str(row.created_at, new Date().toISOString());

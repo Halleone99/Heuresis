@@ -13,6 +13,7 @@ export PGOPTIONS="-c client_min_messages=warning"
 P="psql -h $PGHOST -p $PGPORT -U postgres -v ON_ERROR_STOP=1 -q -At"
 DB=heuresis_catalogue_migration
 CATALOGUE=../supabase/migrations/20261030090000_catalogue_publications.sql
+DETAILS=../supabase/migrations/20261124211938_catalogue_collection_details.sql
 V2=20261012090000_knowledge_workspace_v2.sql
 fail() { echo "✗ $1"; exit 1; }
 pass() { echo "  ✓ $1"; }
@@ -24,6 +25,7 @@ for f in ../supabase/migrations/*.sql; do
   name="$(basename "$f")"
   [[ "$name" < "$V2" ]] && continue
   [[ "$name" == "$(basename "$CATALOGUE")" ]] && continue
+  [[ "$name" == "$(basename "$DETAILS")" ]] && continue
   $P -d "$DB" -1 -f "$f" >/dev/null 2>&1 || fail "migration failed: $name"
 done
 $P -d "$DB" -f sql/20_showcase.sql >/dev/null
@@ -67,5 +69,21 @@ if as "$B" "insert into storage.objects(bucket_id, name, owner) values ('heuresi
 as "$A" "insert into storage.objects(bucket_id, name, owner) values ('heuresis-catalogue-media', '$A/x.png', '$A')" >/dev/null || fail "the owner cannot store an image in their folder"
 [ "$(as "$B" "select count(*) from storage.objects where bucket_id = 'heuresis-catalogue-media'")" = "0" ] || fail "another person can see the image"
 pass "images are confined to the owner's folder"
+
+SUBJECT=aaaaaaaa-0000-4000-8000-000000000002
+as "$A" "insert into catalogue_subjects(id, name) values ('$SUBJECT', 'Existing collection')" >/dev/null
+as "$A" "update catalogue_articles set subject_id = '$SUBJECT'" >/dev/null
+article_before="$($P -d "$DB" -c 'select md5(a::text) from catalogue_articles a')"
+$P -d "$DB" -1 -f "$DETAILS" >/dev/null || fail "the collection details migration failed"
+[ "$($P -d "$DB" -c 'select md5(a::text) from catalogue_articles a')" = "$article_before" ] || fail "an existing article changed"
+[ "$($P -d "$DB" -c "select name || '|' || description || '|' || (illustration is null)::text from catalogue_subjects")" = "Existing collection||true" ] || fail "existing collection defaults are incorrect"
+[ "$(fingerprint)" = "$before" ] || fail "the details migration changed data or policies outside the Catalogue"
+as "$A" "update catalogue_subjects set description = 'Essays', illustration = '{\"path\": \"$A/x.png\"}' where id = '$SUBJECT'" >/dev/null
+as "$B" "update catalogue_subjects set description = 'Taken' where id = '$SUBJECT'" >/dev/null
+[ "$(as "$A" "select description || '|' || (illustration ->> 'path') from catalogue_subjects")" = "Essays|$A/x.png" ] || fail "collection details did not persist for their owner"
+if as "$A" "update catalogue_subjects set illustration = '{\"path\": \"$B/x.png\"}' where id = '$SUBJECT'" >/dev/null 2>&1; then fail "an illustration can reference another owner's folder"; fi
+if as "$A" "update catalogue_subjects set user_id = '$B' where id = '$SUBJECT'" >/dev/null 2>&1; then fail "the collection owner column can be changed"; fi
+pass "collection details preserve existing rows and can only reference images in the owner's folder"
+
 $P -c "drop database $DB" >/dev/null
 echo "Catalogue migration checks passed."

@@ -43,7 +43,7 @@ import {
   type StudyGrade,
   type StudyTemplate,
 } from "../lib/study";
-import { isWordSized, suggestResult, type AnswerKind, type AnswerSuggestion, type ExpectedAnswer } from "../lib/answerCheck";
+import { isWordSized, suggestResult, suggestChineseReading, type AnswerKind, type AnswerSuggestion, type ExpectedAnswer } from "../lib/answerCheck";
 import { mistakeDifference } from "../lib/mistakeDiff";
 import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
@@ -62,6 +62,10 @@ import ConnectionsPanel from "./ConnectionsPanel";
 import ReviewAnswerPad from "./ReviewAnswerPad";
 import ReviewCardEditor from "./ReviewCardEditor";
 import ReviewCardStatus from "./ReviewCardStatus";
+import SortEnrichmentPanel, { type DirectionInfo21 } from "./SortEnrichmentPanel";
+import ReviewMethod21 from "./study21/ReviewMethod21";
+import { useStageWidth } from "./study21/useStageWidth";
+import { useStudyMode } from "../lib/studyMode";
 import ReviewCorrectionPanel, { PreviousReviewCorrection } from "./ReviewCorrectionPanel";
 import { loadReviewCorrections, saveReviewCorrection, type ReviewCorrection, type ReviewCorrectionGrade } from "../lib/reviewCorrections";
 import { useHeuresisBackground } from "../hooks/useHeuresisBackground";
@@ -74,6 +78,7 @@ import "./cosmos.css";
 import "./review-card.css";
 // Android APK only (MagicPad). Loaded after review-card.css so it wins ties; see the file header.
 import "./review-card-android.css";
+import "./study21/study21.css";
 
 const WORKSPACE_BLOCKS_KEY = "_workspace_blocks";
 
@@ -309,6 +314,7 @@ async function closeDesktopWindow() {
 function plural(count: number, word: string) { return `${count} ${count === 1 ? word : `${word}s`}`; }
 
 export default function CosmosWindow() {
+  const studyMode = useStudyMode();
   const config = useMemo(parseConfig, []);
   const [pack, setPack] = useState<PackWithType | null>(null);
   const [reviewCollection, setReviewCollection] = useState<Collection | null>(null);
@@ -322,12 +328,14 @@ export default function CosmosWindow() {
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const reviewCardRef = useRef<HTMLElement>(null);
+  const cosmosShellRef = useRef<HTMLElement>(null);
   const [appliedChoice, setAppliedChoice] = useState("");
   const [appliedTiles, setAppliedTiles] = useState<string[]>([]);
   const [appliedWritten, setAppliedWritten] = useState("");
   const [appliedCovered, setAppliedCovered] = useState<string[]>([]);
   const [appliedVerdict, setAppliedVerdict] = useState<Verdict | null>(null);
   const [loading, setLoading] = useState(true);
+  const reviewWidth = useStageWidth(cosmosShellRef, !loading);
   const [error, setError] = useState("");
   const [emptySelection, setEmptySelection] = useState(false);
   const [notice, setNotice] = useState("");
@@ -394,6 +402,20 @@ export default function CosmosWindow() {
   useAndroidStudyWakeLock(mode === "review");
   const relatedReview = config.relatedReview;
   const redesignReview = mode === "review" && !relatedReview;
+  const isStudy21 = redesignReview && studyMode === "2.1";
+  const lastAutoOpenIndex = useRef<number | null>(null);
+  const preferredPanel = useRef<"language" | "knowledge">("language");
+  const rememberStudy21Details = (open: boolean) => {
+    lastAutoOpenIndex.current = index;
+    setDetailsPinned(open);
+    try { localStorage.setItem(DETAILS_PIN_KEY, open ? "1" : "0"); } catch { /* device only */ }
+  };
+  useEffect(() => {
+    if (!isStudy21 || !revealed || !detailsPinned || lastAutoOpenIndex.current === index) return;
+    lastAutoOpenIndex.current = index;
+    setLeftContextOpen(window.innerWidth >= 1208 || preferredPanel.current === "language");
+    setDetailsOpen(window.innerWidth >= 1208 || preferredPanel.current === "knowledge");
+  }, [isStudy21, revealed, index, detailsPinned]);
   const studyBackground = useHeuresisBackground("heuresis-study");
   const sharedBackground = useHeuresisBackground("heuresis");
   const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
@@ -925,8 +947,12 @@ export default function CosmosWindow() {
         const values = answerValues();
         const suggested = suggestResult(typed, values);
         const chineseExpected = values.some((entry) => /\p{Script=Han}/u.test(typeof entry === "string" ? entry : entry.value));
-        if (suggested?.grade === "good" && chineseExpected && templateDirection(pack, template) === "production" && !/\p{Script=Han}/u.test(typed)) {
-          setSuggestion({ ...suggested, grade: "hard", reason: "Reading matches, but the Chinese characters were not entered." });
+        if (chineseExpected && templateDirection(pack, template) === "production" && !/\p{Script=Han}/u.test(typed)) {
+          const readingKey = fieldByRole(pack.cardType, "reading")?.key;
+          const readingSuggestion = suggestChineseReading(typed, fieldText(card.data, readingKey));
+          setSuggestion(readingSuggestion ?? (suggested?.grade === "good"
+            ? { ...suggested, grade: "hard", reason: "Reading matches, but the Chinese characters were not entered." }
+            : suggested));
         } else setSuggestion(suggested);
       }
       setRevealed(true);
@@ -1206,6 +1232,9 @@ export default function CosmosWindow() {
           if (event.key === "Escape") { event.preventDefault(); target.blur(); }
           return; // Enter and Shift+Enter are handled in the textarea itself.
         }
+        if (isStudy21 && event.key === "Escape" && (leftContextOpen || detailsOpen)) {
+          event.preventDefault(); setLeftContextOpen(false); setDetailsOpen(false); rememberStudy21Details(false); return;
+        }
         // Let focused buttons handle Enter themselves; otherwise Enter advances.
         if (target?.closest("button,[role=button]") && (event.key === "Enter" || event.key === " ")) return;
         if (!typing && !busy && event.key === "Enter") { event.preventDefault(); void advance(queue, index + 1); }
@@ -1216,6 +1245,7 @@ export default function CosmosWindow() {
       if (event.key === "Escape" && !typing) {
         event.preventDefault();
         if (whyOpen) { setWhyOpen(false); return; }
+        if (isStudy21 && (leftContextOpen || detailsOpen)) { setLeftContextOpen(false); setDetailsOpen(false); rememberStudy21Details(false); return; }
         if (mode === "sort" && detailsOpen && !detailsPinned) { setDetailsOpen(false); return; }
         void closeSession().then(() => closeDesktopWindow());
         return;
@@ -1230,8 +1260,18 @@ export default function CosmosWindow() {
         const grade = grades[event.key];
         if (revealed && grade) { event.preventDefault(); selectGrade(grade); return; }
         if (revealed && event.key === "Enter" && suggestion && !appliedQuestion) { event.preventDefault(); selectGrade(suggestion.grade); return; }
-        if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
-        if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
+        if (isStudy21 && (event.key.toLowerCase() === "e" || event.key.toLowerCase() === "d")) {
+          event.preventDefault();
+          const language = event.key.toLowerCase() === "e";
+          const next = language ? !leftContextOpen : !detailsOpen;
+          preferredPanel.current = language ? "language" : "knowledge";
+          if (language) { setLeftContextOpen(next); if (window.innerWidth < 1208) setDetailsOpen(false); }
+          else { setDetailsOpen(next); if (window.innerWidth < 1208) setLeftContextOpen(false); }
+          rememberStudy21Details(next);
+        } else {
+          if (event.key.toLowerCase() === "d") { event.preventDefault(); setDetailsOpen((value) => !value); }
+          if (event.key.toLowerCase() === "e") { event.preventDefault(); if (isAndroidRuntime()) { setLeftContextOpen(false); setDetailsOpen((value) => !value); } else setLeftContextOpen((value) => !value); }
+        }
       } else {
         if (/^[1-5]$/.test(event.key)) { event.preventDefault(); void setInterest(Number(event.key)); }
         else if (event.key === "ArrowRight" || event.key === "Enter") { event.preventDefault(); void nextSort(); }
@@ -1298,6 +1338,22 @@ export default function CosmosWindow() {
     ? cardBarProgress(card, events?.filter((entry) => entry.cardId === card.id) ?? null,
       assessState(directionEvidence(card, null, events)).state, progressDirectionIds) : null;
 
+  const directionInfo21: DirectionInfo21 | undefined = isStudy21 && template ? (() => {
+    const pair = sessionTemplates.length === 2 ? sessionTemplates.find(candidate => candidate.id !== template.id) : null;
+    const stateName = (id: string) => {
+      const state = assessState(directionEvidence(card, id, events, { includeUnattributed: id === legacyId })).state;
+      return ({ "not-tried": "Not tried", "needs-work": "Needs work", developing: "Developing", holding: "Holding", strong: "Strong" } as Record<string, string>)[state] ?? state;
+    };
+    const counts = card.stats.by_template?.[template.id];
+    const countText = counts
+      ? ([["missed", counts.again], ["partial", counts.hard], ["recalled", counts.good], ["easy", counts.easy]] as const)
+        .filter(([,value]) => (Number(value) || 0) > 0).map(([label,value]) => String(value) + " " + label).join(" · ") || "No results"
+      : "No direction-specific results";
+    const recent = (events ?? []).filter(event => event.cardId === card.id && event.templateId === template.id).sort((a,b) => b.at - a.at)[0];
+    return { state: stateName(template.id), lastSeen: recent ? new Date(recent.at).toLocaleDateString() : "—",
+      results: countText, otherWay: pair ? pair.name + " · " + stateName(pair.id) : "—" };
+  })() : undefined;
+
   const fieldEntriesFor = (dimension: DimensionId) => (type?.field_schema ?? []).flatMap((field) => {
     if (field.key === "english_reference" || fieldDimension(field) !== dimension) return [];
     const value = fieldText(card.data, field.key);
@@ -1351,6 +1407,14 @@ export default function CosmosWindow() {
     const split = mode === "review";
     const open = side === "left" ? leftContextOpen : detailsOpen;
     if (!open || (split && !revealed) || (!split && !detailsAvailable)) return null;
+    if (isStudy21 && split) return <aside className={`cosmos-details cosmos-details-${side} study21-shared-details`}
+      aria-label={side === "left" ? "Language details" : "Knowledge details"}>
+      <button type="button" className="study21-shared-close" aria-label={side === "left" ? "Close Language details" : "Close Knowledge details"}
+        onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); if (!(side === "left" ? detailsOpen : leftContextOpen)) rememberStudy21Details(false); }}>×</button>
+      <SortEnrichmentPanel pack={pack} card={card} side={side === "left" ? "language" : "knowledge"} study21 readOnly
+        directionInfo={side === "right" ? directionInfo21 : undefined} quickNote={card.note ?? ""}
+        onChanged={() => undefined} onBlockedChange={() => undefined} />
+    </aside>;
     const combinedAndroidDetails = split && side === "right" && isAndroidRuntime();
     const chosen = split
       ? dimensions.filter((def) => combinedAndroidDetails || (side === "left"
@@ -1361,11 +1425,11 @@ export default function CosmosWindow() {
     const empty = mode === "sort" ? chosen.filter((def) => countFor(def.id) === 0 && addingDim !== def.id) : [];
     return <aside className={`cosmos-details cosmos-details-${side}`} aria-label={combinedAndroidDetails ? "Details: context and notes" : split ? (side === "left" ? "Examples and connections" : "Facts and notes") : "Card details"}>
       <header className="cosmos-details-head">
-        <strong>{combinedAndroidDetails ? "Details" : !split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
+        <strong>{isStudy21 && split ? side === "left" ? "Language" : "Knowledge" : combinedAndroidDetails ? "Details" : !split ? "Details" : side === "left" ? "Examples & connections" : "Facts & notes"}</strong>
         {!split ? <button type="button" aria-pressed={detailsPinned} title={detailsPinned ? "Stays open for every card" : "Keep open for every card"}
           onClick={() => { const next = !detailsPinned; setDetailsPinned(next); try { localStorage.setItem(DETAILS_PIN_KEY, next ? "1" : "0"); } catch { /* preference only */ } }}><Pin size={14} fill={detailsPinned ? "currentColor" : "none"} /></button> : null}
         <button type="button" aria-label={side === "left" ? "Close examples and connections" : "Close facts and notes"}
-          onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); }}><PanelRightClose size={15} /></button>
+          onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); if (isStudy21 && !(side === "left" ? detailsOpen : leftContextOpen)) rememberStudy21Details(false); }}><PanelRightClose size={15} /></button>
       </header>
       <div className="cosmos-details-body">
         {split && !revealed
@@ -1373,7 +1437,7 @@ export default function CosmosWindow() {
           : <>
             {filled.map(renderDimension)}
             {!filled.length ? <p className="cosmos-empty cosmos-details-empty">{mode === "review" ? "No saved context for this card." : "Nothing recorded yet. Add what helps you remember this card."}</p> : null}
-            {split && revealed && side === "right" && pack ? <FormattingRuleList language={
+            {split && revealed && side === "right" && pack && !isStudy21 ? <FormattingRuleList language={
               languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
               ?? languageFromScript(fieldText(card.data, term?.key)) ?? "en"} /> : null}
             {mode === "sort" && empty.length ? <div className="cosmos-details-empty"><span>Add</span>{empty.map((def) => <button key={def.id} type="button" onClick={() => { if (unsavedDraft) { setNotice("Save or cancel what you are adding first."); return; } setAddingDim(def.id); }}><Plus size={11} /> {def.label}</button>)}</div> : null}
@@ -1392,6 +1456,24 @@ export default function CosmosWindow() {
     }
   }
 
+  const reviewCenterWidth = (() => {
+    const bothSide = Math.min(368, Math.floor((reviewWidth - 628) / 2));
+    const wide = bothSide >= 290;
+    const singleSide = Math.min(368, reviewWidth - 524);
+    const pushes = wide || singleSide >= 260;
+    const panel = wide ? bothSide : Math.max(0, singleSide);
+    return Math.max(260, reviewWidth - (pushes && leftContextOpen ? panel + 40 : 64)
+      - (pushes && detailsOpen ? panel + 40 : 64));
+  })();
+  function reviewFontSize(text: string, meaningField: boolean): number {
+    const length = Array.from(text).reduce((sum, ch) => sum + (/\p{Script=Han}/u.test(ch) ? 1.9 : 1), 0);
+    const longest = Math.max(1, ...text.split(/\s+/).map(word => Array.from(word)
+      .reduce((sum, ch) => sum + (/\p{Script=Han}/u.test(ch) ? 1.9 : 1), 0)));
+    const base = meaningField ? length <= 36 ? 40 : length <= 70 ? 31 : 25
+      : length <= 14 ? 104 : length <= 22 ? 88 : length <= 34 ? 66 : length <= 52 ? 52 : 42;
+    return Math.max(28, Math.min(base, Math.floor(Math.max(200, reviewCenterWidth - 110) / (longest * (meaningField ? .55 : .57)))));
+  }
+
   const renderReviewCore = () => {
     const configuredPromptKeys = frontKeys.length ? frontKeys : [term?.key, reading?.key].filter(Boolean) as string[];
     const chineseRecognition = template && pack && templateDirection(pack, template) === "recognition"
@@ -1402,7 +1484,7 @@ export default function CosmosWindow() {
       .filter((key) => fieldText(card.data, key)) : [];
     const keys = revealed ? [...new Set([...backKeys, ...detailKeys])] : promptKeys;
     const fallbackKeys = revealed ? [meaning?.key].filter(Boolean) as string[] : [term?.key, reading?.key].filter(Boolean) as string[];
-    const used = (keys.length ? keys : fallbackKeys).filter((key) => !revealed || !recap.includes(key));
+    const used = (keys.length ? keys : fallbackKeys).filter((key) => (!revealed || !recap.includes(key)) && (!isStudy21 || !revealed || !["example", "example_reading", "example_translation"].includes(type?.field_schema.find(field => field.key === key)?.role ?? "")));
     const spokenPrompt = reviewSpokenPrompt(promptKeys, card.data, reading?.key);
     const canListen = Boolean(spokenPrompt) && canSpeak(reviewSpeechLanguage(spokenPrompt?.text ?? "", pack.title + " " + (template?.name ?? ""), pack.cardType?.name ?? "", spokenPrompt?.key === term?.key ? "term" : spokenPrompt?.key === meaning?.key ? "meaning" : "other"));
     const chineseTerm = fieldText(card.data, term?.key);
@@ -1420,7 +1502,8 @@ export default function CosmosWindow() {
       const field = type?.field_schema.find((entry) => entry.key === key);
       const rule = !recapField && !recap.length && position > 0 && field?.role === "meaning";
       const termToPlay = revealed && pronunciationAvailable && (key === term?.key || field?.role === "example");
-      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}>
+      return <div className={`cosmos-core-field role-${field?.role ?? "extra"}${recapField ? " is-recap" : ""}${redesignReview && !isWordSized(value) ? ` is-sentence${isGloss(value) ? " is-gloss" : ""}` : ""}`} key={`${recapField ? "q" : "a"}-${key}`}
+        style={isStudy21 && (field?.role === "term" || field?.role === "meaning") ? { fontSize: Math.min(recapField ? 50 : 104, reviewFontSize(value, field.role === "meaning")) } : undefined}>
         {rule ? <i className="cosmos-rule" /> : null}
         <span data-hl={revealed ? "" : undefined} lang={field?.role === "meaning" || field?.role === "example_translation" ? "en" :
           languageFromScript(value) ?? languageFromName(pack.title) ?? "en"}>{value}</span>
@@ -1442,7 +1525,7 @@ export default function CosmosWindow() {
       </>}
       {revealed && pronunciationAvailable && chineseTerm && ![...recap, ...used].includes(term?.key ?? "") ? <button type="button" className="cosmos-audio-answer" onClick={() => playAudio(chineseTerm, term?.key)}>▶ Hear term</button> : null}
       {revealed && context ? <div className="cosmos-related-context"><small>From</small><span>{context.source_term || "source card"}{context.source_reading ? ` · ${context.source_reading}` : ""} · {relationLabel(context.relation_type)}</span></div> : null}
-      {!revealed ? <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
+      {!revealed ? isStudy21 ? <ReviewMethod21 value={method} onChange={setMethod} canListen={canListen} /> : <div className="cosmos-recall-methods" role="group" aria-label="Answer by">
         {!redesignReview ? <span>Answer by</span> : null}
         {([["think","Think"],["type","Type"],["handwrite","Write"],["say","Say"],["hear","Hear"]] as const)
           .map(([value,label]) =>
@@ -1474,7 +1557,8 @@ export default function CosmosWindow() {
   const directionName = template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
-  return <main className="cosmos-shell" data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+  return <main ref={cosmosShellRef} className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+    {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: Math.min(100, (routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / ((routeProgress?.total ?? queue.length) || 1) * 100) + "%" }}/></div> : null}
     {redesignReview ? <header className="cosmos-topbar">
       <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>
       <div className="review-top-progress">
@@ -1482,7 +1566,7 @@ export default function CosmosWindow() {
         <span className="review-top-track" aria-hidden="true"><i style={{width:`${Math.min(100,(routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / (routeProgress?.total ?? queue.length) * 100)}%`}} /></span>
       </div>
       <div className="review-top-tools" role="group" aria-label="Review tools">
-        {!isAndroidRuntime() ? <>
+        {isStudy21 ? <button type="button" className="study21-review-details" disabled={!revealed} title={revealed ? "Details" : "After the reveal"} aria-expanded={leftContextOpen || detailsOpen} onClick={() => {const open = !(leftContextOpen || detailsOpen);setLeftContextOpen(open && (window.innerWidth >= 1208 || preferredPanel.current === "language"));setDetailsOpen(open && (window.innerWidth >= 1208 || preferredPanel.current === "knowledge"));rememberStudy21Details(open);}}><PanelLeftOpen size={16}/> Details <small>{detailsTotal}</small></button> : !isAndroidRuntime() ? <>
           <button type="button" className="review-icon" disabled={!revealed} aria-label="Context (E)" title="Context (E)"
             aria-pressed={leftContextOpen} onClick={() => setLeftContextOpen(value=>!value)}>
             {leftContextOpen ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</button>
@@ -1493,7 +1577,7 @@ export default function CosmosWindow() {
         <span className="review-top-separator" aria-hidden="true"/>
         {item?.reasons.length ? <button type="button" className="review-icon" aria-label="Why this card"
           title="Why this card" aria-expanded={whyOpen} onClick={()=>setWhyOpen(value=>!value)}><CircleHelp size={17}/></button> : null}
-        <button type="button" className="cosmos-close" aria-label="Close (Esc)" title="Close (Esc)" onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18}/></button>
+        <button type="button" className="cosmos-close" aria-label="Close" title={isStudy21 ? "Close" : "Close (Esc)"} onClick={() => void closeSession().then(() => closeDesktopWindow())}><X size={18}/></button>
       </div>
     </header> : <header className="cosmos-topbar"><div className="cosmos-title"><strong>Heuresis</strong><span>· {pack.title}</span></div>
       <div className="cosmos-modes"><span>{relatedReview ? "Related review" : mode === "sort" ? "Legacy Sort" : "Review"}</span></div>
@@ -1526,6 +1610,8 @@ export default function CosmosWindow() {
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
       / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
+    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {preferredPanel.current = "language";setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);rememberStudy21Details(true);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {preferredPanel.current = "knowledge";setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);rememberStudy21Details(true);}}>KNOWLEDGE</button> : null}</nav> : null}
+    {isStudy21 && revealed && window.innerWidth < 780 && (leftContextOpen || detailsOpen) ? <button type="button" className="study21-review-scrim" aria-label="Close details" onClick={() => {setLeftContextOpen(false);setDetailsOpen(false);rememberStudy21Details(false);}}/> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
       <article ref={reviewCardRef} className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
@@ -1544,7 +1630,7 @@ export default function CosmosWindow() {
                 : entry))}><ArrowLeftRight size={14}/></button> : null}
           </span>
           <span className="review-head-spacer"/>
-          {revealed && currentBars ? <ReviewCardStatus progress={currentBars}
+          {revealed && currentBars ? <ReviewCardStatus progress={currentBars} study21={isStudy21}
             historyAvailable={events !== null}
             change={gradeFeedback?.cardId === card.id && gradeFeedback.templateId === template?.id ? gradeFeedback : null} /> : null}
           {redesignReview && isAndroidRuntime() && revealed ? <button type="button" className="review-card-details"
@@ -1573,7 +1659,7 @@ export default function CosmosWindow() {
               <button type="button" disabled={busy} onClick={() => void reveal(true)}>I don't know</button>
               <button type="button" className="primary" disabled={busy || !appliedInputReady()}
                 onClick={() => void reveal()}>{appliedQuestion.format === "judge" ? "Show checklist" : "Check answer"}</button>
-            </div> : <button type="button" className="review-reveal" title="Reveal (Space)" disabled={busy}
+            </div> : <button type="button" className="review-reveal" title={isStudy21 ? "Reveal" : "Reveal (Space)"} disabled={busy}
             onClick={() => void reveal()}>Reveal</button>
           : gradedMistake ? <div className="review-missed" data-grade={gradedMistake} role="status">
               <div className="review-missed-line">
@@ -1597,7 +1683,7 @@ export default function CosmosWindow() {
                     if(event.key==="Escape"){event.preventDefault();event.stopPropagation();event.currentTarget.blur();}
                     else if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing){
                       event.preventDefault();event.stopPropagation();event.currentTarget.blur();
-                      if(missNote.trim())setMissNoteAdded(true);
+                      if(isStudy21){void advance(queue,index+1);}else if(missNote.trim())setMissNoteAdded(true);
                     }
                   }}/>}
             </div>

@@ -556,7 +556,7 @@ function DesignerStudio({ articleId }: { articleId: string }) {
   const back = () => {
     flushEditing();
     const from = catalogue.route.view === "design" ? catalogue.route.from : undefined;
-    catalogue.navigate(from && from.view !== "design" ? from : { view: "library" });
+    catalogue.returnTo(from ?? { view: "library" });
   };
   // Preview shows exactly what is on screen (saved or not) and closes back into the designer.
   const preview = () => { flushEditing(); setSelectedId(null); setPreviewing(true); };
@@ -690,7 +690,8 @@ function DesignerStudio({ articleId }: { articleId: string }) {
             await saveNow();
             await catalogue.removeArticle(serverRef.current ?? article);
             clearDraft(catalogue.userId, article.id);
-            catalogue.navigate({ view: "library" });
+            const from = catalogue.route.view === "design" ? catalogue.route.from : undefined;
+            catalogue.returnTo(from?.view === "read" ? from.from ?? { view: "library" } : from ?? { view: "library" });
           }} /> : null}
       </div>
       <div className="ct-zoom" role="group" aria-label="Zoom">
@@ -892,10 +893,10 @@ function DetailsPanel({ article, onPatch, onPublish, onClose, onCover, onNewVolu
       <Segmented label="Status" value={article.status} onChange={(status) => { if (status === "published") onPublish(); else onPatch({ status }); }}
         options={[{ value: "draft", label: "Draft" }, { value: "published", label: "Published" }]} />
     </Field>
-    <p className="ct-quiet">{article.status === "draft" ? "Drafts stay under Drafts and are not shown on the library shelves." : `Published ${formatDate(article.published_at)}. Shown on the library shelves and in its volume.`}</p>
+    {article.published_at && article.status === "published" ? <p className="ct-quiet">Published {formatDate(article.published_at)}</p> : null}
     <Field label="Subtitle"><textarea rows={2} maxLength={300} value={article.subtitle} onChange={(event) => onPatch({ subtitle: event.target.value })} /></Field>
     <Field label="Author"><input maxLength={120} value={article.author} onChange={(event) => onPatch({ author: event.target.value })} /></Field>
-    <Field label="Subject">
+    <Field label="Collection">
       {newSubject === null ? <select value={article.subject_id ?? ""} onChange={(event) => {
         if (event.target.value === "__new") { setNewSubject(""); return; }
         const subjectId = event.target.value || null;
@@ -904,12 +905,12 @@ function DetailsPanel({ article, onPatch, onPublish, onClose, onCover, onNewVolu
       }}>
         <option value="">None</option>
         {catalogue.snapshot.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-        <option value="__new">New subject…</option>
+        <option value="__new">New collection…</option>
       </select> : <form className="ct-row" onSubmit={(event) => {
         event.preventDefault();
         void catalogue.addSubject(newSubject).then((subject) => { onPatch({ subject_id: subject.id, volume_id: null }); setNewSubject(null); setError(""); })
           .catch((cause) => setError(catalogueError(cause)));
-      }}><input autoFocus value={newSubject} maxLength={120} placeholder="Subject name" onChange={(event) => setNewSubject(event.target.value)} aria-label="New subject name" />
+      }}><input autoFocus value={newSubject} maxLength={120} placeholder="Collection name" onChange={(event) => setNewSubject(event.target.value)} aria-label="New collection name" />
         <button type="submit" className="ws-button is-small is-primary" disabled={!newSubject.trim()}>Add</button>
         <button type="button" className="ws-button is-small" onClick={() => setNewSubject(null)}>Cancel</button></form>}
     </Field>

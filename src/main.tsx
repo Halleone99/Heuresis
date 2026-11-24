@@ -86,7 +86,10 @@ import "./library-home-quiet.css";
 import "./library-study-refined.css";
 import "./study-home.css";
 import "./study-knowledge-mode.css";
+import "./theme/polish.css";
+import "./theme/refined.css";
 import "./theme/chrome.css";
+import { BootScreen } from "./components/ui/LoadingState";
 
 // Secondary windows load their own code only when opened, so the main window
 // does not parse the Review and card-capture screens at start-up.
@@ -102,9 +105,9 @@ watchAppearance();
 const content = params.get("quick") === "1"
   ? <FloatingQuickCapture />
   : params.get("capture") === "1"
-    ? <React.Suspense fallback={null}><CaptureWindow /></React.Suspense>
+    ? <React.Suspense fallback={<BootScreen compact />}><CaptureWindow /></React.Suspense>
   : params.get("cosmos") === "1"
-    ? <React.Suspense fallback={null}><CosmosWindow /></React.Suspense>
+    ? <React.Suspense fallback={<BootScreen compact />}><CosmosWindow /></React.Suspense>
     : <App />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

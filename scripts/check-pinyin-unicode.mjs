@@ -64,3 +64,13 @@ const fromExample = learningBuildTileReadings(
   card("难", "nán", [{ source: "这个太难了。", reading: "zhè ge tài nán le", translation: "This is too difficult." }]));
 assert.equal(fromExample.get("t4"), "le", "Example reading takes precedence for example reconstruction");
 console.log("Learning Pinyin: contextual tile readings, joined saved syllables, polyphones and distractors passed.");
+
+const { suggestChineseReading } = loadTs("src/lib/answerCheck.ts");
+assert.equal(suggestChineseReading("gang1cai2", "gāngcái")?.grade, "hard");
+assert.equal(suggestChineseReading("yi jing", "yǐjīng")?.grade, "hard");
+assert.equal(suggestChineseReading("yǐjīng", "yǐjīng")?.grade, "hard");
+assert.equal(suggestChineseReading("已经", "yǐjīng"), null);
+assert.equal(suggestChineseReading("qian", "yǐjīng"), null);
+assert.equal(suggestChineseReading("lu", "lǜ"), null, "Do not confuse u and ü");
+assert.equal(suggestChineseReading("anything", ""), null);
+console.log("Chinese production: saved pinyin is partial, not full character recall.");

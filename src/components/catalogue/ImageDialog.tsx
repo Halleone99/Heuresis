@@ -134,7 +134,7 @@ export function ImageDialog({ initial, lockedAspect, defaultAspect, caption = ""
   const attribution = image?.attribution ?? null;
   const setAttribution = (value: Partial<Attribution>) => patch({ attribution: { provider: attribution?.provider ?? "upload", ...attribution, ...value } });
 
-  return <Dialog title={title ?? (step === "adjust" ? "Image" : "Add Image")} onClose={() => { if (!busy) onClose(); }} wide="xl" label="Image"
+  return <Dialog title={title ?? (step === "adjust" ? "Image" : "Add Image")} onClose={() => { if (!busy) onClose(); }} wide="xl" label={title ?? "Image"}
     actions={step === "adjust" && image ? <>
       {!initial || initial.path !== image.path ? <button type="button" className="ws-button is-quiet ct-actions-left" onClick={() => { setStep("source"); }}><ArrowLeft size={14} /> Choose another</button>
         : <button type="button" className="ws-button is-quiet ct-actions-left" onClick={() => { setStep("source"); }}>Replace image</button>}

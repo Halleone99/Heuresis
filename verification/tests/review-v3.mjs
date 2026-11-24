@@ -73,6 +73,27 @@ async function current(popup) {
   const article = popup.locator(".cosmos-card");
   return { cardId: await article.getAttribute("data-card-id"), templateId: await article.getAttribute("data-template-id") };
 }
+async function gradeAndWait(popup, key) {
+  const progress = await popup.locator(".review-top-progress > span:first-child").innerText();
+  // Grade only after the previous action has completed; preserve the keyboard contract.
+  await popup.locator(".review-ratings button").first().waitFor({ state: "visible" });
+  await popup.waitForFunction(() => {
+    const rating = document.querySelector(".review-ratings button");
+    return rating && !rating.disabled;
+  });
+  await popup.evaluate(() => document.activeElement?.blur?.());
+  await popup.keyboard.press(key);
+  if (key === "1" || key === "2") {
+    await popup.locator(".review-missed").waitFor();
+    await popup.locator(".review-next").click();
+  }
+  await popup.waitForFunction(previous => {
+    if (document.querySelector(".cosmos-summary")) return true;
+    const counter = document.querySelector(".review-top-progress > span:first-child");
+    return counter && counter.textContent.trim() !== previous.trim()
+      && !document.querySelector(".review-ratings, .review-missed");
+  }, progress, { timeout: 15000 });
+}
 async function revealAndGrade(popup, key) {
   // A checked Say/Write input keeps focus; space there must not toggle the control.
   // Blur it first so the session's keyboard shortcut reveals the actual card.
@@ -87,12 +108,7 @@ async function revealAndGrade(popup, key) {
       buttons: [...document.querySelectorAll(".cosmos-card button")].slice(0, 12).map((b) => ({ text: b.textContent?.trim().slice(0, 30), disabled: b.disabled })) }))));
     throw error;
   });
-  await popup.keyboard.press(key);
-  if (key === "1" || key === "2") {
-    await popup.locator(".review-missed").waitFor();
-    await popup.locator(".review-next").click();
-  }
-  await popup.waitForTimeout(350);
+  await gradeAndWait(popup, key);
 }
 async function waitFor(condition, timeout = 12000) {
   const end = Date.now() + timeout;
@@ -135,12 +151,7 @@ const scenarios = {
           "Ratings are Missed, Partial, Recalled and Easy");
         await popup.screenshot({ path: `${shots}/review-revealed.png` });
       }
-      await popup.keyboard.press(step === 0 ? "1" : "3");
-      if (step === 0) {
-        await popup.locator(".review-missed").waitFor();
-        await popup.locator(".review-next").click();
-      }
-      await popup.waitForTimeout(250);
+      await gradeAndWait(popup, step === 0 ? "1" : "3");
     }
     await popup.locator(".cosmos-summary").waitFor();
     check(await waitFor(async () => await gradeCount() - before === total), "Every completed grade is persisted");
@@ -196,7 +207,7 @@ const scenarios = {
     await page.waitForTimeout(800);
     check(await page.locator(`.modern-topic-row:has-text("${first}")`).count() === 0, "a discarded card leaves the topic");
     check(/^6 cards/.test(await page.locator(".pack-record").innerText()), "the topic count leaves it out");
-    await page.click('.desktop-nav-group button:has-text("Library")');
+    await page.getByRole("navigation", { name: "Study navigation" }).getByRole("button", { name: "Home", exact: true }).click();
     await page.waitForTimeout(1000);
     const libraryRow = await page.locator('.study-desk-topic:has-text("HSK 2 — Time") .study-desk-topic-copy small').innerText();
     check(/^6 cards/i.test(libraryRow), `the Library count leaves it out too (“${libraryRow}”)`);
@@ -321,8 +332,7 @@ const scenarios = {
       if (suggestion) check((await popup.locator(".review-ratings button.is-suggested").innerText()).startsWith(suggestion), "the suggested result is highlighted, not chosen");
       if (step === 0) await popup.screenshot({ path: `${shots}/typed-suggestion.png` });
       // The learner decides: on the first card, override the suggestion with Secure.
-      await popup.keyboard.press(step === 0 ? "4" : "3");
-      await popup.waitForTimeout(400);
+      await gradeAndWait(popup, step === 0 ? "4" : "3");
     }
     check(answers[0].suggestion === "Recalled", `the characters committed by an IME are Recalled (${answers[0].term}: ${answers[0].suggestion})`);
     check(answers[1].suggestion === "Partial", `numbered pinyin is Partial (${answers[1].term}: ${answers[1].suggestion})`);
@@ -349,7 +359,8 @@ const scenarios = {
     await page.keyboard.press("d");
     await page.locator('.sort-discard-confirm button.danger').click();
     await page.waitForTimeout(900);
-    check(/2 new cards met/.test(await page.locator(".sort-finished").innerText()), "Sort keeps working offline");
+    const offlineSummary = await page.locator(".sort-finished .sort-summary-stats").innerText();
+    check(/1\s+to Learn/.test(offlineSummary) && /1\s+discarded/.test(offlineSummary), "Sort keeps working offline: one sent to Learn and one discarded");
     check(await page.locator(".sort-error").count() === 0, "without error messages");
     check(await sql(`select (data->>'_sorted_at') is null from heuresis_cards where data->>'term'='${first}'`) === "t", "nothing has reached the server yet");
     await page.click('.sort-finished-actions button:has-text("Back to Study")');

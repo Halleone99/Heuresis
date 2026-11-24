@@ -33,7 +33,7 @@ export type NoteColour = typeof NOTE_COLOURS[number];
 
 export type Inline =
   | { type: "text"; text: string }
-  | { type: "strong" | "em" | "mark" | "strike"; text: string }
+  | { type: "strong" | "em" | "mark" | "strike" | "underline"; text: string }
   | { type: "link"; target: string; label: string }
   | { type: "colour" | "tint"; colour: NoteColour; text: string };
 
@@ -151,7 +151,7 @@ export function parseBlocks(markdown: string): Block[] {
   return blocks;
 }
 
-const INLINE_RE = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}/g;
+const INLINE_RE = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|==(.+?)==|\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]|\*(?![\s*])([^*]*?[^\s*])\*|~~(.+?)~~|\{color:(red|blue|green|amber|purple)\}(.+?)\{\/color\}|\{bg:(red|blue|green|amber|purple)\}(.+?)\{\/bg\}|\{u\}(.+?)\{\/u\}/g;
 
 /** Backslash escapes prevent literal formatting markers from changing notes. */
 const unescapeInline = (value: string) => value.replace(/\\(\\|\*|=|~|\[|\]|\{|\})/g, "$1");
@@ -169,7 +169,7 @@ export function parseInline(text: string): Inline[] {
     const start = match.index ?? 0;
     const end = start + match[0].length;
     if (start < last || escapedMarker(text, start)) continue;
-    const inner = match[1] ?? match[2] ?? match[3] ?? match[6] ?? match[7];
+    const inner = match[1] ?? match[2] ?? match[3] ?? match[6] ?? match[7] ?? match[12];
     // Only single-star maths inside Latin text is literal; bold and Hanzi are not.
     const emphasis = match[6] !== undefined;
     // Preserve maths and grammar examples such as "x == y == z" and "a*b*c".
@@ -189,6 +189,7 @@ export function parseInline(text: string): Inline[] {
     else if (match[7] !== undefined) result.push({ type: "strike", text: match[7] });
     else if (match[8] !== undefined) result.push({ type: "colour", colour: match[8] as NoteColour, text: match[9] });
     else if (match[10] !== undefined) result.push({ type: "tint", colour: match[10] as NoteColour, text: match[11] });
+    else if (match[12] !== undefined) result.push({ type: "underline", text: match[12] });
     last = start + match[0].length;
   }
   if (last < text.length) result.push(inlineText(text.slice(last)));
@@ -256,6 +257,7 @@ function inlineHtml(text: string): string {
     if (part.type === "em") return `<em>${inlineHtml(part.text)}</em>`;
     if (part.type === "mark") return `<mark>${inlineHtml(part.text)}</mark>`;
     if (part.type === "strike") return `<s>${inlineHtml(part.text)}</s>`;
+    if (part.type === "underline") return `<u>${inlineHtml(part.text)}</u>`;
     if (part.type === "colour") return `<span data-ink="${part.colour}">${inlineHtml(part.text)}</span>`;
     if (part.type === "tint") return `<mark data-tone="${part.colour}">${inlineHtml(part.text)}</mark>`;
     if (part.type === "link") return `<span data-wikilink="true">${escapeHtml(part.label === part.target ? `[[${part.target}]]` : `[[${part.target}|${part.label}]]`)}</span>`;
@@ -325,6 +327,9 @@ function isItalic(element: HTMLElement) {
 function isMark(element: HTMLElement) {
   return element.tagName === "MARK";
 }
+function isUnderline(element: HTMLElement) {
+  return element.tagName === "U" || element.style?.textDecorationLine?.includes("underline");
+}
 function isStrike(element: HTMLElement) {
   return element.tagName === "S" || element.tagName === "DEL" || element.tagName === "STRIKE" || element.style?.textDecorationLine === "line-through";
 }
@@ -338,7 +343,7 @@ function wrap(marker: string, inner: string) {
 /** Serialise inline content. Returns text where "\n" marks a hard line break. */
 function escapeInlineText(value: string): string {
   return value.replace(/\\/g, "\\\\")
-    .replace(/(\*{1,3}|==|~~|\[\[(?![^\]]*\]\])|\{(?:color|bg):)(?=\S)/g, "\\$1");
+    .replace(/(\*{1,3}|==|~~|\[\[(?![^\]]*\]\])|\{(?:color|bg):|\{u\})(?=\S)/g, "\\$1");
 }
 function inlineMarkdown(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return escapeInlineText((node.textContent ?? "").replace(/ /g, " ").replace(/​/g, ""));
@@ -353,6 +358,7 @@ function inlineMarkdown(node: Node): string {
   if (ink && NOTE_COLOURS.includes(ink as NoteColour)) inner = inner.trim() ? `{color:${ink}}${inner}{/color}` : inner;
   if (tone && NOTE_COLOURS.includes(tone as NoteColour)) inner = inner.trim() ? `{bg:${tone}}${inner}{/bg}` : inner;
   else if (isMark(element)) inner = wrap("==", inner);
+  if (isUnderline(element) && inner.trim()) inner = `{u}${inner}{/u}`;
   if (isStrike(element)) inner = wrap("~~", inner);
   if (isItalic(element) && !isBold(element)) inner = wrap("*", inner);
   if (isBold(element)) inner = wrap("**", inner);

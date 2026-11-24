@@ -9,7 +9,7 @@ import { blankArticle, newPage, type ArticlePage, type Block, type CatalogueArti
 import { catalogueError } from "../../lib/catalogue/store";
 import { relativeTime } from "../workspace/ui";
 import { useWorkspace } from "../workspace/WorkspaceContext";
-import { useCatalogue } from "./CatalogueData";
+import { catalogueShelf, useCatalogue } from "./CatalogueData";
 import { setDesignerNotice } from "./notices";
 import { Dialog, Field, Segmented } from "./parts";
 import { flowOverflow } from "./stage";
@@ -71,7 +71,7 @@ export function CreateArticleDialog({ onClose, defaultSubjectId = null, defaultV
     const created = await catalogue.addArticle(ready);
     if (notice?.length) setDesignerNotice(created.id, notice);
     onClose();
-    catalogue.navigate({ view: "design", id: created.id, from: catalogue.route.view === "volume" ? catalogue.route : { view: "library" } });
+    catalogue.navigate({ view: "design", id: created.id, from: catalogueShelf(catalogue.route) });
   }
 
   async function run(job: () => Promise<void>) {
@@ -131,7 +131,7 @@ export function CreateArticleDialog({ onClose, defaultSubjectId = null, defaultV
   });
 
   const placement = <div className="ct-placement">
-    <Field label="Subject">
+    <Field label="Collection">
       <select value={subjectId} onChange={(event) => { setSubjectId(event.target.value); setVolumeId(""); }}>
         <option value="">None for now</option>
         {catalogue.snapshot.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}

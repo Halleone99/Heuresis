@@ -4,7 +4,7 @@ import { PAGE_HEIGHT_PX, PAGE_WIDTH_PX, articleTitle, volumeArticles, type Catal
 import { registerCatalogueFonts } from "../../lib/catalogue/fonts";
 import { Portal } from "../workspace/ui";
 import { ArticlePageView } from "./ArticlePage";
-import { useCatalogue, type CatalogueRoute } from "./CatalogueData";
+import { useCatalogue, type CatalogueShelfRoute } from "./CatalogueData";
 import { ExportDialog } from "./ExportDialog";
 import { pageOverflowPx } from "./stage";
 
@@ -14,7 +14,7 @@ import { pageOverflowPx } from "./stage";
  * on screen (saved or not), and closes back into the designer.
  */
 export function ArticleReader({ articleId, from, preview }: {
-  articleId: string; from?: CatalogueRoute; preview?: { article: CatalogueArticle; onClose: () => void };
+  articleId: string; from?: CatalogueShelfRoute; preview?: { article: CatalogueArticle; onClose: () => void };
 }) {
   const catalogue = useCatalogue();
   const article = preview?.article ?? catalogue.articleById.get(articleId) ?? null;
@@ -67,8 +67,8 @@ export function ArticleReader({ articleId, from, preview }: {
 
   const back = useCallback(() => {
     if (preview) preview.onClose();
-    else if (from) catalogue.navigate(from);
-    else catalogue.navigate(article?.volume_id ? { view: "volume", id: article.volume_id } : { view: "library" });
+    else if (from) catalogue.returnTo(from);
+    else catalogue.returnTo(article?.volume_id ? { view: "volume", id: article.volume_id } : { view: "library" });
   }, [article?.volume_id, catalogue, from, preview]);
 
   useEffect(() => {
@@ -100,11 +100,14 @@ export function ArticleReader({ articleId, from, preview }: {
   const next = position >= 0 && position < sequence.length - 1 ? sequence[position + 1] : null;
   const keepFrom = from;
   const isPreview = Boolean(preview);
+  const backLabel = isPreview ? "Designer"
+    : from?.view === "collection" ? catalogue.subjectById.get(from.id)?.name ?? "Catalogue"
+    : from?.view === "independent" ? "Independent articles" : volume?.title ?? "Catalogue";
 
   return <Portal><div className="ct-reader" role="dialog" aria-modal="true" aria-label={`Reading ${articleTitle(article)}`}>
     {exporting ? <ExportDialog articles={[article]} title={articleTitle(article)} onClose={() => setExporting(false)} /> : null}
     <header className="ct-reader-bar">
-      <button type="button" className="ct-bar-back" onClick={back}><ArrowLeft size={17} /><span>{isPreview ? "Designer" : volume ? volume.title : "Catalogue"}</span></button>
+      <button type="button" className="ct-bar-back" onClick={back} aria-label={`Back to ${backLabel}`}><ArrowLeft size={17} /><span>{backLabel}</span></button>
       <div className="ct-reader-title"><strong>{articleTitle(article)}</strong>{isPreview ? <small>Preview{article.status === "draft" ? " · draft" : ""}</small> : volume ? <small>{volume.edition || volume.title}</small> : null}</div>
       <span className="ct-reader-page" aria-live="polite">{current + 1} / {article.pages.length}</span>
       <div className="ct-zoom is-inline" role="group" aria-label="Zoom">
@@ -112,8 +115,8 @@ export function ArticleReader({ articleId, from, preview }: {
         <button type="button" className="ct-zoom-value" title="Fit the width" onClick={() => setZoom(null)}>{zoom === null ? "Fit" : `${Math.round(scale * 100)}%`}</button>
         <button type="button" aria-label="Zoom in" onClick={() => setZoom(Math.min(2.5, Math.round((scale + 0.1) * 10) / 10))}><Plus size={14} /></button>
       </div>
-      {!isPreview ? <button type="button" className="ws-button is-small ct-bar-button" onClick={() => catalogue.navigate({ view: "design", id: article.id, from: { view: "read", id: article.id, from: keepFrom } })}><Pencil size={14} /><span>Edit</span></button> : null}
-      <button type="button" className="ws-button is-small ct-bar-button" onClick={() => setExporting(true)}><FileDown size={14} /><span>Export PDF</span></button>
+      {!isPreview ? <button type="button" className="ws-button is-small ct-bar-button" aria-label="Edit article" onClick={() => catalogue.navigate({ view: "design", id: article.id, from: { view: "read", id: article.id, from: keepFrom } })}><Pencil size={14} /><span>Edit</span></button> : null}
+      <button type="button" className="ws-button is-small ct-bar-button" aria-label="Export PDF" onClick={() => setExporting(true)}><FileDown size={14} /><span>Export PDF</span></button>
     </header>
     {overflowing.length ? <div className="ct-notice" role="status"><p>Page {overflowing.map((index) => index + 1).join(", ")} {overflowing.length === 1 ? "has" : "have"} more content than fits; the excess is not shown. Edit the article to move it onto the next page.</p></div> : null}
     <div className="ct-reader-scroll" ref={scroller} onScroll={onScroll}>
@@ -122,8 +125,8 @@ export function ArticleReader({ articleId, from, preview }: {
           <ArticlePageView article={article} page={page} pageIndex={index} pageCount={article.pages.length} kicker={labels.kicker} runningTitle={labels.runningTitle} mode="read" scale={scale} />
         </div>)}
         {previous || next ? <nav className="ct-reader-next" aria-label="In this volume">
-          {previous ? <button type="button" onClick={() => catalogue.navigate({ view: "read", id: previous.id, from: keepFrom })}><ArrowLeft size={15} /><span><small>Previous</small>{articleTitle(previous)}</span></button> : <span />}
-          {next ? <button type="button" className="is-next" onClick={() => catalogue.navigate({ view: "read", id: next.id, from: keepFrom })}><span><small>Next</small>{articleTitle(next)}</span><ArrowRight size={15} /></button> : null}
+          {previous ? <button type="button" onClick={() => catalogue.navigate({ view: "read", id: previous.id, from: keepFrom }, { replace: true })}><ArrowLeft size={15} /><span><small>Previous</small>{articleTitle(previous)}</span></button> : <span />}
+          {next ? <button type="button" className="is-next" onClick={() => catalogue.navigate({ view: "read", id: next.id, from: keepFrom }, { replace: true })}><span><small>Next</small>{articleTitle(next)}</span><ArrowRight size={15} /></button> : null}
         </nav> : null}
       </div>
     </div>

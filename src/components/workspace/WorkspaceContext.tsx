@@ -165,8 +165,9 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const toast = useCallback((message: string, options: Omit<Toast, "id" | "message"> = {}) => {
     toastId.current += 1;
     const id = toastId.current;
-    setToasts((current) => [...current.slice(-2), { id, message, ...options }]);
-    window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), options.action ? 7000 : 3800);
+    // Keep errors until dismissed; a success should not push a sync error out of view.
+    setToasts((current) => [...current.filter((item) => item.tone === "error"), ...current.filter((item) => item.tone !== "error").slice(-2), { id, message, ...options }]);
+    if (options.tone !== "error") window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== id)), options.action ? 7000 : 3800);
   }, []);
   const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((item) => item.id !== id)), []);
 

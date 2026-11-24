@@ -40,7 +40,8 @@ export function catalogueError(error: unknown): string {
   const e = (error ?? {}) as PgError;
   const text = `${e.message ?? ""} ${e.details ?? ""}`;
   if (error instanceof ConflictError) return error.message;
-  if (e.code === "23505" && /catalogue_subjects/.test(text)) return "You already have a subject with that name.";
+  if (e.code === "23505" && /catalogue_subjects/.test(text)) return "You already have a collection with that name.";
+  if ((e.code === "PGRST204" || e.code === "42703") && /description|illustration/.test(text)) return "Collection details require the latest Catalogue database update.";
   if (e.code === "23514" && /pages/.test(text)) return "This article is too large to save. Split it into two articles.";
   if (e.code === "23514") return "Some of the details are too long or not valid.";
   if (e.code === "42501") return "You do not have permission to change this item.";
@@ -91,18 +92,32 @@ export async function loadCatalogue(userId: string): Promise<LoadedCatalogue> {
 // ---------------------------------------------------------------------------
 // Subjects
 // ---------------------------------------------------------------------------
-export async function createSubject(userId: string, name: string, sortOrder = 0): Promise<CatalogueSubject> {
+export type SubjectDetails = Pick<CatalogueSubject, "description" | "illustration">;
+export type SubjectInput = Partial<Pick<CatalogueSubject, "name"> & SubjectDetails>;
+
+export async function createSubject(userId: string, name: string, sortOrder: number, details?: SubjectDetails): Promise<CatalogueSubject> {
   const now = new Date().toISOString();
-  const row: CatalogueSubject = { id: crypto.randomUUID(), user_id: userId, name: cleanName(name), sort_order: sortOrder, created_at: now, updated_at: now };
+  const description = details?.description.trim().slice(0, LIMITS.subtitle) ?? "";
+  const row = {
+    id: crypto.randomUUID(), user_id: userId, name: cleanName(name), sort_order: sortOrder, created_at: now, updated_at: now,
+    ...(description ? { description } : {}),
+    ...(details?.illustration ? { illustration: details.illustration } : {}),
+  };
   const { error } = await db().from("catalogue_subjects").insert(row);
   if (error) throw error;
-  return row;
+  return normaliseSubject(row);
 }
-export async function renameSubject(userId: string, id: string, name: string) {
-  const clean = cleanName(name);
-  const { error } = await db().from("catalogue_subjects").update({ name: clean }).eq("id", id).eq("user_id", userId);
+export async function updateSubject(subject: CatalogueSubject, patch: SubjectInput): Promise<CatalogueSubject> {
+  const clean = { ...patch };
+  if (patch.name !== undefined) clean.name = cleanName(patch.name);
+  if (patch.description !== undefined) clean.description = patch.description.trim().slice(0, LIMITS.subtitle);
+  if (!Object.keys(clean).length) return subject;
+  const { data, error } = await db().from("catalogue_subjects").update(clean)
+    .eq("id", subject.id).eq("user_id", subject.user_id).select("*").maybeSingle();
   if (error) throw error;
-  return clean;
+  if (!data) throw new Error("This collection is no longer available.");
+  // The offline layer queues this patch and returns only the target ID.
+  return "name" in data ? normaliseSubject(data) : { ...subject, ...clean };
 }
 /** Volumes and articles of the subject are kept; they simply have no subject afterwards. */
 export async function deleteSubject(userId: string, id: string) {

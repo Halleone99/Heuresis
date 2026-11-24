@@ -114,8 +114,8 @@ const scenarios = {
       "New session offers the two unsorted cards for classification");
     await page.locator(".sort-setup-start").click();
     await page.locator(".sort-card").waitFor();
-    check(/^1 of 2$/.test((await page.locator(".sort-top-progress > span").innerText()).trim()),
-      "Starting New opens the first of the two unsorted cards, never reviewed ones");
+    check(/^0 of 2$/.test((await page.locator(".sort-top-progress > span").innerText()).trim()),
+      "Starting New counts zero validated cards out of two, never reviewed ones");
     await page.keyboard.press("Escape");
     await page.locator('button:has-text("Browse")').first().click();
     await page.locator(".browse-status-grid").waitFor();

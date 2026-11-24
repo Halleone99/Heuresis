@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const read = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+const settings = read("src/components/SettingsModal.tsx");
+const pref = read("src/lib/studyMode.ts");
+const sort = read("src/components/SortModal.tsx");
+const review = read("src/components/CosmosWindow.tsx");
+const panel = read("src/components/SortEnrichmentPanel.tsx");
+const editor = read("src/components/workspace/RichEditor.tsx");
+const format = read("src/lib/noteFormat.ts");
+const badge = read("src/components/ReviewCardStatus.tsx");
+const css = read("src/components/study21/study21.css");
+
+for (const term of ["Classic", "2.1", 'writeStudyMode']) assert(settings.includes(term), "Missing Settings switch: " + term);
+assert(pref.includes('heuresis.study.mode.v1') && pref.includes('heuresis-study-mode-changed'), "Mode change must propagate without reload");
+assert(sort.includes('const isStudy21') && sort.includes('NewDock21') && sort.includes('onLearn={() => void learn(') && sort.includes('onReview={() => void learn('), "New stage must reuse existing decisions");
+assert(sort.includes('heuresis.sort.details.v1') && sort.includes('heuresis.sort.lastImportance.v1'), "New-card choices must persist");
+assert(panel.includes('const LEFT_ORDER21') && panel.includes('const RIGHT_ORDER21') && panel.includes('["origin", "facts", "hook", "picture", "notes"]'), "Origin must move to Knowledge in 2.1 only");
+assert(panel.includes('study21 readOnly') === false && panel.includes('readOnly = false'), "Details must have a read-only path without changing Classic");
+assert(review.includes('study21 readOnly') && review.includes('directionInfo21') && review.includes('SortEnrichmentPanel'), "Review must render the same Details component");
+assert(editor.includes('compactStudy21') && editor.includes('exec("underline")'), "B I U editing must be supported");
+assert(format.includes('type: "underline"') && format.includes('isUnderline(element)'), "Underline must round-trip through saved markdown");
+assert(review.includes('reviewFontSize') && sort.includes('termSize'), "Long cards must have a width-sensitive size rule");
+assert(review.includes('study21={isStudy21}') && badge.includes('is-lost'), "Review feedback must match real progress");
+assert(css.includes('.study21') && !css.includes('!important'), "2.1 styles must remain scoped with no !important");
+console.log("Study 2.1 structural contract passed");
+
+assert(sort.includes('--study21-pad-left') && sort.includes('--study21-pad-right') && sort.includes('--study21-meaning-size'), "New text is sized within the available width");
+assert(/<\/article>\s*\{isStudy21 \? <NewDock21/.test(sort), "New dock is independent of the scrolling card");
+assert(css.includes('.sort-selectable,.sort-inline-text') && css.includes('bottom:var(--study21-dock-bottom)'), "Read and edit typography and fixed dock use the prototype layout");
+assert(sort.includes('blockExample.reading') && sort.includes('exampleReadingField'), "New cards display saved example readings");
+console.log("Study 2.1 New stage and independent dock checks passed");

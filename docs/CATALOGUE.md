@@ -15,6 +15,16 @@ archiving or deleting the source note leaves the article as it is (`source_note_
 provenance only and has no foreign key). Reference notes are ordinary Notebook notes and
 are no longer shown in the Catalogue.
 
+## Browsing and organising
+
+The Catalogue landing page is a collection index. Each collection shows its articles in grid
+or list view, with filters for draft and published articles. The device remembers the view.
+Independent articles, including untitled drafts, have their own entry point. The search
+button on the index searches across collections and independent articles.
+
+Open a collection's actions menu to edit its name, description or illustration. The
+illustration uses the same private image storage and crop controls as article covers.
+
 ## Database
 
 `supabase/migrations/20261030090000_catalogue_publications.sql` — additive, idempotent,
@@ -26,6 +36,10 @@ safe to run more than once. It creates:
   `draft | published`, typography and colour preset, page numbers, running header, library
   cover, `pages` as JSON — at most 400 pages and 2 MB — source kind/label/note id, soft delete);
 * the private bucket `heuresis-catalogue-media` (images, 20 MB per file).
+
+`supabase/migrations/20261124211938_catalogue_collection_details.sql` adds an optional
+description and illustration to each subject. Apply it before deploying the collection
+editor. Existing collections acquire an empty description and a blank illustration.
 
 Every table has row-level security (owner only); clients may update only content columns,
 never `id`, `user_id` or `created_at`. Removing a subject or volume leaves its articles in

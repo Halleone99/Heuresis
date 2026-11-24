@@ -1,17 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  EMPTY_CATALOGUE, type CatalogueArticle, type CatalogueSnapshot, type CatalogueSubject, type CatalogueVolume,
+  EMPTY_CATALOGUE, normaliseArticle, type CatalogueArticle, type CatalogueSnapshot, type CatalogueSubject, type CatalogueVolume,
 } from "../../lib/catalogue/model";
 import * as store from "../../lib/catalogue/store";
 import { subscribeReplayedRows } from "../../lib/offlineFetch";
-import { normaliseArticle } from "../../lib/catalogue/model";
 import { useWorkspace } from "../workspace/WorkspaceContext";
 
-export type CatalogueRoute =
-  | { view: "library"; subjectId?: string | null }
-  | { view: "volume"; id: string }
-  | { view: "read"; id: string; from?: CatalogueRoute }
-  | { view: "design"; id: string; from?: CatalogueRoute };
+export type CatalogueShelfRoute = { view: "library" } | { view: "independent" }
+  | { view: "collection"; id: string } | { view: "volume"; id: string };
+type ReaderRoute = { view: "read"; id: string; from?: CatalogueShelfRoute };
+export type CatalogueRoute = CatalogueShelfRoute | ReaderRoute
+  | { view: "design"; id: string; from?: ReaderRoute | CatalogueShelfRoute };
+
+export function catalogueShelf(route: CatalogueRoute): CatalogueShelfRoute {
+  if (route.view === "read" || route.view === "design") return route.from ? catalogueShelf(route.from) : { view: "library" };
+  return route;
+}
 
 type CatalogueValue = {
   userId: string;
@@ -22,12 +26,13 @@ type CatalogueValue = {
   deleted: CatalogueArticle[];
   reload: (silent?: boolean) => Promise<void>;
   route: CatalogueRoute;
-  navigate: (route: CatalogueRoute) => void;
+  navigate: (route: CatalogueRoute, options?: { replace?: boolean }) => void;
+  returnTo: (route: CatalogueRoute) => void;
   subjectById: Map<string, CatalogueSubject>;
   volumeById: Map<string, CatalogueVolume>;
   articleById: Map<string, CatalogueArticle>;
-  addSubject: (name: string) => Promise<CatalogueSubject>;
-  renameSubject: (id: string, name: string) => Promise<void>;
+  addSubject: (name: string, details?: store.SubjectDetails) => Promise<CatalogueSubject>;
+  changeSubject: (subject: CatalogueSubject, patch: store.SubjectInput) => Promise<void>;
   removeSubject: (id: string) => Promise<void>;
   addVolume: (input: store.VolumeInput) => Promise<CatalogueVolume>;
   changeVolume: (volume: CatalogueVolume, patch: Partial<store.VolumeInput>) => Promise<CatalogueVolume>;
@@ -51,11 +56,19 @@ export function useCatalogue() {
 }
 
 const routeKey = (userId: string) => `heuresis.catalogue.route.v1:${userId}`;
+type HistoryEntry = { userId: string; route: CatalogueRoute; previous?: CatalogueRoute };
+function historyEntry(userId: string) {
+  const entry = window.history.state?.heuresisCatalogue as HistoryEntry | undefined;
+  return entry?.userId === userId ? entry : undefined;
+}
 function readRoute(userId: string): CatalogueRoute {
+  const entry = historyEntry(userId);
+  if (entry) return entry.route;
   try {
     const raw = sessionStorage.getItem(routeKey(userId));
-    const parsed = raw ? JSON.parse(raw) as CatalogueRoute : null;
-    if (parsed && typeof parsed === "object" && ["library", "volume", "read", "design"].includes(parsed.view)) return parsed;
+    const parsed = raw ? JSON.parse(raw) as CatalogueRoute & { subjectId?: string } : null;
+    if (parsed?.view === "library" && parsed.subjectId) return { view: "collection", id: parsed.subjectId };
+    if (parsed && ["library", "collection", "independent", "volume", "read", "design"].includes(parsed.view)) return parsed;
   } catch { /* convenience only */ }
   return { view: "library" };
 }
@@ -70,11 +83,43 @@ export function CatalogueProvider({ userId, children }: { userId: string; childr
   const [route, setRoute] = useState<CatalogueRoute>(() => readRoute(userId));
   const loaded = useRef(false);
 
-  const navigate = useCallback((next: CatalogueRoute) => {
+  const showRoute = useCallback((next: CatalogueRoute, scrollToTop: boolean) => {
     setRoute(next);
     try { sessionStorage.setItem(routeKey(userId), JSON.stringify(next)); } catch { /* optional */ }
-    if (next.view === "library" || next.view === "volume") window.scrollTo(0, 0);
+    if (scrollToTop && next.view !== "read" && next.view !== "design") window.scrollTo(0, 0);
   }, [userId]);
+
+  const navigate = useCallback((next: CatalogueRoute, options?: { replace?: boolean }) => {
+    if (JSON.stringify(next) === JSON.stringify(route)) return;
+    const entry = historyEntry(userId);
+    const state = { ...window.history.state, heuresisCatalogue: {
+      userId, route: next, previous: options?.replace ? entry?.previous : route,
+    } };
+    if (options?.replace) window.history.replaceState(state, "");
+    else {
+      if (!entry) window.history.replaceState({ ...window.history.state, heuresisCatalogue: { userId, route } }, "");
+      window.history.pushState(state, "");
+    }
+    showRoute(next, true);
+  }, [route, showRoute, userId]);
+
+  const returnTo = useCallback((next: CatalogueRoute) => {
+    const previous = historyEntry(userId)?.previous;
+    if (previous && JSON.stringify(previous) === JSON.stringify(next)) window.history.back();
+    else navigate(next, { replace: true });
+  }, [navigate, userId]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const entry = historyEntry(userId);
+      if (!entry) return;
+      // Commit a focused designer field before its editor is unmounted.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      showRoute(entry.route, false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [showRoute, userId]);
 
   const reload = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -114,15 +159,16 @@ export function CatalogueProvider({ userId, children }: { userId: string; childr
   })), []);
 
   const value = useMemo<CatalogueValue>(() => ({
-    userId, loading, error, schema, snapshot, deleted, reload, route, navigate, subjectById, volumeById, articleById,
-    async addSubject(name) {
-      const created = await store.createSubject(userId, name, snapshot.subjects.length);
+    userId, loading, error, schema, snapshot, deleted, reload, route, navigate, returnTo, subjectById, volumeById, articleById,
+    async addSubject(name, details) {
+      const sortOrder = snapshot.subjects.reduce((next, subject) => Math.max(next, subject.sort_order + 1), 0);
+      const created = await store.createSubject(userId, name, sortOrder, details);
       setSnapshot((current) => ({ ...current, subjects: [...current.subjects, created] }));
       return created;
     },
-    async renameSubject(id, name) {
-      const clean = await store.renameSubject(userId, id, name);
-      setSnapshot((current) => ({ ...current, subjects: current.subjects.map((row) => row.id === id ? { ...row, name: clean } : row) }));
+    async changeSubject(subject, patch) {
+      const updated = await store.updateSubject(subject, patch);
+      setSnapshot((current) => ({ ...current, subjects: current.subjects.map((row) => row.id === subject.id ? updated : row) }));
     },
     async removeSubject(id) {
       await store.deleteSubject(userId, id);
@@ -131,6 +177,7 @@ export function CatalogueProvider({ userId, children }: { userId: string; childr
         volumes: current.volumes.map((row) => row.subject_id === id ? { ...row, subject_id: null } : row),
         articles: current.articles.map((row) => row.subject_id === id ? { ...row, subject_id: null } : row),
       }));
+      setDeleted((current) => current.map((row) => row.subject_id === id ? { ...row, subject_id: null } : row));
     },
     async addVolume(input) {
       const order = snapshot.volumes.filter((row) => row.subject_id === input.subject_id).length;
@@ -150,6 +197,7 @@ export function CatalogueProvider({ userId, children }: { userId: string; childr
         volumes: current.volumes.filter((row) => row.id !== id),
         articles: current.articles.map((row) => row.volume_id === id ? { ...row, volume_id: null } : row),
       }));
+      setDeleted((current) => current.map((row) => row.volume_id === id ? { ...row, volume_id: null } : row));
     },
     async addArticle(article) {
       const created = await store.createArticle(article);
@@ -191,7 +239,7 @@ export function CatalogueProvider({ userId, children }: { userId: string; childr
       const kicker = volume ? [subject?.name, volume.edition || volume.title].filter(Boolean).join(" · ") : subject?.name ?? "";
       return { kicker, runningTitle: volume?.title ?? article.title };
     },
-  }), [articleById, deleted, error, loading, navigate, reload, replace, route, schema, snapshot, subjectById, userId, volumeById, workspace]);
+  }), [articleById, deleted, error, loading, navigate, reload, replace, returnTo, route, schema, snapshot, subjectById, userId, volumeById, workspace]);
 
   return <CatalogueContext.Provider value={value}>{children}</CatalogueContext.Provider>;
 }

@@ -1,5 +1,9 @@
 import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import LoadingState from "./ui/LoadingState";
+import { readTopicFilters, saveTopicFilters, useTopicBrowserOptions } from "../lib/topicBrowserPrefs";
+import { formatExactDate } from "../lib/displayDate";
+import { updateCardMetadata, type CardMetadata } from "../lib/cardMetadata";
 import {
   DISCARDED_AT_KEY,
   patchCardData,
@@ -179,6 +183,17 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   );
 }
 
+function readShowAll(packId: string) {
+  try { return localStorage.getItem(`heuresis.topic.show-all.v1:${packId}`) === "true"; }
+  catch { return false; }
+}
+function saveShowAll(packId: string, show = true) {
+  try { localStorage.setItem(`heuresis.topic.show-all.v1:${packId}`, String(show)); } catch { /* optional */ }
+}
+type BulkAction = "favourite" | "unfavourite" | Importance | "none";
+type BulkUndo = { card: Pick<CardWithStats, "id" | "pack_id" | "updated_at">; patch: Partial<CardMetadata> };
+type BulkTarget = BulkUndo & { previous?: Partial<CardMetadata> };
+const BULK_LIMIT = 50;
 export default function PackView({ pack, collection, newCardsBackgroundStyle, focusCardId = null, onFocusCardShown, onBack, onCapture, onSettings, onChanged }: Props) {
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [referenceCards, setReferenceCards] = useState<CardWithStats[]>([]);
@@ -186,20 +201,38 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
   const [events, setEvents] = useState<GradeEvent[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
-  const [stateFilter, setStateFilter] = useState<ProgressStage | null>(null);
-  const [favouriteOnly, setFavouriteOnly] = useState(false);
-  const [interestFilter, setInterestFilter] = useState<InterestFilter>("all");
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [includeUntagged, setIncludeUntagged] = useState(false);
+  const { options: browserOptions } = useTopicBrowserOptions();
+  const [initialFilters] = useState(() => readTopicFilters(pack.id));
+  const [query, setQuery] = useState(initialFilters.query);
+  const [statusFilters, setStatusFilters] = useState<StatusFilter[]>(initialFilters.statusFilters);
+  const [stateFilter, setStateFilter] = useState<ProgressStage | null>(initialFilters.stateFilter);
+  const [favouriteOnly, setFavouriteOnly] = useState(initialFilters.favouriteOnly);
+  const [interestFilter, setInterestFilter] = useState<InterestFilter>(initialFilters.interestFilter);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialFilters.selectedTagIds);
+  const [includeUntagged, setIncludeUntagged] = useState(initialFilters.includeUntagged);
   const [tagSearch, setTagSearch] = useState("");
-  const [allCardsExpanded, setAllCardsExpanded] = useState(false);
-  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
-  const [sortField, setSortField] = useState<SortField>("status");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [allCardsExpanded, setAllCardsExpanded] = useState(() => browserOptions.rememberFilters ? initialFilters.allCardsExpanded : readShowAll(pack.id));
+  const [detailFilters, setDetailFilters] = useState<DetailFilter[]>(initialFilters.detailFilters);
+  const [sortField, setSortField] = useState<SortField>(initialFilters.sortField);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(initialFilters.sortDirection);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSelected, setBulkSelected] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<BulkAction>("favourite");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [bulkUndo, setBulkUndo] = useState<BulkUndo[]>([]);
+  const bulkRunning = useRef(false);
+  const mounted = useRef(true);
+  const selectionAnchor = useRef<string | null>(null);
+  const transientSearch = useRef(Boolean(focusCardId));
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    if (!browserOptions.cardManagement && !bulkBusy) {
+      setBulkMode(false); setBulkSelected([]); selectionAnchor.current = null;
+    }
+  }, [browserOptions.cardManagement, bulkBusy]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [editing, setEditing] = useState<CardWithStats | null>(null);
   const [connectionsCard, setConnectionsCard] = useState<CardWithStats | null>(null);
@@ -214,11 +247,16 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   const [focusNotice, setFocusNotice] = useState("");
   const [reviewNotice, setReviewNotice] = useState("");
   const [loadedPackId, setLoadedPackId] = useState<string | null>(null);
+  const hasData = loadedPackId === pack.id;
+  const loading = fetching && !hasData;
+  const requestVersion = useRef(0);
 
   async function reload() {
-    setLoading(true); setError("");
+    const version = ++requestVersion.current;
+    setFetching(true); setError("");
     try {
       const [topicCards, nextTags, setup, history] = await Promise.all([listTopicCards(pack.id), listTags(), loadStudySetup(pack.id, pack.card_type_id), loadGradeEvents(pack.id).catch(() => null)]);
+      if (version !== requestVersion.current) return;
       const nextCards = topicCards.learning;
       setCards(nextCards); setReferenceCards(topicCards.reference); setTags(nextTags); setTemplates(setup.templates); setDefaultTemplateId(setup.defaultTemplateId); setEvents(history);
       setLoadedPackId(pack.id);
@@ -226,27 +264,25 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
       setEditing((current) => current ? all.find((card) => card.id === current.id) ?? current : null);
       setSelectedCardId((current) => current && all.some((card) => card.id === current) ? current : null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
-    } finally { setLoading(false); }
+      if (version === requestVersion.current) setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
+    } finally { if (version === requestVersion.current) setFetching(false); }
   }
 
   useEffect(() => {
     setSelectedCardId(null);
     setFocusNotice("");
     setReviewNotice("");
-    setStatusFilters([]);
-    setStateFilter(null);
-    setFavouriteOnly(false);
-    setInterestFilter("all");
-    setSelectedTagIds([]);
-    setIncludeUntagged(false);
-    setTagSearch("");
-    setAllCardsExpanded(false);
-    setDetailFilters([]);
-    setSortField("status");
-    setSortDirection("asc");
+    // App keys PackView by topic id. Filter state is initialised once for that topic.
     void reload();
+    return () => { requestVersion.current += 1; };
   }, [pack.id]);
+
+  useEffect(() => {
+    if (!browserOptions.rememberFilters || transientSearch.current || focusCardId) return;
+    saveTopicFilters(pack.id, { query, statusFilters, stateFilter, favouriteOnly, interestFilter,
+      selectedTagIds, includeUntagged, allCardsExpanded, detailFilters, sortField, sortDirection });
+  }, [pack.id, browserOptions.rememberFilters, focusCardId, query, statusFilters, stateFilter, favouriteOnly,
+    interestFilter, selectedTagIds, includeUntagged, allCardsExpanded, detailFilters, sortField, sortDirection]);
 
   useEffect(() => {
     reviewOpened.current = false;
@@ -434,6 +470,9 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   useEffect(() => {
     // Wait for this topic's own cards; the previous topic's list may still be on screen.
     if (!focusCardId || loading || loadedPackId !== pack.id) return;
+    // Search navigation reveals its target without replacing the saved normal browsing preferences.
+    transientSearch.current = true;
+    setBulkMode(false); setBulkSelected([]); selectionAnchor.current = null;
     const isReference = referenceCards.some((card) => card.id === focusCardId);
     if (isReference || cards.some((card) => card.id === focusCardId)) {
       setAllCardsExpanded(true);
@@ -452,7 +491,73 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   }, [cards, focusCardId, loadedPackId, loading, onFocusCardShown, pack.id, referenceCards]);
 
   const activeFilterCount = statusFilters.length + (stateFilter ? 1 : 0) + (favouriteOnly ? 1 : 0) + detailFilters.length + (interestFilter !== "all" ? 1 : 0) + (tagSelectionActive ? 1 : 0) + (query.trim() ? 1 : 0);
-  const showCardList = allCardsExpanded || activeFilterCount > 0 || visibleTotal <= 250;
+  const showCardList = allCardsExpanded || activeFilterCount > 0 || visibleTotal <= 250 || bulkMode;
+  const bulkCards = useMemo(() => shown.filter((card) => bulkSelected.includes(card.id)), [shown, bulkSelected]);
+  const bulkReviewCards = useMemo(() => {
+    const eligible = new Set(reviewCards.map((card) => card.id));
+    return bulkCards.filter((card) => eligible.has(card.id));
+  }, [bulkCards, reviewCards]);
+  const topicLanguage = packLanguage(pack, collection?.title);
+  useEffect(() => {
+    const visible = new Set(shown.map((card) => card.id));
+    setBulkSelected((previous) => previous.every((id) => visible.has(id)) ? previous : previous.filter((id) => visible.has(id)));
+  }, [shown]);
+  function finishSelection() {
+    if (bulkRunning.current) return;
+    setBulkMode(false); setBulkSelected([]); selectionAnchor.current = null;
+  }
+  function toggleBulk(id: string, range = false) {
+    if (bulkRunning.current) return;
+    const anchor = selectionAnchor.current;
+    const from = anchor ? shown.findIndex((card) => card.id === anchor) : -1;
+    const to = shown.findIndex((card) => card.id === id);
+    setBulkSelected((previous) => range && from >= 0 && to >= 0
+      ? [...new Set([...previous, ...shown.slice(Math.min(from, to), Math.max(from, to) + 1).map((card) => card.id)])]
+      : previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id]);
+    selectionAnchor.current = id;
+  }
+  async function applyBulk(undo = false) {
+    if (bulkRunning.current || fetching || error) return;
+    const targets: BulkTarget[] = undo ? bulkUndo : bulkCards.flatMap((card): BulkTarget[] => {
+      const favourite = bulkAction === "favourite" || bulkAction === "unfavourite";
+      const rank = bulkAction === "none" ? null : favourite ? card.interest_rank : IMPORTANCE_RANK[bulkAction as Importance];
+      const patch: Partial<CardMetadata> = favourite ? { favourite: bulkAction === "favourite" }
+        : { interest_rank: rank, interesting: (rank ?? 0) >= 4 };
+      const unchanged = favourite ? card.favourite === patch.favourite : card.interest_rank === rank && card.interesting === patch.interesting;
+      return unchanged ? [] : [{ card, patch, previous: favourite ? { favourite: card.favourite } : { interest_rank: card.interest_rank, interesting: card.interesting } }];
+    });
+    if (!targets.length) { setBulkNotice({ text: "Nothing to change.", error: false }); return; }
+    if (targets.length > BULK_LIMIT) { setBulkNotice({ text: "Select up to 50 cards for each edit.", error: true }); return; }
+    bulkRunning.current = true; setBulkBusy(true); setBulkNotice(null);
+    if (!undo) setBulkUndo([]);
+    const inverses: BulkUndo[] = [];
+    let savedCount = 0;
+    let failure = "";
+    try {
+      for (const target of targets) {
+        if (!mounted.current) break;
+        try {
+          const revision = await updateCardMetadata(target.card, target.patch);
+          savedCount += 1;
+          if (!undo && target.previous) {
+            inverses.push({ card: { id: target.card.id, pack_id: target.card.pack_id, updated_at: revision }, patch: target.previous });
+          }
+        } catch (err) {
+          failure = err instanceof Error ? err.message : "Could not confirm the card change.";
+          break;
+        }
+      }
+      if (!mounted.current) return;
+      setBulkUndo(undo ? bulkUndo.slice(savedCount) : inverses);
+      setBulkNotice({ text: failure
+        ? `${savedCount} of ${targets.length} changes confirmed. ${failure}`
+        : `${savedCount} ${savedCount === 1 ? "card" : "cards"} ${undo ? "restored" : "updated"}.`, error: Boolean(failure) });
+      await refreshAll();
+    } finally {
+      bulkRunning.current = false;
+      if (mounted.current) setBulkBusy(false);
+    }
+  }
   const selectedCard = selectedCardId ? [...cards, ...referenceCards].find((card) => card.id === selectedCardId) ?? null : null;
 
   async function refreshAll(closeEditor = false) {
@@ -515,6 +620,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   }
 
   function clearFilters() {
+    saveShowAll(pack.id, false);
     setAllCardsExpanded(false);
     setQuery("");
     setStatusFilters([]);
@@ -539,7 +645,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
 
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
-      <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
+      <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Home"}</button>
 
       <header className="modern-topic-head">
         <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(visibleTotal, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
@@ -649,7 +755,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
         </div>
       </div>
 
-      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub topic-browse-compact" aria-label="Card list selection">
+      {!loading && (!error || hasData) && visibleTotal > 0 ? <section className="topic-browse-hub topic-browse-compact" aria-label="Card list selection">
           <div className="topic-browse-heading">
             <div>
               <strong>{showCardList ? shown.length.toLocaleString() + " of " + visibleTotal.toLocaleString() + " cards" : "Card browser"}</strong>
@@ -658,18 +764,39 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
             <div className="topic-browse-actions">
               {tagSelectionActive && shown.some((card) => workflowStatus(card) === "learning") ? <button type="button" className="secondary-button topic-review-filtered" onClick={() => openTargeted("Review filtered cards", shown.filter((card) => workflowStatus(card) === "learning"))}><Brain size={14} /> Review filtered</button> : null}
               {activeFilterCount > 0 ? <button type="button" className="secondary-button topic-clear-inline" onClick={clearFilters}>Clear filters</button> : null}
-              {!showCardList ? <button type="button" className="secondary-button" onClick={() => setAllCardsExpanded(true)}>Show all {visibleTotal.toLocaleString()}</button> : null}
+              {browserOptions.cardManagement && !bulkMode ? <button type="button" className="secondary-button" onClick={() => { setBulkMode(true); setSelectedCardId(null); }}>Select</button> : null}
+              {!showCardList ? <button type="button" className="secondary-button" onClick={() => { setAllCardsExpanded(true); saveShowAll(pack.id); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
             </div>
           </div>
         </section> : null}
 
-       {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
+      {bulkMode ? <div className="heuresis-bulk-bar" role="group" aria-label="Selected cards">
+        <strong>{bulkCards.length} selected</strong>
+        <button type="button" className="secondary-button" disabled={bulkBusy || !shown.length} onClick={() => setBulkSelected(shown.map((card) => card.id))}>Select shown</button>
+        <button type="button" className="secondary-button" disabled={bulkBusy || !bulkCards.length} onClick={() => { setBulkSelected([]); selectionAnchor.current = null; }}>Clear selection</button>
+        <select aria-label="Edit selected cards" value={bulkAction} disabled={bulkBusy} onChange={(event) => setBulkAction(event.currentTarget.value as BulkAction)}>
+          <option value="favourite">Add favourite</option><option value="unfavourite">Remove favourite</option>
+          {IMPORTANCE_ORDER.map((level) => <option key={level} value={level}>Importance: {IMPORTANCE_LABEL[level]}</option>)}
+          <option value="none">Clear importance</option>
+        </select>
+        <button type="button" className="secondary-button" disabled={bulkBusy || fetching || Boolean(error) || !bulkCards.length || bulkCards.length > BULK_LIMIT} onClick={() => void applyBulk()}>{bulkBusy ? "Saving…" : "Apply"}</button>
+        <button type="button" className="secondary-button" disabled={bulkBusy || !bulkReviewCards.length} onClick={() => void openTargeted("Selected cards", bulkReviewCards)}>Review selected ({bulkReviewCards.length})</button>
+        <button type="button" className="text-button" disabled={bulkBusy} onClick={finishSelection}>Done</button>
+        {bulkCards.length > BULK_LIMIT ? <small>Select up to 50 cards to edit at once. Review can use more.</small> : null}
+      </div> : null}
+      {bulkNotice ? <div className={`heuresis-bulk-notice${bulkNotice.error ? " is-error" : ""}`} role={bulkNotice.error ? "alert" : "status"}>
+        <span>{bulkNotice.text}</span>
+        {bulkUndo.length ? <button type="button" className="text-button" disabled={bulkBusy || fetching || Boolean(error)} onClick={() => void applyBulk(true)}>Undo {bulkUndo.length === 1 ? "change" : `${bulkUndo.length} changes`}</button> : null}
+        <button type="button" className="text-button" disabled={bulkBusy} onClick={() => { setBulkNotice(null); setBulkUndo([]); }}>Dismiss</button>
+      </div> : null}
+      {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
-      {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
-      {!loading && error ? <div className="content-state error-state" role="alert"><strong>Could not load this topic.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
-      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose Filters above or Show all to see individual cards.</span></div> : null}
-       {!loading && !error && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
+      {fetching && hasData ? <div className="heuresis-refresh-line" role="status" aria-label="Refreshing cards" /> : null}
+      {loading ? <LoadingState /> : null}
+      {!loading && error ? <div className="content-state error-state" role="alert"><strong>{hasData ? "Could not refresh this topic. Showing the last loaded cards." : "Could not load this topic."}</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
+      {!loading && (!error || hasData) && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose Filters above or Show all to see individual cards.</span></div> : null}
+       {!loading && (!error || hasData) && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATE <ArrowUpDown size={11} /></button>
@@ -685,7 +812,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
           const status = workflowStatus(card);
           const progress = cardBars.get(card.id) ?? { bars: 0, mastered: false, estimated: false };
           const progressLabel = status === "unsorted" ? "To classify" : status === "reference" ? "Reference" : progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : reviewCount ? "Review" : "New";
-          const selected = selectedCardId === card.id;
+          const selected = bulkMode ? bulkSelected.includes(card.id) : selectedCardId === card.id;
           return <div
             className={`modern-topic-row excel-topic-row ticker-topic-row ${selected ? "selected" : ""} ${status === "reference" ? "is-reference" : ""}`}
             key={card.id}
@@ -693,15 +820,26 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
             role="row"
             tabIndex={0}
             aria-selected={selected}
-            onClick={() => setSelectedCardId(card.id)}
-            onDoubleClick={() => setEditing(card)}
+            onClick={(event) => bulkMode ? toggleBulk(card.id, event.shiftKey) : setSelectedCardId(card.id)}
+            onDoubleClick={() => { if (!bulkMode) setEditing(card); }}
             onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              if (bulkMode) {
+                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleBulk(card.id, event.shiftKey); }
+                if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finishSelection(); }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !bulkBusy) {
+                  event.preventDefault(); event.stopPropagation(); setBulkSelected(shown.map((item) => item.id));
+                }
+                return;
+              }
               if (event.key === "Enter") { event.preventDefault(); setEditing(card); }
               if (event.key === " ") { event.preventDefault(); setSelectedCardId(card.id); }
             }}
           >
             <div className="modern-card-cell">
-              <span className="modern-card-title">{packShape(pack) === "rule" ? <span className="applied-kind-pill" title={appliedCardKind(card.data) === "question" ? "Question card" : "Knowledge card"}>{appliedCardKind(card.data) === "question" ? "Q" : "K"}</span> : null}<strong>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}</span>
+              <span className="modern-card-title">{bulkMode ? <label className="heuresis-bulk-check" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+                <input type="checkbox" aria-label={`Select ${fieldText(card.data, term?.key) || "card"}`} checked={selected} disabled={bulkBusy} onChange={() => toggleBulk(card.id)} />
+              </label> : null}{packShape(pack) === "rule" ? <span className="applied-kind-pill" title={appliedCardKind(card.data) === "question" ? "Question card" : "Knowledge card"}>{appliedCardKind(card.data) === "question" ? "Q" : "K"}</span> : null}<strong lang={topicLanguage ?? undefined}>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}</span>
               {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
               <p>{fieldText(card.data, meaning?.key)}</p>
             </div>
@@ -724,14 +862,14 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
             </div>
 
             <div className="modern-recall-cell">
-              <strong>{card.stats.last_encountered_at ? formatSeen(card.stats.last_encountered_at) : "—"}</strong>
+              <strong title={formatExactDate(card.stats.last_encountered_at)}>{card.stats.last_encountered_at ? formatSeen(card.stats.last_encountered_at) : "—"}</strong>
             </div>
 
             <div className="modern-meta-cell compact-meta-cell">
               <div className="row-tags">{visibleTags.map((tag) => <span key={tag.id} className={`${tag.is_badge ? "badge" : ""} ${themeTagStyle(tag.name) ? "theme-tag" : ""}`} style={themeTagStyle(tag.name)}>{tag.name}</span>)}{card.tags.length > visibleTags.length ? <span>+{card.tags.length - visibleTags.length}</span> : null}{!card.tags.length ? <small>No tags</small> : null}</div>
               <div className="row-mini-actions">
-                {selected ? <button onClick={(event) => { event.stopPropagation(); setEditing(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Edit card"><Pencil size={13} /> Edit</button> : null}
-                <button className="row-connections-icon" onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><GitFork size={15} /></button>
+                {selected && !bulkMode ? <button onClick={(event) => { event.stopPropagation(); setEditing(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Edit card"><Pencil size={13} /> Edit</button> : null}
+                <button className="row-connections-icon" disabled={bulkMode} onClick={(event) => { event.stopPropagation(); setConnectionsCard(card); }} onDoubleClick={(event) => event.stopPropagation()} title="Open connections tree" aria-label={`Open connections for ${fieldText(card.data, term?.key) || "card"}`}><GitFork size={15} /></button>
               </div>
             </div>
           </div>;

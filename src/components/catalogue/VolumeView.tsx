@@ -50,9 +50,9 @@ export function VolumeDialog({ volume, subjectId, onClose, onSaved }: {
           <Field label="Edition"><input maxLength={80} value={edition} onChange={(event) => setEdition(event.target.value)} placeholder="Volume I" /></Field>
           <Field label="Date"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field>
         </div>
-        <Field label="Subject">
+        <Field label="Collection">
           <select value={subject} onChange={(event) => setSubject(event.target.value)}>
-            <option value="">None</option>
+            <option value="">Independent</option>
             {catalogue.snapshot.subjects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
           </select>
         </Field>
@@ -101,6 +101,7 @@ export function VolumeView({ volumeId }: { volumeId: string }) {
   const published = articles.filter((article) => article.status === "published");
   const subject = volume.subject_id ? catalogue.subjectById.get(volume.subject_id) : null;
   const from = { view: "volume", id: volume.id } as const;
+  const parent = subject ? { view: "collection", id: subject.id } as const : { view: "independent" } as const;
 
   async function reorder(article: CatalogueArticle, delta: -1 | 1) {
     const index = articles.findIndex((row) => row.id === article.id);
@@ -118,8 +119,8 @@ export function VolumeView({ volumeId }: { volumeId: string }) {
   async function removeVolume() {
     if (!volume) return;
     if (!await confirm({ title: `Delete the volume “${volume.title}”?`, confirmLabel: "Delete volume", danger: true,
-      body: "Its articles are kept and stay in their subject; only the volume and its table of contents are removed." })) return;
-    try { await catalogue.removeVolume(volume.id); catalogue.navigate({ view: "library" }); workspace.toast("Volume deleted. Its articles are kept."); }
+      body: "Its articles stay in their current locations. The volume and its table of contents will be removed." })) return;
+    try { await catalogue.removeVolume(volume.id); catalogue.returnTo(parent); workspace.toast("Volume deleted. Its articles are kept."); }
     catch (cause) { workspace.toast(catalogueError(cause), { tone: "error" }); }
   }
 
@@ -129,7 +130,9 @@ export function VolumeView({ volumeId }: { volumeId: string }) {
     {creating ? <CreateArticleDialog onClose={() => setCreating(false)} defaultVolumeId={volume.id} /> : null}
     {adding ? <AddExistingDialog volume={volume} onClose={() => setAdding(false)} /> : null}
     {exporting ? <ExportDialog articles={published} volume={volume} title={[volume.title, volume.edition].filter(Boolean).join(" — ")} onClose={() => setExporting(false)} /> : null}
-    <nav className="ct-crumbs"><button type="button" onClick={() => catalogue.navigate({ view: "library" })}><ArrowLeft size={15} /> Catalogue</button></nav>
+    <nav className="ct-crumbs" aria-label="Catalogue navigation">
+      <button type="button" onClick={() => catalogue.returnTo(parent)}><ArrowLeft size={15} /> {subject?.name ?? "Independent articles"}</button>
+    </nav>
     <header className="ct-volume-head">
       <div className="ct-volume-cover is-large">
         {volume.cover ? <span className="ct-volume-image"><ImageFrame image={volume.cover} aspect={VOLUME_COVER_ASPECT} /></span> : null}

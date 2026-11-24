@@ -201,3 +201,17 @@ export function suggestResult(typed: string, expectedValues: ExpectedAnswer[]): 
   if (!answers.some(judgeable)) return null;
   return { grade: "again", reason: "Does not match the answer.", matched: null };
 }
+
+/** A saved Chinese reading is partial recall when the requested answer is Hanzi.
+ * Compare only the saved reading, allowing tone differences, never unrelated fuzzy matches.
+ */
+export function suggestChineseReading(typed: string, reading: string): AnswerSuggestion | null {
+  if (!typed.trim() || !reading.trim() || hasHan(typed)) return null;
+  const toneFree = (value: string) => compact(normaliseAnswer(value).normalize("NFD").replace(/[\u0300\u0301\u0304\u030c]/g, "").normalize("NFC"));
+  const attempt = toneFree(typed);
+  if (!attempt || !/^[a-zü]+$/u.test(attempt)) return null;
+  for (const candidate of acceptedAnswers([{ value: reading, kind: "exact" }])) {
+    if (attempt === toneFree(candidate)) return { grade: "hard", reason: "Reading matches, but the Chinese characters were not entered.", matched: candidate };
+  }
+  return null;
+}

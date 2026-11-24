@@ -61,6 +61,14 @@ async function openCatalogue(page) {
   await page.mouse.move(1000, 600);
   await page.waitForSelector(".ct-library", { timeout: 20000 });
 }
+async function openIndependent(page) {
+  await page.getByRole("button", { name: /^Independent articles.*article/ }).click();
+  await page.getByRole("heading", { name: "Independent articles" }).waitFor();
+}
+async function openCollection(page, name) {
+  await page.locator(".ct-collection-card").filter({ has: page.getByText(name, { exact: true }) }).click();
+  await page.getByRole("heading", { name, exact: true }).waitFor();
+}
 async function waitSaved(page) {
   await page.waitForFunction(() => document.querySelector(".ct-save")?.textContent === "Saved", null, { timeout: 15000 });
 }
@@ -170,6 +178,122 @@ const COMMONS = {
 };
 
 const scenarios = {
+  async "collection index, browser history, illustrations and reassignment"(page, context) {
+    const apica = crypto.randomUUID();
+    const episteme = crypto.randomUUID();
+    await sql(`insert into catalogue_subjects(id, user_id, name, description) values
+      ('${apica}', '${USER}', 'Apica', 'Intellectual and professional works.'),
+      ('${episteme}', '${USER}', 'Episteme', 'Multilingual expression through general culture.')`);
+    const entries = [
+      [apica, "Principles of Financial Independence"], [apica, "International Trade Law & Regulations"],
+      [apica, "International Finance"], [apica, "IMPEX — Business & Field Notes"],
+      [episteme, "Episteme — Русский"], [episteme, "Episteme — Deutsch"], [episteme, "Episteme — English"],
+      [null, "Housing Project Evaluation"], [null, ""],
+    ];
+    for (const [collection, title] of entries) {
+      const pages = [{ id: crypto.randomUUID(), blocks: [
+        { id: crypto.randomUUID(), type: "heading", level: "opening", kicker: "", text: "", intro: "", align: "left" },
+        { id: crypto.randomUUID(), type: "text", content: "Preserved example text.", columns: 1, align: "left" },
+      ] }];
+      await sql(`insert into catalogue_articles(user_id, subject_id, title, status, pages)
+        values ('${USER}', ${collection ? `'${collection}'` : "null"}, '${title}', '${title ? "published" : "draft"}', $j$${JSON.stringify(pages)}$j$)`);
+    }
+    const before = await articles();
+    if (process.env.CATALOGUE_BEFORE_URL) {
+      const original = await context.newPage();
+      await original.goto(process.env.CATALOGUE_BEFORE_URL);
+      await original.fill("input[type=email]", "thomas@example.test");
+      await original.fill("input[type=password]", "heuresis");
+      await original.click("button[type=submit]");
+      await openCatalogue(original);
+      await original.evaluate(() => document.fonts.ready);
+      await shot(original, "comparison-before");
+      await original.close();
+    }
+    await openCatalogue(page);
+    await page.evaluate(() => document.fonts.ready);
+    await shot(page, "comparison-after-desktop");
+    check(await page.locator(".ct-collection-card").count() === 2 && await page.locator(".ct-index-entry").count() === 0,
+      "the landing page shows collections without individual articles");
+    check(/Apica.*4 articles/s.test(await page.locator(".ct-collection-card").filter({ hasText: "Apica" }).innerText()), "Apica has four articles");
+    check(/Episteme.*3 articles/s.test(await page.locator(".ct-collection-card").filter({ hasText: "Episteme" }).innerText()), "Episteme has three articles");
+    await page.getByRole("button", { name: "Search the Catalogue" }).click();
+    await page.getByRole("searchbox", { name: "Find an article in any collection" }).fill("evaluation");
+    check(await page.getByRole("list", { name: "Article results" }).getByText("Housing Project Evaluation").count() === 1, "Catalogue-wide search can find an independent article");
+    await page.keyboard.press("Escape");
+    await openCollection(page, "Apica");
+    check(await page.locator(".ct-index-entry").count() === 4 && await page.locator(".ct-bookplate").count() === 1, "Apica opens as a four-article grid with a fallback illustration");
+    await page.goBack();
+    await page.getByRole("heading", { name: "Catalogue", exact: true }).waitFor();
+    await page.goForward();
+    await page.getByRole("heading", { name: "Apica", exact: true }).waitFor();
+    await page.getByRole("button", { name: "List", exact: true }).click();
+    await page.getByRole("searchbox", { name: "Find an article" }).fill("trade law");
+    check(await page.locator(".ct-index-entry").count() === 1, "search is scoped to the collection");
+    await page.reload();
+    await page.getByRole("heading", { name: "Apica", exact: true }).waitFor();
+    check(await page.locator(".ct-index-list .ct-index-entry").count() === 4, "the collection and list view survive reload");
+    await page.getByRole("button", { name: "Read International Finance" }).click();
+    await page.getByRole("dialog", { name: "Reading International Finance" }).waitFor();
+    await page.goBack();
+    await page.locator(".ct-reader").waitFor({ state: "detached" });
+    check(await page.getByRole("heading", { name: "Apica", exact: true }).count() === 1, "browser Back returns from the reader to its collection");
+    await page.getByRole("button", { name: "Actions for International Finance" }).click();
+    const download = page.waitForEvent("download", { timeout: 90000 });
+    await page.getByRole("menuitem", { name: "Export PDF" }).click();
+    const pdf = await download;
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    check(pdf.suggestedFilename().endsWith(".pdf"), "an article exports as PDF directly from its collection");
+    await page.getByRole("navigation", { name: "Catalogue navigation" }).getByRole("button", { name: "Catalogue" }).click();
+    await openCollection(page, "Episteme");
+    check((await page.locator(".ct-index-copy strong").allTextContents()).sort().join("|")
+      === ["Episteme — Deutsch", "Episteme — English", "Episteme — Русский"].join("|"), "Episteme shows the three original-language titles");
+
+    for (const [index, file] of [PICTURE, png(300, 200, () => [80, 92, 67])].entries()) {
+      await page.getByRole("button", { name: "Collection actions" }).click();
+      await page.getByRole("menuitem", { name: "Edit collection" }).click();
+      await page.getByRole("button", { name: index ? "Edit illustration" : "Choose illustration" }).click();
+      const imageDialog = page.getByRole("dialog", { name: "Collection illustration" });
+      if (index) await imageDialog.getByRole("button", { name: "Replace image" }).click();
+      await imageDialog.getByLabel("Image file").setInputFiles({ name: `illustration-${index}.png`, mimeType: "image/png", buffer: file });
+      await imageDialog.locator(".ct-crop-image img").waitFor();
+      await imageDialog.getByRole("button", { name: /^(Insert|Apply)$/ }).click();
+      await page.getByRole("button", { name: "Save collection" }).click();
+      await page.getByRole("dialog", { name: "Edit collection" }).waitFor({ state: "detached" });
+      await page.reload();
+      await page.waitForFunction((width) => document.querySelector(".ct-collection-feature img")?.naturalWidth === width, index ? 300 : 600);
+    }
+    check(await sql(`select illustration ->> 'width' from catalogue_subjects where id = '${episteme}'`) === "300",
+      "the replacement illustration survives a reload and is stored in the database");
+    check(JSON.stringify(await articles()) === JSON.stringify(before), "browsing and editing illustrations leave all pre-existing articles unchanged");
+
+    for (const [width, height] of [[820, 1180], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `the list fits at ${width}px`);
+      await page.getByRole("button", { name: "Grid", exact: true }).click();
+      check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `the grid fits at ${width}px`);
+      await shot(page, `comparison-after-${width === 820 ? "tablet" : "mobile"}`);
+      await page.getByRole("button", { name: "List", exact: true }).click();
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await createBlank(page);
+    await page.locator(".ct-bar-title").fill("Reassignment example");
+    await waitSaved(page);
+    check(await sql("select subject_id from catalogue_articles where title='Reassignment example'") === episteme, "a new article inherits its collection");
+    await page.getByRole("button", { name: "Article details" }).click();
+    await page.getByRole("complementary", { name: "Article details" }).getByLabel("Collection").selectOption(apica);
+    await waitSaved(page);
+    await page.goBack();
+    await page.locator(".ct-studio").waitFor({ state: "detached" });
+    check(await sql("select subject_id from catalogue_articles where title='Reassignment example'") === apica, "article reassignment persists");
+    await page.getByRole("navigation", { name: "Catalogue navigation" }).getByRole("button", { name: "Catalogue" }).click();
+    await openIndependent(page);
+    check(await page.getByRole("button", { name: "Read Housing Project Evaluation" }).count() === 1
+      && await page.getByRole("button", { name: "Edit draft Untitled article" }).count() === 1,
+    "Housing Project Evaluation and the untitled draft are accessible under Independent articles");
+  },
+
   async "empty catalogue although the Notebook has notes"(page) {
     const notes = Number(await sql(`select count(*) from knowledge_records where user_id='${USER}' and deleted_at is null`));
     check(notes > 5, `the Notebook has ${notes} notes`);
@@ -177,9 +301,9 @@ const scenarios = {
     await page.waitForTimeout(500);
     await shot(page, "01-empty-library");
     const text = await page.locator(".ct-library").innerText();
-    check(/Catalogue/.test(text) && /Your collection of articles, essays and illustrated works\./.test(text), "title and the one-line description are shown");
-    check(await page.locator("button.ct-create").count() === 1, "one Create Article action");
-    check(await page.locator(".ct-card").count() === 0, "no publication cards");
+    check(/Catalogue/.test(text) && /No collections yet/.test(text), "shows the Catalogue title and its empty collection state");
+    check(await page.locator("button.ct-create").count() === 1, "one New article action");
+    check(await page.locator(".ct-index-entry").count() === 0, "no publication cards on the landing page");
     const subjects = (await sql(`select string_agg(name, '|') from knowledge_subjects where user_id='${USER}'`)).split("|").filter(Boolean);
     check(subjects.every((name) => !text.includes(name)), "no Notebook subjects are mirrored");
     check(!/Personal encyclopaedia|Knowledge at hand|Explore by subject|Recently added/i.test(text), "no generic filler text from the old view");
@@ -201,8 +325,8 @@ const scenarios = {
     check(allText(row).includes("First words on an empty page."), "the text is saved in the page");
     check(row.pages.length === 1 && blocksOf(row)[0].type === "heading" && blocksOf(row)[0].level === "opening", "one A4 page that opens with the title");
     await page.locator(".ct-bar-back").click();
-    await page.waitForSelector(".ct-library .ct-card");
-    check(await page.locator('.ct-shelf:has-text("Drafts") .ct-card').count() === 1, "back in the library the draft is under Drafts");
+    await openIndependent(page);
+    check(await page.getByRole("button", { name: "Edit draft A Blank Beginning" }).count() === 1, "the untitled collection assignment leaves the draft under Independent articles");
   },
 
   async "notebook note becomes an independent copy"(page) {
@@ -505,13 +629,12 @@ const scenarios = {
     await typeInto(page, ".ct-page-slot .ap-text .ap-text-body", "In June 1215 the barons met King John at Runnymede.");
     await waitSaved(page);
     await page.locator(".ct-bar-back").click();
-    await page.waitForSelector(".ct-card");
-    check(await page.locator('.ct-shelf:has-text("Drafts") .ct-card:has-text("Magna Carta")').count() === 1, "the draft is listed under Drafts");
-    check(await page.locator('.ct-shelf:not(:has-text("Drafts")) .ct-card:has-text("Magna Carta")').count() === 0, "and nowhere else");
-    await page.locator('.ct-segmented button:has-text("Published")').click();
-    check(await page.locator(".ct-card").count() === 0, "the Published filter does not show drafts");
-    await page.locator('.ct-segmented button:has-text("All")').click();
-    await page.locator('.ct-card-open:has-text("Magna Carta")').click();
+    await openIndependent(page);
+    check(await page.getByRole("button", { name: "Edit draft Magna Carta" }).count() === 1, "the article is shown as a draft");
+    await page.getByLabel("Publication status").selectOption("published");
+    check(await page.locator(".ct-index-entry").count() === 0, "the Published filter does not show drafts");
+    await page.getByLabel("Publication status").selectOption("all");
+    await page.locator('.ct-index-open:has-text("Magna Carta")').click();
     await page.waitForSelector(".ct-studio");
     check(await page.locator(".ct-studio").count() === 1, "a draft opens in the designer");
     await page.locator('.ct-bar-button:has-text("Publish")').click();
@@ -519,14 +642,16 @@ const scenarios = {
     const [row] = await articles();
     check(row.status === "published", "Publish publishes");
     await page.locator(".ct-bar-back").click();
-    await page.waitForSelector(".ct-card");
-    check(await page.locator('.ct-shelf:has-text("Drafts")').count() === 0 && await page.locator('.ct-card:has-text("Magna Carta")').count() === 1, "the published article is on the shelf, not under Drafts");
-    await page.locator('.ct-card-open:has-text("Magna Carta")').click();
+    await page.getByRole("button", { name: "Read Magna Carta" }).waitFor();
+    await page.getByLabel("Publication status").selectOption("draft");
+    check(await page.locator(".ct-index-entry").count() === 0, "the Drafts filter excludes the published article");
+    await page.getByLabel("Publication status").selectOption("all");
+    await page.locator('.ct-index-open:has-text("Magna Carta")').click();
     await page.waitForSelector(".ct-reader");
     check(await page.locator(".ct-reader").count() === 1, "a published article opens in the reader");
   },
 
-  async "subjects and volumes"(page) {
+  async "collections and volumes"(page) {
     await openCatalogue(page);
     for (const title of ["The Holy Roman Empire", "Magna Carta", "The Teutoburg Forest"]) {
       await createBlank(page);
@@ -537,11 +662,11 @@ const scenarios = {
       await page.waitForSelector(".ct-library");
     }
     await page.locator('.ct-masthead .ct-menu-trigger').click();
-    await page.locator('.ct-menu-list button:has-text("New subject")').click();
+    await page.locator('.ct-menu-list button:has-text("New collection")').click();
     await page.locator('.ct-dialog input').fill("History");
-    await page.locator('.ct-dialog button:has-text("Create subject")').click();
-    await page.waitForSelector('.ct-shelf-head:has-text("History")');
-    await page.locator('.ct-shelf-head:has-text("History") .ct-menu-trigger').click();
+    await page.locator('.ct-dialog button:has-text("Create collection")').click();
+    await page.getByRole("heading", { name: "History" }).waitFor();
+    await page.getByRole("button", { name: "Collection actions" }).click();
     await page.locator('.ct-menu-list button:has-text("New volume")').click();
     await page.locator('.ct-volume-form input').first().fill("Empires and Kingdoms");
     check((await page.locator('.ct-volume-form input').nth(2).inputValue()) === "Volume I", "a new volume is suggested as Volume I");
@@ -565,14 +690,13 @@ const scenarios = {
     const subject = await sql(`select count(distinct subject_id) from catalogue_articles where volume_id is not null`);
     check(subject === "1", "articles added to the volume take the volume's subject");
     await page.locator(".ct-crumbs button").click();
-    await page.waitForSelector('.ct-shelf:has-text("History") .ct-volume-card');
+    await page.getByRole("heading", { name: "History" }).waitFor();
     await shot(page, "12-library-populated");
-    check(await page.locator('.ct-shelf:has-text("History") .ct-volume-card:has-text("Empires and Kingdoms")').count() === 1, "the volume is shelved under its subject");
-    check(await page.locator('.ct-shelf:has-text("History") > .ct-grid > .ct-card:not(.ct-volume-card)').count() === 0, "its articles are inside the volume, not loose on the shelf");
-    // A subject can be deleted without losing anything.
-    await page.locator('.ct-shelf-head:has-text("History") .ct-menu-trigger').click();
-    await page.locator('.ct-menu-list button:has-text("Delete subject")').click();
-    await page.locator('.ws-dialog button:has-text("Delete subject")').click();
+    check(await page.getByRole("button", { name: /Empires and Kingdoms/ }).count() === 1, "the volume is shelved under its collection");
+    check(await page.locator(".ct-index-entry").count() === 3, "the collection index includes the three articles in its volume");
+    await page.getByRole("button", { name: "Collection actions" }).click();
+    await page.locator('.ct-menu-list button:has-text("Delete collection")').click();
+    await page.locator('.ws-dialog button:has-text("Delete collection")').click();
     await page.waitForTimeout(600);
     check(await sql(`select count(*) from catalogue_articles`) === "3" && await sql(`select count(*) from catalogue_volumes`) === "1", "deleting a subject keeps its volume and articles");
   },
@@ -587,7 +711,8 @@ const scenarios = {
     await page.locator('.ct-bar-button:has-text("Publish")').click();
     await waitSaved(page);
     await page.locator(".ct-bar-back").click();
-    await page.locator('.ct-card-open:has-text("Reading Comfort")').click();
+    await openIndependent(page);
+    await page.locator('.ct-index-open:has-text("Reading Comfort")').click();
     await page.waitForSelector(".ct-reader .ap-page");
     await page.waitForTimeout(500);
     await shot(page, "13-reader");
@@ -704,7 +829,7 @@ const scenarios = {
     await page.reload();
     await page.waitForSelector(".heuresis-section-sidebar");
     await openCatalogue(page);
-    check(await page.locator('.ct-card:has-text("Roman Ideas")').count() === 0, "a Reference note is not shown as a Catalogue publication");
+    check(await page.locator('.ct-index-entry:has-text("Roman Ideas")').count() === 0, "a Reference note is not shown as a Catalogue publication");
     await page.click('.hw-sections button:has-text("Notebook")');
     await page.waitForTimeout(400);
     await page.keyboard.press("Control+KeyK");
@@ -812,8 +937,9 @@ scenarios["showcase: every block type, read and exported"] = async (page) => {
   await openCatalogue(page);
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SHOTS}/20-library-populated.png`, fullPage: true });
-  check(await page.locator(".ct-volume-card").count() === 1 && await page.locator('.ct-shelf:has-text("Drafts") .ct-card').count() === 1, "the library shows the volume on its subject shelf and the draft under Drafts");
-  await page.locator(".ct-volume-card .ct-card-open").click();
+  check(await page.locator(".ct-collection-card").count() === 1 && await page.getByRole("button", { name: /^Independent articles/ }).count() === 1, "the landing page shows the collection and the independent entry point");
+  await page.locator(".ct-collection-card").first().click();
+  await page.locator(".ct-collection-volumes button").click();
   await page.waitForSelector(".ct-volume-head");
   await page.waitForTimeout(600);
   await shot(page, "21-volume");
@@ -935,7 +1061,8 @@ scenarios["reopening an article right after closing it waits for the last save"]
   });
   await typeInto(page, ".ct-page-slot .ap-text .ap-text-body", "Written just before leaving.");
   await page.locator(".ct-bar-back").click();
-  await page.locator('.ct-card-open:has-text("Quick Return")').click();
+  await openIndependent(page);
+  await page.locator('.ct-index-open:has-text("Quick Return")').click();
   check(await page.locator('.ct-busy:has-text("Saving your last changes")').count() === 1, "the designer first finishes the save still running");
   await page.waitForSelector(".ct-studio .ct-page-slot", { timeout: 20000 });
   await page.unroute("**/rest/v1/catalogue_articles**");
@@ -1130,7 +1257,8 @@ scenarios["volume PDF: a long contents list runs over several pages"] = async (p
   await page.reload();
   await page.waitForSelector(".heuresis-section-sidebar");
   await openCatalogue(page);
-  await page.locator(".ct-volume-card .ct-card-open").click();
+  await openCollection(page, "Essays");
+  await page.getByRole("button", { name: /Collected Essays/ }).click();
   await page.waitForSelector(".ct-volume-head");
   const download = page.waitForEvent("download", { timeout: 180000 });
   await page.locator('button:has-text("Export volume PDF")').click();
@@ -1173,12 +1301,13 @@ async function layouts() {
     await page.goto(process.env.HEURESIS_URL ?? "http://localhost:1421/");
     await page.waitForSelector(".heuresis-desktop", { timeout: 20000 });
     await page.evaluate(() => { const nav = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Catalogue" && b.closest(".mobile-workspace-nav, .hw-sections")); nav?.click(); });
-    await page.waitForSelector(".ct-library .ct-card", { timeout: 20000 });
+    await openIndependent(page);
+    await page.waitForSelector(".ct-library .ct-index-entry", { timeout: 20000 });
     await page.waitForTimeout(600);
     await shot(page, `16-${name}-library`);
     const wide = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(await wide() <= 1, `${name}: the library has no sideways scrolling`);
-    await page.locator(".ct-card-open").first().click();
+    await page.locator(".ct-index-open").first().click();
     await page.waitForSelector(".ct-reader .ap-page");
     await page.waitForTimeout(600);
     await shot(page, `16-${name}-reader`);

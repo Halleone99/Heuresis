@@ -1,124 +1,95 @@
-import { useMemo, useState } from "react";
-import { BookMarked, FilePlus2, FolderPlus, Pencil, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  articleExcerpt, articleText, articleTitle, normaliseSearch, sortArticles,
-  type CatalogueArticle, type CatalogueSubject, type CatalogueVolume,
+  ArrowLeft, ArrowRight, BookMarked, BookOpen, ChevronRight, FileDown, FolderPlus, ImagePlus,
+  LayoutGrid, List, Pencil, Plus, RotateCcw, Search, Trash2, X,
+} from "lucide-react";
+import {
+  articleText, articleTitle, LIMITS, normaliseSearch, sortArticles,
+  type CatalogueArticle, type CatalogueSubject, type ImageRef,
 } from "../../lib/catalogue/model";
 import { catalogueError } from "../../lib/catalogue/store";
+import { attributionLine } from "../../lib/catalogue/wikimedia";
 import { useConfirm } from "../workspace/ui";
 import { useWorkspace } from "../workspace/WorkspaceContext";
 import { ImageFrame } from "./ArticlePage";
-import { useCatalogue } from "./CatalogueData";
+import { useCatalogue, type CatalogueShelfRoute } from "./CatalogueData";
 import { CreateArticleDialog } from "./CreateArticleDialog";
-import { Dialog, Field, Menu, PageThumb, Segmented, formatDate } from "./parts";
+import { ExportDialog } from "./ExportDialog";
+import { ImageDialog } from "./ImageDialog";
+import { Dialog, Field, Menu, PageThumb, formatDate } from "./parts";
 import { VolumeDialog } from "./VolumeView";
 
+const ILLUSTRATION_ASPECT = 16 / 9;
+type ArticleView = "grid" | "list";
 type StatusFilter = "all" | "published" | "draft";
 type SortOrder = "recent" | "oldest" | "title";
+type LibraryRoute = Exclude<CatalogueShelfRoute, { view: "volume" }>;
 
-function sortVolumes(volumes: CatalogueVolume[], order: SortOrder) {
-  return [...volumes].sort((a, b) => order === "title"
-    ? a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
-    : order === "oldest"
-      ? a.updated_at.localeCompare(b.updated_at)
-      : b.updated_at.localeCompare(a.updated_at));
+function articleCount(count: number) {
+  return `${count} ${count === 1 ? "article" : "articles"}`;
 }
 
-export function ArticleCard({ article, onOpen, compact = false }: { article: CatalogueArticle; onOpen: () => void; compact?: boolean }) {
-  const catalogue = useCatalogue();
-  const labels = catalogue.labelFor(article);
-  const subject = article.subject_id ? catalogue.subjectById.get(article.subject_id) : null;
-  const volume = article.volume_id ? catalogue.volumeById.get(article.volume_id) : null;
-  const cover = article.cover ?? null;
-  const width = compact ? 150 : 196;
-  return <article className={`ct-card ${article.status === "draft" ? "is-draft" : ""}`}>
-    <button type="button" className="ct-card-open" onClick={onOpen} aria-label={`${article.status === "draft" ? "Edit draft" : "Read"} ${articleTitle(article)}`}>
-      <span className="ct-card-cover" style={{ width: "100%", maxWidth: width }}>
-        {cover ? <span className="ct-card-image"><ImageFrame image={cover} aspect={1 / 1.414} /></span>
-          : <PageThumb article={article} page={article.pages[0]} pageIndex={0} width={width} kicker={labels.kicker} runningTitle={labels.runningTitle} />}
-      </span>
-      <span className="ct-card-text">
-        <span className="ct-card-kicker">{[subject?.name, volume ? volume.edition || volume.title : null].filter(Boolean).join(" · ") || "Unfiled"}</span>
-        <strong>{articleTitle(article)}</strong>
-        {!compact && (article.subtitle || articleExcerpt(article, 110)) ? <span className="ct-card-excerpt">{article.subtitle || articleExcerpt(article, 110)}</span> : null}
-        <span className="ct-card-meta">{article.status === "draft" ? <em>Draft</em> : null}{formatDate(article.status === "published" ? article.published_at ?? article.updated_at : article.updated_at)}</span>
-      </span>
-    </button>
-  </article>;
+function CollectionIllustration({ illustration }: { illustration: ImageRef | null }) {
+  return <span className="ct-collection-art">
+    {illustration ? <ImageFrame image={illustration} aspect={ILLUSTRATION_ASPECT} />
+      : <span className="ct-bookplate" aria-hidden="true"><BookOpen size={40} strokeWidth={1} /></span>}
+  </span>;
 }
 
-function DraftRow({ article, onOpen, onDelete }: { article: CatalogueArticle; onOpen: () => void; onDelete: () => void }) {
-  const catalogue = useCatalogue();
-  const labels = catalogue.labelFor(article);
-  const subject = article.subject_id ? catalogue.subjectById.get(article.subject_id) : null;
-  const volume = article.volume_id ? catalogue.volumeById.get(article.volume_id) : null;
-  const title = articleTitle(article);
-
-  return <article className="ct-draft-item">
-    <button type="button" className="ct-draft-link" onClick={onOpen} aria-label={`Edit draft ${title}`}>
-      <span className="ct-draft-cover">
-        {article.cover
-          ? <span className="ct-draft-cover-image"><ImageFrame image={article.cover} aspect={1 / 1.414} /></span>
-          : <PageThumb article={article} page={article.pages[0]} pageIndex={0} width={92} kicker={labels.kicker} runningTitle={labels.runningTitle} />}
-      </span>
-      <span className="ct-draft-copy">
-        <strong>{title}</strong>
-        <span className="ct-draft-meta"><span className="ct-draft-badge">Draft</span><span>Edited {formatDate(article.updated_at)}</span></span>
-        {subject || volume ? <span className="ct-draft-subject">{[subject?.name, volume?.title].filter(Boolean).join(" · ")}</span> : null}
-      </span>
-    </button>
-    <Menu className="ct-draft-actions" label={`Actions for draft ${title}`} items={[
-      { label: "Edit draft", icon: <Pencil size={14} />, run: onOpen },
-      { label: "Move to deleted articles", icon: <Trash2 size={14} />, danger: true, run: onDelete },
-    ]} />
-  </article>;
-}
-
-export function VolumeCard({ volume, onOpen }: { volume: CatalogueVolume; onOpen: () => void }) {
-  const catalogue = useCatalogue();
-  const subject = volume.subject_id ? catalogue.subjectById.get(volume.subject_id) : null;
-  return <article className="ct-card ct-volume-card">
-    <button type="button" className="ct-card-open" onClick={onOpen} aria-label={`Open volume ${volume.title}`}>
-      <span className="ct-volume-cover">
-        {volume.cover ? <span className="ct-volume-image"><ImageFrame image={volume.cover} aspect={196 / 277} /></span> : null}
-        <span className="ct-volume-plate">
-          <small>{subject?.name ?? "Volume"}</small>
-          <strong>{volume.title}</strong>
-          {volume.edition ? <em>{volume.edition}</em> : null}
-        </span>
-      </span>
-      <span className="ct-card-text">
-        <span className="ct-card-kicker">{volume.edition || "Volume"}</span>
-        <strong>{volume.title}</strong>
-        {volume.subtitle ? <span className="ct-card-excerpt">{volume.subtitle}</span> : null}
-        <span className="ct-card-meta">{volume.edition_date ? formatDate(volume.edition_date) : null}</span>
-      </span>
-    </button>
-  </article>;
-}
-
-function SubjectDialog({ subject, onClose }: { subject: CatalogueSubject | null; onClose: () => void }) {
+function CollectionDialog({ subject, onClose }: { subject: CatalogueSubject | null; onClose: () => void }) {
   const catalogue = useCatalogue();
   const [name, setName] = useState(subject?.name ?? "");
+  const [description, setDescription] = useState(subject?.description ?? "");
+  const [illustration, setIllustration] = useState(subject?.illustration ?? null);
+  const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
   async function save() {
-    if (busy) return;
-    setBusy(true); setError("");
+    if (busy || !name.trim()) return;
+    setBusy(true);
+    setError("");
     try {
-      if (subject) await catalogue.renameSubject(subject.id, name);
-      else await catalogue.addSubject(name);
+      if (subject) {
+        await catalogue.changeSubject(subject, {
+          ...(name.trim() !== subject.name ? { name } : {}),
+          ...(description.trim() !== subject.description ? { description } : {}),
+          ...(illustration !== subject.illustration ? { illustration } : {}),
+        });
+      } else {
+        const created = await catalogue.addSubject(name, { description, illustration });
+        catalogue.navigate({ view: "collection", id: created.id });
+      }
       onClose();
     } catch (cause) { setError(catalogueError(cause)); }
     finally { setBusy(false); }
   }
-  return <Dialog title={subject ? "Rename subject" : "New subject"} onClose={onClose}
-    actions={<><button type="button" className="ws-button" onClick={onClose}>Cancel</button>
-      <button type="button" className="ws-button is-primary" disabled={!name.trim() || busy} onClick={() => void save()}>{subject ? "Rename" : "Create subject"}</button></>}>
-    <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-      <Field label="Name"><input autoFocus maxLength={120} value={name} placeholder="History, Philosophy, Science…" onChange={(event) => setName(event.target.value)} /></Field>
-      {error ? <p className="ct-error" role="alert">{error}</p> : null}
+
+  return <Dialog title={subject ? "Edit collection" : "New collection"} wide onClose={() => { if (!busy) onClose(); }}
+    actions={<>
+      <button type="button" className="ws-button" disabled={busy} onClick={onClose}>Cancel</button>
+      <button type="submit" form="ct-collection-form" className="ws-button is-primary" disabled={!name.trim() || busy}>
+        {subject ? "Save collection" : "Create collection"}
+      </button>
+    </>}>
+    <form id="ct-collection-form" className="ct-collection-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <div className="ct-collection-fields">
+        <Field label="Name"><input autoFocus maxLength={LIMITS.name} value={name} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field label="Description (optional)">
+          <textarea rows={4} maxLength={LIMITS.subtitle} value={description} onChange={(event) => setDescription(event.target.value)} />
+        </Field>
+      </div>
+      <div className="ct-collection-image-field">
+        <button type="button" className="ct-illustration-pick" onClick={() => setChoosing(true)}
+          aria-label={illustration ? "Edit illustration" : "Choose illustration"}>
+          {illustration ? <CollectionIllustration illustration={illustration} /> : <span><ImagePlus size={20} /> Choose illustration</span>}
+        </button>
+        {illustration ? <button type="button" className="ws-button is-small is-quiet" onClick={() => setIllustration(null)}><X size={13} /> Remove illustration</button> : null}
+      </div>
     </form>
+    {error ? <p className="ct-error" role="alert">{error}</p> : null}
+    {choosing ? <ImageDialog initial={illustration} lockedAspect={ILLUSTRATION_ASPECT} title="Collection illustration"
+      onClose={() => setChoosing(false)} onApply={(image) => { setIllustration(image); setChoosing(false); }} /> : null}
   </Dialog>;
 }
 
@@ -143,180 +114,244 @@ function DeletedDialog({ onClose }: { onClose: () => void }) {
   </Dialog>;
 }
 
-export function CatalogueLibrary() {
+function ArticleSearch({ onClose }: { onClose: () => void }) {
+  const catalogue = useCatalogue();
+  const [query, setQuery] = useState("");
+  const search = normaliseSearch(query);
+  const matches = useMemo(() => {
+    if (!search) return [];
+    return sortArticles(catalogue.snapshot.articles.filter((article) => normaliseSearch([
+      articleText(article),
+      article.subject_id ? catalogue.subjectById.get(article.subject_id)?.name : "",
+      article.volume_id ? catalogue.volumeById.get(article.volume_id)?.title : "",
+    ].join(" ")).includes(search)));
+  }, [catalogue.snapshot.articles, catalogue.subjectById, catalogue.volumeById, search]);
+
+  return <Dialog title="Search the Catalogue" onClose={onClose} wide>
+    <label className="ct-search"><Search size={15} aria-hidden="true" />
+      <input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+        placeholder="Find an article in any collection…" aria-label="Find an article in any collection" />
+    </label>
+    {matches.length ? <ul className="ct-note-list" aria-label="Article results">
+      {matches.map((article) => {
+        const subject = article.subject_id ? catalogue.subjectById.get(article.subject_id) : null;
+        return <li key={article.id}><button type="button" onClick={() => {
+          onClose();
+          catalogue.navigate({ view: article.status === "draft" ? "design" : "read", id: article.id, from: { view: "library" } });
+        }}>
+          <strong>{articleTitle(article)}</strong>
+          <small>{subject?.name ?? "Independent articles"}{article.status === "draft" ? " · Draft" : ""}</small>
+        </button></li>;
+      })}
+    </ul> : search ? <p className="ct-quiet ct-collection-empty" role="status">No matching articles.</p> : null}
+  </Dialog>;
+}
+
+function ArticleEntry({ article, view, from, onDelete, onExport }: {
+  article: CatalogueArticle; view: ArticleView; from: LibraryRoute; onDelete: () => void; onExport: () => void;
+}) {
+  const catalogue = useCatalogue();
+  const title = articleTitle(article);
+  const draft = article.status === "draft";
+  const volume = article.volume_id ? catalogue.volumeById.get(article.volume_id) : null;
+  const edit = () => catalogue.navigate({ view: "design", id: article.id, from });
+  const read = () => catalogue.navigate({ view: "read", id: article.id, from });
+  const labels = catalogue.labelFor(article);
+
+  return <article className="ct-index-entry">
+    <button type="button" className="ct-index-open" onClick={draft ? edit : read} aria-label={`${draft ? "Edit draft" : "Read"} ${title}`}>
+      {view === "grid" ? <span className="ct-index-cover" aria-hidden="true">
+        {article.cover ? <ImageFrame image={article.cover} aspect={1 / Math.SQRT2} />
+          : <PageThumb article={article} page={article.pages[0]} pageIndex={0} width={210} {...labels} />}
+      </span> : null}
+      <span className="ct-index-copy">
+        <strong>{title}</strong>
+        {article.subtitle ? <span className="ct-index-subtitle">{article.subtitle}</span> : null}
+        <span className="ct-index-meta">
+          {draft ? <em>Draft</em> : null}
+          {volume ? <span>{volume.title}</span> : null}
+          <span>{formatDate(draft ? article.updated_at : article.published_at ?? article.updated_at)}</span>
+        </span>
+      </span>
+    </button>
+    <Menu label={`Actions for ${title}`} items={[
+      { label: draft ? "Edit draft" : "Edit article", icon: <Pencil size={14} />, run: edit },
+      { label: "Export PDF", icon: <FileDown size={14} />, run: onExport },
+      "divider",
+      { label: "Move to deleted articles", icon: <Trash2 size={14} />, danger: true, run: onDelete },
+    ]} />
+  </article>;
+}
+
+export function CatalogueLibrary({ route }: { route: LibraryRoute }) {
   const catalogue = useCatalogue();
   const workspace = useWorkspace();
   const { snapshot } = catalogue;
+  const home = route.view === "library";
+  const subjectId = route.view === "collection" ? route.id : null;
+  const subject = subjectId ? catalogue.subjectById.get(subjectId) : null;
   const [creating, setCreating] = useState(false);
-  const [query, setQuery] = useState("");
-  const [subjectFilter, setSubjectFilter] = useState<string>(() => catalogue.route.view === "library" && catalogue.route.subjectId ? catalogue.route.subjectId : "all");
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
-  const [subjectDialog, setSubjectDialog] = useState<{ subject: CatalogueSubject | null } | null>(null);
-  const [volumeDialog, setVolumeDialog] = useState<{ volume: CatalogueVolume | null; subjectId: string | null } | null>(null);
+  const [collectionDialog, setCollectionDialog] = useState<{ subject: CatalogueSubject | null } | null>(null);
+  const [creatingVolume, setCreatingVolume] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [deletedOpen, setDeletedOpen] = useState(false);
+  const [exporting, setExporting] = useState<CatalogueArticle | null>(null);
   const [confirmElement, confirm] = useConfirm();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [order, setOrder] = useState<SortOrder>("recent");
+  const viewKey = `heuresis.catalogue.article-view.v1:${catalogue.userId}`;
+  const [view, setView] = useState<ArticleView>(() => {
+    try { return localStorage.getItem(viewKey) === "list" ? "list" : "grid"; }
+    catch { return "grid"; }
+  });
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (!home) heading.current?.focus({ preventScroll: true }); }, [home]);
 
-  const articles = useMemo(() => {
-    const sorted = sortArticles(snapshot.articles);
-    if (sortOrder === "oldest") return sorted.reverse();
-    if (sortOrder === "title") return sorted.sort((a, b) => articleTitle(a).localeCompare(articleTitle(b), undefined, { sensitivity: "base" }));
-    return sorted;
-  }, [snapshot.articles, sortOrder]);
-  const subjects = snapshot.subjects;
-  const empty = !snapshot.articles.length && !snapshot.volumes.length && !snapshot.subjects.length;
+  const counts = useMemo(() => {
+    const counts = new Map<string | null, number>();
+    for (const article of snapshot.articles) counts.set(article.subject_id, (counts.get(article.subject_id) ?? 0) + 1);
+    return counts;
+  }, [snapshot.articles]);
+
+  const count = counts.get(subjectId) ?? 0;
   const search = normaliseSearch(query);
-  const filtering = Boolean(search) || subjectFilter !== "all" || status !== "all";
+  const matches = useMemo(() => {
+    if (home) return [];
+    const articles = sortArticles(snapshot.articles.filter((article) =>
+      article.subject_id === subjectId && (status === "all" || status === article.status)
+      && (!search || normaliseSearch(`${articleText(article)} ${catalogue.volumeById.get(article.volume_id ?? "")?.title ?? ""}`).includes(search))));
+    if (order === "title") return articles.sort((a, b) => articleTitle(a).localeCompare(articleTitle(b), undefined, { sensitivity: "base" }));
+    return order === "oldest" ? articles.reverse() : articles;
+  }, [catalogue.volumeById, home, order, search, snapshot.articles, status, subjectId]);
 
-  const open = (article: CatalogueArticle) => catalogue.navigate(article.status === "published"
-    ? { view: "read", id: article.id, from: { view: "library" } } : { view: "design", id: article.id, from: { view: "library" } });
+  const volumes = snapshot.volumes.filter((volume) => volume.subject_id === subjectId)
+    .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title));
+  const landing = { view: "library" } as const;
 
-  const availableArticles = useMemo(() => articles.filter((article) => {
-    if (subjectFilter === "none" && article.subject_id) return false;
-    if (subjectFilter !== "all" && subjectFilter !== "none" && article.subject_id !== subjectFilter) return false;
-    if (!search) return true;
-    const volume = article.volume_id ? catalogue.volumeById.get(article.volume_id) : null;
-    const subject = article.subject_id ? catalogue.subjectById.get(article.subject_id) : null;
-    return normaliseSearch([articleText(article), volume?.title, subject?.name].filter(Boolean).join(" ")).includes(search);
-  }), [articles, catalogue.subjectById, catalogue.volumeById, search, subjectFilter]);
-  const matches = useMemo(() => availableArticles.filter((article) => status === "all" || article.status === status),
-    [availableArticles, status]);
-  const availableDrafts = availableArticles.filter((article) => article.status === "draft").length;
-  const availablePublished = availableArticles.length - availableDrafts;
-  const matchingDrafts = matches.filter((article) => article.status === "draft");
-  const matchingPublished = matches.filter((article) => article.status === "published");
-  const matchingVolumes = useMemo(() => sortVolumes(snapshot.volumes.filter((volume) => {
-    if (status === "draft") return false;
-    if (subjectFilter === "none" && volume.subject_id) return false;
-    if (subjectFilter !== "all" && subjectFilter !== "none" && volume.subject_id !== subjectFilter) return false;
-    return !search || normaliseSearch(`${volume.title} ${volume.subtitle} ${volume.edition}`).includes(search);
-  }), sortOrder), [search, snapshot.volumes, sortOrder, status, subjectFilter]);
-
-  async function deleteSubject(subject: CatalogueSubject) {
-    const ok = await confirm({ title: `Delete the subject “${subject.name}”?`, confirmLabel: "Delete subject", danger: true,
-      body: "Its volumes and articles are kept; they will simply have no subject. Nothing in the Notebook is affected." });
-    if (!ok) return;
-    try { await catalogue.removeSubject(subject.id); workspace.toast("Subject deleted. Its articles are kept."); }
-    catch (cause) { workspace.toast(catalogueError(cause), { tone: "error" }); }
+  function changeView(next: ArticleView) {
+    setView(next);
+    try { localStorage.setItem(viewKey, next); } catch { /* optional preference */ }
   }
 
-  async function deleteDraft(article: CatalogueArticle) {
-    if (!await confirm({ title: `Delete draft “${articleTitle(article)}”?`,
-      body: "You can restore it from Deleted articles.", confirmLabel: "Delete draft", danger: true })) return;
+  async function deleteCollection(collection: CatalogueSubject) {
+    if (!await confirm({
+      title: `Delete “${collection.name}”?`, body: "Its articles and volumes will remain accessible under Independent articles.",
+      confirmLabel: "Delete collection", danger: true,
+    })) return;
+    try {
+      await catalogue.removeSubject(collection.id);
+      catalogue.returnTo(landing);
+      workspace.toast("Collection deleted. Its articles and volumes are kept.");
+    } catch (cause) { workspace.toast(catalogueError(cause), { tone: "error" }); }
+  }
+
+  async function deleteArticle(article: CatalogueArticle) {
+    if (!await confirm({
+      title: `Delete “${articleTitle(article)}”?`, body: "You can restore it from Deleted articles.",
+      confirmLabel: "Delete article", danger: true,
+    })) return;
     try { await catalogue.removeArticle(article); }
     catch (cause) { workspace.toast(catalogueError(cause), { tone: "error" }); }
   }
 
-  const draftShelf = (items: CatalogueArticle[]) => <section className="ct-shelf ct-draft-shelf" aria-labelledby="ct-drafts">
-    <div className="ct-shelf-head"><h2 id="ct-drafts">Drafts <span>({items.length})</span></h2></div>
-    <div className="ct-draft-list">{items.map((article) => <DraftRow key={article.id} article={article}
-      onOpen={() => open(article)} onDelete={() => void deleteDraft(article)} />)}</div>
-  </section>;
-
-  const moreMenu = <Menu label="More Catalogue actions" items={[
-    { label: "New subject", icon: <FolderPlus size={14} />, run: () => setSubjectDialog({ subject: null }) },
-    { label: "New volume", icon: <BookMarked size={14} />, run: () => setVolumeDialog({ volume: null, subjectId: subjectFilter !== "all" && subjectFilter !== "none" ? subjectFilter : null }) },
-    "divider",
-    { label: `Deleted articles${catalogue.deleted.length ? ` (${catalogue.deleted.length})` : ""}`, icon: <Trash2 size={14} />, run: () => setDeletedOpen(true) },
-  ]} />;
-
-  const dialogs = <>
-    {confirmElement}
-    {creating ? <CreateArticleDialog onClose={() => setCreating(false)} defaultSubjectId={subjectFilter !== "all" && subjectFilter !== "none" ? subjectFilter : null} /> : null}
-    {subjectDialog ? <SubjectDialog subject={subjectDialog.subject} onClose={() => setSubjectDialog(null)} /> : null}
-    {volumeDialog ? <VolumeDialog volume={volumeDialog.volume} subjectId={volumeDialog.subjectId} onClose={() => setVolumeDialog(null)}
-      onSaved={(volume, created) => { if (created) catalogue.navigate({ view: "volume", id: volume.id }); }} /> : null}
-    {deletedOpen ? <DeletedDialog onClose={() => setDeletedOpen(false)} /> : null}
-  </>;
-
-  if (empty) return <div className="ct-library is-empty">
-    {dialogs}
-    <div className="ct-empty">
-      <h1>Catalogue</h1>
-      <p><em>Your collection of articles, essays and illustrated works.</em></p>
-      <button type="button" className="ct-create is-large" onClick={() => setCreating(true)}><FilePlus2 size={17} strokeWidth={1.6} /> Create Article</button>
-      {catalogue.deleted.length ? <button type="button" className="ct-link" onClick={() => setDeletedOpen(true)}>Deleted articles ({catalogue.deleted.length})</button> : null}
-    </div>
+  if (subjectId && !subject) return <div className="ct-library">
+    <p className="ct-quiet">This collection is no longer available.</p>
+    <button type="button" className="ws-button" onClick={() => catalogue.returnTo(landing)}>Back to Catalogue</button>
   </div>;
 
-  const drafts = articles.filter((article) => article.status === "draft");
-  const shelf = (subjectId: string | null) => ({
-    volumes: sortVolumes(snapshot.volumes.filter((volume) => volume.subject_id === subjectId), sortOrder),
-    loose: articles.filter((article) => article.status === "published" && article.subject_id === subjectId && !article.volume_id),
-  });
-  const unfiled = shelf(null);
-  const noWorks = !snapshot.articles.length && !snapshot.volumes.length;
+  const actions = <div className="ct-masthead-actions">
+    {home ? <button type="button" className="ws-icon-button ct-catalogue-search" aria-label="Search the Catalogue"
+      onClick={() => setSearching(true)}><Search size={17} /></button> : null}
+    <button type="button" className="ct-create" onClick={() => setCreating(true)}><Plus size={15} /> New article</button>
+    <Menu label={subject ? "Collection actions" : home ? "Catalogue actions" : "Independent article actions"} items={[
+      ...(subject ? [{ label: "Edit collection", icon: <Pencil size={14} />, run: () => setCollectionDialog({ subject }) }] : []),
+      ...(home ? [{ label: "New collection", icon: <FolderPlus size={14} />, run: () => setCollectionDialog({ subject: null }) }] : []),
+      { label: "New volume", icon: <BookMarked size={14} />, run: () => setCreatingVolume(true) },
+      ...(subject ? ["divider" as const, { label: "Delete collection", icon: <Trash2 size={14} />, danger: true, run: () => void deleteCollection(subject) }] : []),
+      ...(home ? ["divider" as const, { label: "Deleted articles", icon: <Trash2 size={14} />, run: () => setDeletedOpen(true) }] : []),
+    ]} />
+  </div>;
+  const back = <nav className="ct-crumbs" aria-label="Catalogue navigation">
+    <button type="button" onClick={() => catalogue.returnTo(landing)}><ArrowLeft size={15} /> Catalogue</button>
+  </nav>;
+  const credit = attributionLine(subject?.illustration?.attribution);
 
-  return <div className="ct-library">
-    {dialogs}
-    <header className="ct-masthead">
-      <div>
+  return <div className={`ct-library ${home ? "ct-collection-index" : "ct-collection-page"}`}>
+    {confirmElement}
+    {creating ? <CreateArticleDialog onClose={() => setCreating(false)} defaultSubjectId={subjectId} /> : null}
+    {collectionDialog ? <CollectionDialog subject={collectionDialog.subject} onClose={() => setCollectionDialog(null)} /> : null}
+    {creatingVolume ? <VolumeDialog volume={null} subjectId={subjectId} onClose={() => setCreatingVolume(false)}
+      onSaved={(volume) => catalogue.navigate({ view: "volume", id: volume.id })} /> : null}
+    {searching ? <ArticleSearch onClose={() => setSearching(false)} /> : null}
+    {deletedOpen ? <DeletedDialog onClose={() => setDeletedOpen(false)} /> : null}
+    {exporting ? <ExportDialog articles={[exporting]} title={articleTitle(exporting)} onClose={() => setExporting(null)} /> : null}
+
+    {home ? <>
+      <header className="ct-masthead">
         <h1>Catalogue</h1>
-        <p><em>Your collection of articles, essays and illustrated works.</em></p>
-      </div>
-      <div className="ct-masthead-actions">
-        <button type="button" className="ct-create" onClick={() => setCreating(true)}><Plus size={15} /> New article</button>
-        {moreMenu}
-      </div>
-    </header>
-
-    <div className="ct-toolbar" role="search">
-      <label className="ct-search"><Search size={15} aria-hidden="true" />
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search articles…" aria-label="Search the Catalogue" />
-        {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={14} /></button> : null}
-      </label>
-      <Segmented className="ct-status-switch" label="Status" value={status} onChange={setStatus} options={[
-        { value: "all", label: `All ${availableArticles.length}` },
-        { value: "draft", label: `Drafts ${availableDrafts}` },
-        { value: "published", label: `Published ${availablePublished}` },
-      ]} />
-      <select className="ct-subject-filter" aria-label="Subject" value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}>
-        <option value="all">All subjects</option>
-        {subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
-        <option value="none">Unfiled</option>
-      </select>
-      <select className="ct-sort-filter" aria-label="Sort articles" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as SortOrder)}>
-        <option value="recent">Recent first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="title">Title A–Z</option>
-      </select>
-    </div>
-
-    {filtering ? <>
-      {matchingDrafts.length ? draftShelf(matchingDrafts) : null}
-      {matchingVolumes.length || matchingPublished.length ? <section className="ct-shelf" aria-label="Published works">
-        {matchingVolumes.length ? <div className="ct-grid">{matchingVolumes.map((volume) => <VolumeCard key={volume.id} volume={volume} onOpen={() => catalogue.navigate({ view: "volume", id: volume.id })} />)}</div> : null}
-        {matchingPublished.length ? <div className="ct-grid">{matchingPublished.map((article) => <ArticleCard key={article.id} article={article} onOpen={() => open(article)} />)}</div> : null}
-      </section> : null}
-      {!matchingDrafts.length && !matchingPublished.length && !matchingVolumes.length
-        ? <p className="ct-quiet ct-no-matches">Nothing matches. Try another word or filter.</p> : null}
+        {actions}
+      </header>
+      {snapshot.subjects.length ? <div className="ct-collection-cards">
+        {snapshot.subjects.map((collection) => <button key={collection.id} type="button" className="ct-collection-card"
+          onClick={() => catalogue.navigate({ view: "collection", id: collection.id })}>
+          <CollectionIllustration illustration={collection.illustration} />
+          <span className="ct-collection-card-copy">
+            <strong>{collection.name}</strong>
+            {collection.description ? <span className="ct-collection-description">{collection.description}</span> : null}
+            <span className="ct-collection-card-foot"><span>{articleCount(counts.get(collection.id) ?? 0)}</span><ArrowRight size={18} aria-hidden="true" /></span>
+          </span>
+        </button>)}
+      </div> : <div className="ct-collection-empty">
+        <p className="ct-quiet">No collections yet.</p>
+        <button type="button" className="ct-link" onClick={() => setCollectionDialog({ subject: null })}>Create a collection</button>
+      </div>}
+      {count || volumes.length ? <button type="button" className="ct-independent" onClick={() => catalogue.navigate({ view: "independent" })}>
+        <span>Independent articles</span><small>{articleCount(count)}</small><ChevronRight size={16} aria-hidden="true" />
+      </button> : null}
     </> : <>
-      {drafts.length ? draftShelf(drafts) : null}
-      {noWorks ? <p className="ct-quiet ct-no-matches">No articles or volumes yet. Create an article to begin.</p> : null}
-      {subjects.map((subject) => {
-        const { volumes, loose } = shelf(subject.id);
-        if (!volumes.length && !loose.length) return null;
-        return <section className="ct-shelf" key={subject.id} aria-label={subject.name}>
-          <div className="ct-shelf-head">
-            <h2>{subject.name}</h2>
-            <Menu label={`Actions for ${subject.name}`} items={[
-              { label: "New volume in this subject", icon: <BookMarked size={14} />, run: () => setVolumeDialog({ volume: null, subjectId: subject.id }) },
-              { label: "Rename", icon: <Pencil size={14} />, run: () => setSubjectDialog({ subject }) },
-              { label: "Delete subject", icon: <Trash2 size={14} />, danger: true, run: () => void deleteSubject(subject) },
-            ]} />
-          </div>
-          {volumes.length || loose.length ? <div className="ct-grid">
-            {volumes.map((volume) => <VolumeCard key={volume.id} volume={volume} onOpen={() => catalogue.navigate({ view: "volume", id: volume.id })} />)}
-            {loose.map((article) => <ArticleCard key={article.id} article={article} onOpen={() => open(article)} />)}
-          </div> : <p className="ct-quiet">No published articles yet.</p>}
-        </section>;
-      })}
-      {unfiled.volumes.length || unfiled.loose.length ? <section className="ct-shelf" aria-label="Unfiled">
-        <div className="ct-shelf-head"><h2>{subjects.length ? "Unfiled" : "Articles"}</h2></div>
-        <div className="ct-grid">
-          {unfiled.volumes.map((volume) => <VolumeCard key={volume.id} volume={volume} onOpen={() => catalogue.navigate({ view: "volume", id: volume.id })} />)}
-          {unfiled.loose.map((article) => <ArticleCard key={article.id} article={article} onOpen={() => open(article)} />)}
+      {back}
+      <header className="ct-collection-head">
+        <div className="ct-collection-intro">
+          <h1 ref={heading} tabIndex={-1}>{subject?.name ?? "Independent articles"}</h1>
+          {subject?.description ? <p className="ct-collection-description">{subject.description}</p> : null}
+          <span className="ct-collection-count">{articleCount(count)}</span>
         </div>
+        {subject ? <figure className="ct-collection-feature">
+          <CollectionIllustration illustration={subject.illustration} />
+          {credit ? <figcaption>{credit}</figcaption> : null}
+        </figure> : null}
+      </header>
+      <section className="ct-article-index" aria-labelledby="ct-articles">
+        <div className="ct-index-head"><h2 id="ct-articles">Articles</h2>{actions}</div>
+        {count ? <div className="ct-toolbar" role="search" aria-label="Search articles">
+          <label className="ct-search"><Search size={15} aria-hidden="true" />
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find an article…" aria-label="Find an article" />
+          </label>
+          <select aria-label="Publication status" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
+            <option value="all">All articles</option><option value="draft">Drafts</option><option value="published">Published</option>
+          </select>
+          <select aria-label="Sort articles" value={order} onChange={(event) => setOrder(event.target.value as SortOrder)}>
+            <option value="recent">Latest edits</option><option value="oldest">Earliest edits</option><option value="title">Title A–Z</option>
+          </select>
+          <div className="ct-view-switch" role="group" aria-label="Article view">
+            <button type="button" aria-pressed={view === "grid"} onClick={() => changeView("grid")}><LayoutGrid size={15} /> Grid</button>
+            <button type="button" aria-pressed={view === "list"} onClick={() => changeView("list")}><List size={16} /> List</button>
+          </div>
+        </div> : null}
+        {matches.length ? <ul className={`ct-index-items ct-index-${view}`}>
+          {matches.map((article) => <li key={article.id}><ArticleEntry article={article} view={view} from={route}
+            onDelete={() => void deleteArticle(article)} onExport={() => setExporting(article)} /></li>)}
+        </ul> : <p className="ct-quiet ct-collection-empty" role="status">{count ? "No articles match these filters." : "No articles yet."}</p>}
+      </section>
+      {volumes.length ? <section className="ct-collection-volumes" aria-labelledby="ct-volumes">
+        <h2 id="ct-volumes">Volumes</h2>
+        <ul>{volumes.map((volume) => <li key={volume.id}>
+          <button type="button" onClick={() => catalogue.navigate({ view: "volume", id: volume.id })}>
+            <BookMarked size={17} aria-hidden="true" /><span><strong>{volume.title}</strong>{volume.edition ? <small>{volume.edition}</small> : null}</span>
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </li>)}</ul>
       </section> : null}
     </>}
   </div>;
