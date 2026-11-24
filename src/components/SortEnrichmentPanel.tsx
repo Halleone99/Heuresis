@@ -64,7 +64,7 @@ function parseBlocks(data: CardWithStats["data"]): Block[] {
 }
 
 /** Reads a stored example block as sentence / translation lines, for the card face. */
-export function firstExampleBlock(data: CardWithStats["data"]): { id: string; sentence: string; translation: string } | null {
+export function firstExampleBlock(data: CardWithStats["data"]): { id: string; sentence: string; reading: string; translation: string } | null {
   const block = parseBlocks(data).find((item): item is TextBlock => item.type === "text" && item.dim === "examples");
   if (!block) return null;
   // RichEditor separates paragraphs with blank lines; Shift+Enter gives a single newline. Accept both.
@@ -74,7 +74,7 @@ export function firstExampleBlock(data: CardWithStats["data"]): { id: string; se
     .trim()).filter(Boolean);
   if (!lines.length) return null;
   // Three lines are sentence, reading, translation; two lines are sentence and translation.
-  return { id: block.id, sentence: lines[0], translation: lines.length > 1 ? lines[lines.length - 1] : "" };
+  return { id: block.id, sentence: lines[0], reading: lines.length >= 3 ? lines.slice(1, -1).join(" ") : "", translation: lines.length > 1 ? lines[lines.length - 1] : "" };
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */

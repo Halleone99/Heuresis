@@ -24,3 +24,9 @@ assert(review.includes('reviewFontSize') && sort.includes('termSize'), "Long car
 assert(review.includes('study21={isStudy21}') && badge.includes('is-lost'), "Review feedback must match real progress");
 assert(css.includes('.study21') && !css.includes('!important'), "2.1 styles must remain scoped with no !important");
 console.log("Study 2.1 structural contract passed");
+
+assert(sort.includes('--study21-pad-left') && sort.includes('--study21-pad-right') && sort.includes('--study21-meaning-size'), "New text is sized within the available width");
+assert(/<\/article>\s*\{isStudy21 \? <NewDock21/.test(sort), "New dock is independent of the scrolling card");
+assert(css.includes('.sort-selectable,.sort-inline-text') && css.includes('bottom:var(--study21-dock-bottom)'), "Read and edit typography and fixed dock use the prototype layout");
+assert(sort.includes('blockExample.reading') && sort.includes('exampleReadingField'), "New cards display saved example readings");
+console.log("Study 2.1 New stage and independent dock checks passed");
