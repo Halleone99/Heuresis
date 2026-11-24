@@ -98,7 +98,8 @@ type PendingMissedNote = {
   grade: ReviewCorrectionGrade; attempt: string; referenceAnswer: string; explanation: string; repeated: boolean; submitted: boolean;
 };
 type SessionResult = { cardId: string; templateId: string | null; grade: StudyGrade; stateBefore: KnowledgeState | null;
-  barsBefore: number; barsAfter: number; masteredBefore: boolean; masteredAfter: boolean };
+  barsBefore: number; barsAfter: number; masteredBefore: boolean; masteredAfter: boolean;
+  masteryBefore?: number; masteryAfter?: number };
 
 type Config = {
   valid: boolean;
@@ -1008,6 +1009,7 @@ export default function CosmosWindow() {
       || (!appliedVerdict.correct && (grade === "good" || grade === "easy")))) return false;
     setBusy(true); setNotice("");
     try {
+      const gradedAt = Date.now();
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
       // Count the method used on each completed attempt, not just a click.
       try {
@@ -1025,10 +1027,11 @@ export default function CosmosWindow() {
       const previousGrades = events?.filter((event) => event.cardId === card.id) ?? null;
       const legacyState = assessState(directionEvidence(card, null, previousGrades)).state;
       const before = cardBarProgress(card, previousGrades, legacyState, progressDirectionIds);
-      const graded = { cardId: card.id, templateId: template.id, grade, at: Date.now() };
+      const graded = { cardId: card.id, templateId: template.id, grade, at: gradedAt };
       const after = cardBarProgress(card, previousGrades ? [...previousGrades, graded] : null, legacyState, progressDirectionIds);
       const result: SessionResult = { cardId: card.id, templateId: template.id, grade, stateBefore,
-        barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered };
+        barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered,
+        masteryBefore: before.masteryLevel, masteryAfter: after.masteryLevel };
       setResults((current) => [...current, result]);
       setGradeFeedback(result);
       // Local evidence, so retries and the summary see this answer at once.
