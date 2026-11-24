@@ -1,0 +1,5 @@
+# Heuresis essential polish — 24 November 2026
+Based on the supplied Claude audit at b005e98. Classic stays default. Refined is a local appearance preference, independent of existing palettes and navigation.
+Included: theme-aware shared splash treatment (8-second maximum overlay), secondary-window loading, delayed skeletons in shell and topic, silent topic refresh with stale-result protection, per-topic Show all, sidebar and settings-tab persistence, page titles, Study/Home/All cards labels, success notice timeout, clearer sign-in feedback, guarded Escape in topic, collections, archive and safe settings tabs, and scoped optional appearance.
+Deferred: bulk editing/card moves, unified trash/undo, authentication recovery, account preference sync, network read timeouts, full font and date audit, lazy-loading and dead-code changes. No database changes.
+Validation: targeted source and scope checks only. Full build and browser/desktop checks required before merge. CI suppressed intentionally; no deployment.

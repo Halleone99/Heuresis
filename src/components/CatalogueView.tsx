@@ -169,8 +169,8 @@ export default function CatalogueView({ collections, packs, onBack, onOpenPack }
 
   return (
     <section className="catalogue-page intelligent-catalogue">
-      <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> Library</button>
-      <header className="catalogue-heading intelligent-heading"><div><p className="eyebrow">CATALOGUE</p><h1>Everything you have kept.</h1></div><span>{items.length.toLocaleString()} cards · {selectedPacks.length.toLocaleString()} topics · {collections.length.toLocaleString()} collections</span></header>
+      <button className="text-button back-button" onClick={onBack}><ArrowLeft size={15} /> Home</button>
+      <header className="catalogue-heading intelligent-heading"><div><p className="eyebrow">ALL CARDS</p><h1>Everything you have kept.</h1></div><span>{items.length.toLocaleString()} cards · {selectedPacks.length.toLocaleString()} topics · {collections.length.toLocaleString()} collections</span></header>
 
       <div className="intelligent-row-label">QUESTIONS WORTH ASKING</div>
       <div className="intelligent-question-band">

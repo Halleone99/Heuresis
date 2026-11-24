@@ -26,6 +26,7 @@
           const dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.dataset.palette = palette;
           document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.documentElement.dataset.design = localStorage.getItem("heuresis.design.v1") === "refined" ? "refined" : "classic";
           document.documentElement.style.colorScheme = dark ? "dark" : "light";
         } catch { document.documentElement.dataset.palette = "slate"; }
       })();
@@ -154,6 +155,14 @@
         }
       }
 
+      html[data-theme="light"] .heuresis-boot {
+        background: radial-gradient(circle at 50% 44%, rgba(59,95,143,.09), transparent 44%), linear-gradient(140deg,#f8fafc,#eef1f4 63%,#e5eaf0);
+        color: #18212d;
+      }
+      html[data-theme="light"] .heuresis-boot-status { color: #56636f; }
+      html[data-theme="light"] .heuresis-boot-name span, html[data-theme="light"] .heuresis-boot-dots i { color: #3b5f8f; }
+      html[data-theme="light"] .heuresis-boot-dots i { background: #3b5f8f; }
+      .heuresis-boot--compact .heuresis-boot-name { display: none; }
       @media (prefers-reduced-motion: reduce) {
         .heuresis-boot-dots i {
           animation: none;
@@ -168,7 +177,7 @@
         <div class="heuresis-boot-inner">
           <div class="heuresis-boot-mark" aria-hidden="true">H</div>
           <div class="heuresis-boot-name">Heure<span>sis</span></div>
-          <div class="heuresis-boot-status">Preparing your library</div>
+          <div class="heuresis-boot-status">Opening your library</div>
           <div class="heuresis-boot-dots" aria-hidden="true">
             <i></i><i></i><i></i>
           </div>

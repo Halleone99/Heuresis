@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowUpDown, BookOpen, Brain, ChevronDown, Compass, FileUp, GitFork, Link2, Pencil, Plus, Search, Settings2, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import LoadingState from "./ui/LoadingState";
 import {
   DISCARDED_AT_KEY,
   patchCardData,
@@ -179,6 +180,13 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   );
 }
 
+function readShowAll(packId: string) {
+  try { return localStorage.getItem(`heuresis.topic.show-all.v1:${packId}`) === "true"; }
+  catch { return false; }
+}
+function saveShowAll(packId: string) {
+  try { localStorage.setItem(`heuresis.topic.show-all.v1:${packId}`, "true"); } catch { /* optional */ }
+}
 export default function PackView({ pack, collection, newCardsBackgroundStyle, focusCardId = null, onFocusCardShown, onBack, onCapture, onSettings, onChanged }: Props) {
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [referenceCards, setReferenceCards] = useState<CardWithStats[]>([]);
@@ -186,7 +194,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   const [templates, setTemplates] = useState<StudyTemplate[]>([]);
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(null);
   const [events, setEvents] = useState<GradeEvent[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<StatusFilter[]>([]);
@@ -196,7 +204,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [includeUntagged, setIncludeUntagged] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
-  const [allCardsExpanded, setAllCardsExpanded] = useState(false);
+  const [allCardsExpanded, setAllCardsExpanded] = useState(() => readShowAll(pack.id));
   const [detailFilters, setDetailFilters] = useState<DetailFilter[]>([]);
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -214,11 +222,16 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
   const [focusNotice, setFocusNotice] = useState("");
   const [reviewNotice, setReviewNotice] = useState("");
   const [loadedPackId, setLoadedPackId] = useState<string | null>(null);
+  const hasData = loadedPackId === pack.id;
+  const loading = fetching && !hasData;
+  const requestVersion = useRef(0);
 
   async function reload() {
-    setLoading(true); setError("");
+    const version = ++requestVersion.current;
+    setFetching(true); setError("");
     try {
       const [topicCards, nextTags, setup, history] = await Promise.all([listTopicCards(pack.id), listTags(), loadStudySetup(pack.id, pack.card_type_id), loadGradeEvents(pack.id).catch(() => null)]);
+      if (version !== requestVersion.current) return;
       const nextCards = topicCards.learning;
       setCards(nextCards); setReferenceCards(topicCards.reference); setTags(nextTags); setTemplates(setup.templates); setDefaultTemplateId(setup.defaultTemplateId); setEvents(history);
       setLoadedPackId(pack.id);
@@ -226,8 +239,8 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
       setEditing((current) => current ? all.find((card) => card.id === current.id) ?? current : null);
       setSelectedCardId((current) => current && all.some((card) => card.id === current) ? current : null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
-    } finally { setLoading(false); }
+      if (version === requestVersion.current) setError(loadError instanceof Error ? loadError.message : "Could not load cards.");
+    } finally { if (version === requestVersion.current) setFetching(false); }
   }
 
   useEffect(() => {
@@ -241,11 +254,12 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
     setSelectedTagIds([]);
     setIncludeUntagged(false);
     setTagSearch("");
-    setAllCardsExpanded(false);
+    setAllCardsExpanded(readShowAll(pack.id));
     setDetailFilters([]);
     setSortField("status");
     setSortDirection("asc");
     void reload();
+    return () => { requestVersion.current += 1; };
   }, [pack.id]);
 
   useEffect(() => {
@@ -539,7 +553,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
 
   return (
     <section className="pack-page desktop-pack-page intelligent-topic modern-topic-page" data-accent={collection?.accent ?? "ink"}>
-      <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Library"}</button>
+      <button className="text-button back-button modern-topic-back" onClick={onBack}><ArrowLeft size={15} /> {collection?.title || "Home"}</button>
 
       <header className="modern-topic-head">
         <div className="modern-topic-title"><p className="eyebrow">TOPIC</p><h1>{pack.title}</h1>{pack.description ? <p>{pack.description}</p> : null}<span className="pack-record">{plural(visibleTotal, "card")} · {pack.encountered_cards.toLocaleString()} met · {explored}% explored{pack.last_opened_at ? ` · ${formatSeen(pack.last_opened_at).replace("seen", "last opened")}` : ""}</span></div>
@@ -649,7 +663,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
         </div>
       </div>
 
-      {!loading && !error && visibleTotal > 0 ? <section className="topic-browse-hub topic-browse-compact" aria-label="Card list selection">
+      {!loading && (!error || hasData) && visibleTotal > 0 ? <section className="topic-browse-hub topic-browse-compact" aria-label="Card list selection">
           <div className="topic-browse-heading">
             <div>
               <strong>{showCardList ? shown.length.toLocaleString() + " of " + visibleTotal.toLocaleString() + " cards" : "Card browser"}</strong>
@@ -658,7 +672,7 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
             <div className="topic-browse-actions">
               {tagSelectionActive && shown.some((card) => workflowStatus(card) === "learning") ? <button type="button" className="secondary-button topic-review-filtered" onClick={() => openTargeted("Review filtered cards", shown.filter((card) => workflowStatus(card) === "learning"))}><Brain size={14} /> Review filtered</button> : null}
               {activeFilterCount > 0 ? <button type="button" className="secondary-button topic-clear-inline" onClick={clearFilters}>Clear filters</button> : null}
-              {!showCardList ? <button type="button" className="secondary-button" onClick={() => setAllCardsExpanded(true)}>Show all {visibleTotal.toLocaleString()}</button> : null}
+              {!showCardList ? <button type="button" className="secondary-button" onClick={() => { setAllCardsExpanded(true); saveShowAll(pack.id); }}>Show all {visibleTotal.toLocaleString()}</button> : null}
             </div>
           </div>
         </section> : null}
@@ -666,10 +680,11 @@ export default function PackView({ pack, collection, newCardsBackgroundStyle, fo
        {focusNotice ? <div className="topic-selection-hint" role="status">{focusNotice}</div> : null}
       {selectedCard ? <div className="topic-selection-hint" role="status"><strong>{fieldText(selectedCard.data, term?.key) || "Card"}</strong> selected · Edit below or press Enter</div> : null}
 
-      {loading ? <div className="content-state" role="status">Opening cards…</div> : null}
-      {!loading && error ? <div className="content-state error-state" role="alert"><strong>Could not load this topic.</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
-      {!loading && !error && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose Filters above or Show all to see individual cards.</span></div> : null}
-       {!loading && !error && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
+      {fetching && hasData ? <div className="heuresis-refresh-line" role="status" aria-label="Refreshing cards" /> : null}
+      {loading ? <LoadingState /> : null}
+      {!loading && error ? <div className="content-state error-state" role="alert"><strong>{hasData ? "Could not refresh this topic. Showing the last loaded cards." : "Could not load this topic."}</strong><span>{error}</span><button type="button" className="secondary-button" onClick={() => void reload()}>Retry</button></div> : null}
+      {!loading && (!error || hasData) && !showCardList && visibleTotal > 0 ? <div className="topic-browse-idle"><BookOpen size={17} /><span>Choose Filters above or Show all to see individual cards.</span></div> : null}
+       {!loading && (!error || hasData) && (showCardList || visibleTotal === 0) ? <div className="modern-topic-table excel-topic-table ticker-topic-table">
         <div className="modern-topic-thead excel-topic-thead ticker-topic-thead">
           <button className={sortField === "term" ? "active" : ""} onClick={() => changeSort("term")}>CARD <ArrowUpDown size={11} /></button>
           <button className={sortField === "status" ? "active" : ""} onClick={() => changeSort("status")}>STATE <ArrowUpDown size={11} /></button>

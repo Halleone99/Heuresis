@@ -1,0 +1,22 @@
+/* Always-on polish: palette-aware and reduced-motion-safe. */
+.heuresis-loading { padding: 14px 0; min-height: 120px; color: var(--ws-muted); }
+.heuresis-loading-shapes { display: grid; gap: 10px; }
+.heuresis-loading-shapes > div { height: 38px; border-radius: 8px; background: linear-gradient(100deg,var(--ws-surface-2) 30%,var(--ws-raised) 50%,var(--ws-surface-2) 70%); background-size: 240% 100%; animation: heuresis-skeleton 1.5s ease-in-out infinite; }
+.heuresis-loading--page .heuresis-loading-shapes > div:first-child { width: min(280px,65%); height: 30px; }
+.heuresis-loading--page .heuresis-loading-shapes > div:not(:first-child) { height: 64px; }
+.heuresis-loading > span { display: block; margin-top: 12px; font-size: 12px; }
+.heuresis-refresh-line { height: 2px; border-radius: 2px; background: var(--ws-accent-line); overflow: hidden; }
+.heuresis-refresh-line::after { content: ""; display:block; height:100%; width:30%; background:var(--ws-accent); animation:heuresis-refresh 1.2s ease-in-out infinite; }
+@keyframes heuresis-skeleton { from {background-position:100% 0;} to {background-position:-100% 0;} }
+@keyframes heuresis-refresh { from {transform:translateX(-100%);} to {transform:translateX(340%);} }
+@media (prefers-reduced-motion: reduce) { .heuresis-loading-shapes > div, .heuresis-refresh-line::after { animation: none; } }
+.heuresis-design-options { display:flex; flex-wrap:wrap; gap:9px; }
+.heuresis-design-options > button { display:grid; gap:5px; justify-items:center; padding:6px; border:1px solid var(--ws-line); border-radius:9px; background:var(--ws-surface); color:var(--ws-text); font-size:12px; cursor:pointer; }
+.heuresis-design-options > button[aria-pressed=true] { border-color:var(--ws-accent); box-shadow:0 0 0 1px var(--ws-accent); }
+.heuresis-design-options > button:focus-visible { outline:2px solid var(--ws-accent); outline-offset:2px; }
+.heuresis-design-preview { display:grid; grid-template-columns:20px 1fr; grid-template-rows:9px 1fr; gap:4px; padding:5px; width:88px; height:54px; border:1px solid var(--ws-line); border-radius:5px; background:var(--ws-page); }
+.heuresis-design-preview > i { grid-column:1/-1; background:var(--ws-accent-soft); border-radius:2px; }
+.heuresis-design-preview > b { background:var(--ws-surface-2); border-radius:2px; }
+.heuresis-design-preview > em { background:var(--ws-raised); border-radius:2px; }
+.heuresis-design-preview[data-preview=refined] > b { border-left:2px solid var(--ws-accent); }
+.heuresis-design-preview[data-preview=refined] > em { border-radius:6px; background:color-mix(in srgb,var(--ws-raised) 80%,transparent); }

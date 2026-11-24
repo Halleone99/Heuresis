@@ -6,6 +6,7 @@ import { setOfflineAccount } from "../lib/offlineFetch";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import { reconcileStaleHeuresisSessions } from "../lib/sessionLifecycle";
 import HeuresisMark from "./HeuresisMark";
+import { BootScreen } from "./ui/LoadingState";
 
 type Props = { children: (session: Session) => ReactNode };
 
@@ -68,19 +69,20 @@ export default function AuthGate({ children }: Props) {
     if (!supabase) return;
     setSubmitting(true);
     setError("");
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (signInError) setError(signInError.message);
-    setSubmitting(false);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (signInError) {
+        setError(signInError.code === "invalid_credentials" ? "That email and password do not match."
+          : signInError.status === 429 ? "Too many attempts. Try again later."
+          : !navigator.onLine ? "No connection. Reconnect and try again."
+          : signInError.code === "email_not_confirmed" ? "Confirm your email before signing in."
+          : "Could not sign in. Please try again.");
+      }
+    } catch { setError("Could not connect. Check your connection and try again."); }
+    finally { setSubmitting(false); }
   }
 
-  if (loading) return (
-    <main className="auth-shell auth-shell--blue">
-      <div className="auth-loading" role="status" aria-live="polite">
-        <div className="auth-emblem"><HeuresisMark /></div>
-        <span>Opening your library…</span>
-      </div>
-    </main>
-  );
+  if (loading) return <BootScreen />;
 
   if (!supabaseConfigured || !supabase) {
     return (
@@ -143,7 +145,6 @@ export default function AuthGate({ children }: Props) {
                 <ArrowRight size={18} aria-hidden="true" />
               </button>
               <div className="auth-form-divider" aria-hidden="true" />
-              <p className="auth-account-help">Use the same Supabase account as Personal OS.</p>
               <p className="auth-offline-note"><WifiOff size={15} strokeWidth={1.8} aria-hidden="true" /> After synchronisation, this device can reopen your library offline.</p>
             </form>
             <span className="auth-form-footnote">HEURESIS · A PLACE TO THINK AND REMEMBER</span>

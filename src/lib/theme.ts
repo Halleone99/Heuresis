@@ -5,6 +5,12 @@ export type PalettePreference = "slate" | "forest" | "sepia" | "neutral";
 const PALETTE_KEY = "heuresis.palette.v1";
 const BLUE_UPGRADE_KEY = "heuresis.appearance.blue.v1";
 const EVENT = "heuresis:appearance-changed";
+export type DesignPreference = "classic" | "refined";
+const DESIGN_KEY = "heuresis.design.v1";
+export function readDesign(): DesignPreference {
+  try { return localStorage.getItem(DESIGN_KEY) === "refined" ? "refined" : "classic"; }
+  catch { return "classic"; }
+}
 
 export function readPalette(): PalettePreference {
   try {
@@ -40,6 +46,7 @@ export function applyAppearance(mode: ThemePreference = readTheme(), palette: Pa
   const resolved = effectiveTheme(mode);
   document.documentElement.dataset.theme = resolved;
   document.documentElement.dataset.palette = palette;
+  document.documentElement.dataset.design = readDesign();
   document.documentElement.style.colorScheme = resolved;
   const hex = getComputedStyle(document.documentElement).getPropertyValue("--ws-page").trim();
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
@@ -74,8 +81,9 @@ function signal() {
 export function useAppearance() {
   const [mode, setMode] = useState<ThemePreference>(readTheme);
   const [palette, setPalette] = useState<PalettePreference>(readPalette);
+  const [design, setDesign] = useState<DesignPreference>(readDesign);
   useEffect(() => {
-    const refresh = () => { setMode(readTheme()); setPalette(readPalette()); };
+    const refresh = () => { setMode(readTheme()); setPalette(readPalette()); setDesign(readDesign()); };
     window.addEventListener(EVENT, refresh);
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
@@ -87,7 +95,11 @@ export function useAppearance() {
   }, []);
   const chooseMode = (next: ThemePreference) => { writeTheme(next); signal(); setMode(next); };
   const choosePalette = (next: PalettePreference) => { writePalette(next); signal(); setPalette(next); };
-  return { mode, palette, chooseMode, choosePalette } as const;
+  const chooseDesign = (next: DesignPreference) => {
+    try { localStorage.setItem(DESIGN_KEY, next); } catch { /* optional */ }
+    signal(); setDesign(readDesign());
+  };
+  return { mode, palette, design, chooseMode, choosePalette, chooseDesign } as const;
 }
 
 // Retain compatibility for any existing appearance consumers.

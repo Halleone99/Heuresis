@@ -1,3 +1,4 @@
+import { useDialogEscape } from "../hooks/useDialogEscape";
 import { ImagePlus, RotateCcw, Trash2, X, ChevronDown, Check, Volume2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type DragEvent } from "react";
 import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPageKey, type BackgroundSettings } from "../hooks/useHeuresisBackground";
@@ -42,7 +43,7 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
   const fileRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState("");
   const [applyingPreset, setApplyingPreset] = useState<string | null>(null);
-  const { mode, palette, chooseMode, choosePalette } = useAppearance();
+  const { mode, palette, design, chooseMode, choosePalette, chooseDesign } = useAppearance();
   const { style: overviewStyle, chooseStyle: chooseOverviewStyle } = useOverviewStyle();
   const palettes: Array<{ id: PalettePreference; label: string }> = [
     { id: "slate", label: "Slate" }, { id: "forest", label: "Forest" },
@@ -104,6 +105,15 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
   }
 
   return <section className="appearance-settings">
+    <div className="appearance-choice" aria-label="Design">
+      <div className="settings-copy"><strong>Design</strong><span>Visual style only. Your palette and study preferences stay the same.</span></div>
+      <div className="heuresis-design-options" role="group" aria-label="Design style">
+        {(["classic", "refined"] as const).map((option) => <button key={option} type="button" aria-pressed={design === option} onClick={() => chooseDesign(option)}>
+          <span className="heuresis-design-preview" data-preview={option} aria-hidden="true"><i/><b/><em/></span>
+          {option === "classic" ? "Classic" : "Refined"}
+        </button>)}
+      </div>
+    </div>
     <div className="appearance-choice" aria-label="Heuresis appearance">
       <div className="settings-copy"><strong>Theme</strong><span>Also used in Capture and Review.</span></div>
       <div className="appearance-controls">
@@ -402,10 +412,18 @@ function StudySettings() {
 }
 
 export default function SettingsModal({ backgrounds, packs, collections, onDataChanged, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("appearance");
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const saved = localStorage.getItem("heuresis.settings.tab.v1");
+      if (saved === "study" || saved === "sorting" || saved === "cards") return saved;
+    } catch { /* optional */ }
+    return "appearance";
+  });
+  useEffect(() => { try { localStorage.setItem("heuresis.settings.tab.v1", tab); } catch { /* optional */ } }, [tab]);
+  const dialogRef = useDialogEscape(onClose, tab === "appearance" || tab === "study");
   return (
     <div className="modal-backdrop settings-layer" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section className="settings-modal settings-modal-wide" role="dialog" aria-modal="true" aria-label="Heuresis settings">
+      <section ref={dialogRef} className="settings-modal settings-modal-wide" role="dialog" aria-modal="true" aria-label="Heuresis settings">
         <header className="settings-head"><div><p className="eyebrow">PREFERENCES</p><h2>Settings</h2></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={17} /></button></header>
         <nav className="settings-tabs"><button aria-pressed={tab === "appearance"} onClick={() => setTab("appearance")}>Appearance</button><button aria-pressed={tab === "study"} onClick={() => setTab("study")}>Study</button><button aria-pressed={tab === "sorting"} onClick={() => setTab("sorting")}>Sorting</button><button aria-pressed={tab === "cards"} onClick={() => setTab("cards")}>Cards & directions</button></nav>
         <div className="settings-body">{tab === "appearance" ? <AppearanceSettings backgrounds={backgrounds} /> : null}{tab === "study" ? <StudySettings /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>

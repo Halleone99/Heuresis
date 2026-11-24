@@ -1,0 +1,15 @@
+/* Scoped optional design; no navigation or study logic changes. */
+html[data-design="refined"][data-theme] .desktop-content .modern-topic-title > h1,
+html[data-design="refined"][data-theme] .desktop-content .catalogue-heading h1,
+html[data-design="refined"][data-theme] .settings-modal .settings-head h2 { font-family:"Noto Serif",Georgia,serif; font-weight:400; letter-spacing:-.025em; }
+html[data-design="refined"][data-theme] .desktop-content .eyebrow,
+html[data-design="refined"][data-theme] .settings-modal .eyebrow { font-family:Inter,system-ui,sans-serif; font-weight:500; letter-spacing:.08em; }
+html[data-design="refined"][data-theme] .heuresis-section-sidebar .hw-sections > button { font-weight:400; }
+html[data-design="refined"][data-theme] .heuresis-section-sidebar .hw-sections > button.active { background:var(--ws-accent-soft); box-shadow:inset 2px 0 0 var(--ws-accent); }
+html[data-design="refined"][data-theme] .heuresis-section-sidebar .q-nav-badge { background:transparent; color:var(--ws-muted); font-variant-numeric:tabular-nums; }
+html[data-design="refined"][data-theme] .desktop-nav-item.active { box-shadow:inset 0 -2px 0 var(--ws-chrome-accent); }
+html[data-design="refined"][data-theme] .settings-layer { backdrop-filter:blur(6px); }
+html[data-design="refined"][data-theme] .settings-modal,
+html[data-design="refined"][data-theme] .desktop-content .topic-summary-strip,
+html[data-design="refined"][data-theme] .desktop-content .topic-browse-hub { border-radius:16px; }
+html[data-design="refined"][data-theme] .desktop-content .topic-summary-strip { background:color-mix(in srgb,var(--ws-surface) 90%,transparent); }

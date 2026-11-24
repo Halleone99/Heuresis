@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
-  ArchiveRestore, BookOpen, ChevronDown, FolderTree, Home, Keyboard, LayoutDashboard, LibraryBig, Link2, LogOut, Maximize2,
+  ArchiveRestore, BookOpen, ChevronDown, FolderTree, GraduationCap, Home, Keyboard, LayoutDashboard, LibraryBig, Link2, LogOut, Maximize2,
   Feather, HardDriveDownload, NotebookPen, PanelLeftClose, PanelLeftOpen, Radio, RefreshCw, Search, Settings2, Trash2, TriangleAlert, X,
 } from "lucide-react";
 import ArchiveModal from "./components/ArchiveModal";
 import AuthGate from "./components/AuthGate";
+import LoadingState, { BootScreen } from "./components/ui/LoadingState";
 import CaptureInboxView from "./components/CaptureInboxView";
 import CatalogueView from "./components/CatalogueView";
 import CollectionsModal from "./components/CollectionsModal";
@@ -62,9 +63,7 @@ function sidebarKey(userId: string) { return `heuresis.sidebar.mode.v1:${userId}
 function readSidebarMode(userId: string): SidebarMode {
   try {
     const value = localStorage.getItem(sidebarKey(userId));
-    // A saved pinned-full sidebar should not defeat hover navigation on restart.
-    // Touch users can still expand it temporarily with the accessible button.
-    return value === "hidden" ? "hidden" : "rail";
+    return value === "hidden" || value === "full" || value === "rail" ? value : "rail";
   } catch { return "rail"; }
 }
 
@@ -90,7 +89,7 @@ function wallpaperStyle({ imageUrl, settings }: { imageUrl: string | null; setti
 
 const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; key: string }> = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, key: "1" },
-  { id: "study", label: "Study", icon: BookOpen, key: "2" },
+  { id: "study", label: "Study", icon: GraduationCap, key: "2" },
   { id: "notebook", label: "Notebook", icon: NotebookPen, key: "3" },
   { id: "mistakes", label: "Mistake Log", icon: TriangleAlert, key: "4" },
   { id: "reading", label: "Reading", icon: BookOpen, key: "5" },
@@ -195,6 +194,20 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [startupComplete, setStartupComplete] = useState(false);
+  const startupWaiting = section === "study" || section === "overview"
+    ? loading && !error : !NOTEBOOK_INDEPENDENT.includes(section) && workspace.loading && !workspace.error;
+  useEffect(() => { if (!startupWaiting) setStartupComplete(true); }, [startupWaiting]);
+  useEffect(() => {
+    // Do not trap the user behind a splash if a read stalls; normal loading and errors remain visible.
+    const timer = window.setTimeout(() => setStartupComplete(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!["Topic created.", "Topic created from Discoveries.", "Heuresis refreshed."].includes(notice)) return;
+    const timer = window.setTimeout(() => setNotice(""), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(false);
@@ -503,6 +516,10 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   }, [openNotebookCapture, openPalette, section, setSection, toggleFocus, toggleSidebar, workspace]);
 
   const activePack = useMemo(() => packs.find((pack) => pack.id === activePackId) ?? null, [activePackId, packs]);
+  useEffect(() => {
+    const label = section === "study" ? (view === "pack" && activePack ? activePack.title : view === "catalogue" ? "All cards" : view === "related" ? "Connections" : "Study") : section === "quotations" ? "Quotations" : SECTIONS.find((item) => item.id === section)?.label ?? "Heuresis";
+    document.title = `${label} · Heuresis`;
+  }, [section, view, activePack?.title]);
   const activeCollection = useMemo(() => collections.find((collection) => collection.id === activePack?.collection_id) ?? null, [activePack?.collection_id, collections]);
   const relatedCollection = useMemo(() => collections.find((collection) => collection.id === relatedCollectionId) ?? null, [collections, relatedCollectionId]);
   const captureInboxCollection = useMemo(() => collections.find((collection) => collection.id === captureInboxCollectionId) ?? null, [collections, captureInboxCollectionId]);
@@ -587,6 +604,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <div className="heuresis-wallpaper" aria-hidden="true" />
       <div className="heuresis-wallpaper-lower" aria-hidden="true" />
       <div className="heuresis-veil" aria-hidden="true" />
+      {!startupComplete && startupWaiting ? <BootScreen /> : null}
       <header className="desktop-chrome">
         <button className="desktop-wordmark" onClick={() => navigateSection("overview")} aria-label="Heuresis — go to Overview" title="Go to Overview">
           <span className="desktop-brand-mark" aria-hidden="true"><HeuresisMark /></span>
@@ -599,8 +617,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <PanelLeftOpen size={16}/>
           </button>
         {section === "study" ? <nav className="desktop-nav-group" aria-label="Study navigation">
-          <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Library</button>
-          <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> Catalogue</button>
+          <button className={`desktop-nav-item ${view === "library" || view === "pack" || view === "capture-inbox" ? "active" : ""}`} onClick={openLibrary}><Home size={14} /> Home</button>
+          <button className={`desktop-nav-item ${view === "catalogue" ? "active" : ""}`} onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={14} /> All cards</button>
           <button className={`desktop-nav-item ${view === "related" ? "active" : ""}`} onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={14} /> Connections</button>
           <button className="desktop-nav-item" onClick={() => openCollections(false)}><FolderTree size={14} /> Collections</button>
         </nav> : null}
@@ -683,14 +701,14 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       </header>
       {section === "study" ? <nav className="mobile-study-subnav" aria-label="Study pages">
         <button type="button" aria-current={view === "library" || view === "pack" || view === "capture-inbox" ? "page" : undefined}
-          onClick={openLibrary}><Home size={15} /> Library</button>
+          onClick={openLibrary}><Home size={15} /> Home</button>
         <button type="button" aria-current={view === "catalogue" ? "page" : undefined}
-          onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={15} /> Catalogue</button>
+          onClick={() => { setView("catalogue"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><BookOpen size={15} /> All cards</button>
         <button type="button" aria-current={view === "related" ? "page" : undefined}
           onClick={() => { setView("related"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }}><Link2 size={15} /> Connections</button>
         <button type="button" onClick={() => openCollections(false)}><FolderTree size={15} /> Collections</button>
       </nav> : null}
-      {notice ? <div className="desktop-notice"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}
+      {notice ? <div className="desktop-notice" role="status"><span>{notice}</span><button onClick={() => setNotice("")} aria-label="Dismiss">×</button></div> : null}
       <div className="heuresis-workspace-layout">
         <aside className="heuresis-section-sidebar" aria-label="Sections">
           <nav className="hw-sections">
@@ -720,22 +738,22 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <span>{workspace.error}</span>
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
-          {!NOTEBOOK_INDEPENDENT.includes(section) && workspace.loading && !workspace.error ? <div className="ws-loading" role="status"><span className="ws-spinner" /> Loading your Notebook and recall history…</div> : null}
+          {!NOTEBOOK_INDEPENDENT.includes(section) && workspace.loading && !workspace.error ? <LoadingState variant="page" /> : null}
           {section === "overview" ? <OverviewView packs={packs} studyLoading={loading} studyError={error} onOpenStudy={() => { openLibrary(); setSection("study"); }} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
           {(section === "reading" || section === "quotations") ? <ReadingView key={section} userId={session.user.id} initialArea={section === "quotations" ? "quotations" : "library"} /> : null}
-          {section === "reference" ? <Suspense fallback={<div className="ws-loading" role="status"><span className="ws-spinner" /> Opening the Catalogue…</div>}>
+          {section === "reference" ? <Suspense fallback={<LoadingState variant="page" />}>
             <CatalogueSection userId={session.user.id} />
           </Suspense> : null}
-          {section === "study" && loading ? <div className="content-state">Opening Heuresis…</div> : null}
+          {section === "study" && loading ? <LoadingState variant="page" /> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
           {section === "study" && !loading && !error && view === "library" ? <LibraryView newCardsBackgroundStyle={newCardsBackgroundStyle} collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={(mode) => openCollections(true, mode)} /> : null}
           {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
           {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
           {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
-          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView pack={activePack} newCardsBackgroundStyle={newCardsBackgroundStyle} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
+          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView key={activePack.id} pack={activePack} newCardsBackgroundStyle={newCardsBackgroundStyle} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">
