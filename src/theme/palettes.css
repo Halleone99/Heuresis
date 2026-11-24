@@ -376,6 +376,6 @@
 :root[data-theme="dark"] .heuresis-desktop[data-custom-background="heuresis"] :is(.library-hero,.collection-page-head,.topics-intro,.catalogue-heading,.pack-page-head,.pack-toolbar,.card-table) {
   text-shadow:none !important;
 }
-:root[data-theme="dark"] .cosmos-card {
+:root[data-theme="dark"] .cosmos-shell:not(.study21) .cosmos-card {
   box-shadow:var(--ws-shadow-2) !important;
 }

@@ -356,11 +356,11 @@
 .browse-amount-section .browse-filter-heading > strong { color: var(--ws-text); font-size: 11px; }
 
 /* Actual Sort workspace: retain function, remove the old beige utility-panel feel. */
-.sort-backdrop {
+.sort-backdrop:not(:has(.sort-modal--session)) {
   background: color-mix(in srgb, var(--ws-primary) 24%, transparent) !important;
   backdrop-filter: blur(18px) saturate(.92) !important;
 }
-.sort-modal {
+.sort-modal:not(.sort-modal--session) {
   width: min(1120px, calc(100vw - 32px)) !important;
   height: min(760px, calc(100vh - 32px)) !important;
   border: 1px solid color-mix(in srgb, var(--ws-text) 10%, transparent) !important;
@@ -368,14 +368,14 @@
   background: color-mix(in srgb, var(--ws-surface) 97%, transparent) !important;
   box-shadow: 0 30px 100px rgba(28,24,21,.20) !important;
 }
-.sort-topbar {
+.sort-modal:not(.sort-modal--session) .sort-topbar {
   height: 58px !important;
   padding: 0 20px !important;
   border-bottom-color: color-mix(in srgb, var(--ws-text) 8%, transparent) !important;
   background: color-mix(in srgb, var(--ws-surface) 82%, transparent) !important;
 }
 .sort-body { grid-template-columns: minmax(0,1.48fr) minmax(330px,.72fr) !important; }
-.sort-card {
+.sort-modal:not(.sort-modal--session) .sort-card {
   padding: 42px !important;
   border-right-color: color-mix(in srgb, var(--ws-text) 8%, transparent) !important;
   background: radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--ws-raised) 94%, transparent), color-mix(in srgb, var(--ws-surface) 62%, transparent) 54%, color-mix(in srgb, var(--ws-surface) 55%, transparent)) !important;

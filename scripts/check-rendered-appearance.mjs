@@ -8,7 +8,12 @@ import { chromium } from "playwright";
 const main = readFileSync("src/main.tsx", "utf8");
 const imports = [...main.matchAll(/^import\s+["'](\.\/[^"']+\.css)["'];?$/gm)].map((match) => match[1]);
 assert.ok(imports.at(-1) === "./theme/chrome.css", "Canonical chrome should load last");
-const css = imports.map((file) => readFileSync(resolve("src", file.slice(2)), "utf8")).join("\n");
+const studyStyles = [
+  "./components/sort-session.css",
+  "./components/review-card.css",
+  "./components/study21/study21.css",
+];
+const css = [...studyStyles, ...imports].map((file) => readFileSync(resolve("src", file.slice(2)), "utf8")).join("\n");
 const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"];
 const modes = ["light", "dark"];
 const fixtures = `
@@ -72,6 +77,14 @@ function contrast(fg, bg) {
   const l1 = luminance(fg), l2 = luminance(bg);
   return (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05);
 }
+const studyFixtures = `
+<div class="sort-backdrop"><section class="sort-modal sort-modal--session study21 study21--new">
+  <div class="sort-session-stage"><article id="new-card" class="sort-card">New cards</article></div>
+</section></div>
+<main class="cosmos-shell study21 study21--review" data-mode="review">
+  <div class="cosmos-work cosmos-review-columns"><article id="review-card" class="cosmos-card">Review</article></div>
+</main>`;
+
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 880 }, reducedMotion: "reduce" });
@@ -118,7 +131,17 @@ try {
     assert.ok(contrast(parse(placeholder.fg), placeholderBackground) >= 4.5, `${palette}/${mode}: capture placeholder too faint`);
     await page.screenshot({ path: `test-output/appearance/${palette}-${mode}.png`, fullPage: true });
   }
-  console.log("Rendered Chrome: 12 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder. Screenshots saved.");
+  for (const palette of palettes) for (const mode of modes) {
+    await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}"><head><style>${css}</style></head><body>${studyFixtures}</body></html>`);
+    const expected = palette === "slate" && mode === "dark"
+      ? [0, 0, 0, 0]
+      : parse(await page.locator("html").evaluate(root => getComputedStyle(root).getPropertyValue("--ws-card")));
+    for (const card of ["#new-card", "#review-card"]) {
+      const background = await page.locator(card).evaluate(el => getComputedStyle(el).backgroundColor);
+      assert.deepEqual(parse(background), expected, `${palette}/${mode} ${card} uses its theme surface`);
+    }
+  }
+  console.log("Rendered Chrome: 12 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder, plus Study 2.1 card surfaces. Screenshots saved.");
 } finally {
   await browser.close();
 }
