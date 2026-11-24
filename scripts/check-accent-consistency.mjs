@@ -13,6 +13,6 @@ assert.match(css,/\.heuresis-desktop \.desktop-content ::selection/);
 assert.match(css,/\.quick-floating-root ::selection/);
 assert.match(css,/\.heuresis-desktop \.desktop-content ::-moz-selection/);
 assert.match(css,/color: var\(--ws-ink\);/);
-assert.ok((palettes.match(/--ws-chrome-accent: var\(--ws-accent\);/g) ?? []).length >= 8,
-  "All four light/dark palettes must provide chrome accent tokens");
+assert.match(palettes, /--ws-chrome-accent: var\(--ws-accent\);/,
+  "Chrome inherits the active theme accent");
 console.log("Active-sidebar accents and editor/selection accents passed for all palettes.");

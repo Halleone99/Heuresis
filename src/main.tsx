@@ -88,6 +88,7 @@ import "./study-home.css";
 import "./study-knowledge-mode.css";
 import "./theme/polish.css";
 import "./theme/refined.css";
+import "./theme/wallpaper.css";
 import "./theme/chrome.css";
 import { BootScreen } from "./components/ui/LoadingState";
 

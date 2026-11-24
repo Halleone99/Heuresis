@@ -15,7 +15,7 @@
           const paletteKey = "heuresis.palette.v1";
           const upgradeKey = "heuresis.appearance.blue.v1";
           const saved = localStorage.getItem(paletteKey);
-          let palette = ["slate", "forest", "sepia", "neutral"].includes(saved) ? saved : "slate";
+          let palette = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"].includes(saved) ? saved : "slate";
           if (!localStorage.getItem(upgradeKey)) {
             if (!saved || saved === "sepia") {
               palette = "slate";

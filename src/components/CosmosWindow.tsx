@@ -1,5 +1,6 @@
+import { activeWallpaper, PageWallpaper } from "./PageWallpaper";
 import { ArrowLeftRight, Check, CircleHelp, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pencil, Pin, Play, Plus, SkipForward, Volume2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   fieldByRole,
@@ -418,15 +419,7 @@ export default function CosmosWindow() {
   }, [isStudy21, revealed, index, detailsPinned]);
   const studyBackground = useHeuresisBackground("heuresis-study");
   const sharedBackground = useHeuresisBackground("heuresis");
-  const selectedBackground = studyBackground.hasImage && studyBackground.settings.enabled ? studyBackground : sharedBackground;
-  const reviewBackgroundStyle = {
-    "--heuresis-background-image": selectedBackground.imageUrl && selectedBackground.settings.enabled ? `url("${selectedBackground.imageUrl}")` : "none",
-    "--heuresis-background-opacity": selectedBackground.imageUrl && selectedBackground.settings.enabled ? String(selectedBackground.settings.opacity) : "0",
-    "--heuresis-background-veil": selectedBackground.imageUrl && selectedBackground.settings.enabled ? String(selectedBackground.settings.veil) : "0",
-    "--heuresis-background-blur": `${selectedBackground.settings.blur}px`,
-    "--heuresis-background-position": selectedBackground.settings.position,
-    "--heuresis-background-fit": selectedBackground.settings.fit,
-  } as CSSProperties;
+  const reviewWallpaper = activeWallpaper(studyBackground) ?? activeWallpaper(sharedBackground);
   const recommended = mode === "review" && !relatedReview && config.source === "recommended";
   const routeProgress = useMemo(() => {
     if (!config.reviewRouteToken) return null;
@@ -1557,7 +1550,8 @@ export default function CosmosWindow() {
   const directionName = template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
-  return <main ref={cosmosShellRef} className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"} style={redesignReview ? reviewBackgroundStyle : undefined}>
+  return <main ref={cosmosShellRef} className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"}>
+    {redesignReview ? <PageWallpaper wallpaper={reviewWallpaper} fixed /> : null}
     {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: Math.min(100, (routeProgress ? routeProgress.before + index + (revealed ? 1 : 0) : index + (revealed ? 1 : 0)) / ((routeProgress?.total ?? queue.length) || 1) * 100) + "%" }}/></div> : null}
     {redesignReview ? <header className="cosmos-topbar">
       <div className="review-top-brand"><span className="review-chip">Review</span><span className="review-top-topic">{pack.title}</span></div>

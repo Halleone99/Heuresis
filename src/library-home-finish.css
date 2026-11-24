@@ -1,53 +1,4 @@
-/* Final library-home corrections: remove the strip under the chrome, centre the visual mass,
-   and keep the custom wallpaper visibly continuous across the full viewport. */
-
-/* Desktop header is owned by theme/chrome.css. */
-
-/* Neutral fallback only. The actual visual surface is always the wallpaper. */
-.heuresis-desktop[data-custom-background="heuresis"] {
-  background: var(--ws-surface) !important;
-}
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper,
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: var(--heuresis-background-image, none);
-  background-size: var(--heuresis-background-fit, cover) !important;
-  background-position: var(--heuresis-background-position, center) !important;
-  background-repeat: no-repeat !important;
-}
-
-/* Main wallpaper remains visible from top to bottom. */
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
-  z-index: -4 !important;
-  opacity: var(--heuresis-background-opacity, .68) !important;
-  filter: blur(var(--heuresis-background-blur, 0px)) saturate(.94) contrast(1.02) !important;
-  transform: scale(1.025) !important;
-}
-
-/* A second copy of the same wallpaper is revealed only across the lower portion.
-   Keep it softer and more neutral than the top, but still recognisably the same image. */
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
-  z-index: -3 !important;
-  top: 34% !important;
-  opacity: calc(var(--heuresis-background-opacity, .68) * .6) !important;
-  filter: blur(14px) saturate(.64) contrast(.98) brightness(1.05) !important;
-  transform: scale(1.045) !important;
-  transform-origin: center center;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, rgba(0,0,0,.70) 28%, #000 52%);
-  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.18) 10%, rgba(0,0,0,.70) 28%, #000 52%);
-}
-
-/* Only a light neutral wash now. Do not hide the lower image behind white. */
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
-  z-index: -2 !important;
-  overflow: hidden !important;
-  background: rgb(var(--ws-veil) / var(--heuresis-background-veil, .55)) !important;
-}
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil::after {
-  content: none !important;
-}
+/* Library home layout. */
 
 .desktop-content {
   padding-left: 0 !important;
@@ -89,8 +40,5 @@
   }
   .library-desk {
     grid-template-columns: 1fr !important;
-  }
-  .heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper-lower {
-    top: 42% !important;
   }
 }

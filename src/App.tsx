@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { activeWallpaper, PageWallpaper } from "./components/PageWallpaper";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ArchiveRestore, BookOpen, ChevronDown, FolderTree, GraduationCap, Home, Keyboard, LayoutDashboard, LibraryBig, Link2, LogOut, Maximize2,
@@ -33,7 +34,7 @@ import { LessonCleanupDialog } from "./components/workspace/LessonCleanupDialog"
 import { Kbd, MOD_KEY, Toaster } from "./components/workspace/ui";
 import { WorkspaceProvider, useWorkspace } from "./components/workspace/WorkspaceContext";
 import { WorkspaceSearch, type PaletteCommand } from "./components/workspace/WorkspaceSearch";
-import { useHeuresisBackground, type BackgroundPageKey, type BackgroundSettings } from "./hooks/useHeuresisBackground";
+import { useHeuresisBackground, type BackgroundPageKey } from "./hooks/useHeuresisBackground";
 import { listArchivedPacks } from "./lib/advanced";
 import { openCaptureWindow } from "./lib/captureWindow";
 import { showFloatingQuickCapture, type FloatingCaptureMode } from "./lib/quickCaptureWindow";
@@ -65,26 +66,6 @@ function readSidebarMode(userId: string): SidebarMode {
     const value = localStorage.getItem(sidebarKey(userId));
     return value === "hidden" || value === "full" || value === "rail" ? value : "rail";
   } catch { return "rail"; }
-}
-
-type BackgroundStyle = CSSProperties & {
-  "--heuresis-background-image"?: string;
-  "--heuresis-background-opacity"?: string;
-  "--heuresis-background-veil"?: string;
-  "--heuresis-background-blur"?: string;
-  "--heuresis-background-position"?: string;
-  "--heuresis-background-fit"?: string;
-};
-
-function wallpaperStyle({ imageUrl, settings }: { imageUrl: string | null; settings: BackgroundSettings }): BackgroundStyle {
-  return {
-    "--heuresis-background-image": imageUrl && settings.enabled ? `url("${imageUrl}")` : "none",
-    "--heuresis-background-opacity": String(settings.opacity),
-    "--heuresis-background-veil": String(settings.veil),
-    "--heuresis-background-blur": `${settings.blur}px`,
-    "--heuresis-background-position": settings.position,
-    "--heuresis-background-fit": settings.fit,
-  };
 }
 
 const SECTIONS: Array<{ id: WorkspaceSection; label: string; icon: typeof Home; key: string }> = [
@@ -270,8 +251,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     "heuresis-queue": useHeuresisBackground("heuresis-queue"),
   } satisfies Record<BackgroundPageKey, ReturnType<typeof useHeuresisBackground>>;
   const specificBackground = backgrounds[`heuresis-${section}` as BackgroundPageKey];
-  const background = specificBackground?.hasImage && specificBackground.settings.enabled
-    ? specificBackground : backgrounds.heuresis;
+  const wallpaper = activeWallpaper(specificBackground) ?? activeWallpaper(backgrounds.heuresis);
   const [localBackupNotice, setLocalBackupNotice] = useState("");
   const [localBackupAgeNotice, setLocalBackupAgeNotice] = useState<string | null>(null);
 
@@ -549,10 +529,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     : syncState.lastSyncedAt
       ? `Last synchronised ${new Date(syncState.lastSyncedAt).toLocaleString()}`
       : "Download the full library to this device for offline use.";
-  const backgroundStyle = wallpaperStyle(background);
-  const newCardsBackground = backgrounds["heuresis-new-cards"];
-  const newCardsBackgroundStyle = newCardsBackground.hasImage && newCardsBackground.settings.enabled
-    ? wallpaperStyle(newCardsBackground) : undefined;
+  const newCardsWallpaper = activeWallpaper(backgrounds["heuresis-new-cards"])
+    ?? activeWallpaper(backgrounds["heuresis-study"]) ?? activeWallpaper(backgrounds.heuresis);
   function openLibrary() { setView("library"); setActivePackId(null); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); }
   function openPack(pack: PackWithType, cardId: string | null = null) { setActivePackId(pack.id); setFocusCardId(cardId); setRelatedCollectionId(null); setCaptureInboxCollectionId(null); setView("pack"); }
   function openCapture(pack: PackWithType | null = null, collectionId: string | null = null) {
@@ -600,10 +578,8 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   </div> : null;
 
   return (
-    <div className="heuresis-desktop" data-section={section} data-sidebar={actualSidebarMode} style={backgroundStyle} data-custom-background={background.imageUrl && background.settings.enabled ? "heuresis" : undefined}>
-      <div className="heuresis-wallpaper" aria-hidden="true" />
-      <div className="heuresis-wallpaper-lower" aria-hidden="true" />
-      <div className="heuresis-veil" aria-hidden="true" />
+    <div className="heuresis-desktop" data-section={section} data-sidebar={actualSidebarMode} data-custom-background={wallpaper ? "heuresis" : undefined}>
+      <PageWallpaper wallpaper={wallpaper} fixed />
       {!startupComplete && startupWaiting ? <BootScreen /> : null}
       <header className="desktop-chrome">
         <button className="desktop-wordmark" onClick={() => navigateSection("overview")} aria-label="Heuresis — go to Overview" title="Go to Overview">
@@ -749,11 +725,11 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
           </Suspense> : null}
           {section === "study" && loading ? <LoadingState variant="page" /> : null}
           {section === "study" && !loading && error ? <div className="content-state error-state"><strong>{syncState.online ? "Database connection failed." : "This device has no synchronised copy yet."}</strong><span>{error}</span><button className="secondary-button" onClick={() => void reload()}>Try again</button></div> : null}
-          {section === "study" && !loading && !error && view === "library" ? <LibraryView newCardsBackgroundStyle={newCardsBackgroundStyle} collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={(mode) => openCollections(true, mode)} /> : null}
+          {section === "study" && !loading && !error && view === "library" ? <LibraryView newCardsWallpaper={newCardsWallpaper} collections={collections} packs={packs} archivedCount={archivedPacks.length} onOpen={openPack} onOpenCaptureInbox={openCaptureInbox} onNewTopic={openNewTopic} onEditPack={openTopicSettings} onOpenNewWords={openNewWords} onArchive={() => setArchiveOpen(true)} onNewCollection={(mode) => openCollections(true, mode)} /> : null}
           {section === "study" && !loading && !error && view === "catalogue" ? <CatalogueView collections={collections} packs={packs} onBack={openLibrary} onOpenPack={openPack} /> : null}
           {section === "study" && !loading && !error && view === "related" ? <RelatedCatalogueView packs={packs} collections={collections} collection={relatedCollection} onBack={openLibrary} onOpenPack={openPack} onTopicCreated={afterRelatedTopicCreated} /> : null}
           {section === "study" && !loading && !error && view === "capture-inbox" ? <CaptureInboxView packs={packs} collection={captureInboxCollection} onBack={openLibrary} onOpenPack={openPack} onOpenCapture={(pack) => openCapture(pack)} /> : null}
-          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView key={activePack.id} pack={activePack} newCardsBackgroundStyle={newCardsBackgroundStyle} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
+          {section === "study" && !loading && !error && view === "pack" && activePack ? <PackView key={activePack.id} pack={activePack} newCardsWallpaper={newCardsWallpaper} collection={activeCollection} focusCardId={focusCardId} onFocusCardShown={() => setFocusCardId(null)} onBack={openLibrary} onCapture={() => openCapture(activePack)} onSettings={() => openTopicSettings(activePack)} onChanged={() => void reload(true).catch(() => undefined)} /> : null}
         </main>
       </div>
       <nav className="mobile-workspace-nav" aria-label="Heuresis sections">

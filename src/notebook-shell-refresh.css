@@ -96,12 +96,17 @@
   min-height: 116px;
   border: 1px solid var(--ws-line);
   border-radius: 13px;
-  background-color: var(--ws-surface);
+  background-color: var(--ws-card);
   box-shadow: 0 5px 16px rgba(0,0,0,.075);
 }
-:root[data-theme="dark"] .heuresis-desktop[data-section="notebook"] .nb-home-subject:not(.has-cover) {
+:root[data-palette="slate"][data-theme="dark"] .heuresis-desktop[data-section="notebook"] .nb-home-subject:not(.has-cover) {
   background: linear-gradient(125deg, #2b3037, #282e35);
   border-color: rgba(194,207,224,.13);
+}
+:root[data-palette]:not([data-palette="slate"]) .heuresis-desktop[data-section="notebook"] .nb-home-subject:not(.has-cover) {
+  background: var(--ws-card);
+  border-color: var(--ws-card-line);
+  border-radius: var(--ws-card-radius);
 }
 .heuresis-desktop[data-section="notebook"] .nb-home-subject:hover {
   border-color: color-mix(in srgb, var(--nb-subject-accent) 45%, var(--ws-line));

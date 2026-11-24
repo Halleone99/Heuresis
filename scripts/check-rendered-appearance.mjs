@@ -9,7 +9,7 @@ const main = readFileSync("src/main.tsx", "utf8");
 const imports = [...main.matchAll(/^import\s+["'](\.\/[^"']+\.css)["'];?$/gm)].map((match) => match[1]);
 assert.ok(imports.at(-1) === "./theme/chrome.css", "Canonical chrome should load last");
 const css = imports.map((file) => readFileSync(resolve("src", file.slice(2)), "utf8")).join("\n");
-const palettes = ["slate", "forest", "sepia", "neutral"];
+const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"];
 const modes = ["light", "dark"];
 const fixtures = `
 <div class="heuresis-desktop" data-section="study">
@@ -72,7 +72,7 @@ function contrast(fg, bg) {
   const l1 = luminance(fg), l2 = luminance(bg);
   return (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05);
 }
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 880 }, reducedMotion: "reduce" });
   mkdirSync("test-output/appearance", { recursive: true });
@@ -118,7 +118,7 @@ try {
     assert.ok(contrast(parse(placeholder.fg), placeholderBackground) >= 4.5, `${palette}/${mode}: capture placeholder too faint`);
     await page.screenshot({ path: `test-output/appearance/${palette}-${mode}.png`, fullPage: true });
   }
-  console.log("Rendered Chrome: 8 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder. Screenshots saved.");
+  console.log("Rendered Chrome: 12 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder. Screenshots saved.");
 } finally {
   await browser.close();
 }

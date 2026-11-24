@@ -41,8 +41,8 @@ assert.match(reading, /export function useReadingLibrary/, "Shared reading hook 
 assert.match(css, /\.ov-cards\{display:grid/, "Serif cards have layout styles");
 assert.match(css, /grid-template-columns:repeat\(26,minmax\(0,1fr\)\)/, "All 26 weeks scale proportionally");
 assert.match(css, /\.ov\[data-style="panel"\] \.ov-cards/, "No. 3 Panel styles are scoped");
-assert.match(settings, /chooseOverviewStyle\("serif"\)/, "Appearance offers Serif");
-assert.match(settings, /chooseOverviewStyle\("panel"\)/, "Appearance offers No. 3 Panel");
+assert.match(settings, /value: "serif", label: "Serif"/, "Appearance offers Serif");
+assert.match(settings, /value: "panel", label: "Panel"/, "Appearance offers No. 3 Panel");
 assert.match(preference, /heuresis\.overview\.style\.v1/, "Overview choice persists on this device");
 assert.ok(!app.includes("<ProgressView"), "Inactive Progress screen stays hidden");
 console.log("Overview Serif and No. 3 Panel: live data, navigation, activity, accessible tabs and settings passed.");

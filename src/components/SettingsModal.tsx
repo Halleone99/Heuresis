@@ -1,3 +1,4 @@
+import { activeWallpaper, PageWallpaper } from "./PageWallpaper";
 import { useDialogEscape } from "../hooks/useDialogEscape";
 import { useTopicBrowserOptions } from "../lib/topicBrowserPrefs";
 import { ImagePlus, RotateCcw, Trash2, X, ChevronDown, Check, Volume2 } from "lucide-react";
@@ -6,7 +7,7 @@ import { DEFAULT_BACKGROUND_SETTINGS, PAGE_BACKGROUND_CHOICES, type BackgroundPa
 import { dimPercent, dimToLegacySettings } from "../lib/backgroundDim";
 import { BACKGROUND_PRESETS, createBackgroundPresetImage, presetSwatch, type BackgroundPreset } from "../lib/backgroundPresets";
 import type { Collection, PackWithType } from "../lib/heuresis";
-import { useAppearance, type PalettePreference } from "../lib/theme";
+import { PALETTES, useAppearance } from "../lib/theme";
 import { useOverviewStyle } from "../lib/overviewStyle";
 import { readNewCardQuota, saveNewCardQuota } from "../lib/newCardQuota";
 import {
@@ -24,6 +25,7 @@ type BackgroundApi = {
   imageUrl: string | null;
   hasImage: boolean;
   settings: BackgroundSettings;
+  loading: boolean;
   syncing: boolean;
   syncError: string;
   updateSettings: (patch: Partial<BackgroundSettings>) => void;
@@ -31,7 +33,16 @@ type BackgroundApi = {
   removeImage: () => Promise<void>;
 };
 
-type Tab = "appearance" | "study" | "sorting" | "cards";
+const SETTINGS_SECTIONS = [
+  { id: "appearance", label: "Appearance" },
+  { id: "backgrounds", label: "Backgrounds" },
+  { id: "study", label: "Study" },
+  { id: "audio", label: "Audio" },
+  { id: "sorting", label: "Sorting" },
+  { id: "cards", label: "Cards & directions" },
+] as const;
+
+type Tab = (typeof SETTINGS_SECTIONS)[number]["id"];
 type Props = {
   backgrounds: Record<BackgroundPageKey, BackgroundApi>;
   packs: PackWithType[];
@@ -40,39 +51,80 @@ type Props = {
   onClose: () => void;
 };
 
-function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPageKey, BackgroundApi> }) {
+function AppearanceSettings() {
+  const { mode, palette, design, chooseMode, choosePalette, chooseDesign } = useAppearance();
+  const { style: overviewStyle, chooseStyle: chooseOverviewStyle } = useOverviewStyle();
+
+  return <section className="appearance-settings" aria-label="Appearance preferences">
+    <div className="settings-theme-head">
+      <h3>Theme</h3>
+      <SegmentedChoice label="Colour mode" className="appearance-mode" value={mode} onChange={chooseMode}
+        options={[{ value: "system", label: "Auto" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />
+    </div>
+    <div className="appearance-palettes" role="group" aria-label="Theme">
+      {PALETTES.map((option) => <button key={option.id} className="appearance-palette" type="button"
+        aria-label={option.label} aria-pressed={palette === option.id} onClick={() => choosePalette(option.id)}>
+        <span className="appearance-palette-swatch" data-palette-preview={option.id} aria-hidden="true">
+          <span className="appearance-palette-chrome" />
+          <span className="appearance-palette-card"><i>Aa</i><b /><em /></span>
+        </span>
+        <strong>{option.label}{palette === option.id ? <Check size={14} aria-hidden="true" /> : null}</strong>
+        <span className="appearance-palette-detail">{option.detail}</span>
+      </button>)}
+    </div>
+    <div className="settings-row">
+      <div className="settings-row-label"><strong>Interface style</strong><span>Choose Classic or Refined styling for the workspace.</span></div>
+      <SegmentedChoice label="Design style" className="appearance-mode" value={design} onChange={chooseDesign}
+        options={[{ value: "classic", label: "Classic" }, { value: "refined", label: "Refined" }]} />
+    </div>
+    <div className="settings-row">
+      <div className="settings-row-label"><strong>Overview layout</strong></div>
+      <SegmentedChoice label="Overview layout" className="appearance-mode" value={overviewStyle} onChange={chooseOverviewStyle}
+        options={[{ value: "serif", label: "Serif" }, { value: "panel", label: "Panel" }]} />
+    </div>
+    <details className="settings-disclosure">
+      <summary>Card colours <ChevronDown size={16} aria-hidden="true" /></summary>
+      <CardColoursEditor embedded />
+    </details>
+  </section>;
+}
+
+function backgroundError(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+}
+
+function BackgroundSettingsPanel({ backgrounds }: { backgrounds: Props["backgrounds"] }) {
   const [selectedPage, setSelectedPage] = useState<BackgroundPageKey>("heuresis");
   const background = backgrounds[selectedPage];
   const fileRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   const [applyingPreset, setApplyingPreset] = useState<string | null>(null);
-  const { mode, palette, design, chooseMode, choosePalette, chooseDesign } = useAppearance();
-  const { style: overviewStyle, chooseStyle: chooseOverviewStyle } = useOverviewStyle();
-  const palettes: Array<{ id: PalettePreference; label: string }> = [
-    { id: "slate", label: "Slate" }, { id: "forest", label: "Forest" },
-    { id: "sepia", label: "Sepia" }, { id: "neutral", label: "Neutral" },
-  ];
+  const busy = background.loading || background.syncing || Boolean(applyingPreset);
 
   async function remove() {
-    setNotice("");
-    try { await background.removeImage(); setNotice("Image removed for this page."); }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Could not remove the image."); }
+    setNotice(""); setError("");
+    try { await background.removeImage(); setNotice("Background removed."); }
+    catch (error) { setError(backgroundError(error, "Could not remove the image.")); }
   }
 
   async function choose(file: File | undefined) {
-    if (!file) return;
-    setNotice("");
+    if (!file || busy) return;
+    setNotice(""); setError("");
     try { await background.chooseImage(file); setNotice("Background saved to your Heuresis account."); }
-    catch (error) { setNotice(error instanceof Error ? error.message : "Could not save the background."); }
+    catch (error) { setError(backgroundError(error, "Could not save the background.")); }
     finally { if (fileRef.current) fileRef.current.value = ""; }
   }
 
   const selectedLabel = PAGE_BACKGROUND_CHOICES.find((choice) => choice.key === selectedPage)?.label ?? "This page";
-  const studyBackground = backgrounds["heuresis-study"];
-  const inheritsStudy = selectedPage === "heuresis-new-cards" && studyBackground.hasImage && studyBackground.settings.enabled;
-  const fallbackLabel = inheritsStudy ? "Study" : "All pages";
-  const shownBackground = background.hasImage ? background : inheritsStudy ? studyBackground : backgrounds.heuresis;
-  const shownImage = shownBackground.imageUrl;
+  const studyWallpaper = selectedPage === "heuresis-new-cards" && activeWallpaper(backgrounds["heuresis-study"]);
+  const fallback = studyWallpaper || (selectedPage !== "heuresis" ? activeWallpaper(backgrounds.heuresis) : undefined);
+  const fallbackLabel = studyWallpaper ? "Study" : "All pages";
+  const customWallpaper = activeWallpaper(background);
+  const shownWallpaper = customWallpaper ?? fallback;
   const dim = dimPercent(background.settings.opacity, background.settings.veil);
   const looks = [
     { label: "Natural", dim: 20, blur: 0 },
@@ -81,21 +133,21 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
     { label: "Dreamy", dim: 70, blur: 7 },
   ] as const;
   async function usePreset(preset: BackgroundPreset) {
-    setApplyingPreset(preset.id); setNotice("");
+    setApplyingPreset(preset.id); setNotice(""); setError("");
     try {
       await background.chooseImage(await createBackgroundPresetImage(preset));
       setNotice(preset.label + " saved for " + selectedLabel + ".");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save this atmosphere.");
+      setError(backgroundError(error, "Could not save this atmosphere."));
     } finally { setApplyingPreset(null); }
   }
   function dropImage(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    if (!background.syncing && !applyingPreset) void choose(event.dataTransfer.files?.[0]);
+    void choose(event.dataTransfer.files?.[0]);
   }
 
   function setFocal(event: MouseEvent<HTMLButtonElement>) {
-    if (!background.imageUrl) return;
+    if (!customWallpaper || busy) return;
     const choices = ["top", "center", "bottom"] as const;
     if (!event.detail) {
       const index = choices.indexOf(background.settings.position);
@@ -107,66 +159,35 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
     background.updateSettings({ position: fraction < 1 / 3 ? "top" : fraction > 2 / 3 ? "bottom" : "center" });
   }
 
-  return <section className="appearance-settings">
-    <div className="appearance-choice" aria-label="Design">
-      <div className="settings-copy"><strong>Design</strong><span>Visual style only. Your palette and study preferences stay the same.</span></div>
-      <div className="heuresis-design-options" role="group" aria-label="Design style">
-        {(["classic", "refined"] as const).map((option) => <button key={option} type="button" aria-pressed={design === option} onClick={() => chooseDesign(option)}>
-          <span className="heuresis-design-preview" data-preview={option} aria-hidden="true"><i/><b/><em/></span>
-          {option === "classic" ? "Classic" : "Refined"}
-        </button>)}
+  return <section className="pb-studio" aria-label="Page backgrounds">
+      <div className="settings-row-label">
+        <h3>Page backgrounds</h3>
+        <span>Set a shared image, or choose one for an individual page.</span>
       </div>
-    </div>
-    <div className="appearance-choice" aria-label="Heuresis appearance">
-      <div className="settings-copy"><strong>Theme</strong><span>Also used in Capture and Review.</span></div>
-      <div className="appearance-controls">
-        <div className="appearance-mode" role="group" aria-label="Appearance mode">
-          {([{ id: "system", label: "Auto" }, { id: "light", label: "Light" }, { id: "dark", label: "Dark" }] as const).map((option) =>
-            <button key={option.id} type="button" aria-pressed={mode === option.id} onClick={() => chooseMode(option.id)}>{option.label}</button>)}
-        </div>
-        <div className="appearance-palettes" role="group" aria-label="Colour palette">
-          {palettes.map((option) => <button key={option.id} className="appearance-palette" type="button"
-            aria-label={option.label} aria-pressed={palette === option.id} onClick={() => choosePalette(option.id)}>
-            <span className="appearance-palette-swatch" data-palette-preview={option.id}><i /><b /></span>
-            <span>{option.label}</span>
-          </button>)}
-        </div>
-      </div>
-    </div>
-
-    <div className="appearance-choice ov-overview-setting" aria-label="Overview layout">
-      <div className="settings-copy"><strong>Overview layout</strong><span>Choose the presentation of the Overview page. The statistics stay the same.</span></div>
-      <div className="appearance-mode" role="group" aria-label="Overview layout">
-        <button type="button" aria-pressed={overviewStyle === "serif"} onClick={() => chooseOverviewStyle("serif")}>Serif</button>
-        <button type="button" aria-pressed={overviewStyle === "panel"} onClick={() => chooseOverviewStyle("panel")}>No. 3 · Panel</button>
-      </div>
-    </div>
-    <div className="pb-studio">
-      <div className="settings-copy pb-heading"><strong>Page backgrounds</strong>
-        <span>Set one background for everything, or choose a different one for a page.</span></div>
       <div className="pb-toolbar">
         <div className="pb-page-picker">
           <label htmlFor="pb-page-select">Page</label>
-          <select id="pb-page-select" value={selectedPage} onChange={(event) => {
-            setSelectedPage(event.target.value as BackgroundPageKey); setNotice("");
+          <select id="pb-page-select" value={selectedPage} disabled={background.syncing || Boolean(applyingPreset)} onChange={(event) => {
+            setSelectedPage(event.target.value as BackgroundPageKey); setNotice(""); setError("");
           }}>
             {PAGE_BACKGROUND_CHOICES.map((choice) => <option key={choice.key} value={choice.key}>
               {choice.label}{backgrounds[choice.key].hasImage && choice.key !== "heuresis" ? " • customised" : ""}
             </option>)}
           </select>
           <span className="pb-page-status">
-            {selectedPage === "heuresis" ? (background.hasImage ? "Shared background" : "No shared background")
-              : background.hasImage ? "Custom background" : shownImage ? "Using " + fallbackLabel : "No background"}
+            {background.loading ? "Loading…" : customWallpaper
+              ? selectedPage === "heuresis" ? "Shared background" : "Custom background"
+              : fallback ? "Using " + fallbackLabel : "No background"}
           </span>
         </div>
         <div className="pb-toolbar-actions">
-          <button type="button" className="pb-upload-primary" disabled={background.syncing || Boolean(applyingPreset)}
+          <button type="button" className="pb-upload-primary" disabled={busy}
             onClick={() => fileRef.current?.click()}><ImagePlus size={16} />
             {background.syncing ? "Saving…" : background.hasImage ? "Change image" : "Upload image"}</button>
           {background.hasImage ? <button type="button" className="pb-quiet-action"
-            disabled={background.syncing || Boolean(applyingPreset)} onClick={() => void remove()}
-            title={selectedPage === "heuresis" ? "Remove shared image" : "Restore the " + fallbackLabel + " background"}>
-            <Trash2 size={14} /> {selectedPage === "heuresis" ? "Remove" : "Use " + fallbackLabel}</button> : null}
+            disabled={busy} onClick={() => void remove()}
+            title={fallback ? "Restore the " + fallbackLabel + " background" : "Remove background"}>
+            <Trash2 size={14} /> {fallback ? "Use " + fallbackLabel : "Remove"}</button> : null}
         </div>
       </div>
       <input ref={fileRef} className="hidden-file" type="file"
@@ -175,18 +196,13 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
         onChange={(event) => void choose(event.target.files?.[0])}/>
       <div className="pb-studio-grid">
         <div className="pb-visual">
-          <div className="background-preview background-preview-live"
+          <div className="background-preview-live"
             onDragOver={(event) => event.preventDefault()} onDrop={dropImage}>
             <button type="button" className="background-preview-canvas"
-              disabled={!background.imageUrl}
-              title={background.hasImage ? "Click top, middle or bottom to move the picture's focus." : "Shared background preview"}
-              aria-label={"Preview " + selectedLabel + " background, focal area " + shownBackground.settings.position}
+              disabled={busy || !customWallpaper}
+              aria-label={"Preview " + selectedLabel + " background"}
               onClick={setFocal}>
-              {shownImage ? <img src={shownImage} alt="" style={{
-                opacity: shownBackground.settings.opacity, filter: "blur(" + shownBackground.settings.blur + "px)",
-                objectFit: shownBackground.settings.fit, objectPosition: "center " + shownBackground.settings.position
-              }}/> : <span className="background-empty" aria-hidden="true"/>}
-              <span className="background-preview-veil" style={{ opacity: shownBackground.settings.veil }} aria-hidden="true"/>
+              <PageWallpaper wallpaper={shownWallpaper} />
               <span className="background-preview-example" aria-hidden="true">
                 <small>{selectedLabel.toUpperCase()}</small>
                 <strong>Ich stelle fest, dass …</strong>
@@ -195,18 +211,18 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
               </span>
             </button>
             <span className="background-preview-caption">
-              {background.hasImage ? "Preview · click the image to adjust its focus"
-                : shownImage ? "Previewing the " + fallbackLabel + " background"
-                  : "Choose an atmosphere or upload an image"}
+              {customWallpaper ? "Click the preview to set the image position."
+                : shownWallpaper ? "Previewing the " + fallbackLabel + " background."
+                  : "Choose an atmosphere or upload an image."}
             </span>
           </div>
         </div>
         <div className="pb-customise">
           <div className="pb-presets-panel">
-            <div className="pb-panel-heading"><strong>Atmospheres</strong><span>Click to apply</span></div>
+            <div className="pb-panel-heading"><strong>Atmospheres</strong></div>
             <div className="pb-preset-grid">
               {BACKGROUND_PRESETS.map((preset) => <button type="button" key={preset.id}
-                className="pb-preset" disabled={background.syncing || Boolean(applyingPreset)}
+                className="pb-preset" disabled={busy}
                 onClick={() => void usePreset(preset)} title={preset.description}>
                 <span className="pb-preset-art" style={{ background: presetSwatch(preset) }}>
                   {applyingPreset === preset.id ? <span className="pb-preset-saving">Saving…</span> : null}
@@ -215,11 +231,10 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
               </button>)}
             </div>
           </div>
-          {background.hasImage ? <div className="pb-tuning">
-            <div className="pb-panel-heading"><strong>Appearance</strong></div>
+          {customWallpaper ? <fieldset className="pb-tuning" disabled={busy}>
+            <legend>Image effects</legend>
             <div className="pb-look-options" role="group" aria-label="Background appearance presets">
               {looks.map((look) => <button key={look.label} type="button"
-                disabled={background.syncing}
                 aria-pressed={dim === look.dim && background.settings.blur === look.blur}
                 onClick={() => background.updateSettings({ ...dimToLegacySettings(look.dim), blur: look.blur })}>
                 {dim === look.dim && background.settings.blur === look.blur ? <Check size={12}/> : null}{look.label}
@@ -252,23 +267,17 @@ function AppearanceSettings({ backgrounds }: { backgrounds: Record<BackgroundPag
                   </div>
                 </div>
                 <button type="button" className="pb-quiet-action" title="Reset adjustments without removing the image"
-                  disabled={background.syncing}
-                  onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: background.hasImage })}>
+                  onClick={() => background.updateSettings({ ...DEFAULT_BACKGROUND_SETTINGS, enabled: true })}>
                   <RotateCcw size={14}/> Reset adjustments</button>
               </div>
             </details>
-          </div> : selectedPage !== "heuresis" && shownImage ? <div className="pb-inherited">
-            This page uses <strong>All pages</strong>. Choose an atmosphere or upload an image to customise it.
-          </div> : null}
+          </fieldset> : null}
         </div>
       </div>
-      {background.syncError ? <div className="settings-note error" role="alert">{background.syncError}</div> : null}
+      {error || background.syncError ? <div className="settings-note error" role="alert">{error || background.syncError}</div> : null}
       {notice ? <div className="settings-note" role="status">{notice}</div> : null}
-    </div>
-    <CardColoursEditor />
   </section>;
 }
-
 
 const VOICE_LANGUAGES = [
   { locale: "zh-CN", label: "Chinese", sample: "你好，今天我们一起练习中文发音。" },
@@ -325,8 +334,7 @@ function VoiceSettings() {
 
   return <div className="heuresis-voice-settings">
     <div className="settings-section-heading">
-      <strong>Choose a voice</strong>
-      <span>Listen before choosing. Device voices are free; Russian neural voices need a configured Azure Speech resource.</span>
+      <strong>Pronunciation voice</strong>
     </div>
     <div className="heuresis-voice-languages" role="group" aria-label="Pronunciation language">
       {VOICE_LANGUAGES.map((language) =>
@@ -345,14 +353,14 @@ function VoiceSettings() {
         <button type="button" className="heuresis-voice-play" aria-label={"Test system default in " + current.label}
           title="Listen to a sample" onClick={() => sample(null)}><Volume2 size={17} /></button>
       </div>
-      {options.map((voice, index) =>
+      {options.map((voice) =>
         <div className="heuresis-voice-row" key={voice.id}>
           <button type="button" className="heuresis-voice-select" aria-pressed={active === voice.id}
             disabled={voice.provider === "azure" && russianNeuralReady !== true}
             onClick={() => choose(voice.id)}>
             <span className="heuresis-voice-indicator">{active === voice.id ? <Check size={13} /> : null}</span>
             <span className="heuresis-voice-description">
-              <strong>Voice {index + 1}<span className="heuresis-voice-name"> · {voice.name}</span></strong>
+              <strong>{voice.name}</strong>
               <small>{voice.provider === "azure"
                 ? russianNeuralReady === true ? "Microsoft neural · Online" : "Microsoft neural · Setup required"
                 : voice.lang + " · " + (voice.offline ? "Works offline" : "Requires a connection") + (voice.quality >= 400 ? " · High quality" : "")}</small>
@@ -365,13 +373,11 @@ function VoiceSettings() {
     </div>
     {missing ? <p className="heuresis-voice-alert" role="status">Your previously chosen voice is not available here. Playback will use the system default until you choose another.</p> : null}
     {locale === "ru-RU" && russianNeuralReady === false
-      ? <p className="heuresis-voice-footnote">To unlock Svetlana, Dariya and Dmitry, configure AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in Supabase Edge Function secrets. Device voices continue working.</p>
+      ? <p className="heuresis-voice-footnote">Microsoft neural voices require Azure Speech setup.</p>
       : null}
     {options.length === 0
       ? <p className="heuresis-voice-alert" role="status">No alternative {current.label.toLowerCase()} voices were found. The system default may still work. Install or enable language voices in your device's text-to-speech settings, then refresh.</p>
-      : options.length < 5
-        ? <p className="heuresis-voice-footnote">{options.length} alternative {options.length === 1 ? "voice" : "voices"} available on this device. Up to five are shown when installed.</p>
-        : <p className="heuresis-voice-footnote">The five highest-ranked voices available on this device are shown. Availability differs between devices.</p>}
+      : null}
     {notice ? <p className="heuresis-voice-alert" role="alert">{notice}</p> : null}
     <button type="button" className="heuresis-voice-refresh" onClick={() => setRevision((value) => value + 1)}>
       <RotateCcw size={13} /> Refresh available voices
@@ -380,54 +386,57 @@ function VoiceSettings() {
 }
 
 function StudySettings() {
-  const [dailyTarget, setDailyTarget] = useState(readNewCardQuota);
+  const [dailyTarget, setDailyTarget] = useState<number | "">(readNewCardQuota);
   const { options: browserOptions, choose: chooseBrowserOption } = useTopicBrowserOptions();
-  const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
   const studyMode = useStudyMode();
 
-  return <section className="heuresis-study-settings" aria-label="Study preferences">
-    <div className="settings-section-heading"><strong>Study mode</strong><span>Changes the New cards and Review windows.</span></div>
-    <SegmentedChoice label="Study mode" value={studyMode} onChange={(value) => writeStudyMode(value as "classic" | "2.1")}
-      options={[{ value: "classic", label: "Classic" }, { value: "2.1", label: "2.1" }]} />
-    <div className="settings-section-heading">
-      <strong>Daily new cards</strong>
-      <span>Choose how many new cards you want to introduce each day. This does not limit reviews already due.</span>
+  return <section className="settings-rows" aria-label="Study preferences">
+    <div className="settings-row">
+      <div className="settings-row-label"><strong>Study mode</strong><span>Layout for New cards and Review.</span></div>
+      <SegmentedChoice label="Study mode" className="appearance-mode" value={studyMode} onChange={writeStudyMode}
+        options={[{ value: "classic", label: "Classic" }, { value: "2.1", label: "2.1" }]} />
     </div>
-    <label className="heuresis-study-target">
-      <span>Daily target</span>
-      <input type="number" min={1} max={50} step={1} value={dailyTarget}
+    <label className="settings-row">
+      <span className="settings-row-label"><strong>Daily new cards</strong><span>New cards to introduce each day, from 1 to 50.</span></span>
+      <input className="settings-number" type="number" min={1} max={50} step={1} value={dailyTarget}
         aria-label="Daily new cards target"
         onChange={(event) => {
-          const value = Number(event.currentTarget.value);
-          if (Number.isFinite(value)) setDailyTarget(saveNewCardQuota(value));
-        }} />
-      <small>1–50 new cards per day</small>
+          const value = event.currentTarget.valueAsNumber;
+          setDailyTarget(Number.isFinite(value) ? saveNewCardQuota(value) : "");
+        }}
+        onBlur={() => setDailyTarget(readNewCardQuota())} />
     </label>
-    <div className="settings-section-heading">
-      <strong>Language audio</strong>
-      <span>Hear the correct word or sentence after checking or revealing an answer. Manual playback remains available.</span>
+    <div className="settings-group">
+      <h3>Topic browser</h3>
+      <label className="settings-row">
+        <span className="settings-row-label"><strong>Remember filters per topic</strong></span>
+        <input className="settings-toggle" type="checkbox" checked={browserOptions.rememberFilters}
+          onChange={(event) => chooseBrowserOption("rememberFilters", event.currentTarget.checked)} />
+      </label>
+      <label className="settings-row">
+        <span className="settings-row-label"><strong>Multiple-card selection</strong></span>
+        <input className="settings-toggle" type="checkbox" checked={browserOptions.cardManagement}
+          onChange={(event) => chooseBrowserOption("cardManagement", event.currentTarget.checked)} />
+      </label>
     </div>
-    <label className="heuresis-study-target">
-      <span>Automatic pronunciation</span>
-      <input type="checkbox" checked={autoPronunciation} onChange={(event) => {
+  </section>;
+}
+
+function AudioSettings() {
+  const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
+
+  return <section className="settings-rows" aria-label="Audio preferences">
+    <label className="settings-row">
+      <span className="settings-row-label"><strong>Automatic pronunciation</strong>
+        <span>Play the correct word or sentence after checking or revealing an answer.</span>
+      </span>
+      <input className="settings-toggle" type="checkbox" checked={autoPronunciation} onChange={(event) => {
         const next = event.currentTarget.checked;
-        setAutoPronunciation(next); writeAutoPronunciation(next);
+        setAutoPronunciation(next);
+        writeAutoPronunciation(next);
       }} />
     </label>
     <VoiceSettings />
-    <div className="settings-section-heading">
-      <strong>Topic browser</strong>
-      <span>Optional tools for managing existing cards. Study, Learn and Review are unchanged.</span>
-    </div>
-    <label className="heuresis-study-target">
-      <span>Remember filters per topic</span>
-      <input type="checkbox" checked={browserOptions.rememberFilters} onChange={(event) => chooseBrowserOption("rememberFilters", event.currentTarget.checked)} />
-    </label>
-    <label className="heuresis-study-target">
-      <span>Multiple-card selection</span>
-      <input type="checkbox" checked={browserOptions.cardManagement} onChange={(event) => chooseBrowserOption("cardManagement", event.currentTarget.checked)} />
-    </label>
-    <p className="heuresis-study-device-note">Saved on this device. Your study progress and review history are still saved in your account.</p>
   </section>;
 }
 
@@ -435,19 +444,29 @@ export default function SettingsModal({ backgrounds, packs, collections, onDataC
   const [tab, setTab] = useState<Tab>(() => {
     try {
       const saved = localStorage.getItem("heuresis.settings.tab.v1");
-      if (saved === "study" || saved === "sorting" || saved === "cards") return saved;
+      return SETTINGS_SECTIONS.find((item) => item.id === saved)?.id ?? "appearance";
     } catch { /* optional */ }
     return "appearance";
   });
   useEffect(() => { try { localStorage.setItem("heuresis.settings.tab.v1", tab); } catch { /* optional */ } }, [tab]);
-  const dialogRef = useDialogEscape(onClose, tab === "appearance" || tab === "study");
+  const dialogRef = useDialogEscape(onClose, tab !== "cards" && tab !== "sorting");
   return (
     <div className="modal-backdrop settings-layer" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section ref={dialogRef} className="settings-modal settings-modal-wide" role="dialog" aria-modal="true" aria-label="Heuresis settings">
-        <header className="settings-head"><div><p className="eyebrow">PREFERENCES</p><h2>Settings</h2></div><button className="icon-button" onClick={onClose} aria-label="Close settings"><X size={17} /></button></header>
-        <nav className="settings-tabs"><button aria-pressed={tab === "appearance"} onClick={() => setTab("appearance")}>Appearance</button><button aria-pressed={tab === "study"} onClick={() => setTab("study")}>Study</button><button aria-pressed={tab === "sorting"} onClick={() => setTab("sorting")}>Sorting</button><button aria-pressed={tab === "cards"} onClick={() => setTab("cards")}>Cards & directions</button></nav>
-        <div className="settings-body">{tab === "appearance" ? <AppearanceSettings backgrounds={backgrounds} /> : null}{tab === "study" ? <StudySettings /> : null}{tab === "sorting" ? <SortingSettings /> : null}{tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}</div>
-        <footer className="heuresis-build-meta" style={{ padding: "0 24px 15px", fontSize: 11, opacity: 0.65 }}>
+        <header className="settings-head"><h2>Settings</h2><button type="button" className="icon-button" autoFocus onClick={onClose} aria-label="Close settings"><X size={19} /></button></header>
+        <nav className="settings-tabs" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map((item) => <button key={item.id} type="button" aria-pressed={tab === item.id}
+            onClick={() => setTab(item.id)}>{item.label}</button>)}
+        </nav>
+        <div key={tab} className="settings-body">
+          {tab === "appearance" ? <AppearanceSettings /> : null}
+          {tab === "backgrounds" ? <BackgroundSettingsPanel backgrounds={backgrounds} /> : null}
+          {tab === "study" ? <StudySettings /> : null}
+          {tab === "audio" ? <AudioSettings /> : null}
+          {tab === "sorting" ? <SortingSettings /> : null}
+          {tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}
+        </div>
+        <footer className="heuresis-build-meta">
           {buildPlatform()} · source <code title={BUILD_COMMIT}>{BUILD_COMMIT === "unknown" ? "unknown revision" : BUILD_COMMIT.slice(0, 8)}</code>
         </footer>
       </section>

@@ -1,5 +1,6 @@
+import type { Wallpaper } from "./PageWallpaper";
 import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Link2, Pencil, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadReviewOverview, type ReviewOverview } from "../lib/reviewOverview";
 import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
@@ -21,7 +22,7 @@ type Props = {
   collections: Collection[];
   packs: PackWithType[];
   archivedCount: number;
-  newCardsBackgroundStyle?: CSSProperties;
+  newCardsWallpaper?: Wallpaper;
   onOpen: (pack: PackWithType) => void;
   onNewTopic: (collectionId: string) => void;
   onOpenCaptureInbox: (collection: Collection) => void;
@@ -52,7 +53,7 @@ function newestOpen(packs: PackWithType[]) {
   }, null);
 }
 
-export default function LibraryView({ collections, packs, newCardsBackgroundStyle, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onNewCollection }: Props) {
+export default function LibraryView({ collections, packs, newCardsWallpaper, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onNewCollection }: Props) {
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [knowledgeMode, setKnowledgeMode] = useState<KnowledgeMode>(readKnowledgeMode);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -493,7 +494,7 @@ export default function LibraryView({ collections, packs, newCardsBackgroundStyl
         </aside>
       </div> : <div className="library-empty study-knowledge-empty"><BookOpen size={22} /><strong>{knowledgeMode === "applied" ? "Applied knowledge starts here." : "No language collections yet."}</strong><p>{knowledgeMode === "applied" ? "Create a collection for customs, Incoterms, compliance or another practical subject. Your language decks stay in Languages." : "Create your first language collection to begin studying."}</p><button type="button" className="library-new-collection" onClick={() => onNewCollection(knowledgeMode)}><Plus size={14} /> New {knowledgeMode === "applied" ? "Applied" : "Languages"} collection</button></div>}
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
-        backgroundStyle={newCardsBackgroundStyle} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds, validated: quickSort.validated,
+        wallpaper={newCardsWallpaper} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds, validated: quickSort.validated,
           toLearning: quickSort.toLearning, toReview: quickSort.toReview,
           discarded: quickSort.discarded, leftForLater: quickSort.leftForLater }} onClose={closeQuickSort} onChanged={() => undefined}
         onLearning={() => void startLearning(quickSort.pack)} /> : null}

@@ -1,3 +1,4 @@
+import { PageWallpaper, type Wallpaper } from "./PageWallpaper";
 import { ArrowRight, BookOpen, Brain, Check, ChevronDown, Clock3, Palette, PanelLeftOpen, Quote, RotateCcw, Search, Shuffle, Tag, Trash2, Type, Undo2, Volume2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
@@ -33,7 +34,7 @@ type Props = {
   pack: PackWithType;
   cards: CardWithStats[];
   tags: HeuresisTag[];
-  backgroundStyle?: CSSProperties;
+  wallpaper?: Wallpaper;
   startCardId?: string | null;
   /** One-tap daily quota launcher bypasses setup with this many unsorted cards. */
   quickStartCount?: number;
@@ -76,7 +77,7 @@ function shuffled<T>(items: T[]) {
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
-export default function SortModal({ pack, cards, tags, backgroundStyle, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
+export default function SortModal({ pack, cards, tags, wallpaper, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
   useAndroidStudyWakeLock(true);
   const studyMode = useStudyMode();
   const releaseBackEntry = useAndroidOverlayBack("new", () => { void closeSort(); });
@@ -538,9 +539,10 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
   return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={showSetup ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (isStudy21 ? " study21 study21--new" : "") + (enrichmentOpen ? " sort-modal--editing" : "")}
-    style={showSetup ? undefined : isStudy21 ? { ...backgroundStyle, "--study21-panel-w": detailPanelWidth + "px", "--study21-term-size": termSize + "px", "--study21-centre-width": centreWidth + "px", "--study21-pad-left": padLeft + "px", "--study21-pad-right": padRight + "px", "--study21-reading-size": Math.max(18, Math.round(termSize * .26)) + "px", "--study21-meaning-size": meaningSize + "px", "--study21-example-size": exampleSize + "px" } as CSSProperties : backgroundStyle} data-study21-layout={isStudy21 ? bothFit ? "both" : pushDetails ? "one" : "overlay" : undefined} data-custom-background={!showSetup && backgroundStyle ? "new-cards" : undefined}
+    style={!showSetup && isStudy21 ? { "--study21-panel-w": detailPanelWidth + "px", "--study21-term-size": termSize + "px", "--study21-centre-width": centreWidth + "px", "--study21-pad-left": padLeft + "px", "--study21-pad-right": padRight + "px", "--study21-reading-size": Math.max(18, Math.round(termSize * .26)) + "px", "--study21-meaning-size": meaningSize + "px", "--study21-example-size": exampleSize + "px" } as CSSProperties : undefined} data-study21-layout={isStudy21 ? bothFit ? "both" : pushDetails ? "one" : "overlay" : undefined}
     role="dialog" aria-modal="true" aria-label="New cards">
 
+    {!showSetup ? <PageWallpaper wallpaper={wallpaper} /> : null}
     {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: (progressTarget ? Math.min(100, learned / progressTarget * 100) : 0) + "%" }} /></div> : null}
     <header className="sort-topbar">
       <div className="sort-new-heading"><span className="sort-stage-chip">● New</span><strong>{pack.title}</strong></div>

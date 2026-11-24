@@ -14,14 +14,15 @@ writeFileSync(dir + "/fixture.tsx", [
   'import SettingsModal from "../../src/components/SettingsModal";',
   'import {PAGE_BACKGROUND_CHOICES, DEFAULT_BACKGROUND_SETTINGS} from "../../src/hooks/useHeuresisBackground";',
   'import "../../src/theme/palettes.css";',
+  'import "../../src/theme/wallpaper.css";',
   'import "../../src/standalone-v2.css";',
   'import "../../src/components/workspace/workspace.css";',
   'import "../../src/settings-v2.css";',
   'function Demo() {',
-  'const [images,setImages] = useState<Record<string,string>>({heuresis:"data:image/svg+xml,%3Csvg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"200\\" height=\\"120\\"%3E%3Crect width=\\"200\\" height=\\"120\\" fill=\\"%2367828a\\"/%3E%3C/svg%3E"});',
+  'const [images,setImages] = useState<Record<string,string>>({heuresis:"/shared.png", "heuresis-study":"/study.png"});',
   'const [settings,setSettings] = useState<Record<string,typeof DEFAULT_BACKGROUND_SETTINGS>>({});',
   'const backgrounds = Object.fromEntries(PAGE_BACKGROUND_CHOICES.map(({key}) => [key,{',
-  ' imageUrl:images[key]||null, hasImage:Boolean(images[key]), settings:settings[key]??DEFAULT_BACKGROUND_SETTINGS, syncing:false,syncError:"",',
+  ' imageUrl:images[key]||null, hasImage:Boolean(images[key]), settings:settings[key]??DEFAULT_BACKGROUND_SETTINGS, loading:false,syncing:false,syncError:"",',
   ' updateSettings:(patch:Partial<typeof DEFAULT_BACKGROUND_SETTINGS>)=>setSettings(v=>({...v,[key]:{...DEFAULT_BACKGROUND_SETTINGS,...v[key],...patch}})),',
   ' chooseImage:async(file:File)=>setImages(v=>({...v,[key]:URL.createObjectURL(file)})),',
   ' removeImage:async()=>setImages(v=>({...v,[key]:""}))',
@@ -35,7 +36,7 @@ const server = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host
 let serverLog = "";
 server.stderr.on("data", d => {serverLog += d.toString();});
 server.stdout.on("data", d => {serverLog += d.toString();});
-const browser = await chromium.launch({headless:true});
+const browser = await chromium.launch({headless:true, executablePath: process.env.CHROMIUM_PATH});
 const url = "http://127.0.0.1:" + port + "/test-output/background-studio/index.html";
 try {
   for(let i=0;i<60;i++){
@@ -46,8 +47,9 @@ try {
   }
   const page = await browser.newPage({ viewport:{width:1200,height:900} });
   await page.goto(url);
+  await page.getByRole("button", { name: "Backgrounds", exact: true }).click();
   const pages = page.getByLabel("Page",{exact:true});
-  await pages.selectOption("heuresis-study");
+  await pages.selectOption("heuresis-new-cards");
   const upload = page.getByRole("button",{name:"Upload image"});
   await upload.waitFor();
   const geometry = await page.evaluate(() => {
@@ -61,16 +63,19 @@ try {
     "Preview and atmosphere choices must sit side by side without overlap: "+JSON.stringify(geometry));
   const canvas = page.locator(".background-preview-canvas");
   assert.equal(await canvas.isDisabled(),true,"Page with only the shared fallback cannot edit shared image focus");
+  const image = canvas.locator(".page-wallpaper");
+  const wallpaperStyle = (property) => image.evaluate((el, key) => getComputedStyle(el, "::before").getPropertyValue(key), property);
+  assert.match(await wallpaperStyle("background-image"), /study\.png/);
   const fallbackOpacity = await canvas.evaluate(el=>getComputedStyle(el).opacity);
   assert.equal(fallbackOpacity,"1","Shared fallback remains visible instead of being faded as disabled");
   await page.getByRole("button",{name:"Mist",exact:true}).click();
   // The shared fallback is already an image; await the NEW page image upload.
   await page.getByRole("button",{name:"Change image"}).waitFor();
-  await page.locator(".background-preview-canvas img").waitFor();
+  await image.waitFor();
   await page.getByText("More adjustments").click();
   assert.equal(await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).isEnabled(),true);
   await page.getByRole("group",{name:"Background fit"}).getByRole("button",{name:"Fit"}).click();
-  assert.equal(await page.locator(".background-preview-canvas img").evaluate(el=>getComputedStyle(el).objectFit),"contain");
+  assert.equal(await wallpaperStyle("background-size"),"contain");
   await pages.selectOption("heuresis-notebook");
   assert.equal(await page.getByRole("button",{name:"Upload image"}).isVisible(),true);
   assert.equal(await page.locator(".pb-advanced").count(),0,"Fine-tuning is hidden on inherited pages");
@@ -78,8 +83,8 @@ try {
   const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/w8AAusB9WlLT5sAAAAASUVORK5CYII=","base64");
   await page.locator('input[type="file"]').setInputFiles({name:"own.png",mimeType:"image/png",buffer:png});
   await page.getByRole("button",{name:"Change image"}).waitFor();
-  await pages.selectOption("heuresis-study");
-  assert.equal(await page.getByRole("button",{name:"Change image"}).isVisible(),true,"Study retains its own chosen preset");
+  await pages.selectOption("heuresis-new-cards");
+  assert.equal(await page.getByRole("button",{name:"Change image"}).isVisible(),true,"New cards retains its own chosen preset");
   console.log("Background Studio: compact page selector, clear fallback, atmosphere presets, disclosure, fit and independent uploads passed.");
   await page.close();
 } finally {

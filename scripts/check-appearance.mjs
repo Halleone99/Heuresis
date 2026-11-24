@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 const css = readFileSync("src/theme/palettes.css", "utf8");
 const html = readFileSync("index.html", "utf8");
 const js = readFileSync("src/lib/theme.ts", "utf8");
-const expected = ["slate", "forest", "sepia", "neutral"];
-const keys = ["ws-page", "ws-surface", "ws-raised", "ws-sunken", "ws-ink", "ws-text", "ws-muted", "ws-accent", "ws-primary", "ws-on-primary"];
+const expected = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"];
+const keys = ["ws-page", "ws-surface", "ws-raised", "ws-sunken", "ws-ink", "ws-text", "ws-muted", "ws-accent", "ws-primary", "ws-on-primary", "ws-card", "ws-card-secondary"];
 function luminance(hex) {
   const values = hex.slice(1).match(/.{2}/g).map((value) => parseInt(value, 16) / 255)
     .map((value) => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
@@ -16,8 +16,9 @@ function ratio(a, b) {
 }
 let combinations = 0;
 for (const palette of expected) for (const mode of ["light", "dark"]) {
-  const re = new RegExp(':root\\[data-palette="' + palette + '"\\]\\[data-theme="' + mode + '"\\]\\s*\\{([^}]+)\\}');
-  const match = css.match(re);
+  const re = new RegExp('\\[data-palette-preview="' + palette + '"\\]\\s*\\{([^}]+)\\}');
+  const start = css.indexOf(':root[data-palette="' + palette + '"][data-theme="' + mode + '"],');
+  const match = start >= 0 ? css.slice(start, css.indexOf("}", start) + 1).match(re) : null;
   assert.ok(match, `Missing ${palette}/${mode}`);
   const tokens = Object.fromEntries([...match[1].matchAll(/--([\w-]+):\s*(#[0-9a-f]{6});/gi)].map((item) => [item[1], item[2]]));
   for (const key of keys) assert.ok(tokens[key], `Missing ${key} in ${palette}/${mode}`);
@@ -25,6 +26,7 @@ for (const palette of expected) for (const mode of ["light", "dark"]) {
     ["ws-ink", "ws-surface", 7], ["ws-text", "ws-surface", 7],
     ["ws-muted", "ws-sunken", 4.5], ["ws-muted", "ws-surface", 4.5], ["ws-accent", "ws-sunken", 4.5],
     ["ws-on-primary", "ws-primary", 7],
+    ["ws-ink", "ws-card", 7], ["ws-text", "ws-card", 4.5], ["ws-muted", "ws-card-secondary", 4.5],
   ]) {
     const value = ratio(tokens[foreground], tokens[background]);
     assert.ok(value >= minimum, `${palette}/${mode}: ${foreground} on ${background} is ${value.toFixed(2)}:1`);
@@ -58,12 +60,12 @@ const files = {
   account: readFileSync("src/App.tsx", "utf8"),
   auth: readFileSync("src/styles.css", "utf8"),
 };
-for (const [palette, mode] of expected.flatMap((palette) => ["light", "dark"].map((mode) => [palette, mode]))) {
-  const start = css.indexOf(':root[data-palette="' + palette + '"][data-theme="' + mode + '"] {');
-  const block = start >= 0 ? css.slice(start, css.indexOf("}", start)) : "";
-  assert.ok(block?.includes("--ws-scrim:"), `Missing dialog scrim in ${palette}/${mode}`);
-  assert.ok(block?.includes("--ws-on-chrome-accent:"), `Missing chrome button contrast in ${palette}/${mode}`);
+for (const mode of ["light", "dark"]) {
+  const start = css.indexOf(':root[data-theme="' + mode + '"] {');
+  const block = css.slice(start, css.indexOf("}", start));
+  assert.ok(block.includes("--ws-scrim:"), `Missing dialog scrim for ${mode}`);
 }
+assert.match(css, /--ws-on-chrome-accent:/, "Chrome buttons have a foreground token");
 assert.match(files.chrome, /\.desktop-account-popover :is\(button,button span,button svg\)/, "Account popover must override dark chrome text");
 assert.match(css, /:is\(input,textarea,select\)::placeholder \{ color:var\(--ws-muted\); opacity:1; \}/, "Input placeholder contrast");
 assert.match(files.capture, /capture-slot textarea::placeholder \{ color: var\(--ws-muted\)/, "Capture placeholder contrast");

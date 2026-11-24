@@ -22,9 +22,10 @@ export function applyCardColours(value = readCardColours()) {
   for (const key of ALLOWED) root.style.removeProperty(key);
   for (const [key,color] of Object.entries(value)) if (ALLOWED.has(key)) root.style.setProperty(key,color);
 }
-export default function CardColoursEditor() {
+export default function CardColoursEditor({ embedded = false }: { embedded?: boolean }) {
   const [colours,setColours] = useState(readCardColours);
   const [notice,setNotice] = useState("");
+  const themeColours = getComputedStyle(document.documentElement);
   const choose = (key:string,color:string) => {
     if (!ALLOWED.has(key) || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
     const next = {...colours,[key]:color};
@@ -39,12 +40,12 @@ export default function CardColoursEditor() {
   const css = () => ":root {\n"+Object.entries(colours).map(([key,val])=>"  "+key+": "+val+";").join("\n")+"\n}";
   const copy = () => { void navigator.clipboard.writeText(css()).then(()=>setNotice("CSS copied."),()=>setNotice("Could not copy CSS.")); };
   return <section className="card-colours-editor" aria-label="Card colours">
-    <div className="card-colours-heading"><h3>Card colours</h3><div><button type="button" onClick={reset}>Reset</button>
+    <div className="card-colours-heading">{embedded ? null : <h3>Card colours</h3>}<div><button type="button" onClick={reset}>Reset</button>
       <button type="button" onClick={copy}>Copy as CSS</button></div></div>
-    <p>Card-specific colours. Changes apply immediately across the four palettes.</p>
+    <p>Custom colours for tags, pronunciation and highlights apply across all themes.</p>
     {GROUPS.map(group => <fieldset key={group.title}><legend>{group.title}</legend>
       <div className="card-colours-grid">{group.items.map(item => <label key={item.key}>
-        <span>{item.label}</span><input type="color" value={colours[item.key] || item.fallback}
+        <span>{item.label}</span><input type="color" value={colours[item.key] || themeColours.getPropertyValue(item.key).trim() || item.fallback}
           onChange={event => choose(item.key,event.target.value)} />
       </label>)}</div>
     </fieldset>)}

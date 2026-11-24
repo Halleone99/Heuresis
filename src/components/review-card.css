@@ -4,20 +4,6 @@
   background:radial-gradient(circle at 50% 4%,var(--ws-raised),transparent 56%),linear-gradient(180deg,var(--ws-surface-2),var(--ws-sunken));
   isolation:isolate;
 }
-.cosmos-shell[data-mode="review"]:not([data-related="true"])::before {
-  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:var(--heuresis-background-image,none);
-  background-position:var(--heuresis-background-position,center);
-  background-size:var(--heuresis-background-fit,cover);
-  background-repeat:no-repeat;
-  opacity:var(--heuresis-background-opacity,0);
-  filter:blur(var(--heuresis-background-blur,0px));
-}
-.cosmos-shell[data-mode="review"]:not([data-related="true"])::after {
-  content:"";position:fixed;inset:160px 0 0;z-index:0;pointer-events:none;
-  background:linear-gradient(to bottom,transparent,var(--ws-page));
-  opacity:var(--heuresis-background-veil,0);
-}
 .cosmos-shell[data-mode="review"] .cosmos-topbar {
   position:relative;z-index:20;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);height:58px;
   padding:0 18px 0 24px;gap:16px;border:0;background:transparent;backdrop-filter:none;
@@ -42,7 +28,7 @@
 .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-card {
   position:relative;flex:0 1 780px;width:100%;min-width:0;
   min-height:min(620px,calc(100dvh - 150px));border:1px solid var(--ws-line);border-radius:20px;
-  background:color-mix(in srgb,var(--ws-raised) 80%,transparent);backdrop-filter:blur(14px);
+  background:var(--ws-card);
   box-shadow:0 30px 70px -40px rgba(0,0,0,.7);overflow:hidden;
 }
 :root[data-theme="light"] .cosmos-shell[data-mode="review"] .cosmos-work.cosmos-review-columns .cosmos-card {background:color-mix(in srgb,#fff 88%,transparent)}

@@ -22,33 +22,6 @@ body { background: var(--ws-surface-2); }
   overflow-x: hidden;
 }
 
-.heuresis-wallpaper,
-.heuresis-veil {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-.heuresis-wallpaper {
-  z-index: -3;
-  background-image: var(--heuresis-background-image, none);
-  background-repeat: no-repeat;
-  background-position: var(--heuresis-background-position, center);
-  background-size: var(--heuresis-background-fit, cover);
-  opacity: var(--heuresis-background-opacity, 0.32);
-  filter: blur(var(--heuresis-background-blur, 0px));
-  transform: scale(1.015);
-}
-
-.heuresis-veil {
-  z-index: -2;
-  background: rgba(245, 242, 235, var(--heuresis-background-veil, 0.55));
-}
-
-.heuresis-desktop:not([data-custom-background="heuresis"]) .heuresis-veil {
-  background: radial-gradient(circle at 80% 8%, color-mix(in srgb, var(--ws-raised) 78%, transparent), transparent 34%), var(--ws-surface-2);
-}
-
 /* Desktop header is owned by theme/chrome.css. */
 
 .desktop-spacer { flex: 1; }

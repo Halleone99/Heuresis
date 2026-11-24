@@ -322,12 +322,6 @@
 .library-stack-archive small { font-size: 11px; color: var(--ws-muted); }
 
 /* Subdue the wallpaper only on the Library home; keep the user's chosen image and opacity. */
-:root .heuresis-desktop[data-custom-background="heuresis"]:has(.intelligent-library) .heuresis-wallpaper {
-  opacity: calc(var(--heuresis-background-opacity, .68) * .54) !important;
-}
-:root .heuresis-desktop[data-custom-background="heuresis"]:has(.intelligent-library) .heuresis-wallpaper-lower {
-  opacity: calc(var(--heuresis-background-opacity, .68) * .38) !important;
-}
 .intelligent-library button:focus-visible {
   outline: 2px solid var(--ws-accent);
   outline-offset: 3px;

@@ -51,7 +51,7 @@ function clamp(settings: BackgroundSettings): BackgroundSettings {
 function readSettings(page: BackgroundPageKey) {
   try {
     const raw = localStorage.getItem(settingsKey(page));
-    return raw ? clamp({ ...DEFAULT_BACKGROUND_SETTINGS, ...JSON.parse(raw) as Partial<BackgroundSettings> }) : { ...DEFAULT_BACKGROUND_SETTINGS };
+    return raw ? cloudSettings(JSON.parse(raw)) : { ...DEFAULT_BACKGROUND_SETTINGS };
   } catch {
     return { ...DEFAULT_BACKGROUND_SETTINGS };
   }
@@ -126,6 +126,14 @@ export function useHeuresisBackground(page: BackgroundPageKey = "heuresis") {
   const [cloudPath, setCloudPath] = useState<string | null>(null);
   const objectUrl = useRef<string | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const pendingSave = useRef<Promise<void>>(Promise.resolve());
+  const latestSettings = useRef(settings);
+
+  const saveLocalSettings = useCallback((next: BackgroundSettings) => {
+    latestSettings.current = next;
+    setSettings(next);
+    writeSettings(page, next);
+  }, [page]);
 
   const showBlob = useCallback((blob: Blob | null) => {
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
@@ -133,68 +141,78 @@ export function useHeuresisBackground(page: BackgroundPageKey = "heuresis") {
     setImageUrl(objectUrl.current);
   }, []);
 
-  const loadCloud = useCallback(async () => {
-    const client = supabase;
-    if (!client) return;
-    const { data: userData, error: userError } = await client.auth.getUser();
-    if (userError) throw userError;
-    if (!userData.user) return;
-    const db = client as any;
-    const { data: row, error } = await db.from("page_backgrounds").select("storage_path,settings").eq("user_id", userData.user.id).eq("page_key", page).maybeSingle();
-    if (error) throw error;
-    if (!row?.storage_path) return;
-    const download = await client.storage.from(BUCKET).download(String(row.storage_path));
-    if (download.error) throw download.error;
-    if (!download.data) return;
-    const next = cloudSettings(row.settings);
-    showBlob(download.data);
-    setCloudPath(String(row.storage_path));
-    setSettings(next);
-    writeSettings(page, next);
-    await writeCachedBlob(page, download.data);
-  }, [page, showBlob]);
-
   useEffect(() => {
     let active = true;
+    const client = supabase;
+
     void (async () => {
       const cached = await readCachedBlob(page);
       if (!active) return;
       if (cached) showBlob(cached);
-      setSettings(readSettings(page));
-      try { await loadCloud(); } catch (error) { console.warn("Could not load the Personal OS Heuresis background.", error); }
-      if (active) setLoading(false);
+      try {
+        if (!client) return;
+        const { data: { session }, error: authError } = await client.auth.getSession();
+        if (authError) throw authError;
+        if (!active || !session) return;
+        const { data: row, error } = await client.from("page_backgrounds").select("storage_path,settings")
+          .eq("user_id", session.user.id).eq("page_key", page).maybeSingle();
+        if (error) throw error;
+        if (!active) return;
+        if (!row?.storage_path) {
+          if (cached && navigator.onLine) {
+            showBlob(null);
+            await writeCachedBlob(page, null);
+          }
+          return;
+        }
+        const path = String(row.storage_path);
+        setCloudPath(path);
+        const download = await client.storage.from(BUCKET).download(path);
+        if (download.error) throw download.error;
+        if (!active) return;
+        showBlob(download.data);
+        saveLocalSettings(cloudSettings(row.settings));
+        await writeCachedBlob(page, download.data);
+      } catch {
+        if (active && navigator.onLine) setSyncError(cached
+          ? "The account background could not load. Showing the saved copy on this device."
+          : "The account background could not load.");
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
-    return () => { active = false; if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); };
-  }, [loadCloud, showBlob]);
 
-  const syncSettings = useCallback((next: BackgroundSettings) => {
+    return () => {
+      active = false;
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+      objectUrl.current = null;
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    };
+  }, [page, saveLocalSettings, showBlob]);
+
+  const updateSettings = useCallback((patch: Partial<BackgroundSettings>) => {
+    const next = clamp({ ...latestSettings.current, ...patch });
+    saveLocalSettings(next);
     const client = supabase;
     if (!client || !cloudPath) return;
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      void (async () => {
+      saveTimer.current = null;
+      pendingSave.current = pendingSave.current.then(async () => {
         try {
-          const { data: userData } = await client.auth.getUser();
-          if (!userData.user) return;
-          const db = client as any;
-          const { error } = await db.from("page_backgrounds").update({ settings: next, updated_at: new Date().toISOString() }).eq("user_id", userData.user.id).eq("page_key", page);
+          const { data: { session }, error: authError } = await client.auth.getSession();
+          if (authError) throw authError;
+          if (!session) return;
+          const { error } = await client.from("page_backgrounds").update({ settings: next, updated_at: new Date().toISOString() })
+            .eq("user_id", session.user.id).eq("page_key", page).eq("storage_path", cloudPath);
           if (error) throw error;
           setSyncError("");
         } catch {
           setSyncError("Appearance changed locally, but could not sync yet.");
         }
-      })();
+      });
     }, 350);
-  }, [cloudPath, page]);
-
-  const updateSettings = useCallback((patch: Partial<BackgroundSettings>) => {
-    setSettings((current) => {
-      const next = clamp({ ...current, ...patch });
-      writeSettings(page, next);
-      syncSettings(next);
-      return next;
-    });
-  }, [page, syncSettings]);
+  }, [cloudPath, page, saveLocalSettings]);
 
   const chooseImage = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
@@ -213,20 +231,21 @@ export function useHeuresisBackground(page: BackgroundPageKey = "heuresis") {
       const path = `${userId}/${page}/${crypto.randomUUID()}.${extensionFor(file)}`;
       const upload = await client.storage.from(BUCKET).upload(path, file, { cacheControl: "3600", contentType: file.type, upsert: false });
       if (upload.error) throw upload.error;
-      const next = clamp({ ...settings, enabled: true });
+      const next = { ...latestSettings.current, enabled: true };
       const metadata = await db.from("page_backgrounds").upsert({ user_id: userId, page_key: page, storage_path: path, settings: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,page_key" });
       if (metadata.error) { await client.storage.from(BUCKET).remove([path]); throw metadata.error; }
       if (current.data?.storage_path && current.data.storage_path !== path) void client.storage.from(BUCKET).remove([String(current.data.storage_path)]);
-      setCloudPath(path); setSettings(next); writeSettings(page, next); showBlob(file); await writeCachedBlob(page, file);
+      setCloudPath(path); saveLocalSettings(next); showBlob(file); await writeCachedBlob(page, file);
     } finally { setSyncing(false); }
-  }, [page, settings, showBlob]);
+  }, [page, saveLocalSettings, showBlob]);
 
   const removeImage = useCallback(async () => {
     const client = supabase;
     if (!client) return;
     setSyncing(true); setSyncError("");
     try {
-      const { data: userData } = await client.auth.getUser();
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
       if (userData.user) {
         const db = client as any;
         const current = await db.from("page_backgrounds").select("storage_path").eq("user_id", userData.user.id).eq("page_key", page).maybeSingle();

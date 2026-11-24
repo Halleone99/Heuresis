@@ -147,5 +147,3 @@
 
 
 /* Appearance selector uses the existing segmented Settings control. */
-.ov-overview-setting{border-top:1px solid var(--ws-line);padding-top:20px;margin-top:8px;}
-.ov-overview-setting .appearance-mode{width:fit-content;}

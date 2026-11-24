@@ -1,30 +1,8 @@
 /* Library home + modern shell pass.
    Keeps the existing Heuresis marks/glyphs; changes only presentation and home hierarchy. */
 
-/* Keep the chosen background present across the entire viewport. The veil now fades gradually
-   instead of letting the lower half collapse into a flat beige field. */
-.heuresis-desktop[data-custom-background="heuresis"] {
-  background: var(--ws-sunken) !important;
-}
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
-  opacity: calc(var(--heuresis-background-opacity, .32) + .18) !important;
-  filter: blur(var(--heuresis-background-blur, 0px)) saturate(.94) contrast(1.02) !important;
-}
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-veil {
-  background:
-    linear-gradient(180deg,
-      color-mix(in srgb, var(--ws-surface-2) 18%, transparent) 0%,
-      color-mix(in srgb, var(--ws-surface-2) 27%, transparent) 24%,
-      color-mix(in srgb, var(--ws-surface-2) 42%, transparent) 56%,
-      color-mix(in srgb, var(--ws-sunken) 53%, transparent) 100%) !important;
-}
-.desktop-content {
-  background: transparent !important;
-}
+.desktop-content { background: transparent !important; }
 
-/* Header styling is centralised in theme/chrome.css. */
-
-/* Library home: a compact central workspace, not a dashboard floating in empty space. */
 .intelligent-library {
   width: min(1260px, calc(100vw - 96px)) !important;
   max-width: 1260px !important;

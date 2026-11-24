@@ -1,0 +1,34 @@
+/* One photographic layer and one dimming layer, below the page and its cards. */
+.page-wallpaper {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--ws-page);
+}
+
+.page-wallpaper.is-fixed { position: fixed; }
+
+.page-wallpaper::before,
+.page-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.page-wallpaper::before {
+  background: var(--wallpaper-image) center var(--wallpaper-position) / var(--wallpaper-fit) no-repeat;
+  opacity: var(--wallpaper-opacity);
+  filter: blur(var(--wallpaper-blur));
+}
+
+.page-wallpaper::after {
+  background: var(--ws-page);
+  opacity: var(--wallpaper-veil);
+}
+
+:root[data-theme] .heuresis-desktop {
+  background: var(--ws-page);
+}

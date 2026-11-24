@@ -55,3 +55,22 @@ mark.s-mark { background: linear-gradient(transparent 58%, color-mix(in srgb, va
 mark.s-color { color: var(--hc); }
 mark.s-bold { font-weight: 700; }
 .ch .py { user-select: none; -webkit-user-select: none; }
+
+/* Card faces are opaque so an uploaded photograph cannot recolour their text and controls. */
+:root[data-palette]:not([data-palette="slate"]) :is(.study-home, .study-desk-feature, .study-desk-mini) {
+  border-color: var(--ws-card-line);
+  border-radius: var(--ws-card-radius);
+  background: var(--ws-card);
+}
+
+:root[data-palette]:not([data-palette="slate"]) .study-desk-mini {
+  background: var(--ws-card-secondary);
+}
+
+:root[data-palette]:is([data-palette="editorial"], [data-palette="atelier"]) :is(.study-home, .study-desk-feature) {
+  border-top: 2px solid var(--ws-accent);
+}
+
+:root[data-palette]:is([data-palette="editorial"], [data-palette="atelier"]) :is(.study-desk-title, .study-desk-mini-body strong, .nb-subject-copy strong) {
+  font-family: var(--ws-card-heading);
+}

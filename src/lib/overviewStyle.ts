@@ -18,6 +18,6 @@ function subscribe(onChange: () => void) {
   return () => { window.removeEventListener(EVENT, onChange); window.removeEventListener("storage", onChange); };
 }
 export function useOverviewStyle() {
-  const style = useSyncExternalStore(subscribe, readOverviewStyle, () => "serif");
+  const style = useSyncExternalStore<OverviewStyle>(subscribe, readOverviewStyle, () => "serif");
   return { style, chooseStyle: saveOverviewStyle } as const;
 }

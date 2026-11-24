@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { readTheme, writeTheme, type ThemePreference } from "./workspaceMemory";
 
-export type PalettePreference = "slate" | "forest" | "sepia" | "neutral";
+export const PALETTES = [
+  { id: "slate", label: "Slate", detail: "Blue grey" },
+  { id: "forest", label: "Forest", detail: "Sage and pine" },
+  { id: "sepia", label: "Sepia", detail: "Parchment and copper" },
+  { id: "neutral", label: "Neutral", detail: "Graphite and white" },
+  { id: "editorial", label: "Editorial", detail: "Salmon paper and teal" },
+  { id: "atelier", label: "Atelier", detail: "Ivory and burgundy" },
+] as const;
+
+export type PalettePreference = (typeof PALETTES)[number]["id"];
 const PALETTE_KEY = "heuresis.palette.v1";
 const BLUE_UPGRADE_KEY = "heuresis.appearance.blue.v1";
 const EVENT = "heuresis:appearance-changed";
@@ -24,7 +33,7 @@ export function readPalette(): PalettePreference {
       }
       localStorage.setItem(BLUE_UPGRADE_KEY, "1");
     }
-    if (value === "slate" || value === "forest" || value === "sepia" || value === "neutral") return value;
+    return PALETTES.find((option) => option.id === value)?.id ?? "slate";
   } catch { /* storage may not be available */ }
   return "slate";
 }

@@ -240,33 +240,6 @@
 .library-stack-archive-link:hover { color: var(--ws-ink); }
 
 /* Study target belongs to Settings, never the dashboard. */
-.heuresis-study-settings { padding: 3px 0 16px; }
-.heuresis-study-target {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  max-width: 480px;
-  padding: 14px 16px;
-  border: 1px solid var(--ws-line);
-  border-radius: 12px;
-  background: var(--ws-surface-2);
-  color: var(--ws-ink);
-  font-size: 12px;
-}
-.heuresis-study-target > span { min-width: 105px; font-weight: 600; }
-.heuresis-study-target input {
-  width: 76px;
-  min-height: 36px;
-  padding: 6px 9px;
-  border: 1px solid var(--ws-line-strong);
-  border-radius: 8px;
-  background: var(--ws-surface);
-  color: var(--ws-ink);
-  font: 600 14px var(--ws-sans, Inter, sans-serif);
-}
-.heuresis-study-target small { color: var(--ws-muted); font-size: 10px; }
-.heuresis-study-device-note { color: var(--ws-muted); font-size: 11px; line-height: 1.5; }
 
 @media (max-width: 900px) {
   .library-study-actions { grid-template-columns: minmax(0, 1fr); }

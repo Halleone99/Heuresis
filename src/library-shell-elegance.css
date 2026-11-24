@@ -202,9 +202,6 @@
 }
 
 /* Keep the wallpaper atmospheric rather than letting it dominate the page. */
-.heuresis-desktop[data-custom-background="heuresis"] .heuresis-wallpaper {
-  opacity: calc(var(--heuresis-background-opacity, .32) * .78) !important;
-}
 
 @media (max-width: 980px) {
   .desktop-nav-group { margin-left: 10px !important; }

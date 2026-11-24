@@ -52,10 +52,8 @@
 .sh-stage:hover .sh-stage-track{opacity:.55}
 .sh-stage.on .sh-stage-track{opacity:1;box-shadow:0 0 0 2px color-mix(in srgb,var(--sb-line) 60%,transparent)}
 .sh-start-area{position:relative;flex:none;z-index:30}
-.sh-start{display:flex;justify-content:center;align-items:center;gap:8px;min-width:92px;height:36px;padding:0 14px;border:0;border-radius:10px;background:#3d5e8f;color:#f1f5fb;font-size:12px;font-weight:650;transition:background .15s}
-.sh-start:hover:not(:disabled){background:#46699d}
-:root[data-theme=light] .sh-start{background:#3b5f8f}
-:root[data-theme=light] .sh-start:hover:not(:disabled){background:#34557f}
+.sh-start{display:flex;justify-content:center;align-items:center;gap:8px;min-width:92px;height:36px;padding:0 14px;border:0;border-radius:10px;background:var(--go-fill);color:var(--go-ink);font-size:12px;font-weight:650;transition:background .15s}
+.sh-start:hover:not(:disabled){background:var(--go-fill-hover)}
 .sh-session-pop{position:absolute;top:calc(100% + 9px);right:0;min-width:248px;padding:15px;border:1px solid var(--ws-line-strong);border-radius:12px;background:var(--ws-surface);box-shadow:var(--ws-shadow-2);z-index:65}
 .sh-session-pop h3{margin:0 0 12px;color:var(--ws-muted);font:700 10px/1 var(--sh-sans);letter-spacing:.12em}
 .sh-session-options{display:flex;gap:4px;flex-wrap:wrap}
@@ -238,8 +236,8 @@
 .study-desk-counts .new i{background:var(--desk-new)}.study-desk-counts .learn i{background:var(--desk-learn)}.study-desk-counts .review i{background:var(--desk-review)}
 .study-desk-action{min-width:86px;min-height:34px;padding:8px 14px;border:1px solid var(--ws-line-strong);border-radius:10px;background:transparent;color:var(--ws-text);font-size:12px;font-weight:650;cursor:pointer;transition:background .15s,border-color .15s}
 .study-desk-action:hover:not(:disabled){background:color-mix(in srgb,var(--ws-ink) 7%,transparent)}
-.study-desk-action.resume{background:#3d5e8f;border-color:#3d5e8f;color:#f1f5fb}
-.study-desk-action.resume:hover:not(:disabled){background:#46699d}
+.study-desk-action.resume{background:var(--go-fill);border-color:var(--go-fill);color:var(--go-ink)}
+.study-desk-action.resume:hover:not(:disabled){background:var(--go-fill-hover)}
 .study-desk-action:disabled{opacity:.4;cursor:default}
 .study-desk-more-topics,.study-desk-empty{display:flex;align-items:center;gap:8px;padding:12px 0 0;border:0;background:transparent;color:var(--ws-muted);font-size:12px;text-align:left;cursor:pointer}
 .study-desk-more-topics:hover,.study-desk-empty:hover{color:var(--ws-ink)}
