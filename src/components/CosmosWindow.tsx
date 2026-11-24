@@ -43,7 +43,7 @@ import {
   type StudyGrade,
   type StudyTemplate,
 } from "../lib/study";
-import { isWordSized, suggestResult, type AnswerKind, type AnswerSuggestion, type ExpectedAnswer } from "../lib/answerCheck";
+import { isWordSized, suggestResult, suggestChineseReading, type AnswerKind, type AnswerSuggestion, type ExpectedAnswer } from "../lib/answerCheck";
 import { mistakeDifference } from "../lib/mistakeDiff";
 import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
@@ -947,8 +947,12 @@ export default function CosmosWindow() {
         const values = answerValues();
         const suggested = suggestResult(typed, values);
         const chineseExpected = values.some((entry) => /\p{Script=Han}/u.test(typeof entry === "string" ? entry : entry.value));
-        if (suggested?.grade === "good" && chineseExpected && templateDirection(pack, template) === "production" && !/\p{Script=Han}/u.test(typed)) {
-          setSuggestion({ ...suggested, grade: "hard", reason: "Reading matches, but the Chinese characters were not entered." });
+        if (chineseExpected && templateDirection(pack, template) === "production" && !/\p{Script=Han}/u.test(typed)) {
+          const readingKey = fieldByRole(pack.cardType, "reading")?.key;
+          const readingSuggestion = suggestChineseReading(typed, fieldText(card.data, readingKey));
+          setSuggestion(readingSuggestion ?? (suggested?.grade === "good"
+            ? { ...suggested, grade: "hard", reason: "Reading matches, but the Chinese characters were not entered." }
+            : suggested));
         } else setSuggestion(suggested);
       }
       setRevealed(true);

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadTs } from "./lib/load-ts.mjs";
 
-const audio = loadTs("src/lib/reviewAudio.ts", {});
+const audio = loadTs("src/lib/reviewAudio.ts", { "./supabase": { supabase: null } });
 const lang = (text, topic, role) => audio.reviewSpeechLanguage(text, topic, "", role);
 assert.equal(lang("懂", "Core HSK", "term"), "zh-CN", "Chinese characters have Chinese audio");
 assert.equal(lang("Я понимаю", "Russian", "term"), "ru-RU", "Cyrillic has Russian audio");
