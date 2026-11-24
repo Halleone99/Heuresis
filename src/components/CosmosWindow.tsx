@@ -628,7 +628,7 @@ export default function CosmosWindow() {
           else if (config.order === "weakest") pool.sort((a, b) => {
             const progress = (entry: CardWithStats) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
-              return cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state);
+              return cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state, progressPair);
             };
             const left = progress(a); const right = progress(b);
             return (left.bars + (left.mastered ? 1 : 0)) - (right.bars + (right.mastered ? 1 : 0));
@@ -640,6 +640,16 @@ export default function CosmosWindow() {
             };
             return lastGrade(a.id, a.stats.last_encountered_at) - lastGrade(b.id, b.stats.last_encountered_at);
           });
+          // Due maintenance must not starve behind an endless weaker-card backlog.
+          // Keep the user's selected ordering within each group.
+          if (config.mode === "review" && !relatedReview && !config.masteredOnly && !config.includeMastered) {
+            const dueIds = new Set(pool.filter((entry) => {
+              const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
+              const progress = cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state, progressPair);
+              return progress.mastered && progress.masteryDueAt !== undefined && progress.masteryDueAt <= Date.now();
+            }).map((entry) => entry.id));
+            pool = [...pool.filter((entry) => dueIds.has(entry.id)), ...pool.filter((entry) => !dueIds.has(entry.id))];
+          }
           // Manual sessions alternate the chosen directions, as before.
           const all = pool.map((entry, position) => ({
             cardId: entry.id,
@@ -1617,7 +1627,7 @@ export default function CosmosWindow() {
       <article ref={reviewCardRef} className="cosmos-card" data-card-id={card.id} data-template-id={template?.id ?? ""}>
         {masteryMoment === card.id ? <div className="cosmos-mastery-moment" role="status" aria-live="polite">
           <span className="cosmos-mastery-seal" aria-hidden="true"><Check size={30} strokeWidth={1.6}/></span>
-          <strong>Mastered</strong><small>Card complete</small>
+          <strong>Mastered</strong><small>Next review in 30 days</small>
         </div> : null}
         {redesignReview ? <header className="review-card-head">
           <span className="review-kicker">{reviewLanguage || "Review"}</span>
