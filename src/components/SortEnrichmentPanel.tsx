@@ -402,7 +402,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
               <textarea aria-label="Meaning" rows={1} placeholder="Meaning" value={meaning} onChange={(event) => setMeaning(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); stopAdding(); }
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void track(saveWord()).catch(() => undefined); }
+                  if (event.key === "Enter") event.stopPropagation();
                 }} />
               <div className="sort-enrich-relations">{(["related", "synonym", "antonym"] as RelationType[]).map((kind) =>
                 <button key={kind} type="button" className={"relation-" + kind + (relation === kind ? " selected" : "")} onClick={() => setRelation(kind)}>{kind}</button>)}</div>
@@ -432,7 +432,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
         <p key={tag.id}>Lesson: {tag.name}</p>)}
       <p>Captured: {new Date(card.created_at).toLocaleDateString()}</p>
     </section> : null}
-    <p className="sort-enrich-hint">Click any text to change it · Enter keeps it · Esc undoes</p>
+    <p className="sort-enrich-hint">Click any text to change it · Enter adds a line in multiline fields · Click outside to save · Esc undoes</p>
     <p className={"sort-enrich-saved" + (saved ? " is-on" : "")} aria-live="polite">{saved ? "✓ Saved" : ""}</p>
     {error ? <p className="sort-enrich-error" role="alert">{error}</p> : null}
   </aside>;

@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 const read = (file) => readFileSync(file, "utf8");
 const study = read("src/components/StudyModal.tsx");
 const sort = read("src/components/SortModal.tsx");
+const inlineSort = read("src/components/InlineSortText.tsx");
+const sortEnrichment = read("src/components/SortEnrichmentPanel.tsx");
+const sortSessionCss = read("src/components/sort-session.css");
 const pack = read("src/components/PackView.tsx");
 const app = read("src/App.tsx");
 const tablet = read("src/tablet.css");
@@ -27,6 +30,10 @@ assert.match(sort, /\{selectedCount\} \{selectedCount === 1 \? "card" : "cards"\
 assert.match(sort, /Start sorting <ArrowRight/, "New session keeps one clear start action");
 assert.doesNotMatch(sort, /ONE SORT WORKFLOW/, "Sort no longer exposes workflow implementation notes");
 assert.match(sort, /<SortEnrichmentPanel/, "Sort exposes editable card details without hiding the flashcard");
+assert.match(inlineSort, /else if \(event\.key === "Enter"\) \{\s*\/\/[^\n]*\n\s*event\.stopPropagation\(\);/, "Inline editor shields Enter from the card-level shortcut");
+assert.match(inlineSort, /if \(!multiline && !event\.shiftKey\) \{\s*event\.preventDefault\(\); event\.currentTarget\.blur\(\);/, "Only single-line fields commit on Enter");
+assert.match(sortEnrichment, /if \(event\.key === "Enter"\) event\.stopPropagation\(\);/, "Related meaning textarea keeps native Enter");
+assert.match(sortSessionCss, /\.sort-selectable\.example-translation > span \{ white-space: pre-wrap;/, "Saved multiline examples and translations preserve line breaks");
 assert.doesNotMatch(study, /compact-count-shortcuts/, "No competing amount shortcut buttons");
 assert.match(study, /requestedSize >= 1 && requestedSize <= 500/, "Review size validates positive amounts up to 500");
 

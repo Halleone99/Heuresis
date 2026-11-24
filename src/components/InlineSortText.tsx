@@ -68,8 +68,14 @@ export function InlineSortText({ value, label, placeholder, required, multiline,
     if (event.key === "Escape") {
       event.preventDefault(); event.stopPropagation();
       cancelled.current = true; setDraft(original.current); event.currentTarget.blur();
-    } else if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault(); event.stopPropagation(); event.currentTarget.blur();
+    } else if (event.key === "Enter") {
+      // Keep card-level shortcuts out of every editor, including multiline fields.
+      event.stopPropagation();
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      // Native textarea Enter inserts a newline; only single-line fields commit.
+      if (!multiline && !event.shiftKey) {
+        event.preventDefault(); event.currentTarget.blur();
+      }
     }
   }
 

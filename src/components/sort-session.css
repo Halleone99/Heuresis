@@ -259,3 +259,8 @@
 @media(prefers-reduced-motion:reduce){
  .sort-modal--session .sort-editing-tools{transition:none;}
 }
+
+/* Keep entered line breaks visible after leaving an inline multiline editor. */
+.sort-modal--session .sort-selectable.meaning > span,
+.sort-modal--session .sort-selectable.example > span,
+.sort-modal--session .sort-selectable.example-translation > span { white-space: pre-wrap; overflow-wrap: anywhere; }
