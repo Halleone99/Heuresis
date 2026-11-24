@@ -104,8 +104,8 @@ export default function ReviewCentre({ collections, packs, overview, initialColl
           <span className="reviews-centre-eyebrow"><Brain size={14} /> YOUR PRACTICE SPACE</span>
           <h1>Review Centre<span>.</span></h1>
           <p>{masteredOnly
-            ? "Optional practice for cards you have already mastered. Ordinary Review leaves them undisturbed."
-            : "Review cards still in progress. Mastered cards are kept separate; successful directions wait until tomorrow."}</p>
+            ? "Optional practice for mastered cards, including those not yet due."
+            : "Review cards still in progress and mastered cards due for maintenance. Successful directions wait until tomorrow."}</p>
         </div>
         <div className="reviews-centre-summary" aria-label="Review totals">
           <span><strong>{overview ? availableCount.toLocaleString() : "–"}</strong><small>{masteredOnly ? "mastered available" : "ready today"}</small></span>
