@@ -28,6 +28,8 @@ export default function ReviewCardStatus({ progress, historyAvailable, change, s
   const trend: "up" | "down" | "level" = justMastered || delta > 0 ? "up" : delta < 0 ? "down" : "level";
 
   const statusTitle = `${label} · ${progress.bars} of 4 progress bars. ${progress.mastered ? "Mastery confirmed." : "Mastery requires a later successful review."}`;
+  const maintenance = progress.mastered && progress.masteryLevel && progress.masteryDueAt !== undefined
+    ? `Mastery level ${progress.masteryLevel}/5 · Next review ${new Date(progress.masteryDueAt).toLocaleDateString()}.` : "";
   const context = !reliable
     ? "Progress is estimated because complete review history is unavailable."
     : progress.pendingDirections?.length
@@ -36,7 +38,7 @@ export default function ReviewCardStatus({ progress, historyAvailable, change, s
   const movement = justMastered ? "Mastery confirmed."
     : delta > 0 ? `Gained ${delta} ${delta === 1 ? "bar" : "bars"}.`
       : delta < 0 ? `Lost ${Math.abs(delta)} ${delta === -1 ? "bar" : "bars"}.` : "";
-  const detail = [statusTitle, context, movement].filter(Boolean).join(" ");
+  const detail = [statusTitle, maintenance, context, movement].filter(Boolean).join(" ");
 
   return <span className="review-card-status" data-level={progress.mastered ? "mastered" : progress.bars === 4 ? "known" : "building"}
     data-trend={trend} data-changed={trend !== "level"} role="status" aria-live="polite"
