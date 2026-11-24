@@ -28,7 +28,8 @@ assert.match(sort, /IMPORTANCE_KEY = "heuresis.sort.lastImportance.v1"/, "Select
 assert.match(sort, /Discard/, "Sorting retains recoverable Discard");
 assert.match(sort, /function beginSort\(/, "One sort setup must select its queue");
 assert.match(sort, /useState\(!startCardId && !fastStart\)/, "Normal New opens setup; daily quota quick-start bypasses it");
-assert.match(sort, /selection\.slice\(0, selectedCount\)/, "Chosen quantity limits the actual queue");
+assert.match(sort, /setQueue\(selection\)/, "New keeps replacement cards in the queue");
+assert.match(sort, /setTarget\(selectedCount\)/, "Chosen quantity limits validated cards, not cards viewed");
 assert.match(sort, /type="checkbox" checked=\{selectedTags\.includes\(tag\.id\)\}/, "Tags can be selected at setup");
 assert.match(sort, /const candidates = useMemo\(/, "Sort setup must retain search/tag filtering");
 assert.match(sort, /const \[randomOrder/, "Sort setup must retain card ordering");

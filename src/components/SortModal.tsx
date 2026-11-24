@@ -16,6 +16,9 @@ import CardColoursEditor from "./CardColoursEditor";
 import { languageFromName, languageFromScript } from "../lib/languages";
 import { reviewSpeechLanguage, speakReviewText } from "../lib/reviewAudio";
 import { rememberOpenStudy } from "../lib/studySessionMemory";
+import { useStudyMode } from "../lib/studyMode";
+import { useStageWidth } from "./study21/useStageWidth";
+import NewDock21 from "./study21/NewDock21";
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import "./sort.css";
 import "./sort-enrichment.css";
@@ -24,6 +27,7 @@ import "./sort-session.css";
 import "./sort-handoff.css";
 import "./sort-details-wings.css";
 import "./sort-colour-editor.css";
+import "./study21/study21.css";
 
 type Props = {
   pack: PackWithType;
@@ -74,10 +78,13 @@ function shuffled<T>(items: T[]) {
  */
 export default function SortModal({ pack, cards, tags, backgroundStyle, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
   useAndroidStudyWakeLock(true);
+  const studyMode = useStudyMode();
   const releaseBackEntry = useAndroidOverlayBack("new", () => { void closeSort(); });
   const exitSort = (preserveForLearning = false) => { releaseBackEntry(preserveForLearning); onClose(); };
   const unsorted = useMemo(() => cards.filter((item) => !cardHasCompletedSort(item)), [cards]);
   const dialogRef = useRef<HTMLElement>(null);
+  const stageWidth = useStageWidth(dialogRef);
+  const study21PreferredOpen = () => { try { return localStorage.getItem("heuresis.sort.details.v1") === "1"; } catch { return false; } };
   const sortCardRef = useRef<HTMLElement>(null);
   const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
   const [randomOrder, setRandomOrder] = useState(() => readOrder() === "random");
@@ -226,7 +233,9 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     setTagIds(card?.tags.map((tag) => tag.id) ?? []);
     setNoteDraft(card?.note ?? ""); setTagsOpen(false);
     setEditingCard(false); setNoteOpen(Boolean(card?.note)); setFormattingOpen(false);
-    setLeftOpen(false); setRightOpen(false); setLeftCount(0); setRightCount(0);
+    setLeftOpen(studyMode === "2.1" && study21PreferredOpen());
+    setRightOpen(studyMode === "2.1" && stageWidth >= 1208 && study21PreferredOpen());
+    setLeftCount(0); setRightCount(0);
     setDetailsRequest(null); setExampleActive(false);
     setConfirmDiscard(false); setAddingLabel(false); setLabelDraft(""); setBadgeEditorOpen(false);
     setMessage("");
@@ -257,9 +266,20 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
     return save;
   }
 
+  function rememberDetails21(open: boolean) {
+    if (studyMode !== "2.1") return;
+    try { localStorage.setItem("heuresis.sort.details.v1", open ? "1" : "0"); } catch { /* device preference */ }
+  }
   function toggleBothDetails() {
-    const next = !(leftOpen && rightOpen);
-    setLeftOpen(next); setRightOpen(next);
+    if (studyMode === "2.1") {
+      const next = stageWidth >= 1208 ? !(leftOpen && rightOpen) : !(leftOpen || rightOpen);
+      setLeftOpen(next);
+      setRightOpen(next && stageWidth >= 1208);
+      rememberDetails21(next);
+    } else {
+      const next = !(leftOpen && rightOpen);
+      setLeftOpen(next); setRightOpen(next);
+    }
   }
   async function badgeCreated(badge: HeuresisTag) {
     setLocalBadges(current => [...current, badge]);
@@ -433,7 +453,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
           formattingButton.current?.focus();
           return;
         }
-        if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setLeftOpen(false); setRightOpen(false); return; }
+        if (enrichmentOpen && !busy && !enrichmentBlocked && !filtersOpen) { event.preventDefault(); setLeftOpen(false); setRightOpen(false); rememberDetails21(false); return; }
         if (!busy && !enrichmentBlocked) { event.preventDefault(); if (filtersOpen && sessionStarted) setFiltersOpen(false); else void closeSort(); }
         return;
       }
@@ -483,28 +503,42 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
   const blockExample = card && !exampleText ? firstExampleBlock(card.data) : null;
   const decisionWaiting = saving > 0;
   function openDetailsFor(request: Omit<DetailsRequest, "nonce">) {
-    if (["examples","neighbours","components","structure","origin"].includes(request.dim)) setLeftOpen(true);
-    else setRightOpen(true);
+    const onLeft = ["examples","neighbours","components","structure"].includes(request.dim) || (studyMode !== "2.1" && request.dim === "origin");
+    if (onLeft) { setLeftOpen(true); if (studyMode === "2.1" && stageWidth < 1208) setRightOpen(false); }
+    else { setRightOpen(true); if (studyMode === "2.1" && stageWidth < 1208) setLeftOpen(false); }
+    rememberDetails21(true);
     setDetailsRequest({ ...request, nonce: Date.now() });
   }
 
   const showSetup = filtersOpen && unsorted.length > 0;
+  const isStudy21 = studyMode === "2.1" && !showSetup;
+  const detailPanelWidth = Math.min(368, Math.max(260, stageWidth >= 1208 ? Math.floor((stageWidth - 628) / 2) : stageWidth - 524));
+  const longTerm = card ? fieldText(card.data, term?.key) : "";
+  const weightedLength = (text: string) => Array.from(text).reduce((sum, ch) => sum + (/[㐀-鿿]/.test(ch) ? 1.9 : 1), 0);
+  const longestWord = Math.max(1, ...longTerm.split(/\s+/).map(weightedLength));
+  const termLength = weightedLength(longTerm);
+  const baseTermSize = termLength <= 14 ? 104 : termLength <= 22 ? 88 : termLength <= 34 ? 66 : termLength <= 52 ? 52 : 42;
+  const centreWidth = stageWidth >= 1208 ? stageWidth - (leftOpen ? detailPanelWidth + 40 : 64) - (rightOpen ? detailPanelWidth + 40 : 64) : stageWidth < 780 ? stageWidth - 48 : stageWidth - detailPanelWidth - 80;
+  const termSize = Math.max(28, Math.min(baseTermSize, Math.floor(Math.max(240, centreWidth - 110) / (longestWord * .57))));
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
-  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={showSetup ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (enrichmentOpen ? " sort-modal--editing" : "")}
-    style={showSetup ? undefined : backgroundStyle} data-custom-background={!showSetup && backgroundStyle ? "new-cards" : undefined}
+  return createPortal(<div className="sort-backdrop"><section ref={dialogRef} tabIndex={-1} className={showSetup ? "sort-modal sort-modal--setup" : "sort-modal sort-modal--session" + (isStudy21 ? " study21 study21--new" : "") + (enrichmentOpen ? " sort-modal--editing" : "")}
+    style={showSetup ? undefined : isStudy21 ? { ...backgroundStyle, "--study21-panel-w": detailPanelWidth + "px", "--study21-term-size": termSize + "px", "--study21-centre-width": Math.max(260, centreWidth) + "px" } as CSSProperties : backgroundStyle} data-custom-background={!showSetup && backgroundStyle ? "new-cards" : undefined}
     role="dialog" aria-modal="true" aria-label="New cards">
 
+    {isStudy21 ? <div className="study21-progress-edge" aria-hidden="true"><i style={{ width: (progressTarget ? Math.min(100, learned / progressTarget * 100) : 0) + "%" }} /></div> : null}
     <header className="sort-topbar">
       <div className="sort-new-heading"><span className="sort-stage-chip">● New</span><strong>{pack.title}</strong></div>
-      {filtersOpen && unsorted.length ? null : <div className="sort-top-progress" aria-label={`${learned} of ${progressTarget} new cards validated`}><span>{learned} of {progressTarget}</span><div className="sort-progress-track"><div style={{width: `${progressTarget ? Math.min(100, learned / progressTarget * 100) : 0}%`}} /></div></div>}
+      {isStudy21 && card ? <div className="study21-top-centre"><span>{Math.min(progressTarget, learned + 1)} / {progressTarget}</span><i aria-hidden="true"/><button type="button" disabled={busy} onClick={() => void later()}><Clock3 size={14}/> Later</button><button type="button" disabled={busy} onClick={() => setConfirmDiscard(true)}><Trash2 size={14}/> Discard</button></div> : null}
+      {filtersOpen && unsorted.length || isStudy21 ? null : <div className="sort-top-progress" aria-label={`${learned} of ${progressTarget} new cards validated`}><span>{learned} of {progressTarget}</span><div className="sort-progress-track"><div style={{width: `${progressTarget ? Math.min(100, learned / progressTarget * 100) : 0}%`}} /></div></div>}
       <div className="sort-topbar-actions">
         {filtersOpen && unsorted.length ? <span className="sort-setup-pending"><span className="sort-setup-pending-dot" aria-hidden="true" /> {unsorted.length} awaiting sorting</span> : null}
-        {sessionStarted && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
-        {!filtersOpen && card ? <button type="button" disabled={busy} aria-label="Card colours"
+        {sessionStarted && !isStudy21 && !fastStart && !startCardId ? <button type="button" className="sort-filter-open" aria-expanded={filtersOpen} disabled={busy || enrichmentBlocked || editingCard} onClick={() => setFiltersOpen((open) => !open)}><Search size={15} /> {filtersOpen ? "Back to cards" : "Change selection"}</button> : null}
+        {!filtersOpen && card && !isStudy21 ? <button type="button" disabled={busy} aria-label="Card colours"
           title="Card colours" aria-expanded={colourEditorOpen} onClick={() => setColourEditorOpen(value => !value)}><Palette size={18} /></button> : null}
-        {colourEditorOpen ? <div className="sort-colour-editor-popover"><CardColoursEditor /></div> : null}
+        {isStudy21 && card ? <button className="study21-top-details" type="button" disabled={busy} aria-expanded={enrichmentOpen} onClick={toggleBothDetails}><PanelLeftOpen size={15}/> Details <small>{detailsCount}</small></button> : null}
+        {colourEditorOpen && !isStudy21 ? <div className="sort-colour-editor-popover"><CardColoursEditor /></div> : null}
         <button type="button" disabled={busy} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
@@ -594,17 +628,20 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
       </button> : null}
     </div> : null}
     {!filtersOpen && card ? <div className="sort-session-stage">
+      {isStudy21 && stageWidth < 780 && enrichmentOpen ? <button type="button" className="study21-panel-scrim" aria-label="Close details" onClick={() => {setLeftOpen(false);setRightOpen(false);rememberDetails21(false);}}/> : null}
+      {isStudy21 && !leftOpen ? <button className="study21-edge-tab left" type="button" onClick={() => {setLeftOpen(true);if (stageWidth < 1208) setRightOpen(false);rememberDetails21(true);}}>LANGUAGE · {leftCount}</button> : null}
+      {isStudy21 && !rightOpen ? <button className="study21-edge-tab right" type="button" onClick={() => {setRightOpen(true);if (stageWidth < 1208) setLeftOpen(false);rememberDetails21(true);}}>KNOWLEDGE · {rightCount}</button> : null}
       <div id="sort-language-details" className={"sort-editing-tools sort-editing-tools--left" + (leftOpen ? " is-open" : "")}>
-        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => setLeftOpen(false)}>×</button>
+        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => { setLeftOpen(false); if (!rightOpen) rememberDetails21(false); }}>×</button>
         <SortEnrichmentPanel key={card.id + "-language"} pack={pack} card={card} side="language" onChanged={onChanged}
-          request={detailsRequest && ["examples","neighbours","components","structure","origin"].includes(detailsRequest.dim) ? detailsRequest : null}
+          study21={isStudy21} request={detailsRequest && (["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setLeftBlocked} onCountChange={setLeftCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <div id="sort-knowledge-details" className={"sort-editing-tools sort-editing-tools--right" + (rightOpen ? " is-open" : "")}>
-        <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => setRightOpen(false)}>×</button>
+        <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => { setRightOpen(false); if (!leftOpen) rememberDetails21(false); }}>×</button>
         <SortEnrichmentPanel key={card.id + "-knowledge"} pack={pack} card={card} side="knowledge" onChanged={onChanged}
-          request={detailsRequest && !["examples","neighbours","components","structure","origin"].includes(detailsRequest.dim) ? detailsRequest : null}
+          study21={isStudy21} quickNote={noteDraft} onQuickNoteChange={setNoteDraft} request={detailsRequest && !(["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
           trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
@@ -612,10 +649,12 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
         <div className="sort-new-card-header">
           <div className="sort-header-tags">
             <button type="button" disabled={busy} onClick={() => setTagsOpen(v => !v)}
-              aria-label="Add tag" aria-expanded={tagsOpen} title="Add tag (T)"><Tag size={14} /> Tag</button>
+              aria-label="Add tag" aria-expanded={tagsOpen} title="Add tag">{isStudy21 ? "+ Tag" : <><Tag size={14} /> Tag</>}</button>
             {tags.filter(tag => !tag.is_badge && tagIds.includes(tag.id)).map(tag =>
               <button type="button" key={tag.id} disabled={busy} onClick={() => void toggleTag(tag.id)} title={"Remove " + tag.name}># {tag.name}</button>)}
             {tagsOpen ? <div className="sort-new-tag-popover">
+              {isStudy21 ? <div><small>LABELS</small>{cardLabels(card.data).map(label => <button type="button" key={label} onClick={() => removeLabel(label)} title={"Remove " + label}>{label} ×</button>)}{addingLabel ? <input autoFocus value={labelDraft} aria-label="New label" placeholder="Label" onChange={event => setLabelDraft(event.target.value)} onKeyDown={event => {if(event.key==="Enter"){event.preventDefault();addLabel();}if(event.key==="Escape"){event.preventDefault();setAddingLabel(false);}}}/> : <button type="button" onClick={() => setAddingLabel(true)}>+ Label</button>}</div> : null}
+              {isStudy21 && localBadges.length ? <div><small>BADGES</small>{localBadges.map(tag => renderTag(tag))}</div> : null}
               {lessonTags.length ? <div><small>LESSONS</small>{lessonTags.map((tag) => renderTag(tag))}</div> : null}
               {otherTags.length ? <div><small>OTHER TAGS</small>{otherTags.map((tag) => renderTag(tag))}</div> : null}
               {!tags.length ? <p>Create tags in Settings.</p> : null}
@@ -664,6 +703,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
               className="term" onEditingChange={setEditingCard}
               onCommit={(value) => saveInlineField(term.key, value)} /> : null}
 
+            {isStudy21 && term ? <button type="button" className="study21-term-audio" aria-label="Listen to term" title="Listen" onClick={() => { const text = fieldText(card.data, term.key); const locale = reviewSpeechLanguage(text, pack.title, pack.cardType?.name ?? "", "term"); if (!speakReviewText(text, locale)) setMessage("No voice installed for " + locale + " on this device."); }}><Volume2 size={18}/></button> : null}
           </div>
           <span className="sort-new-rule" aria-hidden="true" />
           {reading ? <InlineSortText key={card.id + reading.key} value={fieldText(card.data, reading.key)}
@@ -674,7 +714,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
             label={meaning.label} placeholder="add the meaning" required={meaning.required} multiline
             className="meaning" disabled={busy} onEditingChange={setEditingCard}
             onCommit={(value) => saveInlineField(meaning.key, value)} /> : null}
-          {showExamples ? <div className="sort-new-example">
+          {showExamples || isStudy21 ? <div className="sort-new-example">
             {exampleField && !blockExample ? <>
               <SelectableSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)} language={selectedLanguage}
                 label="Example sentence" placeholder="+ Example sentence" disabled={busy} multiline
@@ -689,7 +729,7 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
                 <span>{blockExample.sentence}</span>{blockExample.translation ? <em>{blockExample.translation}</em> : null}
               </button>
               : <button type="button" className="sort-new-add-example" disabled={busy}
-                onClick={() => openDetailsFor({ dim: "examples" })}>+ Example sentence</button>}
+                onClick={() => openDetailsFor({ dim: "examples" })}>{isStudy21 ? "+ Example" : "+ Example sentence"}</button>}
           </div> : null}
           <div className="sort-new-annotation">
             <div className="sort-card-labels">
@@ -720,7 +760,8 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
             </div>
           </div>
         </div>
-        <div className="sort-new-footer">
+        {isStudy21 ? <NewDock21 importance={importance} disabled={busy || decisionWaiting} onImportance={chooseImportance}
+          onLearn={() => void learn(IMPORTANCE_RANK[importance], "learning")} onReview={() => void learn(IMPORTANCE_RANK[importance], "review")} /> : <div className="sort-new-footer">
           <div className={"sort-new-ratings sort-quiet-tabs" + (decisionWaiting ? " is-waiting" : "")} role="radiogroup" aria-label="Importance">
             {IMPORTANCE_ORDER.map((level,i) => <button key={level} type="button" role="radio"
               aria-checked={importance === level} className={importance === level ? "selected " + level : level}
@@ -735,7 +776,9 @@ export default function SortModal({ pack, cards, tags, backgroundStyle, startCar
             <button type="button" disabled={busy} onClick={() => void later()}><Clock3 size={16}/> Later</button>
           </div>
           {message ? <p className="sort-error" role="alert">{message}</p> : null}
-        </div>
+        </div>}
+      {isStudy21 && message ? <p className="sort-error study21-error" role="alert">{message}</p> : null}
+      {isStudy21 && confirmDiscard ? <div className="sort-discard-confirm study21-discard-confirm" role="alertdialog" aria-label="Discard this card?"><strong>Discard this card?</strong><div><button type="button" onClick={() => setConfirmDiscard(false)}>Cancel</button><button type="button" className="danger" onClick={() => {setConfirmDiscard(false);void discard();}}>Discard</button></div></div> : null}
       </article>
       {lastRemoval ? <div className="sort-new-undo" role="status">
         <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :

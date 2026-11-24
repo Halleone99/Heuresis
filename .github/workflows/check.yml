@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install --ignore-scripts
+      # Compile before source contracts so a stale assertion cannot conceal a TypeScript error.
+      - run: npm run build
       - name: Syntax-check browser verification scripts
         run: for test in verification/tests/*.mjs; do node --check "$test"; done
       - run: node scripts/check-architecture.mjs
@@ -46,6 +48,7 @@ jobs:
       - run: node scripts/check-capture-context.mjs
       - run: node scripts/check-sort-review-flow.mjs
       - run: node scripts/check-topic-tag-browse.mjs
+      - run: node scripts/check-card-metadata.mjs
       - run: node scripts/check-workspace-noise.mjs
       - run: node scripts/check-workspace-signal.mjs
       - run: node scripts/check-notebook-controls.mjs
@@ -67,6 +70,7 @@ jobs:
       - run: node scripts/check-offline-revision-chain.mjs
       - run: node scripts/check-data-integrity-regressions.mjs
       - run: node scripts/check-study-workflow-polish.mjs
+      - run: node scripts/check-study21-contract.mjs
       - run: node scripts/check-final-clarity.mjs
       - run: node scripts/check-learning-stage.mjs
       - run: node scripts/check-review-engine.mjs
@@ -74,7 +78,6 @@ jobs:
       - run: node scripts/check-review-consistency.mjs
       - run: node scripts/check-nonstudy-clarity.mjs
       - run: node scripts/check-notebook-reliability.mjs
-      - run: npm run build
       # Browser fixture tests the CSS actually computed for eight palette/mode pairs.
       # Test-only dependencies: no Playwright package added to the application.
       - name: Install browser for appearance smoke check

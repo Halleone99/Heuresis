@@ -14,10 +14,11 @@ type Props = {
   progress: CardBarProgress;
   historyAvailable: boolean;
   change?: ReviewChange | null;
+  study21?: boolean;
 };
 
 /** The bars carry the count; the caption stays quiet and only real movement gets a marker. */
-export default function ReviewCardStatus({ progress, historyAvailable, change }: Props) {
+export default function ReviewCardStatus({ progress, historyAvailable, change, study21 = false }: Props) {
   const label = progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : progress.bars === 0 ? "Starting" : "Building";
   const reliable = historyAvailable && !progress.estimated;
   const delta = change && reliable ? change.barsAfter - change.barsBefore : 0;
@@ -41,7 +42,7 @@ export default function ReviewCardStatus({ progress, historyAvailable, change }:
     data-trend={trend} data-changed={trend !== "level"} role="status" aria-live="polite"
     aria-label={detail} title={detail}>
     <span className="review-card-status-bars" aria-hidden="true">
-      {[0, 1, 2, 3].map((bar) => <i key={bar} className={`${bar < progress.bars ? "filled" : ""}${gainedFrom >= 0 && bar >= gainedFrom && bar < progress.bars ? " is-new" : ""}`}/>)}
+      {[0, 1, 2, 3].map((bar) => <i key={bar} className={`${bar < progress.bars ? "filled" : ""}${gainedFrom >= 0 && bar >= gainedFrom && bar < progress.bars ? " is-new" : ""}${study21 && change && reliable && delta < 0 && bar >= change.barsAfter && bar < change.barsBefore ? " is-lost" : ""}`}/>)}
     </span>
     <span className="review-card-status-name">{label}</span>
     {trend !== "level" ? <span className={`review-card-status-change${delta > 0 ? " is-gain" : ""}`} aria-hidden="true">
