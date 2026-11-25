@@ -80,6 +80,7 @@ function RichField({ value, className, onChange, placeholder, label }: {
     }}
     onBlur={flush}
     onKeyDown={(event) => {
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyS" && !event.nativeEvent.isComposing) { flush(); return; }
       if (event.key !== " " || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
         || event.ctrlKey || event.altKey || event.metaKey) return;
       const root = event.currentTarget;
@@ -149,6 +150,7 @@ function PlainField({ value, className, onChange, placeholder, label, multiline 
     data-placeholder={placeholder} data-empty={!value.trim() ? "true" : undefined}
     onInput={emit} onBlur={flush}
     onKeyDown={(event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyS" && !event.nativeEvent.isComposing) { flush(); return; }
       if (!multiline && event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
         event.preventDefault();
         ref.current?.blur();
