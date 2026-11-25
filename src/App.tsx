@@ -739,7 +739,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
             <button type="button" className="ws-button" onClick={() => void workspace.reload()}>Try again</button>
           </div> : null}
           {!NOTEBOOK_INDEPENDENT.includes(section) && workspace.loading && !workspace.error ? <LoadingState variant="page" /> : null}
-          {section === "overview" ? <OverviewView packs={packs} studyLoading={loading} studyError={error} onOpenStudy={() => { openLibrary(); setSection("study"); }} /> : null}
+          {section === "overview" ? <OverviewView packs={packs} collections={collections} studyLoading={loading} studyError={error} onOpenStudy={() => { openLibrary(); setSection("study"); }} /> : null}
           {section === "notebook" && !workspace.loading && !workspace.error ? <NotebookView /> : null}
           {section === "mistakes" && !workspace.loading && !workspace.error ? <MistakeLog /> : null}
           {section === "queue" && !workspace.loading && !workspace.error ? <QQueuePage onCapture={() => openNotebookCapture("note")} /> : null}
