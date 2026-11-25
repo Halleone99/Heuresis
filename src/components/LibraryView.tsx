@@ -9,7 +9,6 @@ import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import { readOpenStudy, rememberOpenStudy, type OpenStudySession } from "../lib/studySessionMemory";
 import { relativeOpened } from "../lib/relativeTime";
-import { useAppearance } from "../lib/theme";
 import { readKnowledgeMode, studySelectionKey, writeKnowledgeMode, type KnowledgeMode } from "../lib/studyKnowledgeMode";
 import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
@@ -55,7 +54,6 @@ function newestOpen(packs: PackWithType[]) {
 }
 
 export default function LibraryView({ collections, packs, newCardsWallpaper, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onNewCollection }: Props) {
-  const { design } = useAppearance();
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [knowledgeMode, setKnowledgeMode] = useState<KnowledgeMode>(readKnowledgeMode);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -496,7 +494,8 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
       </header>
 
       <div className="study-workspace">
-        {design === "refined" ? [collectionDesk, activityPanel] : [activityPanel, collectionDesk]}
+        {activityPanel}
+        {collectionDesk}
       </div>
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
         wallpaper={newCardsWallpaper} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds, validated: quickSort.validated,
