@@ -24,6 +24,7 @@ jobs:
           node-version: 22
       - name: Install app and harness dependencies
         run: |
+          sudo apt-get update
           npm install --ignore-scripts
           cd verification && npm install --ignore-scripts && npx playwright install --with-deps chromium
       - name: PDF inspection tools (Catalogue export checks)

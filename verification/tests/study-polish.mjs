@@ -25,7 +25,16 @@ async function desktopStudy() {
     check(await page.locator(".ws-palette-row.is-cards").count() === 1,
       "Study header Search offers full-card search in the same palette");
     await page.keyboard.press("Escape");
-    await page.locator('button:has-text("HSK 2 — Time")').first().click();
+    // Home displays one collection at a time; open the Chinese collection before its topic.
+    const currentCollection = page.locator(".study-desk-title");
+    await currentCollection.waitFor();
+    if ((await currentCollection.innerText()).trim() !== "Chinese") {
+      const chinese = page.locator(".study-desk-mini").filter({ hasText: "Chinese" });
+      if (!(await chinese.count())) await page.locator(".study-desk-all").click();
+      await chinese.click();
+    }
+    await currentCollection.filter({ hasText: "Chinese" }).click();
+    await page.locator(".topic-card-main").filter({ hasText: "HSK 2 — Time" }).click();
     await page.locator(".topic-command-bar").waitFor();
     await page.locator(".topic-browse-hub").waitFor();
     const showAll = page.locator('.topic-browse-actions button:has-text("Show all")');
@@ -106,9 +115,9 @@ async function tabletNavigation() {
     await page.locator('.mobile-workspace-nav button:has-text("Study")').tap();
     await page.locator(".mobile-study-subnav:visible").waitFor();
     check(await page.locator(".mobile-study-subnav button").count() === 4, "Study still exposes all four sub-pages");
-    await page.locator('.mobile-study-subnav button:has-text("Catalogue")').tap();
-    check((await page.locator('.mobile-study-subnav button:has-text("Catalogue")').getAttribute("aria-current")) === "page", "Tablet Catalogue navigation works");
-    await page.locator('.mobile-study-subnav button:has-text("Library")').tap();
+    await page.locator('.mobile-study-subnav button:has-text("All cards")').tap();
+    check((await page.locator('.mobile-study-subnav button:has-text("All cards")').getAttribute("aria-current")) === "page", "Tablet All cards navigation works");
+    await page.locator('.mobile-study-subnav button:has-text("Home")').tap();
     const fab = page.locator(".tablet-capture-fab");
     const beforeDrag = await fab.boundingBox();
     check(Boolean(beforeDrag && beforeDrag.width >= 44), "Capture handle has a 44px+ touch target");
