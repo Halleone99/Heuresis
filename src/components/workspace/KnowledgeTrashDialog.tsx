@@ -4,7 +4,7 @@ import { entryPreview, entryTitle, friendlyError } from "../../lib/knowledgeWork
 import { exportKnowledgeJson, listArchivedKnowledge, restoreArchivedKnowledge, type ArchivedKnowledgeRow } from "../../lib/knowledgeBackup";
 import { DISCARDED_AT_KEY, fieldByRole, fieldText, listDiscardedCards, listPacks, type CardWithStats, type PackWithType } from "../../lib/heuresis";
 import { deleteDiscardedCard, restoreDiscardedCard } from "../../lib/sort";
-import { Portal } from "./ui";
+import { Portal, useConfirm } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 
 function downloadJson(contents: string, filename: string) {
@@ -22,6 +22,7 @@ function downloadJson(contents: string, filename: string) {
 
 export function KnowledgeTrashDialog({ onClose }: { onClose: () => void }) {
   const workspace = useWorkspace();
+  const [confirmElement, confirm] = useConfirm();
   const [rows, setRows] = useState<ArchivedKnowledgeRow[]>([]);
   const [cards, setCards] = useState<CardWithStats[]>([]);
   const [packs, setPacks] = useState<PackWithType[]>([]);
@@ -94,9 +95,9 @@ export function KnowledgeTrashDialog({ onClose }: { onClose: () => void }) {
       setNotice(`“${cardLabel(card).term}” is back in ${cardLabel(card).pack?.title ?? "its archived topic"}, unsorted, with its history.`);
     });
   }
-  function deleteForever(card: CardWithStats) {
+  async function deleteForever(card: CardWithStats) {
     const { term } = cardLabel(card);
-    if (!window.confirm(`Delete “${term}” permanently? Its review history is deleted too. This cannot be undone.`)) return;
+    if (!await confirm({ title: `Delete “${term}” permanently?`, body: "Its review history is deleted too. This cannot be undone.", confirmLabel: "Delete permanently", danger: true })) return;
     void perform(async () => {
       await deleteDiscardedCard(card.id);
       await refreshCards();
@@ -104,7 +105,7 @@ export function KnowledgeTrashDialog({ onClose }: { onClose: () => void }) {
     });
   }
 
-  return <Portal><div className="ws-dialog-backdrop" role="presentation">
+  return <Portal><div className="ws-dialog-backdrop" role="presentation">{confirmElement}
     <section ref={dialogRef} tabIndex={-1} className="ws-dialog is-wide knowledge-trash" role="dialog" aria-modal="true"
       aria-labelledby="knowledge-trash-title" onKeyDown={(event) => {
         if (event.key === "Escape" && !busy) { event.preventDefault(); onClose(); }
