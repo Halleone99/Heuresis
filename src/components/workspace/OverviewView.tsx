@@ -22,9 +22,9 @@ type ArticleSummary = {
 const DAY_MS = 86400000;
 const ACTIVITY_OPTIONS = [
   { value: "flashcards", label: "Flashcards", unit: "graded review events", tooltip: "graded reviews", stat: "Review events", icon: Layers3 },
-  { value: "notes", label: "Notes", unit: "note creation / latest edit dates", tooltip: "notes", stat: "Note activity days summed", icon: FileText },
+  { value: "notes", label: "Notes", unit: "note creation / latest edit dates", tooltip: "notes", stat: "Note-day entries", icon: FileText },
   { value: "quotes", label: "Quotations", unit: "quotations saved", tooltip: "saved", stat: "Quotations saved", icon: Quote },
-  { value: "articles", label: "Articles", unit: "article creation / latest edit / publication dates", tooltip: "articles", stat: "Article activity days summed", icon: Newspaper },
+  { value: "articles", label: "Articles", unit: "article creation / latest edit / publication dates", tooltip: "articles", stat: "Article-day entries", icon: Newspaper },
 ] as const;
 
 function dayKey(date: Date): string {
@@ -251,7 +251,7 @@ export function OverviewView({ packs, collections, studyLoading, studyError, onO
   const noteAdded = noteTotal === null ? null : documents.filter((note) => inSelectedPeriod(note.created_at)).length;
   const noteUpdated = noteTotal === null ? null : documents.filter((note) => inSelectedPeriod(note.updated_at) && wasEdited(note)).length;
   const quoteTotal = reading.loading || reading.error ? null : quotes.length;
-  const quoteSaved30 = quoteTotal === null ? null : quotes.filter((quote) => inSelectedPeriod(quote.createdAt)).length;
+  const quoteSaved = quoteTotal === null ? null : quotes.filter((quote) => inSelectedPeriod(quote.createdAt)).length;
   const quoteSaveDays = quoteTotal === null ? null : new Set(quotes.filter((quote) => inSelectedPeriod(quote.createdAt)).map((quote) => dateDay(quote.createdAt))).size;
   const articleTotal = articleLoading || articleError || !articles ? null : articles.length;
   const articleAdded = articleTotal === null ? null : articles!.filter((row) => inSelectedPeriod(row.created_at)).length;
@@ -289,6 +289,7 @@ export function OverviewView({ packs, collections, studyLoading, studyError, onO
     let value = 0;
     const end = new Date(date);
     for (let offset = 0; offset < bucketSize; offset++) {
+      end.setTime(date.getTime());
       end.setDate(date.getDate() + offset);
       value += map.get(dayKey(end)) ?? 0;
     }
@@ -298,7 +299,7 @@ export function OverviewView({ packs, collections, studyLoading, studyError, onO
 
   const summary = [
     { key: "flashcards", label: "Flashcards", Icon: Layers3, total: cardTotal, unit: "cards",
-      a: cardAdded, aLabel: "created", b: cardReviewed, bLabel: "distinct cards reviewed",
+      a: cardAdded, aLabel: "created", b: cardReviewed, bLabel: "unique cards reviewed",
       map: flashDays, last: latestDay(flashDays), lastLabel: "Last activity",
       loading: activityLoading || inventoryLoading || studyLoading,
       error: activityError || inventoryError || studyError, open: onOpenStudy },
@@ -307,7 +308,7 @@ export function OverviewView({ packs, collections, studyLoading, studyError, onO
       map: noteDays, last: newestNote ? dateDay(newestNote.updated_at) : null, lastLabel: "Last activity",
       loading: workspace.loading, error: workspace.error, open: () => workspace.goTo("notebook") },
     { key: "quotes", label: "Quotations", Icon: Quote, total: quoteTotal, unit: "quotations",
-      a: quoteSaved30, aLabel: "saved", b: quoteSaveDays, bLabel: "days saved",
+      a: quoteSaved, aLabel: "saved", b: quoteSaveDays, bLabel: "active saving days",
       map: quoteDays, last: newestQuote ? dateDay(newestQuote.createdAt) : null, lastLabel: "Last saved",
       loading: reading.loading, error: reading.error, open: () => workspace.goTo("quotations") },
     { key: "articles", label: "Articles", Icon: Newspaper, total: articleTotal, unit: "articles",
