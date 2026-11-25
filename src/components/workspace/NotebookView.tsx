@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Download, FilePlus2, FolderInput, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
+import { Check, CheckSquare, ChevronDown, ChevronRight, CircleHelp, Columns2, Download, FilePlus2, FolderInput, FolderPlus, GraduationCap, LayoutGrid, List, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ListChecks, TableProperties, Trash2, Pin, PinOff, Search, X } from "lucide-react";
 import {
   entryTitle, isDocument, isLesson, isOpenQuestion, localDateKey, normaliseSearch,
   type KnowledgeEntry, type KnowledgeTopic,
@@ -13,16 +13,20 @@ import { DocumentPage } from "./DocumentPage";
 import { quickQueueKind } from "../../lib/quickQueue";
 import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
+import { matchesReference, noteReferenceText, referenceTerms } from "../../lib/noteReference";
+import { useNotesVersion } from "../../lib/notesVersion";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { SubjectCard } from "./SubjectCard";
 import { NotebookSidebarTree } from "./NotebookSidebarTree";
+import { NotebookBoard } from "./NotebookBoard";
 import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, usePopover, useProgressiveList } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 import "./notebook-views.css";
 
 type ListFilter = "all" | "notes" | "questions";
 type NoteSort = "updated" | "created" | "title" | "icon" | "colour";
-type NoteView = "cards" | "list" | "details";
+type NoteView = "cards" | "list" | "details" | "board";
+type TopicReferenceState = { query?: string; selectedId?: string };
 export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string; draftKey?: string } | null;
 
 // Sidebar actions open the same editor as the Notebook's own New menu.
@@ -41,6 +45,7 @@ function docSortKey(entry: KnowledgeEntry) {
 
 export function NotebookView() {
   const workspace = useWorkspace();
+  const notesV2 = useNotesVersion() === "2.0";
   const { memory, updateMemory, snapshot, entryById, topicById, subjectById } = workspace;
   const location = memory.notebook;
   const [history, setHistory] = useState<NotebookLocation[]>([]);
@@ -52,6 +57,7 @@ export function NotebookView() {
   // A new note keeps the same page instance once it has been saved for the first time,
   // so the editor (caret, undo history) is not reset under the user's fingers.
   const stableKeys = useRef(new Map<string, string>());
+  const topicReferences = useRef(new Map<string, TopicReferenceState>());
 
   const internalNavigation = useRef(false);
   const previousLocation = useRef<NotebookLocation>({ topicId: location.topicId, docId: location.docId, subjectId: location.subjectId ?? null });
@@ -210,14 +216,15 @@ export function NotebookView() {
   if (workspace.loading && !snapshot.subjects.length) main = <div className="ws-loading" role="status"><span className="ws-spinner" />Opening your notebook…</div>;
   else if (newDoc) main = <DocumentPage key={`new-${newDoc.draftKey ?? newDoc.topicId}`} entry={null} newDoc={newDoc} onBack={goBack} onClose={() => closeDocument(newDoc!.topicId)} navigate={navigate}
     onCreated={(created) => { stableKeys.current.set(created.id, `new-${newDoc.draftKey ?? newDoc.topicId}`); setNewDoc(null); navigate({ topicId: created.topic_id, docId: created.id }, { push: false }); }}
-    onNewNote={startNewNote} newAction={newAction} />;
+    onNewNote={startNewNote} newAction={newAction} notesV2={notesV2} />;
   else if (doc && isDocument(doc)) main = <DocumentPage key={stableKeys.current.get(doc.id) ?? doc.id} entry={doc} newDoc={null} onBack={goBack} onClose={() => closeDocument(doc.topic_id)} navigate={navigate} onCreated={() => undefined} onNewNote={startNewNote} newAction={newAction}
-    onDetach={() => void openNoteWindow({ noteId: doc.id }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }))} />;
-  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction} />;
-  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} />;
+    notesV2={notesV2} onDetach={() => void openNoteWindow({ noteId: doc.id }).catch((error) => workspace.toast(friendlyError(error), { tone: "error" }))} />;
+  else if (topic) main = <ScopePage key={topic.id} scope={{ topic }} navigate={navigate} newAction={newAction}
+    notesV2={notesV2} topicReferences={topicReferences.current} />;
+  else if (subject) main = <ScopePage key={subject.id} scope={{ subjectId: subject.id }} navigate={navigate} newAction={newAction} notesV2={notesV2} />;
   else main = <NotebookHome navigate={navigate} newAction={newAction} onShowCaptures={() => workspace.goTo("queue")} />;
 
-  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
+  return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""} ${notesV2 ? "nb-notes-v2" : ""}`}>
     <aside className="nb-rail" aria-label="Notebook topics">
       <NotebookSidebarTree drawer onNavigate={navigate} onNewNote={(id) => { setRailOpenMobile(false); startNewNote(id); }}/>
     </aside>
@@ -277,10 +284,12 @@ export function RowMenu({ label, items, icon, buttonLabel, align = "left" }: { l
 // ---------------------------------------------------------------------------
 // Topic or subject page: what lives here, newest first
 // ---------------------------------------------------------------------------
-function ScopePage({ scope, navigate, newAction }: {
+function ScopePage({ scope, navigate, newAction, notesV2, topicReferences }: {
   scope: { topic: KnowledgeTopic } | { subjectId: string };
   navigate: (location: NotebookLocation) => void;
   newAction: React.ReactNode;
+  notesV2: boolean;
+  topicReferences?: Map<string, TopicReferenceState>;
 }) {
   const workspace = useWorkspace();
   const { snapshot, memory, updateMemory } = workspace;
@@ -298,7 +307,11 @@ function ScopePage({ scope, navigate, newAction }: {
   };
 
   const filter: ListFilter = memory.notebook.filter === "lessons" ? "all" : memory.notebook.filter;
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => notesV2 && topic ? topicReferences?.get(topic.id)?.query ?? "" : "");
+  const [previewId, setPreviewId] = useState(() => topic ? topicReferences?.get(topic.id)?.selectedId : undefined);
+  const rememberTopicReference = (patch: TopicReferenceState) => {
+    if (notesV2 && topic) topicReferences?.set(topic.id, { ...topicReferences.get(topic.id), ...patch });
+  };
   const [sort, setSort] = useState<NoteSort>(() => {
     try {
       const stored = localStorage.getItem("heuresis:notebook:sort");
@@ -310,16 +323,22 @@ function ScopePage({ scope, navigate, newAction }: {
   }, [sort]);
   const [iconFilter, setIconFilter] = useState("all");
   // A reading preference belongs to the device, not to individual notes or the database.
-  const [view, setView] = useState<NoteView>(() => {
+  const viewKey = notesV2 ? "heuresis:notebook:view:v2" : "heuresis:notebook:view";
+  const storedView = (key: string): NoteView => {
     try {
-      const saved = window.localStorage.getItem("heuresis:notebook:view");
-      return saved === "cards" || saved === "list" || saved === "details" ? saved : "cards";
-    } catch { return "cards"; }
-  });
-  useEffect(() => {
-    try { window.localStorage.setItem("heuresis:notebook:view", view); } catch { /* Private browsing may forbid storage. */ }
-  }, [view]);
+      const saved = window.localStorage.getItem(key);
+      if (saved === "cards" || saved === "list" || saved === "details") return saved;
+    } catch { /* Optional device preference. */ }
+    return notesV2 ? "board" : "cards";
+  };
+  const [viewPreference, setViewPreference] = useState(() => ({ key: viewKey, view: storedView(viewKey) }));
+  const view = viewPreference.key === viewKey ? viewPreference.view : storedView(viewKey);
+  const setView = (value: NoteView) => {
+    setViewPreference({ key: viewKey, view: value });
+    try { localStorage.setItem(viewKey, value); } catch { /* Optional device preference. */ }
+  };
   const [selecting, setSelecting] = useState(false);
+  const listView = view === "board" ? "list" : view;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [selectionBusy, setSelectionBusy] = useState(false);
@@ -337,6 +356,13 @@ function ScopePage({ scope, navigate, newAction }: {
   };
   const icons = [...new Set(docs.map((entry) => entry.icon).filter((icon): icon is string => Boolean(icon)))].sort((a, b) => a.localeCompare(b));
   const query = normaliseSearch(search.trim());
+  const terms = referenceTerms(query);
+  const searching = Boolean(query);
+  const referenceIndex = useMemo(() => {
+    if (!notesV2 || !searching || !topic) return null;
+    return new Map(snapshot.entries.filter((entry) => entry.topic_id === topic.id && isDocument(entry))
+      .map((entry) => [entry.id, noteReferenceText(entry)]));
+  }, [notesV2, searching, snapshot.entries, topic]);
   const visibleBodyText = (body: string) => body.split("\n")
     .filter((line) => !line.startsWith(HAND_NOTE_PREFIX))
     .map(inlinePlain).join("\n");
@@ -344,6 +370,7 @@ function ScopePage({ scope, navigate, newAction }: {
     if (filter !== "all" && (filter === "questions") !== isOpenQuestion(entry)) return false;
     if (iconFilter === "none" && entry.icon) return false;
     if (iconFilter !== "all" && iconFilter !== "none" && entry.icon !== iconFilter) return false;
+    if (referenceIndex) return matchesReference(referenceIndex.get(entry.id) ?? "", terms);
     return !query || normaliseSearch(entryTitle(entry)).includes(query)
       || (!quickQueueKind(entry) && normaliseSearch(entry.description).includes(query))
       || normaliseSearch(visibleBodyText(entry.body)).includes(query);
@@ -491,8 +518,11 @@ function ScopePage({ scope, navigate, newAction }: {
         </div>
         <div className="nb-list-tools">
           <label className="nb-list-search"><Search size={15} aria-hidden="true" />
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
-              placeholder="Find a note…" aria-label="Search notes in this topic" />
+            <input type="search" value={search} onChange={(event) => {
+              setSearch(event.target.value);
+              rememberTopicReference({ query: event.target.value });
+            }}
+              placeholder={notesV2 ? "Find notes or phrases…" : "Find a note…"} aria-label="Search notes in this topic" />
           </label>
           <select aria-label="Filter notes by symbol" value={iconFilter} onChange={(event) => setIconFilter(event.target.value)}>
             <option value="all">All symbols</option>
@@ -507,9 +537,10 @@ function ScopePage({ scope, navigate, newAction }: {
             <option value="colour">By colour</option>
           </select>
           <div className="nb-view-switch" role="group" aria-label="Note layout">
-            {([{ key: "cards", icon: <LayoutGrid size={16} />, label: "Cards" },
+            {([{ key: "board", icon: <Columns2 size={16} />, label: "Board" },
+              { key: "cards", icon: <LayoutGrid size={16} />, label: "Cards" },
               { key: "list", icon: <List size={16} />, label: "List" },
-              { key: "details", icon: <TableProperties size={16} />, label: "Details" }] as const).map((option) =>
+              { key: "details", icon: <TableProperties size={16} />, label: "Details" }] as const).filter((option) => notesV2 || option.key !== "board").map((option) =>
               <button key={option.key} type="button" title={`${option.label} view`}
                 aria-label={`${option.label} view`} aria-pressed={view === option.key}
                 className={view === option.key ? "is-active" : ""}
@@ -531,8 +562,14 @@ function ScopePage({ scope, navigate, newAction }: {
         <button type="button" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("unpin")}><PinOff size={14}/> Unpin</button>
         <button type="button" className="is-danger" disabled={!selected.length || selectionBusy} onClick={() => void applyToSelection("delete")}><Trash2 size={14}/> Delete</button>
       </div> : null}
-      {shown.length ? <>{view === "details" ? <div className="nb-details-header" aria-hidden="true"><span>Name</span><span>Modified</span><span>Type</span></div> : null}
-      <ul className={`nb-doc-list nb-display-${view} ${selecting ? "is-selecting" : ""}`} aria-label={`${title} notes`}>
+      {view === "board" && !selecting ? <NotebookBoard notes={shown} query={search}
+        selectedId={previewId} onSelect={(id) => { setPreviewId(id); rememberTopicReference({ selectedId: id }); }}
+        onOpen={(entry) => {
+          rememberTopicReference({ selectedId: entry.id });
+          navigate({ topicId: entry.topic_id, docId: entry.id });
+        }}/> : shown.length ?
+      <>{listView === "details" ? <div className="nb-details-header" aria-hidden="true"><span>Name</span><span>Modified</span><span>Type</span></div> : null}
+      <ul className={`nb-doc-list nb-display-${listView} ${selecting ? "is-selecting" : ""}`} aria-label={`${title} notes`}>
         {page.visible.map((entry) => {
           const captures = isLesson(entry) ? snapshot.entries.filter((row) => row.lesson_id === entry.id).length : 0;
           const kindLabel = isLesson(entry) ? "Note" : entryKindLabel(entry);

@@ -2,14 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createPortal } from "react-dom";
 import {
   ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, Copy, FolderInput, GraduationCap, Layers, ListPlus,
-  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, Printer, Trash2, X,
+  MoreHorizontal, Pencil, Pin, Radio, RotateCcw, ListChecks, Languages, ExternalLink, PanelsTopLeft, Printer, Trash2, X,
 } from "lucide-react";
 import {
   CATEGORY_LABELS, entryTitle, friendlyError, isLegacyLesson, isLesson, isOpenQuestion, loadKnowledge, localDateKey, mistakeStage,
   type KnowledgeEntry, type NoteCategory,
 } from "../../lib/knowledgeWorkspace";
 import { canonicalMarkdown, wikiLinks } from "../../lib/noteFormat";
-import { isAndroidRuntime } from "../../lib/platform";
+import { isAndroidRuntime, prefersSingleWindowNavigation } from "../../lib/platform";
+import { findNotebookLink } from "../../lib/noteReference";
+import { NoteWindowBlockedError, openNoteWindow } from "../../lib/noteWindow";
 import { adoptOwnSaveRevision } from "../../lib/noteRevision";
 import { readDocumentDraft, writeDocumentDraft, type NotebookLocation } from "../../lib/workspaceMemory";
 import { getOfflineSyncState, subscribeOfflineSync } from "../../lib/offlineFetch";
@@ -38,12 +40,12 @@ function draftFromEntry(entry: KnowledgeEntry | null, newDoc: NewDocRequest): Dr
   };
 }
 
-export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote, newAction, onDetach, startInEditMode = false, detached = false }: {
+export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreated, onNewNote, newAction, onDetach, startInEditMode = false, detached = false, notesV2 = false, returnToCompanion = false }: {
   entry: KnowledgeEntry | null; newDoc: NewDocRequest; onBack: () => void; onClose: () => void;
   navigate: (location: NotebookLocation) => void; onCreated: (entry: KnowledgeEntry) => void;
   onNewNote: (topicId: string | null, title?: string) => void;
   newAction?: React.ReactNode;
-  onDetach?: () => void; startInEditMode?: boolean; detached?: boolean;
+  onDetach?: () => void; startInEditMode?: boolean; detached?: boolean; notesV2?: boolean; returnToCompanion?: boolean;
 }) {
   const workspace = useWorkspace();
   const { userId, snapshot } = workspace;
@@ -85,20 +87,23 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
     try { localStorage.setItem(`heuresis.notebook.reader.v1:${userId}`, JSON.stringify(readerPrefs)); }
     catch { /* Preferences are local and optional. */ }
   }, [readerPrefs, userId]);
-  const [readMode, setReadMode] = useState<NotebookReadMode>(() => {
+  const readModeKey = `heuresis.notebook.readmode.${notesV2 ? "v2" : "v1"}:${userId}`;
+  const storedMode = (key: string): NotebookReadMode => {
     try {
-      const saved = localStorage.getItem("heuresis.notebook.readmode.v1:" + userId);
-      return saved === "canvas" || saved === "study" ? saved : "document";
+      const saved = localStorage.getItem(key);
+      return saved === "canvas" || saved === "study" || (notesV2 && saved === "lesson") ? saved : "document";
     } catch { return "document"; }
-  });
+  };
+  const [readerMode, setReaderMode] = useState(() => ({ key: readModeKey, mode: storedMode(readModeKey) }));
+  const readMode = readerMode.key === readModeKey ? readerMode.mode : storedMode(readModeKey);
+  const setReadMode = (mode: NotebookReadMode) => {
+    setReaderMode({ key: readModeKey, mode });
+    try { localStorage.setItem(readModeKey, mode); } catch { /* Optional reading preference. */ }
+  };
   const [canvasColumns, setCanvasColumns] = useState<2 | 3>(() => {
     try { return localStorage.getItem("heuresis.notebook.columns.v1:" + userId) === "3" ? 3 : 2; }
     catch { return 2; }
   });
-  useEffect(() => {
-    try { localStorage.setItem("heuresis.notebook.readmode.v1:" + userId, readMode); }
-    catch { /* Preferences are optional. */ }
-  }, [readMode, userId]);
   useEffect(() => {
     try { localStorage.setItem("heuresis.notebook.columns.v1:" + userId, String(canvasColumns)); }
     catch { /* Preferences are optional. */ }
@@ -353,10 +358,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
   }
 
   const resolveLink: LinkResolver = useCallback((target: string) => {
-    const wanted = target.toLocaleLowerCase();
-    const subjectId = workspace.topicById.get(draft.topicId)?.subject_id;
-    const matches = snapshot.entries.filter((row) => row.kind !== "mistake" && entryTitle(row).toLocaleLowerCase() === wanted);
-    const match = matches.find((row) => workspace.topicById.get(row.topic_id)?.subject_id === subjectId) ?? matches[0];
+    const match = findNotebookLink(target, draft.topicId, snapshot.entries, workspace.topicById);
     return {
       exists: Boolean(match),
       open: () => match ? navigate({ topicId: match.topic_id, docId: match.id }) : onNewNote(draft.topicId, target),
@@ -492,7 +494,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         : save.kind === "error" ? save.message ?? "Could not save"
           : save.kind === "invalid" ? save.message ?? "" : entryIdRef.current ? "All changes saved" : "Not saved yet";
 
-  return <article className={`nb-doc ${editing ? "is-editing" : ""} ${lesson ? "is-lesson" : ""} ${!editing ? "is-" + readMode : ""}`} style={readerStyle} aria-label={title || "New note"}>
+  const readerClass = readMode === "lesson" ? "is-lesson-view" : `is-${readMode}`;
+  return <article className={`nb-doc ${editing ? "is-editing" : readerClass} ${lesson ? "is-lesson" : ""}`} style={readerStyle} aria-label={title || "New note"}>
     {printing && createPortal(<div className="nb-print-root" aria-label="Printable note">
       <header className="nb-print-header">
         <small>{[path.subject?.name, ...path.chain.map((item) => item.name)].filter(Boolean).join(" · ")}</small>
@@ -514,7 +517,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         </>}
       </nav>
       <div className="nb-doc-actions">
-        {!editing ? <NoteViewSwitcher mode={readMode} onChange={setReadMode} /> : null}
+        {!editing ? <NoteViewSwitcher mode={readMode} onChange={setReadMode} enhanced={notesV2} /> : null}
         {!editing && readMode === "document" ? <details className="nb-reader-settings">
           <summary title="Reading appearance" aria-label="Reading appearance">Aa</summary>
           <div className="nb-reader-panel">
@@ -542,6 +545,14 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           <button type="button" className="ws-button is-primary" onClick={() => void finishEditing()} title={`Done (${MOD_KEY}+Enter)`}><Check size={15} /> Done</button>
         </> : <>
           <div className="nb-doc-primary-actions">
+            {notesV2 && liveEntry && !detached && !prefersSingleWindowNavigation() ? <button type="button"
+              className="ws-icon-button nb-v2-companion-action" aria-label="Open lesson companion" title="Open lesson companion"
+              onClick={() => void openNoteWindow({ noteId: liveEntry.id, companion: true }).catch((error) => {
+                if (error instanceof NoteWindowBlockedError) {
+                  setReadMode("lesson");
+                  workspace.toast("Pop-up blocked. Lesson view opened here.");
+                } else workspace.toast(friendlyError(error), { tone: "error" });
+              })}><PanelsTopLeft size={17}/></button> : null}
             {workspace.writable ? <button type="button" className="ws-button" onClick={() => startEditing()} title="Edit (E)"><Pencil size={14} /> Edit</button> : null}
             {newAction}
           </div>
@@ -556,7 +567,11 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
             onNewNote={detached && workspace.writable ? () => onNewNote(draft.topicId) : undefined}
             onDelete={workspace.writable ? () => void remove() : undefined} /> : null}
         </>}
-        <button type="button" className="ws-icon-button nb-doc-close" aria-label="Close note" title="Close note (Esc)" onClick={() => void closeNote()}><X size={16} /></button>
+        <button type="button" className="ws-icon-button nb-doc-close"
+          aria-label={returnToCompanion ? "Back to companion" : "Close note"}
+          title={returnToCompanion ? "Back to companion (Esc)" : "Close note (Esc)"} onClick={() => void closeNote()}>
+          {returnToCompanion ? <ArrowLeft size={16}/> : <X size={16}/>}
+        </button>
       </div>
     </div>
 
@@ -646,7 +661,7 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
           <Languages size={14}/> Pinyin above Hanzi
         </button>
       </div> : null}
-      {draft.body.trim() ? <NoteReadingViews text={draft.body} mode={readMode} resolve={resolveLink} rubyPinyin={rubyPinyin} columns={canvasColumns} onColumnsChange={setCanvasColumns}
+      {draft.body.trim() ? <NoteReadingViews text={draft.body} mode={readMode} resolve={resolveLink} rubyPinyin={rubyPinyin} columns={canvasColumns} onColumnsChange={setCanvasColumns} enhanced={notesV2}
         foldStorageKey={liveEntry?.id ? `heuresis.notebook.collapsed.v1:${userId}:${liveEntry.id}` : undefined} />
         : <p className="ws-muted nb-doc-empty">{lesson ? "No lesson notes written yet." : "This note is empty."}</p>}
       {workspace.writable && !detached ? <button type="button" className="nb-continue" onClick={() => startEditing("end")}><Pencil size={13} /> {draft.body.trim() ? "Add to this" : "Start writing"}</button> : null}

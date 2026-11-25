@@ -90,6 +90,7 @@ import "./theme/polish.css";
 import "./theme/refined.css";
 import "./theme/designs.css";
 import "./theme/wallpaper.css";
+import "./components/workspace/notes-v2.css";
 import "./theme/chrome.css";
 import { BootScreen } from "./components/ui/LoadingState";
 

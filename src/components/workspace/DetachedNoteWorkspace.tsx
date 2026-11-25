@@ -5,23 +5,31 @@ import type { NewDocRequest } from "./NotebookView";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
 import { closeNoteWindow, openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
+import { useNotesVersion } from "../../lib/notesVersion";
+import { NoteCompanion } from "./NoteCompanion";
 import type { NotebookLocation, WorkspaceSection } from "../../lib/workspaceMemory";
 
 /** Existing detached notes open for reading; only new drafts start in edit mode. */
 export function DetachedNoteWorkspace({ userId }: { userId: string }) {
   const [section, setSection] = useState<WorkspaceSection>("notebook");
+  const [companionId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("companion") === "1" ? params.get("noteId") : null;
+  });
   return <WorkspaceProvider userId={userId} section={section} onSection={setSection}>
-    <DetachedNotePage />
+    {companionId ? <NoteCompanion initialId={companionId}/> : <DetachedNotePage />}
   </WorkspaceProvider>;
 }
 
 function DetachedNotePage() {
   const workspace = useWorkspace();
+  const notesV2 = useNotesVersion() === "2.0";
   const [request] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return {
       noteId: params.get("noteId"),
       topicId: params.get("topicId"),
+      fromCompanion: params.get("fromCompanion") === "1",
       draftKey: params.get("draftKey") ?? crypto.randomUUID(),
     };
   });
@@ -32,8 +40,12 @@ function DetachedNotePage() {
   const entry = noteId ? workspace.entryById.get(noteId) ?? null : null;
 
   const close = useCallback(() => {
+    if (request.fromCompanion && noteId) {
+      window.location.replace(`?noteWindow=1&companion=1&noteId=${encodeURIComponent(noteId)}`);
+      return;
+    }
     void closeNoteWindow().catch((error) => workspace.toast(friendlyError(error), { tone: "error" }));
-  }, [workspace]);
+  }, [noteId, request.fromCompanion, workspace]);
 
   const openAnother = useCallback((topicId: string | null) => {
     if (!topicId) { workspace.toast("Choose a topic before creating another note.", { tone: "error" }); return; }
@@ -55,7 +67,7 @@ function DetachedNotePage() {
     window.history.replaceState(null, "", `index.html?${params.toString()}`);
   }, []);
 
-  return <div className="nb-detached-root">
+  return <div className={`nb-detached-root ${notesV2 ? "nb-notes-v2" : ""}`}>
     <header className="nb-window-top">
       <span className="nb-window-brand"><NotebookPen size={16} /> Heuresis <span> / Notebook</span></span>
     </header>
@@ -68,7 +80,7 @@ function DetachedNotePage() {
             : !entry && !newDoc ? <div className="nb-window-message">No note was selected.</div>
               : <DocumentPage key={request.noteId ?? request.draftKey} entry={entry} newDoc={newDoc}
                   onBack={close} onClose={close} navigate={navigate} onNewNote={openAnother}
-                  onCreated={created} detached />}
+                  onCreated={created} detached notesV2={notesV2} returnToCompanion={request.fromCompanion} />}
     </main>
     {workspace.toasts.length ? <div className="nb-window-toasts" role="status">{workspace.toasts.map((item) =>
       <p key={item.id} className={item.tone === "error" ? "is-error" : ""}>{item.message}</p>)}</div> : null}

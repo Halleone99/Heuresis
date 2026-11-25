@@ -17,6 +17,7 @@ import {
 import SortingSettings from "./SortingSettings";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { useStudyMode, writeStudyMode } from "../lib/studyMode";
+import { useNotesVersion, writeNotesVersion, type NotesVersion } from "../lib/notesVersion";
 import CardColoursEditor from "./CardColoursEditor";
 import StructureSettings from "./StructureSettings";
 import { BUILD_COMMIT, buildPlatform } from "../lib/buildInfo";
@@ -37,6 +38,7 @@ const SETTINGS_SECTIONS = [
   { id: "appearance", label: "Appearance" },
   { id: "backgrounds", label: "Backgrounds" },
   { id: "study", label: "Study" },
+  { id: "notes", label: "Notes" },
   { id: "audio", label: "Audio" },
   { id: "sorting", label: "Sorting" },
   { id: "cards", label: "Cards & directions" },
@@ -432,6 +434,20 @@ function StudySettings() {
   </section>;
 }
 
+function NotesSettings() {
+  const version = useNotesVersion();
+  return <section className="settings-rows" aria-label="Notes preferences">
+    <div className="settings-row">
+      <div className="settings-row-label">
+        <strong>Notes version</strong>
+        <span>Notes 2.0 adds the topic Board, Lesson view and a compact desktop companion.</span>
+      </div>
+      <SegmentedChoice<NotesVersion> label="Notes version" className="appearance-mode" value={version} onChange={writeNotesVersion}
+        options={[{ value: "classic", label: "Classic" }, { value: "2.0", label: "Notes 2.0" }]} />
+    </div>
+  </section>;
+}
+
 function AudioSettings() {
   const [autoPronunciation, setAutoPronunciation] = useState(readAutoPronunciation);
 
@@ -472,6 +488,7 @@ export default function SettingsModal({ backgrounds, packs, collections, onDataC
           {tab === "appearance" ? <AppearanceSettings /> : null}
           {tab === "backgrounds" ? <BackgroundSettingsPanel backgrounds={backgrounds} /> : null}
           {tab === "study" ? <StudySettings /> : null}
+          {tab === "notes" ? <NotesSettings /> : null}
           {tab === "audio" ? <AudioSettings /> : null}
           {tab === "sorting" ? <SortingSettings /> : null}
           {tab === "cards" ? <StructureSettings packs={packs} collections={collections} onChanged={onDataChanged} /> : null}

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Copy } from "lucide-react";
-import { CALLOUTS, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
+import { CALLOUTS, inlinePlain, parseBlocks, parseInline, pinyinSegments, type Block, type ListItem } from "../../lib/noteFormat";
 import { decodeHandNote } from "../../lib/handNote";
 import { HandNoteDrawing } from "./HandNotePad";
 
-export type LinkResolver = (target: string) => { exists: boolean; open: () => void };
+export type LinkResolver = (target: string) => { exists: boolean; open?: () => void };
 
 /** Render romanized Mandarin with a known Unicode-complete typeface, while
  * keeping the notebook's serif typography for Hanzi and English prose. */
@@ -32,9 +32,10 @@ function InlineText({ text, resolve }: { text: string; resolve?: LinkResolver })
     if (part.type === "tint") return <mark key={index} data-tone={part.colour}><InlineText text={part.text} resolve={resolve}/></mark>;
     if (part.type === "link") {
       const link = resolve?.(part.target);
+      if (link && !link.open) return <span key={index}>{part.label}</span>;
       return <button type="button" key={index} className={`nb-wikilink ${link?.exists ? "" : "is-missing"}`}
         title={link?.exists ? `Open “${part.target}”` : `Create a note called “${part.target}”`}
-        onClick={(event) => { event.stopPropagation(); link?.open(); }}>{part.label}</button>;
+        onClick={(event) => { event.stopPropagation(); link?.open?.(); }}>{part.label}</button>;
     }
     return <span key={index}><PinyinAware text={part.text} /></span>;
   })}</>;
@@ -91,8 +92,8 @@ function rubyEligible(lines: string[]) {
   return lines.length >= 3 && /\p{Script=Han}/u.test(lines[0])
     && !/\p{Script=Han}/u.test(lines[1]) && /[A-Za-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/iu.test(lines[1]);
 }
-function BlockView({ block, resolve, rubyPinyin = false }: {
-  block: Block; resolve?: LinkResolver; rubyPinyin?: boolean;
+function BlockView({ block, resolve, rubyPinyin = false, enhanced = false }: {
+  block: Block; resolve?: LinkResolver; rubyPinyin?: boolean; enhanced?: boolean;
 }) {
   switch (block.type) {
     case "h2": return <h2><InlineText text={block.text} resolve={resolve} /></h2>;
@@ -102,13 +103,18 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
     case "handnote": return <div className="nb-handnote-block" style={{ margin: "12px 0", maxWidth: "100%" }}>
       <HandNoteDrawing strokes={decodeHandNote(block.encoded)} />
     </div>;
-    case "table": return <div className="nb-table-scroll"><table className="nb-table" data-table-style={block.style}>
-      <thead><tr>{block.headers.map((cell, i) => <th scope="col" key={i}><InlineText text={cell} resolve={resolve}/></th>)}</tr></thead>
+    case "table": {
+      const compact = enhanced ? block.headers.map((cell) => /^(#|no\.?|review|status)$/i.test(inlinePlain(cell).trim())) : [];
+      return <div className="nb-table-scroll" tabIndex={enhanced ? 0 : undefined}
+        role={enhanced ? "region" : undefined} aria-label={enhanced ? `Table: ${block.headers.slice(0, 4).map(inlinePlain).join(", ")}` : undefined}>
+      <table className="nb-table" data-table-style={block.style}>
+      <thead><tr>{block.headers.map((cell, i) => <th scope="col" key={i} data-compact={compact[i] || undefined}><InlineText text={cell} resolve={resolve}/></th>)}</tr></thead>
       <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, colIndex) =>
-        <td key={colIndex}><InlineText text={cell} resolve={resolve}/></td>)}</tr>)}</tbody>
+        <td key={colIndex} data-compact={compact[colIndex] || undefined}><InlineText text={cell} resolve={resolve}/></td>)}</tr>)}</tbody>
     </table></div>;
+    }
     case "ul": case "ol": return <>{renderList(block.items, resolve)}</>;
-    case "quote": return <blockquote>{parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} rubyPinyin={rubyPinyin} />)}</blockquote>;
+    case "quote": return <blockquote>{parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} rubyPinyin={rubyPinyin} enhanced={enhanced} />)}</blockquote>;
     case "callout": {
       if (block.variant === "example") {
         return <aside className="nb-callout" data-callout="example">
@@ -129,7 +135,7 @@ function BlockView({ block, resolve, rubyPinyin = false }: {
       }
       return <aside className="nb-callout" data-callout={block.variant}>
         <span className="nb-callout-label">{CALLOUTS[block.variant]}</span>
-        {parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} />)}
+        {parseBlocks(block.lines.join("\n")).map((inner, index) => <BlockView key={index} block={inner} resolve={resolve} enhanced={enhanced} />)}
       </aside>;
     }
     default: return block.text.trim() ? <p><InlineText text={block.text} resolve={resolve} /></p> : <div className="nb-gap" aria-hidden="true" />;
@@ -163,11 +169,12 @@ function groupHeadings(blocks: Block[]): FoldNode[] {
   return root;
 }
 
-function FoldView({ node, resolve, rubyPinyin, closedSections, onToggle }: {
+function FoldView({ node, resolve, rubyPinyin, enhanced, closedSections, onToggle }: {
   node: FoldNode; resolve?: LinkResolver; rubyPinyin: boolean;
+  enhanced: boolean;
   closedSections: ReadonlySet<string>; onToggle: (id: string) => void;
 }) {
-  if (node.kind === "item") return <BlockView block={node.block} resolve={resolve} rubyPinyin={rubyPinyin}/>;
+  if (node.kind === "item") return <BlockView block={node.block} resolve={resolve} rubyPinyin={rubyPinyin} enhanced={enhanced}/>;
   const open = !closedSections.has(node.id);
   const Heading = node.heading.type;
   return <section data-fold-id={node.id} className={`nb-fold ${open ? "is-open" : "is-closed"}`}>
@@ -182,15 +189,17 @@ function FoldView({ node, resolve, rubyPinyin, closedSections, onToggle }: {
       </span>
     </Heading>
     {open ? <div className="nb-fold-content">{node.children.map((child, index) =>
-      <FoldView key={child.kind === "section" ? child.id : index} node={child} resolve={resolve} rubyPinyin={rubyPinyin}
+      <FoldView key={child.kind === "section" ? child.id : index} node={child} resolve={resolve} rubyPinyin={rubyPinyin} enhanced={enhanced}
         closedSections={closedSections} onToggle={onToggle}/>)}</div> : null}
   </section>;
 }
 
-export function RichText({ text, resolve, className = "", rubyPinyin = false, collapsible = false, foldStorageKey, showOutline = false }: {
-  text: string; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean; foldStorageKey?: string; showOutline?: boolean;
+export function RichText({ text = "", blocks: sourceBlocks, resolve, className = "", rubyPinyin = false, collapsible = false, foldStorageKey, showOutline = false, enhanced = false }: {
+  text?: string; blocks?: Block[]; resolve?: LinkResolver; className?: string; rubyPinyin?: boolean; collapsible?: boolean;
+  foldStorageKey?: string; showOutline?: boolean; enhanced?: boolean;
 }) {
   const proseRef = useRef<HTMLDivElement>(null);
+  const [activeHeading, setActiveHeading] = useState("");
   const [closedSections, setClosedSections] = useState<Set<string>>(() => {
     if (!foldStorageKey) return new Set();
     try {
@@ -209,8 +218,8 @@ export function RichText({ text, resolve, className = "", rubyPinyin = false, co
     else next.add(id);
     return next;
   });
-  const blocks = parseBlocks(text);
-  const nodes = collapsible ? groupHeadings(blocks) : [];
+  const blocks = useMemo(() => sourceBlocks ?? parseBlocks(text), [sourceBlocks, text]);
+  const nodes = useMemo(() => collapsible ? groupHeadings(blocks) : [], [blocks, collapsible]);
   type OutlineEntry = { id: string; text: string; depth: number; ancestors: string[] };
   const outline: OutlineEntry[] = [];
   const collect = (items: FoldNode[], depth = 0, ancestors: string[] = []) => {
@@ -222,6 +231,7 @@ export function RichText({ text, resolve, className = "", rubyPinyin = false, co
   };
   if (showOutline) collect(nodes);
   const jumpTo = (entry: OutlineEntry) => {
+    setActiveHeading(entry.id);
     setClosedSections((previous) => {
       const next = new Set(previous);
       entry.ancestors.forEach((id) => next.delete(id));
@@ -230,23 +240,37 @@ export function RichText({ text, resolve, className = "", rubyPinyin = false, co
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
       const heading = Array.from(proseRef.current?.querySelectorAll<HTMLElement>("[data-fold-id]") ?? [])
         .find((element) => element.dataset.foldId === entry.id);
-      heading?.scrollIntoView({ block: "start", behavior: "smooth" });
+      const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+      heading?.scrollIntoView({ block: "start", behavior: motion });
     }));
   };
   const content = <div ref={proseRef} className={`nb-prose ${className}`}>
     {collapsible ? nodes.map((node, index) =>
-      <FoldView key={node.kind === "section" ? node.id : index} node={node} resolve={resolve} rubyPinyin={rubyPinyin}
+      <FoldView key={node.kind === "section" ? node.id : index} node={node} resolve={resolve} rubyPinyin={rubyPinyin} enhanced={enhanced}
         closedSections={closedSections} onToggle={toggleSection}/>) :
-      blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin}/>)}
+      blocks.map((block, index) => <BlockView key={index} block={block} resolve={resolve} rubyPinyin={rubyPinyin} enhanced={enhanced}/>)}
   </div>;
-  if (!showOutline || outline.length < 2) return content;
+  if (!showOutline || outline.length < (enhanced ? 1 : 2)) return content;
+  const entries = outline.map((entry) => {
+    const label = enhanced ? inlinePlain(entry.text) : entry.text;
+    return <button type="button" key={entry.id} title={label}
+      aria-current={enhanced && activeHeading === entry.id ? "location" : undefined}
+      style={{ paddingLeft: `${9 + Math.min(entry.depth, 3) * 12}px` }}
+      onClick={(event) => {
+        const disclosure = event.currentTarget.closest("details");
+        if (disclosure) disclosure.open = false;
+        jumpTo(entry);
+      }}>{label}</button>;
+  });
   return <div className="nb-reading-layout">
+    {enhanced ? <details className="nb-v2-outline-mobile">
+      <summary>Contents</summary>
+      <nav className="nb-note-outline" aria-label="Note contents">{entries}</nav>
+    </details> : null}
     {content}
-    <nav className="nb-note-outline" aria-label="Note contents">
+    <nav className="nb-note-outline nb-outline-desktop" aria-label="Note contents">
       <span className="nb-note-outline-label">Contents</span>
-      {outline.map((entry) => <button type="button" key={entry.id}
-        title={entry.text} style={{ paddingLeft: `${9 + Math.min(entry.depth, 3) * 12}px` }}
-        onClick={() => jumpTo(entry)}>{entry.text}</button>)}
+      {entries}
     </nav>
   </div>;
 }
