@@ -6,9 +6,9 @@ import {
 } from "../../lib/offlineFetch";
 import { Portal } from "./ui";
 
-type Props = { userId: string; onClose: () => void; onSync: () => Promise<void> };
+type Props = { userId: string; onClose: () => void; onSync: () => Promise<void>; onExportAccount: () => Promise<void>; exportingAccount: boolean };
 
-export function OfflineRecoveryDialog({ userId, onClose, onSync }: Props) {
+export function OfflineRecoveryDialog({ userId, onClose, onSync, onExportAccount, exportingAccount }: Props) {
   const [entries, setEntries] = useState<LegacyOfflineWrite[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [backedUp, setBackedUp] = useState(false);
@@ -120,8 +120,8 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync }: Props) {
       {error ? <p className="ws-field-error" role="alert">{error}</p> : null}
       {notice ? <p className="qc-flash" role="status">{notice}</p> : null}
       <footer className="legacy-recovery-actions">
-        <button type="button" className="ws-button" disabled={busy || !entries.length} onClick={() => void exportFile()}>
-          <Download size={14}/> Export all as JSON</button>
+        <button type="button" className="ws-button" disabled={busy || loading || !entries.length} onClick={() => void exportFile()}>
+          <Download size={14}/> Export legacy edits as JSON</button>
         <button type="button" className="ws-button" disabled={busy || !backedUp || !eligible}
           title={!eligible ? "Choose eligible inserts only. Other actions need manual review." : !backedUp ? "Export and check your backup first." : undefined}
           onClick={confirmRestore}><ArchiveRestore size={14}/> Restore selected</button>
@@ -129,7 +129,8 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync }: Props) {
           <Trash2 size={14}/> Discard selected</button>
         <button type="button" className="ws-button" disabled={busy} onClick={onClose}>Keep for later</button>
       </footer>
-      <p className="legacy-recovery-note">Export contains your original unsent data. Keep the file private. Restore never bypasses account permissions, and requests that might overwrite or delete records require manual review.</p>
+      <button type="button" className="ws-button" disabled={exportingAccount || busy} onClick={() => void onExportAccount()}><Download size={14}/> {exportingAccount ? "Preparing account backup…" : "Export all Heuresis data"}</button>
+      <p className="legacy-recovery-note">The account export includes saved library data and uploaded images, not older unowned writes. The legacy export contains your original unsent data. Keep the file private. Restore never bypasses account permissions, and requests that might overwrite or delete records require manual review.</p>
     </section>
   </div></Portal>;
 }

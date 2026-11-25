@@ -72,4 +72,14 @@ assert.match(native, /offline_recovery\/entries/, "native code must validate rec
 assert.doesNotMatch(app, /Backup needs attention:/, "background backup never posts an alarming banner");
 assert.doesNotMatch(notebook, /className="nb-capture-summary"/, "Notebook does not nag about captures");
 assert.match(notebook, /Captures\{pendingCaptures/, "the compact navigation to pending captures remains");
+assert.match(backup, /export async function exportAccountJson/);
+assert.match(backup, /heuresis_review_corrections/);
+assert.match(backup, /heuresis_reading_author_profiles/);
+assert.match(backup, /heuresis-reading-media/);
+assert.match(backup, /reader.readAsDataURL\(data\)/);
+assert.match(backup, /count: "exact"/);
+assert.match(app, /Export all Heuresis data/);
+const recoveryDialog = readFileSync("src/components/workspace/OfflineRecoveryDialog.tsx", "utf8");
+assert.match(recoveryDialog, /Export legacy edits as JSON/);
+assert.match(recoveryDialog, /onExportAccount/);
 console.log("Backup safety and quiet interface checks passed.");

@@ -45,7 +45,7 @@ import { isInboxTopic } from "./lib/lessonCleanup";
 import { quickQueueKind } from "./lib/quickQueue";
 import { useCaptureReviewIds } from "./lib/captureReviewQueue";
 import { exportKnowledgeJson } from "./lib/knowledgeBackup";
-import { ensureDailyLocalBackup, localBackupStatus, supportsLocalBackup } from "./lib/localBackup";
+import { ensureDailyLocalBackup, exportAccountJson, localBackupStatus, supportsLocalBackup } from "./lib/localBackup";
 import { backupAgeNotice } from "./lib/backupFreshness";
 import { getOfflineSyncState, subscribeOfflineSync } from "./lib/offlineFetch";
 import { readSectionScroll, writeSectionScroll, type SectionScrollState } from "./lib/sectionScroll";
@@ -390,6 +390,28 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.user.id]);
 
+  const [exportingAccount, setExportingAccount] = useState(false);
+  const accountExportInFlight = useRef(false);
+
+  async function downloadAccount() {
+    if (accountExportInFlight.current) return;
+    accountExportInFlight.current = true;
+    setExportingAccount(true);
+    try {
+      const contents = await exportAccountJson(session.user.id);
+      const url = URL.createObjectURL(new Blob([contents], { type: "application/json;charset=utf-8" }));
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `heuresis-account-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+        document.body.append(anchor);
+        try { anchor.click(); } finally { anchor.remove(); }
+      } finally { window.setTimeout(() => URL.revokeObjectURL(url), 60_000); }
+      workspace.toast("Account backup download requested. Check your downloads and keep the file private.");
+    } catch (error) { workspace.toast(friendlyError(error), { tone: "error" }); }
+    finally { accountExportInFlight.current = false; setExportingAccount(false); }
+  }
+
   async function downloadKnowledge() {
     try {
       const contents = await exportKnowledgeJson(session.user.id);
@@ -451,6 +473,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
     { id: "sync", label: "Sync now", detail: "Synchronise your Study and Notebook data", keywords: "refresh offline", run: () => void runSync(false) },
     { id: "trash", label: "Open Trash", detail: "Restore deleted notes, lessons and mistakes", keywords: "deleted recovery", run: () => setTrashOpen(true) },
     ...(supportsLocalBackup() ? [{ id: "local-backup", label: "Create local Heuresis backup", detail: "Save the complete library and images to Documents on this PC", keywords: "backup local windows files offline", run: () => void runLocalBackup(true) }] : []),
+    { id: "export-account", label: "Export all Heuresis data", detail: "Download a fresh account backup including uploaded images", keywords: "backup archive download complete", run: () => void downloadAccount() },
     { id: "export", label: "Export Notebook as JSON", detail: "Download your Notebook and recall history", keywords: "backup archive download", run: () => void downloadKnowledge() },
   ];
 
@@ -644,6 +667,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
                 </summary>
                 <div className="desktop-account-data-items">
                   <button type="button" onClick={() => void runSync(false)}><RefreshCw size={14} /> Sync now</button>
+                  <button type="button" disabled={exportingAccount} onClick={() => void downloadAccount()}><HardDriveDownload size={14} /> {exportingAccount ? "Preparing account backup…" : "Export all Heuresis data"}</button>
                   {supportsLocalBackup() ? <>
                     <button type="button" title="Check or save today's automatic PC backup"
                       onClick={() => { setLocalBackupNotice("Checking PC backup…"); void runLocalBackup(true); }}>
@@ -749,7 +773,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
       <TabletCaptureFab onCapture={() => openNotebookCapture("note")} />
       <QQuickCapture />
       {workspace.cleanupTarget ? <LessonCleanupDialog target={workspace.cleanupTarget} onClose={workspace.closeCleanup} /> : null}
-      {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} /> : null}
+      {recoveryOpen ? <OfflineRecoveryDialog userId={session.user.id} onClose={() => setRecoveryOpen(false)} onSync={() => runSync(false)} onExportAccount={downloadAccount} exportingAccount={exportingAccount} /> : null}
       {syncOpen ? <SyncStatusDialog state={syncState} onClose={() => setSyncOpen(false)}
         onRecovery={() => { setSyncOpen(false); setRecoveryOpen(true); }}
         onSync={() => { void runSync(false); }} /> : null}
