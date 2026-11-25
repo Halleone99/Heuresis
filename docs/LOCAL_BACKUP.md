@@ -96,3 +96,7 @@ The original database is never changed by this feature.
 
 Status: feature committed to source. Build and on-device restoration checks
 must be completed separately; do not infer success just from source presence.
+
+## Portable account export
+
+Account → Data & backup → Export all Heuresis data (also available in Offline recovery) downloads a fresh versioned JSON file, independent of today's Windows backup. It includes account tables, shared card type/template definitions, catalogue data, review corrections, author profiles, uploaded images (base64), current-account offline journal, recognised local drafts, review queues where ownership is established, and selected device preferences. Counts and absent optional tables are explicit. Failed reads/media downloads abort rather than downloading a misleading partial file. Legacy unowned writes still have a separate export. Unverified local review events are counted, not copied. Credentials, other accounts, external links, unknown settings, and unsaved in-memory work are excluded. There is no automatic restore yet. Keep the unencrypted file private; verify the file and its counts after downloading. Large media libraries may require substantial browser memory.
