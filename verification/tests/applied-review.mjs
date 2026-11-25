@@ -49,3 +49,6 @@ try {
   if (appliedReviewQuestion({ pack: standard, card: topics["Incoterms 2020"][0], cards: topics["Incoterms 2020"], reviewNumber: 0 })) throw new Error("Language cards must not receive Applied Review");
   console.log(`✓ ${seen} Applied Review questions checked across six visits, including correct answers, attribution and standard-mode isolation`);
 } finally { rmSync(out, { recursive: true, force: true }); }
+// All assertions above are synchronous. Like the other Applied logic suites,
+// finish explicitly so imported browser auth timers cannot keep Node alive.
+process.exit(0);
