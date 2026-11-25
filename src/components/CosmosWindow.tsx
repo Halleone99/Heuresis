@@ -396,6 +396,7 @@ export default function CosmosWindow() {
   const pendingCorrectionRef = useRef<PendingMissedNote | null>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
+  const gradingLock = useRef(false);
   const sessionRef = useRef<string | null>(null);
   const routeAdvancing = useRef(false);
   const lastAutoAudioRef = useRef("");
@@ -1005,11 +1006,11 @@ export default function CosmosWindow() {
   }
 
   async function answer(grade: StudyGrade): Promise<boolean> {
-    if (!card || !pack || !template || !item || !sessionRef.current || !revealed || busy || unsavedDraft || gradedMistake) return false;
+    if (!card || !pack || !template || !item || !sessionRef.current || !revealed || busy || gradingLock.current || unsavedDraft || gradedMistake) return false;
     if (appliedQuestion && !appliedVerdict) return false;
     if (appliedQuestion && appliedVerdict && ((appliedVerdict.correct && grade === "again")
       || (!appliedVerdict.correct && (grade === "good" || grade === "easy")))) return false;
-    setBusy(true); setNotice("");
+    gradingLock.current = true; setBusy(true); setNotice("");
     try {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
       // Count the method used on each completed attempt, not just a click.
@@ -1075,7 +1076,7 @@ export default function CosmosWindow() {
     } catch (answerError) {
       setNotice(answerError instanceof Error ? answerError.message : "Could not save the result.");
       return false;
-    } finally { setBusy(false); }
+    } finally { gradingLock.current = false; setBusy(false); }
   }
 
   /**
@@ -1232,7 +1233,7 @@ export default function CosmosWindow() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || event.keyCode === 229) return;
+      if (event.isComposing || event.keyCode === 229 || event.repeat) return;
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target?.matches("input,textarea,select,[contenteditable=true]"));
       if (editOpen) return; // Never trigger review shortcuts while editing card content.
