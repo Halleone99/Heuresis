@@ -3,7 +3,7 @@ import { readTheme, writeTheme, type ThemePreference } from "./workspaceMemory";
 
 export const PALETTES = [
   { id: "slate", label: "Slate", detail: "Blue grey" },
-  { id: "forest", label: "Forest", detail: "Sage and pine" },
+  { id: "forest", label: "Forest", detail: "Graphite with sage accents" },
   { id: "sepia", label: "Sepia", detail: "Parchment and copper" },
   { id: "neutral", label: "Neutral", detail: "Graphite and white" },
   { id: "editorial", label: "Editorial", detail: "Salmon paper and teal" },
@@ -17,10 +17,11 @@ const PALETTE_KEY = "heuresis.palette.v1";
 const BLUE_UPGRADE_KEY = "heuresis.appearance.blue.v1";
 const EVENT = "heuresis:appearance-changed";
 export const DESIGNS = [
-  { id: "classic", label: "Classic", detail: "Original workspace" },
-  { id: "refined", label: "Refined", detail: "Editorial typography" },
-  { id: "aperture", label: "Aperture", detail: "Open, soft and spacious" },
-  { id: "forma", label: "Forma", detail: "Crisp, compact and structured" },
+  { id: "classic", label: "Classic", detail: "Dashboard above collections" },
+  { id: "refined", label: "Refined", detail: "Collections first, large serif headings" },
+  { id: "aperture", label: "Aperture", detail: "Top navigation, gallery grid" },
+  { id: "forma", label: "Forma", detail: "Split dashboard, compact controls" },
+  { id: "studio", label: "Studio", detail: "Centred column, right navigation" },
 ] as const;
 
 export type DesignPreference = (typeof DESIGNS)[number]["id"];

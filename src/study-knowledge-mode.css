@@ -27,7 +27,7 @@
 .intelligent-library .study-knowledge-trigger:focus-visible { outline: 2px solid rgba(143, 196, 255, .95); outline-offset: 3px; }
 .intelligent-library .study-knowledge-select[data-open] .study-knowledge-trigger { background: rgba(24, 56, 98, .7); border-color: rgba(170, 210, 252, .56); }
 .intelligent-library .study-knowledge-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: var(--knowledge-accent, #8fc4ff); box-shadow: 0 0 0 3px rgba(143, 196, 255, .16); flex: none;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--knowledge-accent, #8fc4ff); box-shadow: 0 0 0 3px color-mix(in srgb, var(--knowledge-accent, #8fc4ff) 16%, transparent); flex: none;
 }
 .intelligent-library .study-knowledge-trigger > svg { opacity: .74; transition: transform .2s ease; }
 .intelligent-library .study-knowledge-select[data-open] .study-knowledge-trigger > svg { transform: rotate(180deg); }
@@ -60,8 +60,8 @@
 .study-knowledge-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 500; color: rgba(220, 232, 248, .58); white-space: nowrap; }
 .study-knowledge-meta svg { color: var(--knowledge-accent, #8fc4ff); opacity: 0; }
 .study-knowledge-option[aria-selected="true"] .study-knowledge-meta svg { opacity: 1; }
-/* Use the active theme for the newer palettes and workspace designs. */
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+/* Keep knowledge controls in the chosen theme while retaining Classic Slate. */
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .intelligent-library .study-knowledge-trigger {
   border-color: var(--ws-accent-line);
   border-radius: var(--design-control-radius, 999px);
@@ -71,17 +71,17 @@
   backdrop-filter: none;
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .intelligent-library .study-knowledge-select .study-knowledge-trigger:is(:hover, [aria-expanded="true"]) {
   background: var(--ws-card-secondary);
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   :is(.study-knowledge-dot, .study-knowledge-meta svg) {
   --knowledge-accent: var(--ws-accent);
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .study-knowledge-menu {
   border-color: var(--ws-line-strong);
   border-radius: var(--design-card-radius, 14px);
@@ -91,22 +91,22 @@
   backdrop-filter: none;
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .study-knowledge-menu :is(.study-knowledge-eyebrow, .study-knowledge-copy span, .study-knowledge-meta) {
   color: var(--ws-muted);
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .study-knowledge-copy strong {
   color: var(--ws-ink);
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .study-knowledge-option:is(:hover, [aria-selected="true"]) {
   background: var(--ws-accent-soft);
 }
 
-:root:is([data-palette="aegean"], [data-palette="marigold"], [data-design="aperture"], [data-design="forma"])
+:root:is([data-palette]:not([data-palette="slate"]), [data-design="aperture"], [data-design="forma"], [data-design="studio"])
   .study-knowledge-mark {
   border-color: var(--ws-accent-line);
   background: var(--ws-accent-soft);

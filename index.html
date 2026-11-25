@@ -27,7 +27,7 @@
           document.documentElement.dataset.palette = palette;
           document.documentElement.dataset.theme = dark ? "dark" : "light";
           const design = localStorage.getItem("heuresis.design.v1");
-          document.documentElement.dataset.design = ["classic", "refined", "aperture", "forma"].includes(design) ? design : "classic";
+          document.documentElement.dataset.design = ["classic", "refined", "aperture", "forma", "studio"].includes(design) ? design : "classic";
           document.documentElement.style.colorScheme = dark ? "dark" : "light";
         } catch { document.documentElement.dataset.palette = "slate"; }
       })();

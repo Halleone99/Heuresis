@@ -9,6 +9,7 @@ import { listRelatedCounts } from "../lib/related";
 import { cardHasCompletedSort } from "../lib/sort";
 import { readOpenStudy, rememberOpenStudy, type OpenStudySession } from "../lib/studySessionMemory";
 import { relativeOpened } from "../lib/relativeTime";
+import { useAppearance } from "../lib/theme";
 import { readKnowledgeMode, studySelectionKey, writeKnowledgeMode, type KnowledgeMode } from "../lib/studyKnowledgeMode";
 import { createReviewRoute, openCosmosWindow } from "../lib/cosmosWindow";
 import { loadLearnTopics, readOpenLearn, rememberOpenLearn, type LearnTopic } from "../lib/learnSession";
@@ -54,6 +55,7 @@ function newestOpen(packs: PackWithType[]) {
 }
 
 export default function LibraryView({ collections, packs, newCardsWallpaper, onOpen, onOpenCaptureInbox, onNewTopic, onEditPack, onOpenNewWords, onNewCollection }: Props) {
+  const { design } = useAppearance();
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [knowledgeMode, setKnowledgeMode] = useState<KnowledgeMode>(readKnowledgeMode);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -394,26 +396,14 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
     .sort((a, b) => Date.parse(newestOpen(modePacks.filter((p) => p.collection_id === b.id)) ?? "1970-01-01")
        - Date.parse(newestOpen(modePacks.filter((p) => p.collection_id === a.id)) ?? "1970-01-01"));
 
-  return (
-    <section className="library-page intelligent-library">
-      <header className="intelligent-library-head">
-        <div className="library-head-copy">
-          <div className="study-knowledge-heading">
-            <h1>Study<span>.</span></h1>
-            <KnowledgeModeMenu mode={knowledgeMode} collections={collections} onChange={chooseKnowledgeMode} />
-          </div>
-        </div>
-      </header>
-
-      {modeCollections.length ? <TodayStudyPanel collections={modeCollections} packs={modePacks} overview={reviewOverview}
+  const activityPanel = modeCollections.length ? <TodayStudyPanel collections={modeCollections} packs={modePacks} key="activity" overview={reviewOverview}
         selection={selection} onSelectionChange={chooseStudyScope} launchRequest={launchRequest}
         quota={newCardQuota} opening={newOpening || learningOpening || reviewOpening} error={newError}
         onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
         onStartReview={(count, scopedPacks) => void startReview(count, scopedPacks)}
         onStartNew={(pack, count) => void startNewCards(pack, count)}
-        onStartLearning={(eligible, scopeTitle) => void startLearning(eligible, scopeTitle)} /> : null}
-
-      {selectedCollection ? <div className="library-desk study-desk">
+        onStartLearning={(eligible, scopeTitle) => void startLearning(eligible, scopeTitle)} /> : null;
+  const collectionDesk = selectedCollection ? <div className="library-desk study-desk" key="collections">
         <section className="study-desk-feature" data-accent={selectedCollection.accent} aria-label={selectedCollection.title}>
           <span className="study-desk-ghost" aria-hidden="true">{collectionGlyph(selectedCollection)}</span>
           <span className="study-desk-eyebrow">{selectedIsLatest ? "CONTINUE" : "COLLECTION"}</span>
@@ -492,7 +482,22 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
           {otherCollections.length > 3 ? <button type="button" className="study-desk-all"
             onClick={() => setShowAllCollections((value) => !value)}>{showAllCollections ? "Show fewer" : "All collections"}</button> : null}
         </aside>
-      </div> : <div className="library-empty study-knowledge-empty"><BookOpen size={22} /><strong>{knowledgeMode === "applied" ? "Applied knowledge starts here." : "No language collections yet."}</strong><p>{knowledgeMode === "applied" ? "Create a collection for customs, Incoterms, compliance or another practical subject. Your language decks stay in Languages." : "Create your first language collection to begin studying."}</p><button type="button" className="library-new-collection" onClick={() => onNewCollection(knowledgeMode)}><Plus size={14} /> New {knowledgeMode === "applied" ? "Applied" : "Languages"} collection</button></div>}
+      </div> : <div className="library-empty study-knowledge-empty" key="collections"><BookOpen size={22} /><strong>{knowledgeMode === "applied" ? "Applied knowledge starts here." : "No language collections yet."}</strong><p>{knowledgeMode === "applied" ? "Create a collection for customs, Incoterms, compliance or another practical subject. Your language decks stay in Languages." : "Create your first language collection to begin studying."}</p><button type="button" className="library-new-collection" onClick={() => onNewCollection(knowledgeMode)}><Plus size={14} /> New {knowledgeMode === "applied" ? "Applied" : "Languages"} collection</button></div>;
+
+  return (
+    <section className="library-page intelligent-library">
+      <header className="intelligent-library-head">
+        <div className="library-head-copy">
+          <div className="study-knowledge-heading">
+            <h1>Study<span>.</span></h1>
+            <KnowledgeModeMenu mode={knowledgeMode} collections={collections} onChange={chooseKnowledgeMode} />
+          </div>
+        </div>
+      </header>
+
+      <div className="study-workspace">
+        {design === "refined" ? [collectionDesk, activityPanel] : [activityPanel, collectionDesk]}
+      </div>
       {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
         wallpaper={newCardsWallpaper} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds, validated: quickSort.validated,
           toLearning: quickSort.toLearning, toReview: quickSort.toReview,

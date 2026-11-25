@@ -50,7 +50,7 @@ for (const key of ["heuresis.theme.v1", "heuresis.palette.v1", "heuresis.design.
 }
 
 
-for (const design of ["classic", "refined", "aperture", "forma"]) {
+for (const design of ["classic", "refined", "aperture", "forma", "studio"]) {
   assert.ok(html.includes(`"${design}"`), `Pre-paint script must support ${design}`);
   assert.ok(js.includes(`id: "${design}"`), `Design choices must support ${design}`);
 }

@@ -1,4 +1,7 @@
-/* One photographic layer and one dimming layer, below the page and its cards. */
+/* Dim photos against the same underlay in every colour theme. */
+:root { --wallpaper-underlay: #eef1f4; }
+:root[data-theme="dark"] { --wallpaper-underlay: #1f2733; }
+
 .page-wallpaper {
   position: absolute;
   z-index: -1;
@@ -6,7 +9,7 @@
   display: block;
   overflow: hidden;
   pointer-events: none;
-  background: var(--ws-page);
+  background: var(--wallpaper-underlay);
 }
 
 .page-wallpaper.is-fixed { position: fixed; }
@@ -25,7 +28,7 @@
 }
 
 .page-wallpaper::after {
-  background: var(--ws-page);
+  background: var(--wallpaper-underlay);
   opacity: var(--wallpaper-veil);
 }
 

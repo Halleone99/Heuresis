@@ -56,8 +56,23 @@ function AppearanceSettings() {
   const { style: overviewStyle, chooseStyle: chooseOverviewStyle } = useOverviewStyle();
 
   return <section className="appearance-settings" aria-label="Appearance preferences">
+    <div className="appearance-designs">
+      <h3>Interface design</h3>
+      <div className="appearance-design-options" role="group" aria-label="Design style">
+        {DESIGNS.map((option) => <button key={option.id} className="appearance-palette appearance-design" type="button"
+          aria-label={option.label} aria-describedby={"design-detail-" + option.id} aria-pressed={design === option.id} onClick={() => chooseDesign(option.id)}>
+          <span className="appearance-design-preview" data-design-preview={option.id} aria-hidden="true">
+            <span className="design-preview-header"><i /><b /><b /></span>
+            <span className="design-preview-rail"><i /><i /><i /></span>
+            <span className="design-preview-content"><strong>Study</strong><span className="design-preview-activity"><i /><i /><i /></span><span className="design-preview-collections"><i /><i /></span></span>
+          </span>
+          <strong>{option.label}{design === option.id ? <Check size={14} aria-hidden="true" /> : null}</strong>
+          <span className="appearance-palette-detail" id={"design-detail-" + option.id}>{option.detail}</span>
+        </button>)}
+      </div>
+    </div>
     <div className="settings-theme-head">
-      <h3>Theme</h3>
+      <h3>Colour theme</h3>
       <SegmentedChoice label="Colour mode" className="appearance-mode" value={mode} onChange={chooseMode}
         options={[{ value: "system", label: "Auto" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />
     </div>
@@ -66,26 +81,11 @@ function AppearanceSettings() {
         aria-label={option.label} aria-pressed={palette === option.id} onClick={() => choosePalette(option.id)}>
         <span className="appearance-palette-swatch" data-palette-preview={option.id} aria-hidden="true">
           <span className="appearance-palette-chrome" />
-          <span className="appearance-palette-card"><i>Aa</i><b /><em /></span>
+          <span className="appearance-palette-card"><i>Aa</i><b /><em /><span /></span>
         </span>
         <strong>{option.label}{palette === option.id ? <Check size={14} aria-hidden="true" /> : null}</strong>
         <span className="appearance-palette-detail">{option.detail}</span>
       </button>)}
-    </div>
-    <div className="appearance-designs">
-      <h3>Interface design</h3>
-      <div className="appearance-design-options" role="group" aria-label="Design style">
-        {DESIGNS.map((option) => <button key={option.id} className="appearance-palette appearance-design" type="button"
-          aria-pressed={design === option.id} onClick={() => chooseDesign(option.id)}>
-          <span className="appearance-design-preview" data-design-preview={option.id} aria-hidden="true">
-            <span className="design-preview-header"><i /><b /><b /></span>
-            <span className="design-preview-rail"><i /><i /><i /></span>
-            <span className="design-preview-content"><strong>Aa</strong><i /><i /></span>
-          </span>
-          <strong>{option.label}{design === option.id ? <Check size={14} aria-hidden="true" /> : null}</strong>
-          <span className="appearance-palette-detail">{option.detail}</span>
-        </button>)}
-      </div>
     </div>
     <div className="settings-row">
       <div className="settings-row-label"><strong>Overview layout</strong></div>
