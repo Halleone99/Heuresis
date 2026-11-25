@@ -104,6 +104,7 @@
 }
 .ap-type-archive .ap-byline { font-size: 7.2pt; letter-spacing: .12em; font-weight: 500; }
 .ap-standfirst { margin: 6mm 0 0; font-size: 1.16em; line-height: 1.45; font-style: italic; color: var(--ap-ink); }
+.ap-standfirst, .ap-text-body, .ap-title, .ap-section-title, .ap-kicker, .ap-byline { white-space: pre-wrap; }
 .ap-standfirst p { margin: 0; }
 .ap-standfirst p + p { margin-top: .5em; }
 .ap-type-archive .ap-standfirst { font-style: normal; font-size: 1.1em; color: var(--ap-muted); }
@@ -137,12 +138,12 @@
 .ap-type-archive .ap-text-body h3 { font-style: normal; font-weight: 700; font-size: 1.04em; }
 .ap-text-body h4 { margin: 1.05em 0 .25em; font-family: var(--ap-meta); font-weight: 400; font-size: .74em; line-height: 1.4; letter-spacing: .18em; text-transform: uppercase; color: var(--ap-accent); }
 .ap-type-archive .ap-text-body h4 { font-weight: 600; letter-spacing: .12em; }
-.ap-text-body ul, .ap-text-body ol { margin: .5em 0 .5em; padding-left: 1.35em; }
-.ap-text-body li { margin: .12em 0; padding-left: .15em; }
-.ap-text-body li > ul, .ap-text-body li > ol { margin: .1em 0; }
-.ap-text-body ul { list-style: disc outside; }
-.ap-text-body ol { list-style: decimal outside; }
-.ap-text-body li::marker { color: var(--ap-accent); }
+:is(.ap-text-body, .ap-standfirst) :is(ul, ol) { margin: .5em 0 .5em; padding-left: 1.35em; }
+:is(.ap-text-body, .ap-standfirst) li { margin: .12em 0; padding-left: .15em; }
+:is(.ap-text-body, .ap-standfirst) li > :is(ul, ol) { margin: .1em 0; }
+:is(.ap-text-body, .ap-standfirst) ul { list-style: disc outside; }
+:is(.ap-text-body, .ap-standfirst) ol { list-style: decimal outside; }
+:is(.ap-text-body, .ap-standfirst) li::marker { color: var(--ap-accent); }
 .ap-text-body strong { font-weight: var(--ap-strong); }
 .ap-text-body em { font-style: italic; }
 .ap-text-body s { text-decoration: line-through; text-decoration-thickness: .06em; }
@@ -254,9 +255,11 @@
 .is-measuring .ap-page.is-editing [data-print-empty="true"],
 .is-measuring .ap-page.is-editing .ap-opening-note { display: none !important; }
 .ap-page.is-editing .ap-opening-note { margin: 0 0 2mm; font: 500 8pt/1.3 Inter, system-ui, sans-serif; letter-spacing: .02em; color: var(--ap-muted); opacity: .75; }
-.ap-page.is-editing .ap-editable { outline: none; cursor: text; min-height: 1em; }
-.ap-page.is-editing .ap-editable[data-empty="true"]::before { content: attr(data-placeholder); color: var(--ap-muted); opacity: .55; pointer-events: none; font-style: italic; }
-.ap-page.is-editing .ap-text-body.ap-editable[data-empty="true"]::before { display: block; text-indent: 0; }
+.ap-page.is-editing .ap-editable { position: relative; outline: none; cursor: text; min-height: 1em; }
+.ap-page.is-editing .ap-editable[data-empty="true"]:not(:focus)::before {
+  content: attr(data-placeholder); position: absolute; inset: 0; text-indent: 0;
+  color: var(--ap-muted); opacity: .55; pointer-events: none; font-style: italic;
+}
 .ap-page.is-editing .ap-block { cursor: default; }
 .ap-page.is-editing .ap-block::after {
   content: ""; position: absolute; inset: -2.2mm -2.6mm; border: 1px solid transparent; border-radius: 3px; pointer-events: none;

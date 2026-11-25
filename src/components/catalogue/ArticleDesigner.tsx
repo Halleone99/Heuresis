@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   BLOCK_LABELS, COLOUR_PRESETS, PAGE_HEIGHT_PX, PAGE_WIDTH_PX, TYPOGRAPHY_PRESETS, articleTitle, deletePage, duplicatePage, emptyPictureFrames, findBlock,
-  insertBlock, insertPage, isCoverPage, moveBlockToPage, pageHasContent, moveBlockWithinPage, movePage, newBlock, newPage, removeBlock, stableJson, updateBlock,
+  insertBlock, insertPage, isCoverPage, moveBlockToPage, pageHasContent, moveBlockWithinPage, movePage, newBlock, newPage, removeBlock, stableJson, uid, updateBlock,
   type Block, type BlockType, type CatalogueArticle, type ImageRef, type Spacing,
 } from "../../lib/catalogue/model";
 import { COMPOSITIONS, compositionBlocks, type CompositionId } from "../../lib/catalogue/compositions";
@@ -413,9 +413,21 @@ function DesignerStudio({ articleId }: { articleId: string }) {
 
   async function removeSelected() {
     if (!selected) return;
+    flushEditing();
     apply((current) => ({ ...current, pages: removeBlock(current.pages, selected.block.id) }));
     setSelectedId(null);
     workspace.toast(`${BLOCK_LABELS[selected.block.type]} removed.`, { action: { label: "Undo", run: undo } });
+  }
+
+  function duplicateSelected() {
+    if (!selected) return;
+    flushEditing();
+    const current = articleRef.current && findBlock(articleRef.current.pages, selected.block.id);
+    if (!current) return;
+    const copy = { ...structuredClone(current.block), id: uid() };
+    if (copy.type === "text") delete copy.continued;
+    apply((article) => ({ ...article, pages: insertBlock(article.pages, current.page.id, current.index + 1, copy) }));
+    setSelectedId(copy.id);
   }
 
   async function pageAction(action: "before" | "after" | "duplicate" | "up" | "down" | "delete", pageId: string) {
@@ -512,7 +524,7 @@ function DesignerStudio({ articleId }: { articleId: string }) {
   // ------------------------------------------------------------------ keyboard
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (previewing || document.querySelector(".ws-dialog-backdrop")) return;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || previewing || document.querySelector(".ws-dialog-backdrop")) return;
       const mod = event.ctrlKey || event.metaKey;
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)));
@@ -606,8 +618,12 @@ function DesignerStudio({ articleId }: { articleId: string }) {
     index={selected.index} blocksOnPage={selected.page.blocks.length} position={toolbar}
     onPatch={(patch) => patchBlock(selected.block.id, patch)}
     onMove={(delta) => apply((current) => ({ ...current, pages: moveBlockWithinPage(current.pages, selected.block.id, delta) }))}
-    onMovePage={(direction) => apply((current) => ({ ...current, pages: moveBlockToPage(current.pages, selected.block.id, direction) }))}
+    onMovePage={(direction) => {
+      flushEditing();
+      apply((current) => ({ ...current, pages: moveBlockToPage(current.pages, selected.block.id, direction) }));
+    }}
     onDelete={() => void removeSelected()}
+    onDuplicate={duplicateSelected}
     onImage={() => setImageTarget({ kind: "block", blockId: selected.block.id })}
     onAdd={() => setAddMenu({ pageId: selected.page.id, index: selected.index + 1 })}
     onClose={() => setSelectedId(null)} /> : null;
@@ -778,33 +794,42 @@ function AddBlockMenu({ onPick, onClose }: { onPick: (type: BlockType) => void; 
   </div>;
 }
 
-function textCommand(command: "bold" | "italic" | "subheading" | "ul" | "ol") {
+function textCommand(blockId: string, command: "bold" | "italic" | "subheading" | "ul" | "ol") {
   const selection = window.getSelection();
-  const anchor = selection?.anchorNode instanceof Element ? selection.anchorNode : selection?.anchorNode?.parentElement;
-  if (!anchor?.closest(".ap-text-body.ap-editable, .ap-standfirst.ap-editable")) return false;
+  const field = document.querySelector<HTMLElement>(`.ct-canvas [data-block-id="${blockId}"] :is(.ap-text-body, .ap-standfirst).ap-editable`);
+  if (!selection || !field) return;
+  const withinField = field.contains(selection.anchorNode) && field.contains(selection.focusNode);
+  const range = withinField && selection.rangeCount ? selection.getRangeAt(0).cloneRange() : document.createRange();
+  if (!withinField) { range.selectNodeContents(field); range.collapse(false); }
+  if (document.activeElement !== field || !withinField) {
+    field.focus({ preventScroll: true });
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
   if (command === "bold" || command === "italic") document.execCommand(command);
   else if (command === "ul") document.execCommand("insertUnorderedList");
   else if (command === "ol") document.execCommand("insertOrderedList");
   else {
-    const inHeading = anchor.closest("h3");
+    const start = range.startContainer;
+    const anchor = start instanceof Element ? start : start.parentElement;
+    const inHeading = anchor?.closest("h3");
     document.execCommand("formatBlock", false, inHeading ? "<p>" : "<h3>");
   }
-  return true;
 }
 
-function BlockToolbar({ block, pageIndex, pageCount, index, blocksOnPage, position, onPatch, onMove, onMovePage, onDelete, onImage, onAdd, onClose }: {
+function BlockToolbar({ block, pageIndex, pageCount, index, blocksOnPage, position, onPatch, onMove, onMovePage, onDelete, onDuplicate, onImage, onAdd, onClose }: {
   block: Block; pageIndex: number; pageCount: number; index: number; blocksOnPage: number; position: { top: number; left: number; docked: boolean };
   onPatch: (patch: Partial<Block>) => void; onMove: (delta: -1 | 1) => void; onMovePage: (direction: -1 | 1) => void;
-  onDelete: () => void; onImage: () => void; onAdd: () => void; onClose: () => void;
+  onDelete: () => void; onDuplicate: () => void; onImage: () => void; onAdd: () => void; onClose: () => void;
 }) {
   const keep = (event: React.MouseEvent) => event.preventDefault();
-  const format = (command: Parameters<typeof textCommand>[0]) => (event: React.MouseEvent) => { event.preventDefault(); textCommand(command); };
+  const format = (command: Parameters<typeof textCommand>[1]) => () => textCommand(block.id, command);
   const textTools = <span className="ct-tool-group">
-    <button type="button" aria-label="Bold" title="Bold (Ctrl+B)" onMouseDown={format("bold")}><Bold size={15} /></button>
-    <button type="button" aria-label="Italic" title="Italic (Ctrl+I)" onMouseDown={format("italic")}><Italic size={15} /></button>
-    <button type="button" aria-label="Subheading" title="Subheading" onMouseDown={format("subheading")}><Heading size={15} /></button>
-    <button type="button" aria-label="Bulleted list" title="Bulleted list" onMouseDown={format("ul")}><List size={15} /></button>
-    <button type="button" aria-label="Numbered list" title="Numbered list" onMouseDown={format("ol")}><ListOrdered size={15} /></button>
+    <button type="button" aria-label="Bold" title="Bold (Ctrl+B)" onClick={format("bold")}><Bold size={15} /></button>
+    <button type="button" aria-label="Italic" title="Italic (Ctrl+I)" onClick={format("italic")}><Italic size={15} /></button>
+    <button type="button" aria-label="Subheading" title="Subheading" onClick={format("subheading")}><Heading size={15} /></button>
+    <button type="button" aria-label="Bulleted list" title="Bulleted list" onClick={format("ul")}><List size={15} /></button>
+    <button type="button" aria-label="Numbered list" title="Numbered list" onClick={format("ol")}><ListOrdered size={15} /></button>
   </span>;
   let specific: ReactNode = null;
   switch (block.type) {
@@ -866,6 +891,8 @@ function BlockToolbar({ block, pageIndex, pageCount, index, blocksOnPage, positi
     </span>
     <Menu label="More block actions" align="right" trigger={<MoreHorizontal size={15} />} items={[
       { label: "Add block below", icon: <Plus size={14} />, run: onAdd },
+      ...(block.type !== "cover" && !(block.type === "heading" && block.level === "opening")
+        ? [{ label: "Duplicate block", icon: <Copy size={14} />, run: onDuplicate }] : []),
       { label: "Move to previous page", icon: <ChevronsUp size={14} />, disabled: pageIndex === 0, run: () => onMovePage(-1) },
       { label: pageIndex >= pageCount - 1 ? "Move to a new page" : "Move to next page", icon: <ChevronsDown size={14} />, run: () => onMovePage(1) },
       "divider",
