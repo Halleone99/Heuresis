@@ -8,7 +8,12 @@ import { enterLearning, enterReview, readAcquisition, serializeAcquisition, LEAR
 import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
 import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, type Importance } from "../lib/importance";
 import { cardLabels, saveCardLabels } from "../lib/cardLabels";
-import SortEnrichmentPanel, { firstExampleBlock, type DetailsRequest } from "./SortEnrichmentPanel";
+import SortEnrichmentPanel, { firstExampleBlock, isStructureDim, type DetailsRequest, type Dimension } from "./SortEnrichmentPanel";
+import { KnowledgeKindChip } from "./KnowledgeKindPicker";
+import { APPLIED_KIND_KEY, packShape, parseCaseText } from "../lib/teachingShape";
+import { KIND_INFO, knowledgeKind, primaryAddition, storedKnowledgeKind, type KnowledgeKind } from "../lib/knowledgeKinds";
+import { appliedCoverage, skillLabelFor } from "../lib/appliedExercises";
+import { toLearnCard } from "../lib/learnExercises";
 import { InlineSortText } from "./InlineSortText";
 import SelectableSortText from "./SelectableSortText";
 import FormattingRail from "./FormattingRail";
@@ -29,6 +34,7 @@ import "./sort-handoff.css";
 import "./sort-details-wings.css";
 import "./sort-colour-editor.css";
 import "./study21/study21.css";
+import "./knowledge-kind.css";
 
 type Props = {
   pack: PackWithType;
@@ -220,6 +226,10 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
     } : null, pack.id);
   }, [studySession, sessionStarted, queue, index, pack.id, progressTarget, goalReached, learned, toLearning, toReview, discarded, leftForLater]);
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
+  // Applied topics (rules, definitions, procedures, figures) get their own details, labels and exercises.
+  const applied = packShape(pack) === "rule";
+  const kind: KnowledgeKind | null = applied && card ? knowledgeKind(card.data, pack.cardType) : null;
+  const kindChosen = Boolean(card && storedKnowledgeKind(card.data));
   const reading = fieldByRole(pack.cardType, "reading");
   const meaning = fieldByRole(pack.cardType, "meaning") ?? pack.cardType?.field_schema[1] ?? null;
   // The centre editor changes only the visible flashcard fields. Rich details remain in the left rail.
@@ -265,6 +275,21 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
     });
     trackSave(save);
     return save;
+  }
+
+  /** The kind of an Applied card, chosen on the card: its details and exercises follow at once. */
+  function chooseKind(next: KnowledgeKind) {
+    if (!card) return;
+    const cardId = card.id;
+    setMessage("");
+    const save = patchCardData(cardId, { [APPLIED_KIND_KEY]: next }).then((saved) => {
+      setQueue((items) => items.map((item) => item.id === cardId ? { ...item, data: saved } : item));
+      onChanged();
+    }, (error: unknown) => {
+      setMessage(error instanceof Error ? error.message : "Could not change the kind.");
+      throw error;
+    });
+    trackSave(save);
   }
 
   function rememberDetails21(open: boolean) {
@@ -361,7 +386,8 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
       // "To Review" skips the exercises and changes the phase only: no review grade is recorded,
       // so the card arrives in Review exactly as an unreviewed card.
       const next = phase === "learning" ? enterLearning(state, "new") : enterReview(state, "direct");
-      await patchCardData(card.id, { [LEARNING_STAGE_KEY]: serializeAcquisition(next) });
+      // An Applied card keeps the kind it was sorted as, even if later details would suggest another.
+      await patchCardData(card.id, { [LEARNING_STAGE_KEY]: serializeAcquisition(next), ...(applied && kind && !kindChosen ? { [APPLIED_KIND_KEY]: kind } : {}) });
       await completeCardSort(card, rank, tagIds);
       setLearned((value) => value + 1);
       if (phase === "learning") setToLearning((value) => value + 1);
@@ -398,7 +424,8 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
       else if (kind === "learn") {
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
-        await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: restored.data[LEARNING_STAGE_KEY] ?? null });
+        await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: restored.data[LEARNING_STAGE_KEY] ?? null,
+          ...(applied ? { [APPLIED_KIND_KEY]: restored.data[APPLIED_KIND_KEY] ?? null } : {}) });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
       else if (kind === "later") setLeftForLater((value) => Math.max(0, value - 1));
@@ -503,9 +530,24 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
   const exampleText = card ? fieldText(card.data, exampleField?.key).trim() : "";
   const translationText = card ? fieldText(card.data, translationField?.key).trim() : "";
   const blockExample = card && !exampleText ? firstExampleBlock(card.data) : null;
+  /** The first case or example of an Applied card: its Case field, else the first one written in Details. */
+  const appliedCase = useMemo(() => {
+    if (!applied || !card) return null;
+    const situation = fieldText(card.data, fieldByRole(pack.cardType, "case")?.key).trim();
+    if (situation) return { situation, outcome: fieldText(card.data, fieldByRole(pack.cardType, "outcome")?.key).trim(), blockId: undefined as string | undefined };
+    const block = firstExampleBlock(card.data);
+    if (!block) return null;
+    const parsed = parseCaseText([block.sentence, block.reading, block.translation].filter(Boolean).join("\n"));
+    return parsed ? { situation: parsed.situation, outcome: parsed.outcome, blockId: block.id } : null;
+  }, [applied, card, pack.cardType]);
+  /** What Learn can do with this card, and the one addition that would help most. */
+  const appliedHint = useMemo(() => {
+    if (!applied || !card) return null;
+    try { return appliedCoverage(toLearnCard(card, pack, null), Math.max(0, cards.length - 1)); } catch { return null; }
+  }, [applied, card, pack, cards.length]);
   const decisionWaiting = saving > 0;
   function openDetailsFor(request: Omit<DetailsRequest, "nonce">) {
-    const onLeft = ["examples","neighbours","components","structure"].includes(request.dim) || (studyMode !== "2.1" && request.dim === "origin");
+    const onLeft = isStructureDim(request.dim, applied, studyMode === "2.1");
     if (onLeft) { setLeftOpen(true); if (studyMode === "2.1" && stageWidth < 1208) setRightOpen(false); }
     else { setRightOpen(true); if (studyMode === "2.1" && stageWidth < 1208) setLeftOpen(false); }
     rememberDetails21(true);
@@ -645,25 +687,26 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
     </div> : null}
     {!filtersOpen && card ? <div className="sort-session-stage">
       {isStudy21 && !pushDetails && enrichmentOpen ? <button type="button" className="study21-panel-scrim" aria-label="Close details" onClick={() => {setLeftOpen(false);setRightOpen(false);rememberDetails21(false);}}/> : null}
-      {isStudy21 && !leftOpen ? <button className="study21-edge-tab left" type="button" onClick={() => {setLeftOpen(true);if (stageWidth < 1208) setRightOpen(false);rememberDetails21(true);}}><span className="study21-edge-count">{leftCount}</span><span className="study21-edge-label">Language</span></button> : null}
+      {isStudy21 && !leftOpen ? <button className="study21-edge-tab left" type="button" onClick={() => {setLeftOpen(true);if (stageWidth < 1208) setRightOpen(false);rememberDetails21(true);}}><span className="study21-edge-count">{leftCount}</span><span className="study21-edge-label">{applied ? "Structure" : "Language"}</span></button> : null}
       {isStudy21 && !rightOpen ? <button className="study21-edge-tab right" type="button" onClick={() => {setRightOpen(true);if (stageWidth < 1208) setLeftOpen(false);rememberDetails21(true);}}><span className="study21-edge-count">{rightCount}</span><span className="study21-edge-label">Knowledge</span></button> : null}
       <div id="sort-language-details" className={"sort-editing-tools sort-editing-tools--left" + (leftOpen ? " is-open" : "")}>
-        <button type="button" className="sort-panel-close" aria-label="Close Language details" onClick={() => { setLeftOpen(false); if (!rightOpen) rememberDetails21(false); }}>×</button>
+        <button type="button" className="sort-panel-close" aria-label={applied ? "Close Structure details" : "Close Language details"} onClick={() => { setLeftOpen(false); if (!rightOpen) rememberDetails21(false); }}>×</button>
         <SortEnrichmentPanel key={card.id + "-language"} pack={pack} card={card} side="language" onChanged={onChanged}
-          study21={isStudy21} request={detailsRequest && (["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
+          study21={isStudy21} request={detailsRequest && isStructureDim(detailsRequest.dim, applied, isStudy21) ? detailsRequest : null} kind={kind ?? undefined}
           trackSave={trackSave} onBlockedChange={setLeftBlocked} onCountChange={setLeftCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <div id="sort-knowledge-details" className={"sort-editing-tools sort-editing-tools--right" + (rightOpen ? " is-open" : "")}>
         <button type="button" className="sort-panel-close" aria-label="Close Knowledge details" onClick={() => { setRightOpen(false); if (!leftOpen) rememberDetails21(false); }}>×</button>
         <SortEnrichmentPanel key={card.id + "-knowledge"} pack={pack} card={card} side="knowledge" onChanged={onChanged}
-          study21={isStudy21} quickNote={noteDraft} onQuickNoteChange={setNoteDraft} request={detailsRequest && !(["examples","neighbours","components","structure"].includes(detailsRequest.dim) || (!isStudy21 && detailsRequest.dim === "origin")) ? detailsRequest : null}
+          study21={isStudy21} quickNote={noteDraft} onQuickNoteChange={setNoteDraft} request={detailsRequest && !isStructureDim(detailsRequest.dim, applied, isStudy21) ? detailsRequest : null} kind={kind ?? undefined}
           trackSave={trackSave} onBlockedChange={setRightBlocked} onCountChange={setRightCount}
           onDataChanged={(saved) => setQueue(items => items.map(item => item.id === card.id ? { ...item, data: saved } : item))} />
       </div>
       <article ref={sortCardRef} className="sort-card" data-card-id={card.id} aria-label="New flashcard">
         <div className="sort-new-card-header">
           <div className="sort-header-tags">
+            {applied && kind ? <KnowledgeKindChip kind={kind} suggested={!kindChosen} disabled={busy} onChange={chooseKind} /> : null}
             {!isStudy21 ? <button type="button" disabled={busy} onClick={() => setTagsOpen(v => !v)}
               aria-label="Add tag" aria-expanded={tagsOpen} title="Add tag"><Tag size={14} /> Tag</button> : null}
             {tags.filter(tag => !tag.is_badge && tagIds.includes(tag.id)).map(tag =>
@@ -720,7 +763,7 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
         <div className="sort-new-content">
           <div className="sort-new-term">
             {term ? <SelectableSortText key={card.id + term.key} value={fieldText(card.data, term.key)} language={selectedLanguage}
-              label={term.label} placeholder="add the term" required={term.required} disabled={busy}
+              label={applied && kind ? KIND_INFO[kind].term : term.label} placeholder={applied && kind ? KIND_INFO[kind].termPlaceholder : "add the term"} required={term.required} disabled={busy}
               className="term" onEditingChange={setEditingCard}
               onCommit={(value) => saveInlineField(term.key, value)} /> : null}
 
@@ -733,10 +776,17 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
             onCommit={(value) => saveInlineField(reading.key, value)} /> : null}
           {isStudy21 ? <span className="sort-new-rule" aria-hidden="true" /> : null}
           {meaning ? <SelectableSortText key={card.id + meaning.key} value={fieldText(card.data, meaning.key)} language="en"
-            label={meaning.label} placeholder="add the meaning" required={meaning.required} multiline
+            label={applied && kind ? KIND_INFO[kind].meaning : meaning.label} placeholder={applied && kind ? KIND_INFO[kind].meaningPlaceholder : "add the meaning"} required={meaning.required} multiline
             className="meaning" disabled={busy} onEditingChange={setEditingCard}
             onCommit={(value) => saveInlineField(meaning.key, value)} /> : null}
-          {showExamples || isStudy21 ? <div className="sort-new-example">
+          {applied && kind ? <div className="sort-new-example sort-new-applied">
+            {appliedCase ? <button type="button" className="sort-new-example-link sort-new-case" disabled={busy}
+                onClick={() => openDetailsFor({ dim: "examples", blockId: appliedCase.blockId })} title="Edit in Details">
+                <span>{appliedCase.situation}</span>{appliedCase.outcome ? <em>→ {appliedCase.outcome}</em> : null}
+              </button>
+              : <button type="button" className="sort-new-add-example" disabled={busy}
+                onClick={() => openDetailsFor({ dim: primaryAddition(kind).section as Dimension })}>{primaryAddition(kind).label}</button>}
+          </div> : showExamples || isStudy21 ? <div className="sort-new-example">
             {isStudy21 && !exampleText && !blockExample && !exampleActive ? <button type="button" className="sort-new-add-example" disabled={busy}
                 onClick={() => openDetailsFor({ dim: "examples" })}>+ Example</button> : exampleField && !blockExample ? <>
               <SelectableSortText key={card.id + exampleField.key} value={fieldText(card.data, exampleField.key)} language={selectedLanguage}
@@ -757,11 +807,14 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
               : <button type="button" className="sort-new-add-example" disabled={busy}
                 onClick={() => openDetailsFor({ dim: "examples" })}>{isStudy21 ? "+ Example" : "+ Example sentence"}</button>}
           </div> : null}
+          {applied && kind && appliedHint ? <p className="sort-applied-hint" role="note">
+            {appliedHint.skills.length ? <><b>Learn: {appliedHint.skills.map((skill) => skillLabelFor(skill, kind)).join(" · ")}</b>{appliedHint.hint ? " — " : ""}</> : null}{appliedHint.hint}
+          </p> : null}
           <div className="sort-new-annotation">
             <div className="sort-card-labels">
               {cardLabels(card.data).map(label => <span key={label}>{label}<button type="button" title={"Remove " + label} aria-label={"Remove " + label}
                 disabled={busy} onClick={() => removeLabel(label)}>×</button></span>)}
-              {addingLabel ? <input autoFocus value={labelDraft} aria-label="New grammar label" placeholder="Add label…"
+              {addingLabel ? <input autoFocus value={labelDraft} aria-label={applied ? "New label" : "New grammar label"} placeholder="Add label…"
                 onChange={e => setLabelDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); addLabel(); }
                   if (e.key === "Escape") { e.stopPropagation(); setAddingLabel(false); } }} />

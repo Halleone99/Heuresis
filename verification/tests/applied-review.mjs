@@ -26,7 +26,8 @@ try {
         const exercise = appliedReviewQuestion(args);
         if (!exercise) throw new Error(`Missing applied question: ${title}/${card.id}/${reviewNumber}`);
         if (JSON.stringify(exercise) !== JSON.stringify(appliedReviewQuestion(args))) throw new Error("Review question not deterministic");
-        if (!["choice", "build", "judge"].includes(exercise.format)) throw new Error("Unsupported Review exercise format");
+        if (!["choice", "build", "judge", "type"].includes(exercise.format)) throw new Error("Unsupported Review exercise format");
+        if (exercise.format === "type" && !checkExercise(exercise, { format: "type", text: typeof exercise.accepted[0] === "string" ? exercise.accepted[0] : exercise.accepted[0].value }).correct) throw new Error("Correct typed answer rejected");
         if (exercise.kind === "rule-for-case" && exercise.answerId !== card.id) throw new Error("Neighbour-only question attributed to target card");
         if (exercise.format === "choice" && !checkExercise(exercise, { format: "choice", choiceId: exercise.answerId }).correct) throw new Error("Correct choice rejected");
         if (exercise.format === "judge" && !checkExercise(exercise, { format: "judge", text: exercise.solution, covered: exercise.points.map(point => point.id) }).correct) throw new Error("Complete self-check rejected");

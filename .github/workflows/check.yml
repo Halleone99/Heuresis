@@ -75,6 +75,10 @@ jobs:
       - run: node scripts/check-learning-stage.mjs
       - run: node scripts/check-review-engine.mjs
       - run: node scripts/check-review-bar-rules.mjs
+      # Applied knowledge: kinds, kind-specific Learn exercises, the knowledge curve and Applied Review.
+      - run: node verification/tests/learn-knowledge-kinds.mjs
+      - run: node verification/tests/learn-applied.mjs
+      - run: node verification/tests/applied-review.mjs
       - run: node scripts/check-review-consistency.mjs
       - run: node scripts/check-nonstudy-clarity.mjs
       - run: node scripts/check-notebook-reliability.mjs

@@ -12,7 +12,8 @@ type CountKey =
   | "movedToReviewLast7" | "returnedToLearnLast7" | "learnEnteredCohort" | "learnSucceededCohort"
   | "learnCards" | "learnDue" | "learnReady" | "learnExercisesToday" | "learnExercisesLast7"
   | "learnScoredLast7" | "learnCorrectLast7" | "reviewedToday" | "reverseTomorrow"
-  | "newReady" | "newToday" | "newLast7" | "reviewsLast7";
+  | "newReady" | "newToday" | "newLast7" | "reviewsLast7"
+  | "curveRecognise" | "curveRecall" | "curveExplain" | "curveApply" | "curveLongTerm" | "curveDueWeek" | "curveRecallPercent" | "curveMeasured";
 type Props = {
   collections: Collection[];
   packs: PackWithType[];
@@ -281,8 +282,23 @@ export default function TodayStudyPanel({
     countText(count("learnSucceededCohort")) + " of " + countText(count("learnEnteredCohort")) +
     " learning entries from 2–6 weeks ago reached Review", "learn");
 
+  // Applied knowledge in Review sits on the knowledge curve: show where, and what is coming.
+  const curveStages = [
+    { name: "Recognise", count: count("curveRecognise") }, { name: "Recall", count: count("curveRecall") },
+    { name: "Explain", count: count("curveExplain") }, { name: "Apply", count: count("curveApply") }, { name: "Long-term", count: count("curveLongTerm") },
+  ];
+  const curveTotal = curveStages.reduce((total, stage) => total + stage.count, 0);
+  const curveRecall = count("curveMeasured") ? Math.round(count("curveRecallPercent") / count("curveMeasured")) : null;
+  const curveCard = () => <div className="sh-quality tone-review sh-curve" key="curve">
+    <div className="sh-quality-head"><strong>{curveRecall ?? "—"}<small>{curveRecall === null ? "" : "%"}</small></strong><span>Knowledge curve · model estimate, not a measured recall rate</span></div>
+    <div className="sh-curve-bar" role="img" aria-label={curveStages.map((stage) => stage.name + " " + stage.count).join(", ")}>
+      {curveStages.map((stage, index) => stage.count ? <i key={stage.name} data-stage={index} style={{ flex: stage.count }} title={stage.name + " · " + countText(stage.count)} /> : null)}
+    </div>
+    <p className="sh-curve-legend">{curveStages.filter((stage) => stage.count).map((stage) => stage.name + " " + countText(stage.count)).join(" · ")}</p>
+    <p>{countText(count("curveDueWeek"))} due in the next 7 days · reviews come back less often as each one holds</p>
+  </div>;
   const quality = allStages ? [retention(), success()]
-    : mode === "review" ? [retention(), qualityCard("Strong or Mastered", count("strongCards"), reviewCards,
+    : mode === "review" ? [retention(), curveTotal ? curveCard() : qualityCard("Strong or Mastered", count("strongCards"), reviewCards,
       countText(count("strongCards")) + " of " + countText(reviewCards) + " cards in Review", "review")]
     : mode === "learn" ? [success(), qualityCard("Right first time", count("learnCorrectLast7"), count("learnScoredLast7"),
       countText(count("learnScoredLast7")) + " exercises, last 7 days", "learn")]

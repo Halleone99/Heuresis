@@ -1,6 +1,7 @@
 import type { CardWithStats } from "./heuresis";
 import type { GradeEvent, KnowledgeState } from "./knowledgeState";
 import { reviewGradeCount } from "./learningSignals";
+import { cardCurve, type Curve, type ReviewEntry } from "./knowledgeCurve";
 
 /**
  * The migration boundary preserves every existing progress bar. Grades recorded
@@ -17,6 +18,12 @@ export type CardBarProgress = {
   pendingDirections?: string[];
   /** A full pair was confirmed today; no further normal review is needed. */
   completedToday?: boolean;
+  /**
+   * Applied cards only (knowledgeCurve.ts): when the card is next due. Before then it is not in
+   * ordinary Review, however many bars it has; it never retires, it only comes back less often.
+   */
+  dueAt?: number | null;
+  curve?: Curve;
 };
 
 function dayOf(at: number): string {
@@ -61,6 +68,8 @@ export function reviewEligible(
   now = Date.now(),
   selectedDirectionIds?: string[],
 ): boolean {
+  // Spaced (Applied) cards wait for their due day, unless practice is asked for explicitly.
+  if (!includeMastered && progress.dueAt !== undefined && progress.dueAt !== null && now < progress.dueAt) return false;
   if (progress.pendingDirections !== undefined) {
     // A successful answer finishes this card for today. The reverse direction
     // becomes eligible on a later day, without losing its pending pair progress.
@@ -176,4 +185,40 @@ export function cardBarProgress(
     }
   }
   return { bars, mastered, estimated: false, ...pairedFields([...validated.keys()], completedDay === dayOf(now)) };
+}
+
+/** How an Applied card last came into Review (from its acquisition history). */
+export function reviewEntry(card: Pick<CardWithStats, "data">): ReviewEntry | null {
+  // Read directly (learningStage.ts's format, `_acquisition_v1`) so this module stays free of I/O.
+  const raw = card.data["_acquisition_v1"];
+  if (typeof raw !== "string") return null;
+  try {
+    const history = (JSON.parse(raw) as { history?: unknown }).history;
+    if (!Array.isArray(history)) return null;
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const event = history[index] as { kind?: unknown; at?: unknown; reason?: unknown } | null;
+      if (!event || event.kind !== "enter_review" || typeof event.at !== "string") continue;
+      const at = Date.parse(event.at);
+      return Number.isFinite(at) ? { at, fromLearn: event.reason === "ready" } : null;
+    }
+  } catch { /* unreadable history: no entry */ }
+  return null;
+}
+
+/**
+ * Progress for Review, whatever the card: the four bars for language cards (unchanged), the
+ * knowledge curve for Applied cards. On the curve, bars are its first four rungs; there is no
+ * Mastered retirement, only a due day that moves further away with every spaced success.
+ */
+export function packCardProgress(
+  spaced: boolean,
+  card: CardWithStats,
+  history: GradeEvent[] | null,
+  oldState: KnowledgeState | null,
+  directionIds: string[] = [],
+  now = Date.now(),
+): CardBarProgress {
+  if (!spaced) return cardBarProgress(card, history, oldState, directionIds, now);
+  const curve = cardCurve(card, history, reviewEntry(card));
+  return { bars: Math.min(4, curve.rung), mastered: false, estimated: curve.estimated, dueAt: curve.dueAt, curve };
 }

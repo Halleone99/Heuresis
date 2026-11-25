@@ -24,7 +24,9 @@ import { cardHasCompletedSort, markCardSorted } from "../lib/sort";
 import { inReview } from "../lib/learningStage";
 import { isLearnCard, readOpenLearn, rememberOpenLearn } from "../lib/learnSession";
 import { packLanguage, toLearnCard } from "../lib/learnExercises";
-import { APPLIED_KIND_KEY, appliedCardKind, appliedCardFieldLabel, isRuleTextField, packShape } from "../lib/teachingShape";
+import { APPLIED_KIND_KEY, isRuleTextField, packShape } from "../lib/teachingShape";
+import { KIND_INFO, kindFieldLabel, knowledgeKind, type KnowledgeKind } from "../lib/knowledgeKinds";
+import { KnowledgeKindSegments } from "./KnowledgeKindPicker";
 import { appliedCoverage } from "../lib/appliedExercises";
 import LearningSession from "./LearningSession";
 import { loadStudySetup, type StudyTemplate } from "../lib/study";
@@ -118,7 +120,7 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
   const [note, setNote] = useState(card.note ?? "");
   const [favourite, setFavourite] = useState(card.favourite);
   const [reviewImportant, setReviewImportant] = useState(card.data["_review_important"] === "true");
-  const [appliedKind, setAppliedKind] = useState(appliedCardKind(card.data));
+  const [appliedKind, setAppliedKind] = useState<KnowledgeKind>(() => knowledgeKind(card.data, pack.cardType));
   const [interest, setInterest] = useState<number | null>(card.interest_rank);
   const [tagIds, setTagIds] = useState<string[]>(card.tags.map((tag) => tag.id));
   const [saving, setSaving] = useState(false);
@@ -160,12 +162,12 @@ function CardEditor({ pack, card, tags, onClose, onSaved, onDeleted, onChanged, 
         }}>
         <div className="editor-head"><div><p className="eyebrow">CARD</p><h2>Edit card</h2></div><div className="editor-head-actions"><button className="secondary-button" onClick={onConnections}><GitFork size={14} /> Connections</button><button className="text-button" onClick={onClose}>Close</button></div></div>
         <div className="editor-fields">
-          {packShape(pack) === "rule" ? <div className="applied-kind-switch" role="group" aria-label="Applied card format"><button type="button" className={appliedKind === "knowledge" ? "selected" : ""} aria-pressed={appliedKind === "knowledge"} onClick={() => setAppliedKind("knowledge")}>Knowledge</button><button type="button" className={appliedKind === "question" ? "selected" : ""} aria-pressed={appliedKind === "question"} onClick={() => setAppliedKind("question")}>Question</button></div> : null}
+          {packShape(pack) === "rule" ? <KnowledgeKindSegments value={appliedKind} onChange={setAppliedKind} disabled={saving} /> : null}
           {(pack.cardType?.field_schema ?? []).map((field) => (
-            <label className="field-row" key={field.key}><span>{packShape(pack) === "rule" ? appliedCardFieldLabel(field, appliedKind) : field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" || isRuleTextField(pack.cardType, field) ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
+            <label className="field-row" key={field.key}><span>{packShape(pack) === "rule" ? kindFieldLabel(field, appliedKind) : field.label}{field.required ? <b> *</b> : null}</span>{field.role === "example" || field.role === "extra" || isRuleTextField(pack.cardType, field) ? <textarea rows={3} value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} /> : <input value={values[field.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />}</label>
           ))}
           {packShape(pack) === "rule" ? (() => {
-            const hint = appliedCoverage(toLearnCard({ ...card, data: { ...card.data, ...values } }, pack, null), pack.card_count - 1).hint;
+            const hint = appliedCoverage(toLearnCard({ ...card, data: { ...card.data, ...values, [APPLIED_KIND_KEY]: appliedKind } }, pack, null), pack.card_count - 1).hint;
             return hint ? <p className="card-applied-hint">{hint}</p> : null;
           })() : null}
           <label className="field-row"><span>Note</span><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} /></label>
@@ -840,7 +842,7 @@ export default function PackView({ pack, collection, newCardsWallpaper, focusCar
             <div className="modern-card-cell">
               <span className="modern-card-title">{bulkMode ? <label className="heuresis-bulk-check" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
                 <input type="checkbox" aria-label={`Select ${fieldText(card.data, term?.key) || "card"}`} checked={selected} disabled={bulkBusy} onChange={() => toggleBulk(card.id)} />
-              </label> : null}{packShape(pack) === "rule" ? <span className="applied-kind-pill" title={appliedCardKind(card.data) === "question" ? "Question card" : "Knowledge card"}>{appliedCardKind(card.data) === "question" ? "Q" : "K"}</span> : null}<strong lang={topicLanguage ?? undefined}>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}</span>
+              </label> : null}{packShape(pack) === "rule" ? (() => { const kind = knowledgeKind(card.data, pack.cardType); return <span className="applied-kind-pill" data-kind={kind} title={KIND_INFO[kind].label}>{KIND_INFO[kind].mark}</span>; })() : null}<strong lang={topicLanguage ?? undefined}>{fieldText(card.data, term?.key) || "Untitled"}</strong>{card.favourite ? <Star size={13} fill="currentColor" /> : null}</span>
               {reading ? <em>{fieldText(card.data, reading.key)}</em> : null}
               <p>{fieldText(card.data, meaning?.key)}</p>
             </div>

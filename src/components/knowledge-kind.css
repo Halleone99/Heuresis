@@ -1,0 +1,36 @@
+/* The kind of applied knowledge: a quiet chip on the card, segments in editors. */
+.kind-chip{position:relative;display:inline-flex}
+.kind-chip-trigger{display:inline-flex;align-items:center;gap:6px;padding:3px 8px 3px 6px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:999px;background:transparent;color:inherit;font:600 11px Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.kind-chip-trigger:disabled{opacity:.5;cursor:default}
+.kind-chip-trigger i{font-style:normal;opacity:.6;margin-left:-2px}
+.kind-chip-mark{display:inline-grid;place-items:center;min-width:16px;height:16px;border-radius:5px;font:600 11px "Noto Serif",Georgia,serif;letter-spacing:0;background:color-mix(in srgb,currentColor 12%,transparent)}
+.kind-chip-menu{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);z-index:40;width:min(300px,86vw);padding:6px;border:1px solid color-mix(in srgb,var(--study21-text,#eaf0f8) 12%,transparent);border-radius:14px;background:var(--study21-panel,#1d2633);color:var(--study21-text,#eaf0f8);box-shadow:0 18px 40px rgba(0,0,0,.3);text-align:left;letter-spacing:0;text-transform:none}
+.kind-chip-menu>p{margin:4px 8px 6px;font:500 11px Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--study21-muted,#94a3b8)}
+.kind-chip-menu button{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;width:100%;padding:9px 10px;border:0;border-radius:10px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.kind-chip-menu button[aria-checked=true]{background:color-mix(in srgb,var(--study21-blue,#88afe1) 16%,transparent)}
+.kind-chip-menu button:hover{background:color-mix(in srgb,var(--study21-text,#eaf0f8) 7%,transparent)}
+.kind-chip-menu .kind-chip-mark{min-width:22px;height:22px;font-size:13px}
+.kind-chip-copy{display:grid;gap:2px}
+.kind-chip-copy strong{font:600 13px Inter,system-ui,sans-serif}
+.kind-chip-copy small{font:400 12px Inter,system-ui,sans-serif;color:var(--study21-secondary,#cbd5e1)}
+.kind-chip-copy em{font:italic 400 11px Inter,system-ui,sans-serif;color:var(--study21-muted,#94a3b8)}
+.kind-segments{display:grid;gap:6px;margin:0 0 10px}
+.kind-segments>div{display:flex;flex-wrap:wrap;gap:6px}
+.kind-segments button{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));border-radius:999px;background:transparent;color:inherit;font:500 13px Inter,system-ui,sans-serif;cursor:pointer}
+.kind-segments button span{font-family:"Noto Serif",Georgia,serif;opacity:.75}
+.kind-segments button.selected{border-color:var(--ws-accent,#88afe1);background:var(--ws-accent-soft,rgba(100,155,225,.19))}
+.kind-segments small{color:var(--ws-muted,#99a8b9);font-size:12px}
+/* The quiet line under an Applied card in New: what Learn can do with it, and what would help. */
+.sort-applied-hint{margin:14px auto 0;max-width:min(560px,92%);text-align:center;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--study21-muted,#94a3b8)}
+.sort-applied-hint b{font-weight:600;color:var(--study21-secondary,#cbd5e1)}
+.sort-enrich-help{margin:2px 0 8px;font:400 12px/1.4 Inter,system-ui,sans-serif;color:var(--study21-muted,#94a3b8)}
+.sort-new-case{display:grid;gap:4px;text-align:center}
+.sort-new-case em{font-style:normal;opacity:.8}
+/* Applied lists (features, contrasts, key terms, figures): every line is an item of equal weight. */
+.sort-enrichment[data-applied-kind] .sort-enrich-section:is([data-dim="structure"],[data-dim="neighbours"],[data-dim="components"],[data-dim="facts"]) .nb-prose p,
+.sort-enrichment[data-applied-kind] .sort-enrich-section:is([data-dim="structure"],[data-dim="neighbours"],[data-dim="components"],[data-dim="facts"]) .nb-prose p:first-child{font:inherit;color:inherit;margin:0 0 6px}
+.sort-enrichment[data-applied-kind] .sort-enrich-section[data-dim="structure"] .nb-prose p::before{content:"·";display:inline-block;width:.9em;opacity:.55}
+/* A suggested kind (read from the card, not yet chosen) has a dashed outline until it is confirmed. */
+.kind-chip-trigger.is-suggested{border-style:dashed}
+.sort-modal .kind-chip .kind-chip-menu :is(button,small,em,strong,span){letter-spacing:normal !important;text-transform:none !important}
+.sort-modal .kind-chip .kind-chip-menu>p{letter-spacing:.08em !important}

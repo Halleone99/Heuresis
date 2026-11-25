@@ -32,5 +32,17 @@
 .applied-review-footer button{min-height:44px;padding:8px 18px;border-radius:99px;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));background:transparent;color:inherit;font:inherit;cursor:pointer}
 .applied-review-footer button.primary{background:var(--ws-accent,#88afe1);color:var(--ws-on-accent,#172335);border-color:transparent;font-weight:600}
 .applied-review-footer button:disabled{opacity:.42;cursor:default}
-.applied-review-footer-note{font-size:12px;color:var(--ws-muted,#99a8b9);text-align:center;margin:0}
+.applied-review-footer-note{font-size:12px;color:var(--ws-muted,#99a8b9);text-align:center;margin:0;flex-basis:100%}
 @media(max-width:640px){.applied-review-question{padding:10px 0 20px}.applied-review-case,.applied-review-prompt{font-size:16px}.applied-review-footer button{flex:1}}
+
+/* Knowledge curve: the stage the question was chosen for, typed answers, and when each grade brings the card back. */
+.applied-review-heading span{display:flex;align-items:center;gap:8px;text-transform:none}
+.applied-review-stage{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--ws-accent,#88afe1)}
+.applied-review-choices.is-grid{grid-template-columns:1fr 1fr}
+.applied-review-choices.is-grid button{text-align:center;font-weight:600}
+.applied-review-typed input{width:100%;box-sizing:border-box;min-height:48px;border:1px solid var(--ws-line-strong,rgba(150,170,200,.3));border-radius:10px;background:var(--ws-raised,rgba(100,125,155,.16));color:inherit;padding:10px 14px;font:inherit;font-size:18px}
+.applied-review-typed input:focus-visible{outline:2px solid var(--ws-accent,#88afe1);outline-offset:2px}
+.applied-review-answer[data-correct="true"] b{color:#7cc4a0}
+.applied-review-footer .applied-grade{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15}
+.applied-review-footer .applied-grade small{font-size:11px;font-weight:500;opacity:.72}
+.applied-review-footer .applied-grade.primary small{opacity:.8}
