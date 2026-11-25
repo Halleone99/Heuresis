@@ -90,7 +90,11 @@ try {
   });
   await page.keyboard.press("Control+s");
   await saved();
-  const expected = "1. First  item\u2028Same item\n2. Second item\n2026\\. Still a paragraph\nPasted  words\n\n\nAfter the gap";
+  assert.equal(await field.evaluate((el) => document.activeElement === el), true, "Ctrl+S keeps the editor focused");
+  await page.keyboard.insertText(" continued");
+  await page.keyboard.press("Control+s");
+  await saved();
+  const expected = "1. First  item\u2028Same item\n2. Second item\n2026\\. Still a paragraph\nPasted  words\n\n\nAfter the gap continued";
   assert.equal(article.pages[0].blocks[0].content, expected);
   await page.reload();
   await field.waitFor();
