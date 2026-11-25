@@ -530,7 +530,7 @@ function DesignerStudio({ articleId }: { articleId: string }) {
       const typing = Boolean(target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)));
       if (mod && !event.altKey && event.code === "KeyZ") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
       if (mod && !event.altKey && event.code === "KeyY") { event.preventDefault(); redo(); return; }
-      if (mod && event.code === "KeyS") { event.preventDefault(); flushEditing(); void saveNow(); return; }
+      if (mod && event.code === "KeyS") { event.preventDefault(); void saveNow(); return; }
       if (event.key === "Escape") {
         if (typing && target) { target.blur(); event.preventDefault(); return; }
         if (selectedId) { setSelectedId(null); event.preventDefault(); }
