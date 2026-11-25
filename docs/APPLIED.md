@@ -100,7 +100,13 @@ same points is a possible next step.
 - The previous round of a card is read through the existing `heuresis_learn_round_state`
   function, best effort; Learn never waits on it.
 
-## Not yet: Review for Applied
+## Kinds of applied knowledge and the knowledge curve (25 November 2026)
+
+Applied cards now carry a kind — definition, rule, procedure, figure or question — with their own
+details in New, their own Learn library and spaced Review on the knowledge curve. Rules are taught
+exactly as described above. See `APPLIED-KNOWLEDGE-KINDS.md`.
+
+## Not yet: Review for Applied (superseded — see APPLIED-KNOWLEDGE-KINDS.md)
 
 After Learn, Review still shows an Applied card as a flashcard (**Rule → What it requires**, or
 **Case → Outcome** for the single case field). Long-term practice therefore drifts back to

@@ -1,5 +1,6 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import type { CardBarProgress } from "../lib/cardProgress";
+import { formatGap, daysUntilDue, stageOf, STAGE_INFO } from "../lib/knowledgeCurve";
 import type { StudyGrade } from "../lib/study";
 
 type ReviewChange = {
@@ -19,7 +20,9 @@ type Props = {
 
 /** The bars carry the count; the caption stays quiet and only real movement gets a marker. */
 export default function ReviewCardStatus({ progress, historyAvailable, change, study21 = false }: Props) {
-  const label = progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : progress.bars === 0 ? "Starting" : "Building";
+  // Applied cards: where they are on the knowledge curve, not bars toward retirement.
+  const label = progress.curve ? STAGE_INFO[stageOf(progress.curve.rung)].label
+    : progress.mastered ? "Mastered" : progress.bars === 4 ? "Known" : progress.bars === 0 ? "Starting" : "Building";
   const reliable = historyAvailable && !progress.estimated;
   const delta = change && reliable ? change.barsAfter - change.barsBefore : 0;
   // "Recalled" is only a bar gain after the progress engine confirms a completed direction pair.
@@ -27,7 +30,9 @@ export default function ReviewCardStatus({ progress, historyAvailable, change, s
   const justMastered = Boolean(change && reliable && !change.masteredBefore && change.masteredAfter);
   const trend: "up" | "down" | "level" = justMastered || delta > 0 ? "up" : delta < 0 ? "down" : "level";
 
-  const statusTitle = `${label} · ${progress.bars} of 4 progress bars. ${progress.mastered ? "Mastery confirmed." : "Mastery requires a later successful review."}`;
+  const statusTitle = progress.curve
+    ? `${label} · on the knowledge curve, reviewed every ${formatGap(Math.max(1, progress.curve.intervalDays))}${daysUntilDue(progress.curve) ? `; next in ${formatGap(daysUntilDue(progress.curve))}` : ""}.`
+    : `${label} · ${progress.bars} of 4 progress bars. ${progress.mastered ? "Mastery confirmed." : "Mastery requires a later successful review."}`;
   const context = !reliable
     ? "Progress is estimated because complete review history is unavailable."
     : progress.pendingDirections?.length

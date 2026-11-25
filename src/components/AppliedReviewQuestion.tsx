@@ -1,13 +1,16 @@
-import { type Exercise, type Verdict } from "../lib/learnExercises";
+import { exerciseLabel, type Exercise, type Verdict } from "../lib/learnExercises";
 import { answerMentions } from "../lib/appliedExercises";
 import "./applied-review.css";
 
 type Props = {
   exercise: Exercise;
+  /** Where the card is on the knowledge curve ("Recall"), shown beside the skill. */
+  stage?: string;
   revealed: boolean;
   verdict: Verdict | null;
   choiceId: string;
   tileIds: string[];
+  /** The written answer: a free answer (judge) or a typed term or value (type). */
   written: string;
   covered: string[];
   onChoice: (id: string) => void;
@@ -16,12 +19,15 @@ type Props = {
   onCovered: (ids: string[]) => void;
 };
 
-export default function AppliedReviewQuestion({ exercise, revealed, verdict, choiceId, tileIds, written, covered, onChoice, onTiles, onWritten, onCovered }: Props) {
-  return <div className="applied-review-question" aria-label="Applied review question">
-    <div className="applied-review-heading"><span>Applied · {exercise.kind.replace(/-/g, " ")}</span><strong>{exercise.prompt.ask}</strong></div>
+export default function AppliedReviewQuestion({ exercise, stage, revealed, verdict, choiceId, tileIds, written, covered, onChoice, onTiles, onWritten, onCovered }: Props) {
+  return <div className="applied-review-question" aria-label="Applied review question" data-kind={exercise.kind}>
+    <div className="applied-review-heading">
+      <span>{stage ? <b className="applied-review-stage">{stage}</b> : null}{stage === exerciseLabel(exercise) ? null : exerciseLabel(exercise)}</span>
+      <strong>{exercise.prompt.ask}</strong>
+    </div>
     <div className={exercise.prompt.style === "case" ? "applied-review-case" : "applied-review-prompt"}>{exercise.prompt.text}</div>
     {exercise.prompt.sub ? <p className="applied-review-sub">{exercise.prompt.sub}</p> : null}
-    {exercise.format === "choice" ? <div className="applied-review-choices" role="group" aria-label="Choose an answer">
+    {exercise.format === "choice" ? <div className={`applied-review-choices${exercise.layout === "grid" ? " is-grid" : ""}`} role="group" aria-label="Choose an answer">
       {exercise.choices.map((option) => <button type="button" key={option.id} disabled={revealed}
         aria-pressed={choiceId === option.id}
         className={`${choiceId === option.id ? "selected" : ""} ${revealed && option.id === exercise.answerId ? "correct" : ""} ${revealed && choiceId === option.id && option.id !== exercise.answerId ? "incorrect" : ""}`}
@@ -36,6 +42,11 @@ export default function AppliedReviewQuestion({ exercise, revealed, verdict, cho
       {!revealed ? <div className="applied-review-tiles">{exercise.tiles.filter((tile) => !tileIds.includes(tile.id)).map((tile) =>
         <button type="button" key={tile.id} onClick={() => onTiles([...tileIds, tile.id])}>{tile.text}</button>)}</div> : null}
     </div> : null}
+    {exercise.format === "type" ? <div className="applied-review-typed">
+      <input type="text" aria-label="Your answer" value={written} disabled={revealed} placeholder={exercise.placeholder}
+        autoComplete="off" autoCorrect="off" spellCheck={false} inputMode={exercise.kind === "type-value" ? "decimal" : undefined}
+        onChange={(event) => onWritten(event.target.value)} />
+    </div> : null}
     {exercise.format === "judge" ? <div className="applied-review-free">
       <textarea aria-label="Your answer" rows={4} maxLength={900} value={written} disabled={revealed}
         onChange={(event) => onWritten(event.target.value)} placeholder={exercise.placeholder}/>
@@ -48,7 +59,7 @@ export default function AppliedReviewQuestion({ exercise, revealed, verdict, cho
         </label>)}
       </fieldset> : null}
     </div> : null}
-    {revealed && exercise.format !== "judge" ? <div className="applied-review-answer" role="status"><b>{verdict?.correct ? "Correct" : "Reference answer"}</b><p>{exercise.solution}</p>{verdict?.message ? <small>{verdict.message}</small> : null}</div> : null}
-    {revealed && exercise.format === "judge" && verdict ? <div className="applied-review-answer" role="status"><b>{verdict.correct ? "Covered" : "Needs work"}</b><p>{verdict.message || "Compare the answer against your own written explanation."}</p></div> : null}
+    {revealed && exercise.format !== "judge" ? <div className="applied-review-answer" role="status" data-correct={verdict?.correct ? "true" : "false"}><b>{verdict?.correct ? "Correct" : "Reference answer"}</b><p>{exercise.solution}</p>{verdict?.message ? <small>{verdict.message}</small> : null}</div> : null}
+    {revealed && exercise.format === "judge" && verdict ? <div className="applied-review-answer" role="status" data-correct={verdict.correct ? "true" : "false"}><b>{verdict.correct ? "Covered" : "Needs work"}</b><p>{verdict.message || "Compare the answer against your own written explanation."}</p></div> : null}
   </div>;
 }

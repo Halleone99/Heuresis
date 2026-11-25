@@ -1,5 +1,7 @@
 import { listCards, type CardWithStats, type PackWithType } from "./heuresis";
-import { cardBarProgress, reviewEligible, reviewEligibleForMode, reviewedSuccessfullyToday } from "./cardProgress";
+import { packCardProgress, reviewEligible, reviewEligibleForMode, reviewedSuccessfullyToday } from "./cardProgress";
+import { packShape } from "./teachingShape";
+import { daysUntilDue, recallChance, stageOf } from "./knowledgeCurve";
 import { assessState, directionEvidence, type GradeEvent } from "./knowledgeState";
 import { defaultDirections } from "./recommend";
 import { loadGradeEvents } from "./reviewEvidence";
@@ -50,6 +52,17 @@ type Counts = {
   newLast7: number;
   /** Distinct card/day review pairs, so repeated attempts do not inflate activity. */
   reviewsLast7: number;
+  /** Applied cards in Review, by stage of the knowledge curve (knowledgeCurve.ts). */
+  curveRecognise: number;
+  curveRecall: number;
+  curveExplain: number;
+  curveApply: number;
+  curveLongTerm: number;
+  /** Applied cards due in the next seven days (not today). */
+  curveDueWeek: number;
+  /** Estimated recall now, summed in percent, and how many cards it covers (for an average). */
+  curveRecallPercent: number;
+  curveMeasured: number;
 };
 export type TopicReviewSummary = Counts & {
   packId: string;
@@ -70,6 +83,7 @@ const COUNT_KEYS: Array<keyof Counts> = [
   "ready", "reviewCards", "strongCards", "reviewFirstTryLast7", "reviewGradedLast7",
   "movedToReviewLast7", "returnedToLearnLast7", "learnEnteredCohort", "learnSucceededCohort", "learnCards", "learnDue", "learnReady", "learnExercisesToday", "learnExercisesLast7", "learnScoredLast7", "learnCorrectLast7",
   "reviewedToday", "reverseTomorrow", "newReady", "newToday", "newLast7", "reviewsLast7",
+  "curveRecognise", "curveRecall", "curveExplain", "curveApply", "curveLongTerm", "curveDueWeek", "curveRecallPercent", "curveMeasured",
 ];
 
 function eventsByCard(events: GradeEvent[] | null) {
@@ -123,6 +137,7 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       learnExercisesToday: activity?.attemptsToday ?? 0, learnExercisesLast7: activity?.attemptsWeek ?? 0,
       learnScoredLast7: activity?.attemptsWeek ?? 0, learnCorrectLast7: activity?.correctWeek ?? 0,
       reviewedToday: 0, reverseTomorrow: 0, newReady: 0, newToday: 0, newLast7: 0, reviewsLast7: 0, readyCardIds: [], masteredCardIds: [],
+      curveRecognise: 0, curveRecall: 0, curveExplain: 0, curveApply: 0, curveLongTerm: 0, curveDueWeek: 0, curveRecallPercent: 0, curveMeasured: 0,
     };
 
     for (const card of cards) {
@@ -194,8 +209,22 @@ export async function loadReviewOverview(packs: PackWithType[], now = Date.now()
       summary.reviewCards += 1;
       if (!directions.length) continue;
       const oldState = assessState(directionEvidence(card, null, grades)).state;
-      const progress = cardBarProgress(card, grades, oldState, pair, now);
-      if (oldState === "strong" || progress.mastered) summary.strongCards += 1;
+      // Applied cards follow the knowledge curve: due on their day, never retired.
+      const spaced = packShape(pack) === "rule";
+      const progress = packCardProgress(spaced, card, grades, oldState, pair, now);
+      if (spaced ? (progress.curve?.rung ?? 0) >= 5 : oldState === "strong" || progress.mastered) summary.strongCards += 1;
+      if (spaced && progress.curve) {
+        const stage = stageOf(progress.curve.rung);
+        if (stage === "recognise") summary.curveRecognise += 1;
+        else if (stage === "recall") summary.curveRecall += 1;
+        else if (stage === "explain") summary.curveExplain += 1;
+        else if (stage === "apply") summary.curveApply += 1;
+        else summary.curveLongTerm += 1;
+        const days = daysUntilDue(progress.curve, now);
+        if (days > 0 && days <= 7) summary.curveDueWeek += 1;
+        const chance = recallChance(progress.curve, now);
+        if (chance !== null) { summary.curveRecallPercent += Math.round(chance * 100); summary.curveMeasured += 1; }
+      }
       if (reviewEligible(progress, grades, card.stats.last_encountered_at, false, now, directions)) summary.readyCardIds.push(card.id);
       if (reviewEligibleForMode(progress, grades, card.stats.last_encountered_at, true, now, directions)) summary.masteredCardIds.push(card.id);
       if (grades && reviewedSuccessfullyToday(grades, now) && pair.length && progress.pendingDirections?.length === 1) {

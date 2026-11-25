@@ -2,7 +2,9 @@ import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fieldText, getCard, updateCard, type CardWithStats, type FieldDef, type PackWithType } from "../lib/heuresis";
 import RelatedEditor from "./RelatedEditor";
-import { APPLIED_KIND_KEY, appliedCardKind, appliedCardFieldLabel, isRuleTextField, packShape } from "../lib/teachingShape";
+import { APPLIED_KIND_KEY, isRuleTextField, packShape } from "../lib/teachingShape";
+import { kindFieldLabel, knowledgeKind, type KnowledgeKind as AppliedKnowledgeKind } from "../lib/knowledgeKinds";
+import { KnowledgeKindSegments } from "./KnowledgeKindPicker";
 
 type Props = {
   pack: PackWithType;
@@ -11,7 +13,7 @@ type Props = {
   onSaved: (card: CardWithStats) => void;
   onRelationsChanged?: () => void;
 };
-type KnowledgeKind = "example" | "grammar" | "parts" | "origin" | "fact" | "note";
+type KnowledgeKind = "example" | "grammar" | "parts" | "origin" | "fact" | "note" | "contrast";
 type KnowledgeOption = { kind: KnowledgeKind; label: string; dimension: string; hint: string };
 type EditableBlock = {
   id: string;
@@ -32,6 +34,17 @@ const KNOWLEDGE: KnowledgeOption[] = [
   { kind: "fact", label: "Fact", dimension: "facts", hint: "Useful or memorable detail" },
   { kind: "note", label: "Note", dimension: "notes", hint: "A personal observation" },
 ];
+/** The same storage for Applied cards, with the labels of their Details (knowledgeKinds.ts). */
+const APPLIED_KNOWLEDGE: KnowledgeOption[] = [
+  { kind: "grammar", label: "Key features", dimension: "structure", hint: "One feature per line" },
+  { kind: "example", label: "Example or case", dimension: "examples", hint: "A situation…\n→ what follows" },
+  { kind: "contrast", label: "Not to be confused with", dimension: "neighbours", hint: "Other term — how it differs" },
+  { kind: "parts", label: "Key terms", dimension: "components", hint: "A term it relies on — what it means" },
+  { kind: "origin", label: "Source", dimension: "origin", hint: "Article, regulation, version" },
+  { kind: "fact", label: "Key figures", dimension: "facts", hint: "A limit, deadline or amount" },
+  { kind: "note", label: "Note", dimension: "notes", hint: "A personal observation" },
+];
+const optionsFor = (pack: PackWithType) => (packShape(pack) === "rule" ? APPLIED_KNOWLEDGE : KNOWLEDGE);
 
 function newId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -57,7 +70,7 @@ function kindFor(row: Record<string, unknown>): KnowledgeKind | null {
   if (row.type === "text") {
     const byDimension: Record<string, KnowledgeKind> = {
       examples: "example", structure: "grammar", components: "parts",
-      origin: "origin", facts: "fact", notes: "note",
+      origin: "origin", facts: "fact", notes: "note", neighbours: "contrast",
     };
     return byDimension[String(row.dim)] ?? null;
   }
@@ -70,11 +83,13 @@ function editableBlocks(card: CardWithStats): EditableBlock[] {
     const kind = kindFor(row);
     if (!kind || (typeof row.text !== "string" && typeof row.source !== "string")) return [];
     const source = typeof row.source === "string" ? row.source : String(row.text ?? "").split("\n")[0];
+    // A free text block (an Applied case: "situation\n→ what follows") is edited whole, never cut to its first line.
+    const structured = kind === "example" && row.type === "example";
     return [{
       id: row.id,
       originalIndex: index,
       kind,
-      value: kind === "example" ? source : String(row.text ?? ""),
+      value: structured ? source : String(row.text ?? ""),
       reading: typeof row.reading === "string" ? row.reading : "",
       meaning: typeof row.translation === "string" ? row.translation : "",
       original: row,
@@ -88,15 +103,17 @@ function exampleLanguageMeta(pack: PackWithType) {
   return { source_language: "und", translation_language: "en" };
 }
 function serializeBlock(block: EditableBlock, pack: PackWithType): string {
-  const option = KNOWLEDGE.find((entry) => entry.kind === block.kind)!;
+  const option = optionsFor(pack).find((entry) => entry.kind === block.kind) ?? KNOWLEDGE.find((entry) => entry.kind === block.kind)!;
+  // Applied details are plain text blocks (what New's Details read and write); so is an existing text block.
+  const plain = block.original ? block.original.type === "text" : packShape(pack) === "rule" || block.kind === "contrast";
   const base = {
     ...(block.original ?? {}),
     id: block.id,
-    type: block.kind === "example" ? "example" : block.original?.type ?? block.kind,
+    type: plain ? "text" : block.kind === "example" ? "example" : block.original?.type ?? block.kind,
     schema_version: block.original?.schema_version ?? 2,
     dim: block.original?.dim ?? option.dimension,
   };
-  if (block.kind === "example") {
+  if (block.kind === "example" && !plain) {
     const source = block.value.trim();
     const reading = block.reading.trim();
     const translation = block.meaning.trim();
@@ -143,7 +160,8 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
   const [note, setNote] = useState(card.note ?? "");
   const [acceptedAnswers, setAcceptedAnswers] = useState(() =>
     Array.isArray(card.data["_accepted_answers"]) ? card.data["_accepted_answers"].join("\n") : "");
-  const [appliedKind, setAppliedKind] = useState(appliedCardKind(card.data));
+  const [appliedKind, setAppliedKind] = useState<AppliedKnowledgeKind>(() => knowledgeKind(card.data, pack.cardType));
+  const blockOptions = optionsFor(pack);
   const [blocks, setBlocks] = useState<EditableBlock[]>(() => editableBlocks(card));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -174,7 +192,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
       if (!latest) throw new Error("This card no longer exists.");
       if (
         schema.some((field) => fieldText(latest.data, field.key) !== fieldText(card.data, field.key)) ||
-        (packShape(pack) === "rule" && appliedCardKind(latest.data) !== appliedCardKind(card.data)) ||
+        (packShape(pack) === "rule" && latest.data[APPLIED_KIND_KEY] !== card.data[APPLIED_KIND_KEY]) ||
         (latest.note ?? "") !== (card.note ?? "") ||
         JSON.stringify(originalRows(latest)) !== JSON.stringify(originalRows(card)) ||
         JSON.stringify(latest.data["_accepted_answers"] ?? []) !== JSON.stringify(card.data["_accepted_answers"] ?? [])
@@ -215,7 +233,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
 
   const renderField = (field: FieldDef) => (
     <label key={field.key} className="cosmos-edit-field">
-      <span>{packShape(pack) === "rule" ? appliedCardFieldLabel(field, appliedKind) : field.label}{field.required ? " *" : ""}</span>
+      <span>{packShape(pack) === "rule" ? kindFieldLabel(field, appliedKind) : field.label}{field.required ? " *" : ""}</span>
       {["example", "extra", "example_translation"].includes(field.role ?? "") || isRuleTextField(pack.cardType, field)
         ? <textarea rows={2} value={values[field.key] ?? ""} onChange={(event) => setValue(field.key, event.target.value)} />
         : <input type="text" value={values[field.key] ?? ""} onChange={(event) => setValue(field.key, event.target.value)} />}
@@ -235,7 +253,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
         <button type="button" onClick={onClose} disabled={saving} aria-label="Close card editor"><X size={18} /></button>
       </header>
       <div className="cosmos-edit-fields">
-        {packShape(pack) === "rule" ? <div className="applied-kind-switch" role="group" aria-label="Applied card format"><button type="button" className={appliedKind === "knowledge" ? "selected" : ""} aria-pressed={appliedKind === "knowledge"} onClick={() => setAppliedKind("knowledge")}>Knowledge</button><button type="button" className={appliedKind === "question" ? "selected" : ""} aria-pressed={appliedKind === "question"} onClick={() => setAppliedKind("question")}>Question</button></div> : null}
+        {packShape(pack) === "rule" ? <KnowledgeKindSegments value={appliedKind} onChange={setAppliedKind} disabled={saving} /> : null}
         <div className="cosmos-edit-section-label"><span>FRONT</span><small>Recall prompt</small></div>
         {groups.prompt.map(renderField)}
         <div className="cosmos-edit-section-label cosmos-edit-back-label"><span>BACK</span><small>Reference answer</small></div>
@@ -256,10 +274,10 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
           <div className="cosmos-edit-more-body">{groups.extra.map(renderField)}</div>
         </details> : null}
         <div className="cosmos-edit-enrichment-head">
-          <div><strong>Card knowledge</strong><small>Examples, context and useful details</small></div>
+          <div><strong>Card knowledge</strong><small>{packShape(pack) === "rule" ? "Features, cases, what it is confused with, source" : "Examples, context and useful details"}</small></div>
         </div>
         {blocks.map((block) => {
-          const def = KNOWLEDGE.find((option) => option.kind === block.kind)!;
+          const def = blockOptions.find((option) => option.kind === block.kind) ?? KNOWLEDGE.find((option) => option.kind === block.kind)!;
           return <div className="cosmos-edit-enrichment" key={block.id}>
             <div className="cosmos-edit-enrichment-label">
               <strong>{def.label}</strong>
@@ -268,7 +286,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
             </div>
             <textarea rows={2} value={block.value} placeholder={def.hint}
               onChange={(event) => changeBlock(block.id, { value: event.target.value })} />
-            {block.kind === "example" ? <div className="cosmos-edit-example-row">
+            {block.kind === "example" && (block.original ? block.original.type === "example" : packShape(pack) !== "rule") ? <div className="cosmos-edit-example-row">
               <input type="text" placeholder="Reading / pinyin (optional)" value={block.reading}
                 onChange={(event) => changeBlock(block.id, { reading: event.target.value })} />
               <input type="text" placeholder="Translation (optional)" value={block.meaning}
@@ -277,7 +295,7 @@ export default function ReviewCardEditor({ pack, card, onClose, onSaved, onRelat
           </div>;
         })}
         <div className="cosmos-edit-add-menu" aria-label="Add knowledge to this card">
-          {KNOWLEDGE.map((option) => <button type="button" key={option.kind} disabled={saving}
+          {blockOptions.map((option) => <button type="button" key={option.kind} disabled={saving}
             onClick={() => addBlock(option.kind)}><Plus size={12} aria-hidden="true" /> {option.label}</button>)}
         </div>
         <details className="cosmos-edit-more cosmos-edit-connections">

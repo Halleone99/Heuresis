@@ -49,7 +49,9 @@ import { mistakeDifference } from "../lib/mistakeDiff";
 import { assessState, directionEvidence, STATE_PROGRESSION, type GradeEvent, type KnowledgeState } from "../lib/knowledgeState";
 import { candidateKey, defaultDirections, legacyTemplateId, recommendSession, spaceSameCards } from "../lib/recommend";
 import { loadGradeEvents } from "../lib/reviewEvidence";
-import { cardBarProgress, reviewEligible, reviewEligibleForMode } from "../lib/cardProgress";
+import { packCardProgress, reviewEligible, reviewEligibleForMode } from "../lib/cardProgress";
+import { formatGap, previewNext, stageOf, STAGE_INFO } from "../lib/knowledgeCurve";
+import { KIND_INFO, knowledgeKind } from "../lib/knowledgeKinds";
 import { enterLearning, inReview, readAcquisition, saveAcquisition, suggestRelearning } from "../lib/learningStage";
 import { countReviewMethod, reviewMethodCounts, REVIEW_METHOD_COUNTS_KEY, REVIEW_LAST_METHOD_KEY } from "../lib/reviewMethodCounts";
 import { MORE_SIZE, readReviewMethod, writeReviewMethod, type ReviewMethod } from "../lib/reviewPrefs";
@@ -144,12 +146,12 @@ const CONCEPT_DIMS: DimensionDef[] = [
 
 /** Applied cards: a rule, regulation or procedure (see teachingShape.ts). */
 const RULE_DIMS: DimensionDef[] = [
-  { id: "examples", label: "Cases", sub: "situations and what follows" },
-  { id: "structure", label: "Conditions", sub: "when it applies, exceptions, steps" },
-  { id: "neighbours", label: "Related", sub: "rules it is confused with" },
-  { id: "components", label: "Terms", sub: "definitions it relies on" },
+  { id: "structure", label: "Key features", sub: "what defines it, one per line" },
+  { id: "examples", label: "Examples & cases", sub: "situations and what follows" },
+  { id: "neighbours", label: "Not to be confused with", sub: "other term — how it differs" },
+  { id: "components", label: "Key terms", sub: "definitions it relies on" },
   { id: "origin", label: "Source", sub: "legal basis and version" },
-  { id: "facts", label: "Facts", sub: "useful and memorable" },
+  { id: "facts", label: "Key figures", sub: "limits, deadlines, amounts" },
   { id: "notes", label: "Notes", sub: "my own" },
 ];
 
@@ -445,10 +447,21 @@ export default function CosmosWindow() {
   const progressDirectionIds = useMemo(() => defaultDirections(templates, legacyId).map((entry) => entry.id), [templates, legacyId]);
   const done = Boolean(queue.length && index >= queue.length);
   const appliedPack = packShape(pack) === "rule";
+  /**
+   * Where the card stood on the knowledge curve when it was shown. Kept for as long as it is on
+   * screen, so grading it (which adds an event) does not change the question under the answer.
+   */
+  const shownCurve = useRef(new Map<string, ReturnType<typeof packCardProgress>["curve"]>());
+  const appliedCurve = (() => {
+    if (!appliedPack || !card || mode !== "review" || relatedReview) return undefined;
+    const key = `${index}:${card.id}`;
+    if (!shownCurve.current.has(key)) shownCurve.current.set(key, packCardProgress(true, card, events?.filter((entry) => entry.cardId === card.id) ?? null, null).curve);
+    return shownCurve.current.get(key);
+  })();
   const appliedQuestion = useMemo(() => {
     if (!appliedPack || !pack || !card || mode !== "review" || relatedReview) return null;
-    return appliedReviewQuestion({ card, pack, cards, reviewNumber: reviewGradeCount(card) });
-  }, [appliedPack, pack, card, cards, mode, relatedReview]);
+    return appliedReviewQuestion({ card, pack, cards, reviewNumber: reviewGradeCount(card), rung: appliedCurve?.rung });
+  }, [appliedPack, pack, card, cards, mode, relatedReview, appliedCurve?.rung]); // eslint-disable-line react-hooks/exhaustive-deps
   const dimensions = appliedPack ? RULE_DIMS : pack && isConceptualPack(pack) ? CONCEPT_DIMS : LANGUAGE_DIMS;
   const structuredWords = Boolean(pack && !appliedPack && !isConceptualPack(pack));
   const blocks = parseBlocks(card);
@@ -552,13 +565,17 @@ export default function CosmosWindow() {
         const requested = requestedIds.map((id) => nextTemplates.find((entry) => entry.id === id)).filter((entry): entry is StudyTemplate => Boolean(entry));
         const chosenTemplate = nextTemplates.find((entry) => entry.id === setup.defaultTemplateId) ?? nextTemplates[0] ?? null;
         const isRecommended = config.mode === "review" && !relatedReview && config.source === "recommended";
-        const activeTemplates = requested.length
+        const activeTemplates: StudyTemplate[] = requested.length
           ? requested
           : isRecommended || Boolean(config.reviewRouteToken)
             ? defaultDirections(nextTemplates, setup.defaultTemplateId)
             : chosenTemplate ? [chosenTemplate] : [];
         const progressPair = defaultDirections(nextTemplates, setup.defaultTemplateId).map((entry) => entry.id);
         if (config.mode === "review" && !activeTemplates.length) throw new Error("This topic has no review direction yet.");
+        // Applied cards get one question per review whatever the direction; asking a second
+        // direction in the same session would only repeat the card. They follow the knowledge curve.
+        const spaced = packShape(nextPack) === "rule";
+        if (spaced && config.mode === "review" && activeTemplates.length > 1) activeTemplates.splice(1);
 
         let nextQueue: QueueItem[] = [];
         let rest: QueueItem[] = [];
@@ -567,7 +584,7 @@ export default function CosmosWindow() {
           if (!inReview(entry)) return false;
           const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
           const oldState = assessState(directionEvidence(entry, null, grades)).state;
-          const progress = cardBarProgress(entry, grades, oldState, progressPair);
+          const progress = packCardProgress(spaced, entry, grades, oldState, progressPair);
           const now = Date.now();
           const directions = activeTemplates.map((template) => template.id);
           return config.includeMastered && !config.masteredOnly
@@ -609,7 +626,7 @@ export default function CosmosWindow() {
             pool = pool.filter((entry) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
-              const progress = cardBarProgress(entry, grades, oldState, progressPair);
+              const progress = packCardProgress(spaced, entry, grades, oldState, progressPair);
               const now = Date.now();
               const directions = activeTemplates.map((template) => template.id);
               return config.includeMastered && !config.masteredOnly
@@ -621,7 +638,7 @@ export default function CosmosWindow() {
           else if (config.order === "weakest") pool.sort((a, b) => {
             const progress = (entry: CardWithStats) => {
               const grades = history?.filter((event) => event.cardId === entry.id) ?? null;
-              return cardBarProgress(entry, grades, assessState(directionEvidence(entry, null, grades)).state);
+              return packCardProgress(spaced, entry, grades, assessState(directionEvidence(entry, null, grades)).state);
             };
             const left = progress(a); const right = progress(b);
             return (left.bars + (left.mastered ? 1 : 0)) - (right.bars + (right.mastered ? 1 : 0));
@@ -639,7 +656,7 @@ export default function CosmosWindow() {
             templateId: config.mode === "review" && activeTemplates.length ? (() => {
               const grades = history?.filter((grade) => grade.cardId === entry.id).sort((a, b) => b.at - a.at) ?? [];
               const oldState = assessState(directionEvidence(entry, null, grades)).state;
-              const pending = cardBarProgress(entry, grades, oldState, progressPair).pendingDirections ?? [];
+              const pending = packCardProgress(spaced, entry, grades, oldState, progressPair).pendingDirections ?? [];
               const outstanding = activeTemplates.filter((choice) => !pending.includes(choice.id));
               const possible = outstanding.length ? outstanding : activeTemplates;
               const last = grades[0]?.templateId;
@@ -906,6 +923,7 @@ export default function CosmosWindow() {
     if (appliedQuestion.format === "choice") return Boolean(appliedChoice);
     if (appliedQuestion.format === "build") return appliedTiles.length === appliedQuestion.tiles.length;
     if (appliedQuestion.format === "judge") return Boolean(appliedWritten.trim());
+    if (appliedQuestion.format === "type") return Boolean(appliedWritten.trim());
     return false;
   }
 
@@ -930,6 +948,8 @@ export default function CosmosWindow() {
           setAppliedVerdict(checkExercise(appliedQuestion, { format: "choice", choiceId: appliedChoice }));
         } else if (appliedQuestion.format === "build") {
           setAppliedVerdict(checkExercise(appliedQuestion, { format: "build", tileIds: appliedTiles }));
+        } else if (appliedQuestion.format === "type") {
+          setAppliedVerdict(checkExercise(appliedQuestion, { format: "type", text: appliedWritten }));
         }
         // For a written case, reveal the reference points first; the user then ticks
         // what was genuinely in their answer before the SRS rating becomes available.
@@ -994,7 +1014,7 @@ export default function CosmosWindow() {
       await recordStudyEvent({ cardId: card.id, packId: pack.id, sessionId: sessionRef.current, templateId: template.id, eventType: grade });
       // Count the method used on each completed attempt, not just a click.
       try {
-        const countedMethod: ReviewMethod = appliedQuestion ? (appliedQuestion.format === "judge" ? "type" : "think") : method;
+        const countedMethod: ReviewMethod = appliedQuestion ? (appliedQuestion.format === "judge" || appliedQuestion.format === "type" ? "type" : "think") : method;
         const updated = countReviewMethod(reviewMethodCounts(card, learningCounts[card.id]), countedMethod);
         const data = await patchCardData(card.id, {
           [REVIEW_METHOD_COUNTS_KEY]: JSON.stringify(updated),
@@ -1007,9 +1027,9 @@ export default function CosmosWindow() {
       const stateBefore = item.state ?? (events ? assessState(directionEvidence(card, template.id, events, { includeUnattributed: template.id === legacyId })).state : null);
       const previousGrades = events?.filter((event) => event.cardId === card.id) ?? null;
       const legacyState = assessState(directionEvidence(card, null, previousGrades)).state;
-      const before = cardBarProgress(card, previousGrades, legacyState, progressDirectionIds);
+      const before = packCardProgress(appliedPack, card, previousGrades, legacyState, progressDirectionIds);
       const graded = { cardId: card.id, templateId: template.id, grade, at: Date.now() };
-      const after = cardBarProgress(card, previousGrades ? [...previousGrades, graded] : null, legacyState, progressDirectionIds);
+      const after = packCardProgress(appliedPack, card, previousGrades ? [...previousGrades, graded] : null, legacyState, progressDirectionIds);
       const result: SessionResult = { cardId: card.id, templateId: template.id, grade, stateBefore,
         barsBefore: before.bars, barsAfter: after.bars, masteredBefore: before.mastered, masteredAfter: after.mastered };
       setResults((current) => [...current, result]);
@@ -1131,7 +1151,7 @@ export default function CosmosWindow() {
         if (answered.has(entry.id)) return false;
         const grades = events?.filter((event) => event.cardId === entry.id) ?? null;
         const oldState = assessState(directionEvidence(entry, null, grades)).state;
-        const progress = cardBarProgress(entry, grades, oldState, progressDirectionIds);
+        const progress = packCardProgress(appliedPack, entry, grades, oldState, progressDirectionIds);
         const now = Date.now();
         const directions = sessionTemplates.map((item) => item.id);
         return config.includeMastered && !config.masteredOnly
@@ -1328,7 +1348,7 @@ export default function CosmosWindow() {
   const badges = tags.filter((tag) => tag.is_badge).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   const context = relatedReview ? relatedContext.find((row) => row.target_card_id === card.id) ?? null : null;
   const currentBars = mode === "review" && !relatedReview
-    ? cardBarProgress(card, events?.filter((entry) => entry.cardId === card.id) ?? null,
+    ? packCardProgress(appliedPack, card, events?.filter((entry) => entry.cardId === card.id) ?? null,
       assessState(directionEvidence(card, null, events)).state, progressDirectionIds) : null;
 
   const directionInfo21: DirectionInfo21 | undefined = isStudy21 && template ? (() => {
@@ -1402,7 +1422,7 @@ export default function CosmosWindow() {
     if (!open || (split && !revealed) || (!split && !detailsAvailable)) return null;
     if (isStudy21 && split) return <aside className={`cosmos-details cosmos-details-${side} study21-shared-details`}
       aria-label={side === "left" ? "Language details" : "Knowledge details"}>
-      <button type="button" className="study21-shared-close" aria-label={side === "left" ? "Close Language details" : "Close Knowledge details"}
+      <button type="button" className="study21-shared-close" aria-label={side === "left" ? (appliedPack ? "Close Structure details" : "Close Language details") : "Close Knowledge details"}
         onClick={() => { if (side === "left") setLeftContextOpen(false); else setDetailsOpen(false); if (!(side === "left" ? detailsOpen : leftContextOpen)) rememberStudy21Details(false); }}>×</button>
       <SortEnrichmentPanel pack={pack} card={card} side={side === "left" ? "language" : "knowledge"} study21 readOnly
         directionInfo={side === "right" ? directionInfo21 : undefined} quickNote={card.note ?? ""}
@@ -1547,7 +1567,8 @@ export default function CosmosWindow() {
 
   const sentenceCard = !isWordSized(fieldText(card.data, term?.key));
   const sentenceRatings: Record<StudyGrade, string> = { again: "Meaning lost or incorrect", hard: "Partly right; major slips", good: "Meaning and grammar correct", easy: "Accurate and natural, immediately" };
-  const directionName = template?.name ?? "";
+  // An Applied question is about the card, not a direction: name the kind of knowledge instead.
+  const directionName = appliedQuestion && card ? KIND_INFO[knowledgeKind(card.data, pack.cardType)].label : template?.name ?? "";
   // Read from the current topic’s collection, not the Review all filter or card text.
   const reviewLanguage = reviewCollection ? languageName(languageFromCollection(reviewCollection)) ?? reviewCollection.title : null;
   return <main ref={cosmosShellRef} className={isStudy21 ? "cosmos-shell study21 study21--review" : "cosmos-shell"} data-mode={redesignReview ? "review" : mode === "review" ? "related" : "sort"}>
@@ -1604,7 +1625,7 @@ export default function CosmosWindow() {
       ? routeProgress.before + index + (revealed ? 1 : 0)
       : index + (revealed || mode === "sort" ? 1 : 0))
       / (routeProgress?.total ?? queue.length)) * 100)}%` }} /></div> : null}
-    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {preferredPanel.current = "language";setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);rememberStudy21Details(true);}}>LANGUAGE · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {preferredPanel.current = "knowledge";setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);rememberStudy21Details(true);}}>KNOWLEDGE</button> : null}</nav> : null}
+    {isStudy21 && revealed ? <nav className="study21-review-tabs" aria-label="Details panels">{!leftContextOpen ? <button type="button" onClick={() => {preferredPanel.current = "language";setLeftContextOpen(true);if (window.innerWidth < 1208) setDetailsOpen(false);rememberStudy21Details(true);}}>{appliedPack ? "STRUCTURE" : "LANGUAGE"} · {detailsTotal}</button> : null}{!detailsOpen ? <button type="button" onClick={() => {preferredPanel.current = "knowledge";setDetailsOpen(true);if (window.innerWidth < 1208) setLeftContextOpen(false);rememberStudy21Details(true);}}>KNOWLEDGE</button> : null}</nav> : null}
     {isStudy21 && revealed && window.innerWidth < 780 && (leftContextOpen || detailsOpen) ? <button type="button" className="study21-review-scrim" aria-label="Close details" onClick={() => {setLeftContextOpen(false);setDetailsOpen(false);rememberStudy21Details(false);}}/> : null}
     <section className="cosmos-stage"><div className={`cosmos-work ${mode === "review" ? "cosmos-review-columns" : ""}`} data-left={leftContextOpen && revealed ? "open" : "closed"} data-right={detailsOpen && revealed ? "open" : "closed"} data-details={detailsOpen && detailsAvailable ? "open" : "closed"}>
       {mode === "review" ? renderDetails("left") : null}
@@ -1617,7 +1638,7 @@ export default function CosmosWindow() {
           <span className="review-kicker">{reviewLanguage || "Review"}</span>
           <span className="review-head-dot" aria-hidden="true"/>
           <span className="review-direction">{directionName}
-            {sessionTemplates.length > 1 && !revealed && !currentBars?.pendingDirections?.length ? <button type="button" className="review-icon"
+            {sessionTemplates.length > 1 && !revealed && !appliedQuestion && !currentBars?.pendingDirections?.length ? <button type="button" className="review-icon"
               disabled={busy} aria-label="Switch direction" title="Switch direction"
               onClick={() => setQueue(items=>items.map((entry,position)=>position===index
                 ? {...entry,templateId:sessionTemplates[(sessionTemplates.findIndex(candidate=>candidate.id===entry.templateId)+1)%sessionTemplates.length].id}
@@ -1637,13 +1658,14 @@ export default function CosmosWindow() {
         </header> : null}
         {mode === "review" && reviewLanguage && !redesignReview ? <span className="cosmos-review-language" aria-label={`Language: ${reviewLanguage}`} title={`${reviewLanguage} · ${pack.title}`}>{reviewLanguage}</span> : null}
         {mode === "sort" ? <button type="button" className="cosmos-details-toggle" disabled={!detailsAvailable} aria-expanded={detailsOpen && detailsAvailable}
-          title={detailsAvailable ? "Examples, related words, parts, grammar, origin, facts and notes (D)" : "Available after you show the answer"}
+          title={detailsAvailable ? (appliedPack ? "Key features, cases, what it is confused with, source and notes (D)" : "Examples, related words, parts, grammar, origin, facts and notes (D)") : "Available after you show the answer"}
           onClick={() => setDetailsOpen((value) => !value)}>{detailsOpen && detailsAvailable ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />} Details{detailsTotal ? <b>{detailsTotal}</b> : null}</button> : null}
         {(mode === "sort" || (revealed && !redesignReview)) ? <button type="button" className="cosmos-card-modify"
           onClick={() => setEditOpen(true)} disabled={busy} title="Modify this card without grading it">
           <Pencil size={13} aria-hidden="true" /> Modify
         </button> : null}
         <div className="cosmos-nucleus">{mode === "review" ? appliedQuestion ? <AppliedReviewQuestion
+          stage={appliedCurve ? STAGE_INFO[stageOf(appliedCurve.rung)].label : undefined}
           exercise={appliedQuestion} revealed={revealed} verdict={appliedVerdict} choiceId={appliedChoice}
           tileIds={appliedTiles} written={appliedWritten} covered={appliedCovered}
           onChoice={setAppliedChoice} onTiles={setAppliedTiles} onWritten={setAppliedWritten} onCovered={setAppliedCovered}/>
@@ -1685,14 +1707,16 @@ export default function CosmosWindow() {
               {appliedQuestion.format === "judge" && !appliedVerdict ? <button type="button" className="primary"
                 disabled={busy} onClick={confirmAppliedSelfCheck}>Confirm self-check</button> : <>
                 <p className="applied-review-footer-note">{appliedVerdict?.correct ? "Correct · choose how easily you recalled it" : "Not yet correct · use Again or Hard"}</p>
-                {appliedVerdict?.correct ? <>
-                  <button type="button" disabled={busy} onClick={() => selectGrade("hard")}>Hard</button>
-                  <button type="button" className="primary" disabled={busy} onClick={() => selectGrade("good")}>Good</button>
-                  <button type="button" disabled={busy} onClick={() => selectGrade("easy")}>Easy</button>
-                </> : <>
-                  <button type="button" className="primary" disabled={busy} onClick={() => selectGrade("again")}>Again</button>
-                  <button type="button" disabled={busy} onClick={() => selectGrade("hard")}>Hard</button>
-                </>}
+                {(() => {
+                  // Each grade shows when the card would come back: the curve made visible.
+                  const next = appliedCurve ? previewNext(appliedCurve) : null;
+                  const gradeButton = (grade: StudyGrade, label: string, primary = false) => <button type="button" key={grade} data-grade={grade}
+                    className={`${primary ? "primary " : ""}applied-grade`} disabled={busy} onClick={() => selectGrade(grade)}>
+                    <span>{label}</span>{next ? <small>{grade === "again" ? "again today" : formatGap(next[grade])}</small> : null}</button>;
+                  return appliedVerdict?.correct
+                    ? <>{gradeButton("hard", "Hard")}{gradeButton("good", "Good", true)}{gradeButton("easy", "Easy")}</>
+                    : <>{gradeButton("again", "Again", true)}{gradeButton("hard", "Hard")}</>;
+                })()}
               </>}
             </div>
           : <>
@@ -1752,7 +1776,7 @@ export default function CosmosWindow() {
           </div>}
           {connectionsOpen ? createPortal(<ConnectionsPanel pack={pack} card={card} onClose={() => setConnectionsOpen(false)} />, document.body) : null}
         </> : <span>Attempt the answer before revealing it. {SINGLE_WINDOW ? "" : "Use Space to reveal; 1–4 to rate."}</span>}</footer> : <footer className="cosmos-sort-foot"><div className="cosmos-interest"><span>INTEREST</span>{[1,2,3,4,5].map((rank) => <button key={rank} aria-pressed={card.interest_rank === rank} disabled={busy} onClick={() => void setInterest(card.interest_rank === rank ? null : rank)}>{rank}</button>)}</div><div className="cosmos-badges"><span>BADGES</span>{badges.map((tag) => <button key={tag.id} aria-pressed={card.tags.some((entry) => entry.id === tag.id)} disabled={busy} onClick={() => void toggleBadge(tag)}>{tag.name}{tag.shortcut ? <small>{tag.shortcut}</small> : null}</button>)}</div><div className="cosmos-sort-actions"><button disabled={busy} onClick={skipSort}><SkipForward size={14} /> Skip <small>S</small></button><button className="primary" disabled={busy} onClick={() => void nextSort()}>Apply + next <small>→</small></button></div></footer>}
-        {redesignReview && revealed ? <FormattingRail rootRef={reviewCardRef} cardId={card.id}
+        {redesignReview && revealed && !appliedQuestion ? <FormattingRail rootRef={reviewCardRef} cardId={card.id}
           language={languageFromName(pack.title) ?? languageFromName(pack.cardType?.name)
             ?? languageFromScript(fieldText(card.data, term?.key))}
           textVersion={JSON.stringify(card.data) + ":" + revealed}

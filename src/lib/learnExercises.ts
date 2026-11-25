@@ -3,6 +3,7 @@ import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from ".
 import { languageFromName, languageFromScript, type LanguageKey } from "./languages";
 import { ROUND_SIZE, STAGE_LABEL, STAGE_ORDER, type LearnStage } from "./learnRounds";
 import { packShape } from "./teachingShape";
+import type { KnowledgeKind } from "./knowledgeKinds";
 import { appliedSkill, buildAppliedQuestionRound, buildAppliedRound, SKILL_LABEL, toRuleCard, type RoundHistory } from "./appliedExercises";
 import { hash, rng, shuffle, tiles, uniqueBy } from "./learnRandom";
 
@@ -38,7 +39,12 @@ export type AppliedKind =
   | "rule-for-case" | "rule-boundary" | "rule-for-statement" | "statement-for-rule" | "order-steps" | "build-statement"
   | "missing-condition" | "missing-exception" | "missing-value" | "case-outcome" | "which-case"
   | "solve-case" | "recall-steps" | "state-rule" | "complete-statement" | "complete-condition" | "name-rule"
-  | "qa-answer" | "qa-choose" | "qa-sequence" | "qa-type" | "qa-case";
+  | "qa-answer" | "qa-choose" | "qa-sequence" | "qa-type" | "qa-case"
+  /* Definitions, procedures and figures (knowledgeKinds.ts). */
+  | "term-for-definition" | "definition-for-term" | "feature-of" | "not-a-feature" | "tell-apart" | "example-of" | "which-example"
+  | "complete-definition" | "name-term" | "define-term" | "contrast-recall"
+  | "first-step" | "next-step" | "missing-step"
+  | "figure-for-value" | "type-value";
 export type ExerciseKind = StandardKind | AppliedKind;
 
 export type Prompt = {
@@ -116,8 +122,20 @@ export type Verdict = { correct: boolean; response: string; expected: string; me
 export type LearnExample = { source: string; reading: string; translation: string };
 /** A situation and what follows in it, under the card's rule. */
 export type LearnCase = { situation: string; outcome: string };
+/** "Bill of lading — a negotiable document of title": another term and how this one differs from it. */
+export type LearnContrast = { other: string; text: string };
 /** What an Applied card holds beyond its name (term) and what it requires (meaning). */
-export type RuleParts = { conditions: string[]; exceptions: string[]; steps: string[]; cases: LearnCase[]; source: string };
+export type RuleParts = {
+  conditions: string[]; exceptions: string[]; steps: string[]; cases: LearnCase[]; source: string;
+  /** The kind of knowledge (knowledgeKinds.ts); decides which library a round is drawn from. Default: rule. */
+  kind?: KnowledgeKind;
+  /** Key features or points, one per line (Details → Key features). */
+  features?: string[];
+  /** What it is not to be confused with (Details → Not to be confused with). */
+  contrasts?: LearnContrast[];
+  /** Values worth knowing (Details → Key figures). */
+  figures?: string[];
+};
 export type LearnCard = {
   id: string;
   /** The term as written on the card. */
@@ -907,10 +925,57 @@ function compactFold(value: string) {
   return normaliseAnswer(value).replace(/\s+/g, "");
 }
 
+/**
+ * A number as someone types it: "8.33", "8,33", "1 000", "1,000.50", with or without the unit
+ * after it. `grouping` is the expected value's thousands mark, so "1,000" reads as a thousand
+ * where the card writes it that way. NaN when there is no number.
+ */
+export function looseNumber(text: string, grouping = ""): number {
+  const raw = text.normalize("NFKC").replace(/[\s  ]/g, "").match(/[-+]?\d[\d.,']*/)?.[0];
+  if (!raw) return NaN;
+  let digits = raw.replace(/'/g, "");
+  const dots = (digits.match(/\./g) ?? []).length;
+  const commas = (digits.match(/,/g) ?? []).length;
+  if (dots && commas) {
+    const decimal = digits.lastIndexOf(".") > digits.lastIndexOf(",") ? "." : ",";
+    digits = digits.split(decimal === "." ? "," : ".").join("").replace(decimal, ".");
+  } else if (commas || dots) {
+    const mark = commas ? "," : ".";
+    const thousands = mark === grouping || (commas + dots > 1) || (!grouping && /^\d{1,3}(?:[.,]\d{3})+$/.test(digits) && mark === "," );
+    digits = thousands ? digits.split(mark).join("") : digits.replace(mark, ".");
+  }
+  return Number(digits);
+}
+
+/** A typed value (type-value): compared as a number, so "8,33" is 8.33 and "833" is not. */
+function checkNumber(exercise: TypeExercise, typed: string): Verdict | null {
+  if (exercise.kind !== "type-value") return null;
+  const values = acceptedAnswers(exercise.accepted);
+  const expected = values.length ? values[0] : "";
+  const grouping = expected.match(/\d([.,])\d{3}(?!\d)/)?.[1] && /^\d{1,3}(?:[.,]\d{3})+$/.test(expected) ? expected.match(/\d([.,])\d{3}/)![1] : "";
+  const want = looseNumber(expected, grouping);
+  const got = looseNumber(typed, grouping);
+  if (!Number.isFinite(want)) return null;
+  // The prompt leaves the unit visible, so a bare number is sufficient. If the
+  // learner types a unit, however, it must agree with the card (8.33 EUR is not SDR).
+  const unit = (text: string) => text.normalize("NFKC").replace(/[-+]?\d(?:[\d.,' ]*\d)?/u, "")
+    .trim().toLocaleLowerCase().replace(/\s+/g, " ")
+    .replace(/^(?:per ?cent|percent)$/u, "%")
+    .replace(/^€$/u, "eur").replace(/^\$$/u, "usd").replace(/^£$/u, "gbp")
+    .replace(/\b(days|weeks|months|years|hours|minutes|tonnes|tons|litres|liters)\b/g, (word) => word.slice(0, -1))
+    .replace(/\bliter\b/g, "litre");
+  const givenUnit = unit(typed);
+  const correct = Number.isFinite(got) && Math.abs(got - want) <= Math.abs(want) * 1e-9
+    && (!givenUnit || givenUnit === unit(exercise.solution));
+  return { correct, response: typed, expected: exercise.solution, message: correct ? "" : exercise.explain };
+}
+
 function checkTyped(exercise: TypeExercise, text: string): Verdict {
   const typed = clean(text);
   const expected = exercise.solution;
   if (!typed) return { correct: false, response: "", expected, message: exercise.explain };
+  const numeric = checkNumber(exercise, typed);
+  if (numeric) return numeric;
   const suggestion = suggestResult(typed, exercise.accepted);
   if (suggestion?.grade === "good") return { correct: true, response: typed, expected, message: "" };
   const values = acceptedAnswers(exercise.accepted);
@@ -983,7 +1048,14 @@ export function judgeResult(exercise: JudgeExercise, covered: string[]) {
 }
 
 /** What an exercise trains, as the session shows it: the Applied skill, or the Learn stage. */
+/** Names for the Applied exercises whose skill alone would say too little ("Solve" for defining a term). */
+const KIND_LABEL: Partial<Record<ExerciseKind, string>> = {
+  "define-term": "Define", "contrast-recall": "Contrast", "type-value": "Value", "name-term": "Name it",
+  "recall-steps": "Steps", "tell-apart": "Tell apart", "not-a-feature": "Odd one out", "example-of": "Example", "which-example": "Example",
+};
 export function exerciseLabel(exercise: Pick<Exercise, "kind" | "stage">): string {
+  const named = KIND_LABEL[exercise.kind as ExerciseKind];
+  if (named) return named;
   const skill = appliedSkill(exercise.kind);
   return exercise.kind === "cloze-type" ? "Contextual recall" : exercise.kind === "example-write" ? "Example recall" : skill ? SKILL_LABEL[skill] : STAGE_LABEL[exercise.stage];
 }

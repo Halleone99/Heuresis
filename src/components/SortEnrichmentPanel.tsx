@@ -8,9 +8,13 @@ import { addRelatedWord, listRelatedCatalogue, removeRelatedRelation, setRelated
 import { removeHeuresisCardImage, signHeuresisCardImages, uploadHeuresisCardImage } from "../lib/cardMedia";
 import { languageFromName, languageFromScript } from "../lib/languages";
 import { AUTO_LAYERS, deleteHighlightRule, listHighlightRules, readAutoLayers, writeAutoLayers, type AutoLayer, type HighlightRule } from "../lib/highlights";
+import { packShape } from "../lib/teachingShape";
+import { FIELD_SECTIONS, KNOWLEDGE_SECTIONS, SECTION_ROLE, STRUCTURE_SECTIONS, knowledgeKind, sectionHelp, sectionLabel, sectionPlaceholder, structureSections, type AppliedSection, type KnowledgeKind } from "../lib/knowledgeKinds";
 
 const BLOCKS_KEY = "_workspace_blocks";
-export type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "hook" | "picture" | "notes";
+export type Dimension = "examples" | "neighbours" | "components" | "structure" | "origin" | "facts" | "hook" | "picture" | "notes"
+  /** Applied cards only: the Rule card type's list fields. Never stored as free blocks. */
+  | "conditions" | "exceptions" | "steps";
 type TextBlock = { id: string; type: "text"; text: string; dim: Dimension };
 type ImageBlock = { id: string; type: "image"; path: string; caption: string; dim: Dimension };
 type Block = TextBlock | ImageBlock;
@@ -18,14 +22,24 @@ export type DirectionInfo21 = { state: string; lastSeen: string; results: string
 /** Asks the panel to start adding to a section, or to edit one block, from outside (the card). */
 export type DetailsRequest = { dim: Dimension; blockId?: string; nonce: number };
 const ids = new Set<Dimension>(["examples", "neighbours", "components", "structure", "origin", "facts", "hook", "picture", "notes"]);
+const FIELD_ONLY = { conditions: "Applies when", exceptions: "Unless", steps: "Steps" };
 const languageLabels: Record<Dimension, string> = {
   examples: "In context", neighbours: "Nearby words", components: "Parts", structure: "Grammar",
-  origin: "Origin", facts: "Worth knowing", hook: "Memory hook", picture: "Picture", notes: "My note",
+  origin: "Origin", facts: "Worth knowing", hook: "Memory hook", picture: "Picture", notes: "My note", ...FIELD_ONLY,
 };
 const conceptLabels: Record<Dimension, string> = {
   examples: "Instances", neighbours: "Related", components: "Parts", structure: "Structure",
-  origin: "Origin", facts: "Facts", hook: "Memory hook", picture: "Picture", notes: "My note",
+  origin: "Origin", facts: "Facts", hook: "Memory hook", picture: "Picture", notes: "My note", ...FIELD_ONLY,
 };
+const ALL_DIMS: Dimension[] = ["structure", "conditions", "exceptions", "steps", "examples", "neighbours", "components", "origin", "facts", "hook", "picture", "notes"];
+function appliedLabels(kind: KnowledgeKind): Record<Dimension, string> {
+  return Object.fromEntries(ALL_DIMS.map((dim) => [dim, sectionLabel(dim as AppliedSection, kind)])) as Record<Dimension, string>;
+}
+/** Sections of the left ("Structure" / "Language") panel; everything else is on the right. */
+export function isStructureDim(dim: Dimension, applied: boolean, study21: boolean): boolean {
+  if (applied) return (STRUCTURE_SECTIONS as readonly string[]).includes(dim);
+  return ["examples", "neighbours", "components", "structure"].includes(dim) || (!study21 && dim === "origin");
+}
 const LEFT_ORDER: Dimension[] = ["examples", "neighbours", "components", "structure", "origin"];
 const RIGHT_ORDER: Dimension[] = ["facts", "hook", "picture", "notes"];
 const ORDER: Dimension[] = [...LEFT_ORDER, ...RIGHT_ORDER];
@@ -33,7 +47,17 @@ const LEFT_ORDER21: Dimension[] = ["examples", "neighbours", "components", "stru
 const RIGHT_ORDER21: Dimension[] = ["origin", "facts", "hook", "picture", "notes"];
 const EXAMPLE_ROLES = ["example", "example_reading", "example_translation"];
 
-function dimensionForField(field: FieldDef): Dimension | null {
+function dimensionForField(field: FieldDef, applied = false): Dimension | null {
+  if (applied) {
+    // An Applied card's own fields go to the section of the same name.
+    if (field.role === "condition") return "conditions";
+    if (field.role === "exception") return "exceptions";
+    if (field.role === "step") return "steps";
+    if (field.role === "case" || field.role === "outcome") return "examples";
+    if (field.role === "source") return "origin";
+    if (field.role === "extra") return "notes";
+    if (field.role === "term" || field.role === "meaning") return null;
+  }
   const text = (field.key + " " + field.label).toLowerCase();
   if (EXAMPLE_ROLES.includes(field.role ?? "")) return "examples";
   if (/neighbou?r|synonym|antonym|related|similar|alternative word|contrast|difference|confus|versus/.test(text)) return "neighbours";
@@ -78,7 +102,7 @@ export function firstExampleBlock(data: CardWithStats["data"]): { id: string; se
 }
 
 /** Sort's left rail is editable knowledge, not a second card editor or a review grade. */
-export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, readOnly = false, directionInfo, quickNote, onQuickNoteChange, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave }: {
+export default function SortEnrichmentPanel({ pack, card, request, side = "all", study21 = false, readOnly = false, directionInfo, quickNote, onQuickNoteChange, onBlockedChange, onChanged, onCountChange, onDataChanged, trackSave, kind: kindOverride }: {
   pack: PackWithType;
   card: CardWithStats;
   request?: DetailsRequest | null;
@@ -94,14 +118,27 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   onDataChanged?: (data: CardWithStats["data"]) => void;
   /** Lets the session wait for saves started by a blur before it moves to the next card. */
   trackSave?: (save: Promise<unknown>) => void;
+  /** Applied cards: the kind shown on the card (so a change there relabels the panel at once). */
+  kind?: KnowledgeKind;
 }) {
-  const conceptual = /philosoph|history|psycholog|concept|theor|politic|econom/i.test(pack.title + " " + (pack.cardType?.name ?? ""));
-  const labels = conceptual ? conceptLabels : languageLabels;
-  const structuredWords = !conceptual;
-  const schema = pack.cardType?.field_schema ?? [];
-  const activeDims = side === "language" ? (study21 ? LEFT_ORDER21 : LEFT_ORDER) : side === "knowledge" ? (study21 ? RIGHT_ORDER21 : RIGHT_ORDER) : ORDER;
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Applied knowledge (rules, definitions, procedures, figures) is not a language: its details
+  // are its features, cases, contrasts and source, never grammar, parts or nearby words.
+  const applied = packShape(pack) === "rule";
+  const conceptual = !applied && /philosoph|history|psycholog|concept|theor|politic|econom/i.test(pack.title + " " + (pack.cardType?.name ?? ""));
   const [data, setData] = useState(card.data);
+  const kind: KnowledgeKind = kindOverride ?? knowledgeKind(data, pack.cardType);
+  const labels = applied ? appliedLabels(kind) : conceptual ? conceptLabels : languageLabels;
+  const structuredWords = !conceptual && !applied;
+  const schema = pack.cardType?.field_schema ?? [];
+  const hasFieldFor = (dim: Dimension) => !FIELD_SECTIONS.has(dim as AppliedSection) || schema.some((field) => field.role === SECTION_ROLE[dim as AppliedSection]);
+  const appliedLeft = [...structureSections(kind), ...STRUCTURE_SECTIONS.filter((dim) => !structureSections(kind).includes(dim))].filter((dim) => hasFieldFor(dim as Dimension)) as Dimension[];
+  const appliedRight = [...KNOWLEDGE_SECTIONS] as Dimension[];
+  const activeDims = applied
+    ? side === "language" ? appliedLeft : side === "knowledge" ? appliedRight : [...appliedLeft, ...appliedRight]
+    : side === "language" ? (study21 ? LEFT_ORDER21 : LEFT_ORDER) : side === "knowledge" ? (study21 ? RIGHT_ORDER21 : RIGHT_ORDER) : ORDER;
+  /** Sections offered as "+ …" when empty: for Applied cards, the ones that fit the kind. */
+  const offeredDims = applied ? activeDims.filter((dim) => (structureSections(kind) as string[]).includes(dim) || (KNOWLEDGE_SECTIONS as readonly string[]).includes(dim)) : activeDims;
+  const inputRef = useRef<HTMLInputElement>(null);
   // The card face edits the same fields (term, example…): follow its saves instead of keeping a stale copy.
   useEffect(() => { setData(card.data); }, [card.data]);
   const blocks = useMemo(() => parseBlocks(data), [data]);
@@ -148,12 +185,13 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
   useLayoutEffect(() => { onBlockedChange(!readOnly && blocked); }, [blocked, onBlockedChange, readOnly]);
   useEffect(() => () => { onBlockedChange(false); window.clearTimeout(savedTimer.current); }, [onBlockedChange]);
 
-  const filledFields = (dim: Dimension) => schema.filter((field) => dimensionForField(field) === dim && Boolean(fieldText(data, field.key).trim()));
-  const emptyFields = (dim: Dimension) => schema.filter((field) => dimensionForField(field) === dim && !fieldText(data, field.key).trim());
+  const filledFields = (dim: Dimension) => schema.filter((field) => dimensionForField(field, applied) === dim && Boolean(fieldText(data, field.key).trim()));
+  const emptyFields = (dim: Dimension) => schema.filter((field) => dimensionForField(field, applied) === dim && !fieldText(data, field.key).trim());
+  const fieldOnly = (dim: Dimension) => applied && FIELD_SECTIONS.has(dim as AppliedSection);
 
   useEffect(() => {
     const visibleFields = schema.filter((field) => {
-      const dim = dimensionForField(field);
+      const dim = dimensionForField(field, applied);
       return dim !== null && activeDims.includes(dim) && Boolean(fieldText(data, field.key).trim());
     }).length;
     onCountChange?.(visibleFields + blocks.filter(block => activeDims.includes(block.dim)).length
@@ -207,6 +245,8 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     if (!existing && kind === "text" && revealed !== dim && emptyFields(dim).length && !filledFields(dim).length) {
       stopAdding(); setRevealed(dim); return;
     }
+    // A list field (conditions, steps…) is edited in place, one item per line; it never becomes a free block.
+    if (fieldOnly(dim)) { stopAdding(); setRevealed(dim); return; }
     setRevealed(null);
     setAdding(dim); setMode(kind); setEditingId(existing?.id ?? null);
     setDraft(existing?.text ?? "");
@@ -329,28 +369,37 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
     return <div className="sort-enrich-editor" onBlurCapture={commitEditor}>
       <RichEditor ref={detailEditor} resetKey={(editingId ?? "new") + ":" + card.id + ":" + dim}
         value={draft} compactToolbar={!study21} compactStudy21={study21} ariaLabel={"Write " + labels[dim].toLowerCase()}
-        placeholder={study21 ? dim === "examples" ? "Sentence" : labels[dim] : dim === "examples" ? "Sentence, then reading, then translation…" : "Add a useful detail…"}
+        placeholder={applied ? sectionPlaceholder(dim as AppliedSection, kind) : study21 ? dim === "examples" ? "Sentence" : labels[dim] : dim === "examples" ? "Sentence, then reading, then translation…" : "Add a useful detail…"}
         onChange={setDraft} onSave={() => void track(saveText()).catch(() => undefined)} onDone={() => void track(saveText()).catch(() => undefined)}
         onEscape={stopAdding} autoFocus />
     </div>;
   }
 
   function fieldPlaceholder(field: FieldDef) {
+    if (applied) {
+      if (field.role === "case") return "A realistic situation";
+      if (field.role === "outcome") return "What follows, and why";
+      if (field.role === "condition") return sectionPlaceholder("conditions", kind);
+      if (field.role === "exception") return sectionPlaceholder("exceptions", kind);
+      if (field.role === "step") return sectionPlaceholder("steps", kind);
+      if (field.role === "source") return sectionPlaceholder("origin", kind);
+    }
     if (field.role === "example") return "Sentence";
     if (field.role === "example_reading") return "Reading";
     if (field.role === "example_translation") return "Translation";
     return field.label;
   }
 
-  const emptyDims = readOnly ? [] : activeDims.filter((dim) => dim !== adding && dim !== revealed && !filledFields(dim).length
+  const emptyDims = readOnly ? [] : offeredDims.filter((dim) => dim !== adding && dim !== revealed && !filledFields(dim).length
     && !blocks.some((block) => block.dim === dim) && !(dim === "neighbours" && structuredWords && related.length));
+  const autoLayers21 = AUTO_LAYERS[selectedLang] ?? [];
 
-  return <aside className={"sort-enrichment sort-enrichment--" + side} aria-label={side === "knowledge" ? "Knowledge details" : "Language details"}>
-    {side !== "all" ? <h2 className="sort-panel-title">{side === "language" ? (conceptual ? "Concept" : "Language") : "Knowledge"}{study21 ? <small className="study21-panel-count">{activeDims.reduce((sum, dim) => sum + filledFields(dim).length + blocks.filter(block => block.dim === dim).length + (dim === "neighbours" ? related.length : 0) + (dim === "notes" && (quickNote ?? "").trim() ? 1 : 0), 0)}</small> : null}</h2> : null}
+  return <aside className={"sort-enrichment sort-enrichment--" + side} aria-label={side === "knowledge" ? "Knowledge details" : applied ? "Structure details" : "Language details"} data-applied-kind={applied ? kind : undefined}>
+    {side !== "all" ? <h2 className="sort-panel-title">{side === "language" ? (applied ? "Structure" : conceptual ? "Concept" : "Language") : "Knowledge"}{study21 ? <small className="study21-panel-count">{activeDims.reduce((sum, dim) => sum + filledFields(dim).length + blocks.filter(block => block.dim === dim).length + (dim === "neighbours" ? related.length : 0) + (dim === "notes" && (quickNote ?? "").trim() ? 1 : 0), 0)}</small> : null}</h2> : null}
     {side !== "language" ? <input type="file" ref={inputRef} hidden accept="image/*"
       onChange={event => { void uploadPicture(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} /> : null}
     <div className="sort-enrich-list">{activeDims.map((dim) => {
-      const fields = schema.filter((field) => dimensionForField(field) === dim
+      const fields = schema.filter((field) => dimensionForField(field, applied) === dim
         && (revealed === dim || Boolean(fieldText(data, field.key).trim())));
       const owned = blocks.filter((block) => block.dim === dim);
       const rows = dim === "neighbours" && structuredWords ? related : [];
@@ -360,11 +409,12 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
       const firstEmpty = revealed === dim ? fields.find((field) => !fieldText(data, field.key).trim())?.key : undefined;
       return <section className="sort-enrich-section" key={dim} data-dim={dim}>
         <div className="sort-enrich-heading"><span>{labels[dim]}</span>{study21 && count > 0 ? <small className="study21-section-count">{count}</small> : null}
-          {!readOnly ? <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
+          {!readOnly && !(fieldOnly(dim) && fields.length) ? <button type="button" aria-label={"Add to " + labels[dim]} title={"Add to " + labels[dim]}
             disabled={blocked} onClick={() => dim === "picture" ? inputRef.current?.click() : openAdd(dim, dim === "neighbours" && structuredWords ? "word" : "text")}>
             <Plus size={14} />
           </button> : null}
         </div>
+        {applied && !readOnly && (adding === dim || revealed === dim) && sectionHelp(dim as AppliedSection, kind) ? <p className="sort-enrich-help">{sectionHelp(dim as AppliedSection, kind)}</p> : null}
         <div className="sort-enrich-contents">
           {fields.length ? <div className={"sort-enrich-item sort-enrich-field" + (dim === "examples" ? " is-example" : "")}
             onBlurCapture={(event) => {
@@ -375,7 +425,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
               if (!typed) setRevealed(null);
             }}>
             {fields.map((field) => <div key={field.key} className={"sort-enrich-line role-" + (field.role || "field")}>
-              {dim === "examples" || fields.length === 1 ? null : <small>{field.label}</small>}
+              {(dim === "examples" && !applied) || fields.length === 1 ? null : <small>{applied && field.role === "case" ? "Situation" : applied && field.role === "outcome" ? "What follows" : field.label}</small>}
               {readOnly ? <p className="study21-field-readonly">{fieldText(data, field.key)}</p> : <InlineSortText value={fieldText(data, field.key)} label={field.label} placeholder={fieldPlaceholder(field)}
                 multiline={field.role !== "example_reading"} autoFocus={field.key === firstEmpty}
                 disabled={busy || adding !== null} onEditingChange={setInlineBusy}
@@ -439,7 +489,7 @@ export default function SortEnrichmentPanel({ pack, card, request, side = "all",
               <button type="button" aria-label={"Remove formatting for " + rule.text}
                 onClick={() => void removeFormatting(rule.id)}>×</button></li>)}</ul>
         : study21 ? null : <p className="sort-enrich-hint">Select text on the card to format it.</p>}
-      {study21 ? <div className="study21-auto-layers"><small>Automatic</small>{(AUTO_LAYERS[selectedLang] ?? []).map(layer => <button type="button" key={layer.id} aria-pressed={autoLayers[layer.id]} onClick={() => toggleAutoLayer(layer.id)}>{layer.name}</button>)}</div> : null}
+      {study21 && autoLayers21.length ? <div className="study21-auto-layers"><small>Automatic</small>{autoLayers21.map(layer => <button type="button" key={layer.id} aria-pressed={autoLayers[layer.id]} onClick={() => toggleAutoLayer(layer.id)}>{layer.name}</button>)}</div> : null}
     </section> : null}
     {side === "knowledge" ? <section className="sort-enrich-section sort-panel-source">
       <div className="sort-enrich-heading"><span>Source</span></div>

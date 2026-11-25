@@ -2,8 +2,9 @@ import { fieldByRole, fieldText, type CardWithStats, type PackWithType } from ".
 import { isWordSized, normaliseAnswer } from "./answerCheck";
 import { rng, shuffle, tiles, uniqueBy } from "./learnRandom";
 import { STAGE_ORDER } from "./learnRounds";
-import { appliedCardKind, parseCaseText, splitList } from "./teachingShape";
-import type { Choice, Exercise, ExerciseKind, JudgePoint, LearnCard, LearnCase, LearnExample, RuleParts } from "./learnExercises";
+import { parseCaseText, splitList } from "./teachingShape";
+import { blockLines, knowledgeKind, type KnowledgeKind } from "./knowledgeKinds";
+import type { Choice, Exercise, ExerciseKind, JudgePoint, LearnCard, LearnCase, LearnContrast, LearnExample, RuleParts } from "./learnExercises";
 
 /**
  * Applied learning: rules, regulations, procedures and practical decisions.
@@ -31,10 +32,11 @@ import type { Choice, Exercise, ExerciseKind, JudgePoint, LearnCard, LearnCase, 
  * swapped, or a nearby amount; all of them are shown as wrong.
  */
 
-export type AppliedSkill = "identify" | "scope" | "sequence" | "apply" | "solve" | "wording";
+export type AppliedSkill = "identify" | "scope" | "sequence" | "apply" | "solve" | "wording" | "characterise" | "distinguish" | "recall";
 
 export const SKILL_LABEL: Record<AppliedSkill, string> = {
   identify: "Identify", scope: "Scope", sequence: "Sequence", apply: "Apply", solve: "Solve", wording: "Wording",
+  characterise: "Features", distinguish: "Tell apart", recall: "Recall",
 };
 
 const KIND_SKILL: Partial<Record<ExerciseKind, AppliedSkill>> = {
@@ -45,10 +47,26 @@ const KIND_SKILL: Partial<Record<ExerciseKind, AppliedSkill>> = {
   "solve-case": "solve", "recall-steps": "solve", "state-rule": "solve",
   "build-statement": "wording", "complete-statement": "wording", "complete-condition": "wording", "name-rule": "wording",
   "qa-answer": "solve", "qa-choose": "identify", "qa-sequence": "sequence", "qa-type": "solve", "qa-case": "apply",
+  // Definitions
+  "term-for-definition": "identify", "definition-for-term": "identify", "feature-of": "characterise", "not-a-feature": "characterise",
+  "tell-apart": "distinguish", "example-of": "apply", "which-example": "apply", "complete-definition": "wording",
+  "name-term": "recall", "define-term": "solve", "contrast-recall": "solve",
+  // Procedures
+  "first-step": "sequence", "next-step": "sequence", "missing-step": "sequence",
+  // Figures
+  "figure-for-value": "identify", "type-value": "solve",
 };
 
 /** Easier skills first; the unaided answer always comes last. */
-const SKILL_ORDER: Record<AppliedSkill, number> = { identify: 0, wording: 1, scope: 2, sequence: 3, apply: 4, solve: 5 };
+const SKILL_ORDER: Record<AppliedSkill, number> = { identify: 0, wording: 1, characterise: 2, scope: 2, distinguish: 3, sequence: 3, recall: 4, apply: 4, solve: 5 };
+
+/** A skill named for the kind of knowledge it is practised on ("Define" a term, "Solve" a case). */
+export function skillLabelFor(skill: AppliedSkill, kind: KnowledgeKind = "rule"): string {
+  if (skill === "solve") return kind === "definition" ? "Define" : kind === "procedure" ? "Steps from memory" : kind === "figure" ? "Value from memory" : "Solve";
+  if (skill === "recall") return kind === "figure" ? "Name it" : "Name the term";
+  if (skill === "identify") return kind === "definition" ? "Recognise" : "Identify";
+  return SKILL_LABEL[skill];
+}
 
 export function appliedSkill(kind: string): AppliedSkill | null {
   return KIND_SKILL[kind as ExerciseKind] ?? null;
@@ -108,10 +126,35 @@ function workspaceCases(card: CardWithStats): LearnCase[] {
   });
 }
 
+/** Lines written in one Details section (free blocks of one dimension), bullets removed. */
+function workspaceLines(card: CardWithStats, dim: string, split: (text: string) => string[] = blockLines): string[] {
+  const raw = card.data["_workspace_blocks"];
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    try {
+      const value = JSON.parse(entry) as Record<string, unknown>;
+      if (value.origin === "generated" && value.verified !== true) return [];
+      if (value.type === "text" && value.dim === dim && typeof value.text === "string") return split(value.text).map(clean).filter(Boolean);
+    } catch { /* not a text block */ }
+    return [];
+  });
+}
+
+/** One contrast per line (a semicolon may be part of the explanation): "Other term — how it differs". */
+const contrastLines = (text: string) => text.replace(/(\*\*|__|==|`)/g, "").split(/\r?\n/)
+  .map((line) => line.replace(/^(?:[-–—•·*▪◦]\s*|\(?(?:\d{1,2}|[a-z])[.)]\s+)/iu, "").trim()).filter(Boolean);
+
+export function parseContrast(line: string): LearnContrast {
+  const text = clean(line).replace(/^(?:vs\.?|versus|not)\s+/i, "");
+  const match = text.match(/^(.{2,80}?)\s*(?:\s[—–-]\s|:\s|\s\|\s)\s*(.+)$/u);
+  return match ? { other: match[1].trim(), text: match[2].trim() } : { other: text, text: "" };
+}
+
 export function toRuleCard(card: CardWithStats, pack: PackWithType, base: { term: string; meaning: string; examples: LearnExample[] }): LearnCard {
+  const kind = knowledgeKind(card.data, pack.cardType);
   // A direct Q&A card is not a procedural rule. Give it standard recall exercises and a
   // conventional Q→A review rather than inventing a condition, case or rule attribution.
-  if (appliedCardKind(card.data) === "question") return {
+  if (kind === "question") return {
     id: card.id, term: base.term, form: base.term, reading: "", meaning: base.meaning, examples: base.examples,
     language: null, han: false, wordSized: false, appliedQuestion: true,
   };
@@ -125,7 +168,13 @@ export function toRuleCard(card: CardWithStats, pack: PackWithType, base: { term
   return {
     id: card.id, term: base.term, form: base.term, reading: "", meaning: base.meaning, examples: base.examples,
     language: null, han: false, wordSized: isWordSized(base.term),
-    rule: { conditions: list("condition"), exceptions: list("exception"), steps: list("step"), cases, source: clean(fieldText(card.data, fieldByRole(type, "source")?.key)) },
+    rule: {
+      conditions: list("condition"), exceptions: list("exception"), steps: list("step"), cases, source: clean(fieldText(card.data, fieldByRole(type, "source")?.key)),
+      kind,
+      features: uniqueBy(workspaceLines(card, "structure"), normaliseAnswer),
+      contrasts: uniqueBy(workspaceLines(card, "neighbours", contrastLines).map(parseContrast), (item) => normaliseAnswer(item.other)),
+      figures: uniqueBy(workspaceLines(card, "facts"), normaliseAnswer),
+    },
   };
 }
 
@@ -136,13 +185,50 @@ export function toRuleCard(card: CardWithStats, pack: PackWithType, base: { term
 export function appliedCoverage(card: LearnCard, neighbours: number): { skills: AppliedSkill[]; hint: string } {
   const rule = card.rule;
   if (!rule) return { skills: [], hint: "" };
+  const kind = rule.kind ?? "rule";
   const solvable = rule.cases.filter((item) => item.outcome).length;
+  const features = rule.features?.length ?? 0;
+  const contrasts = rule.contrasts?.length ?? 0;
+  if (kind === "definition") {
+    const skills: AppliedSkill[] = [];
+    if (neighbours >= 2) skills.push("identify");
+    if (features) skills.push("characterise");
+    if (contrasts || neighbours >= 1) skills.push("distinguish");
+    if (rule.cases.length) skills.push("apply");
+    skills.push("recall", "solve");
+    const hint = !card.meaning ? ""
+      : !features ? "Add its key features (one per line), so Learn can ask which ones belong to it."
+        : !contrasts ? "Add what it is not to be confused with, so Learn can ask you to tell them apart."
+          : !rule.cases.length ? "Add an example from practice, so Learn can ask which term it illustrates."
+            : neighbours < 2 ? "More terms in this collection give Learn real alternatives to choose from."
+              : "";
+    return { skills, hint };
+  }
+  if (kind === "figure") {
+    const value = valuesIn(card.meaning).length > 0;
+    const skills: AppliedSkill[] = value ? ["identify", "scope", "solve"] : [];
+    if (rule.conditions.length || rule.exceptions.length) skills.push("scope");
+    if (solvable) skills.push("apply");
+    const hint = !card.meaning ? ""
+      : !value ? "Write the value with its unit (for example 8.33 SDR per kg), so Learn can ask for it."
+        : !rule.conditions.length ? "Add what the figure applies to, so Learn can ask when it holds."
+          : neighbours < 2 ? "Other figures in this collection let Learn ask you to tell them apart."
+            : "";
+    return { skills: Array.from(new Set(skills)), hint };
+  }
   const skills: AppliedSkill[] = [];
   if (neighbours >= 2 || rule.cases.length) skills.push("identify");
   if (rule.conditions.length || rule.exceptions.length || valuesIn(card.meaning).length) skills.push("scope");
   if (rule.steps.length >= 3) skills.push("sequence");
   if (solvable) skills.push("apply");
   if (solvable >= 2 || rule.steps.length >= 3) skills.push("solve");
+  if (kind === "procedure") {
+    const hint = !card.meaning ? ""
+      : rule.steps.length < 3 ? "Add the steps, one per line, so Learn can ask for their order and the next step."
+        : !rule.cases.length ? "Add a case where the procedure is used, so Learn can ask what happens in it."
+          : "";
+    return { skills, hint };
+  }
   const hint = !card.meaning ? ""
     : !rule.cases.length ? "Add a case and what follows in it, so Learn can ask you to apply the rule."
       : !solvable ? "Add what follows in the case, so Learn can ask you to predict it."
@@ -179,8 +265,31 @@ function nearestRivals(card: LearnCard, pool: LearnCard[]): LearnCard[] {
     for (const word of theirs) if (mine.has(word)) shared += 1;
     return shared / Math.max(1, mine.size + theirs.size - shared);
   };
-  return rivals.map((other) => ({ other, value: score(other) }))
+  const ranked = rivals.map((other) => ({ other, value: score(other) }))
     .sort((a, b) => b.value - a.value || a.other.id.localeCompare(b.other.id)).map((entry) => entry.other);
+  // Like is confused with like: a rule with rules and procedures (as before kinds existed), a
+  // term with other terms first, a figure with other figures first.
+  const kind = card.rule?.kind ?? "rule";
+  const kindOf = (other: LearnCard) => other.rule?.kind ?? "rule";
+  if (kind === "rule") return ranked.filter((other) => kindOf(other) === "rule" || kindOf(other) === "procedure");
+  if (kind === "procedure") return [...ranked.filter((other) => kindOf(other) === "procedure"), ...ranked.filter((other) => kindOf(other) === "rule")];
+  const same = ranked.filter((other) => kindOf(other) === kind);
+  // Enough of its own kind for a question with four options: keep to them ("Which term?" among terms).
+  return same.length >= 3 ? same : [...same, ...ranked.filter((other) => kindOf(other) !== kind)];
+}
+
+/** Rivals named in this card's "Not to be confused with" lines (or naming this card in theirs), nearest first. */
+function contrastedRivals(card: LearnCard, pool: LearnCard[]): LearnCard[] {
+  const own = normaliseAnswer(card.form);
+  const names = (other: LearnCard) => [normaliseAnswer(other.form), normaliseAnswer(other.form.split(/\s+[—–-]\s+/u)[0])].filter((name) => name.length >= 2);
+  const matches = (written: string, other: LearnCard) => {
+    const key = normaliseAnswer(written);
+    return key.length >= 2 && names(other).some((name) => name === key || (name.length >= 4 && key.length >= 4 && (key.includes(name) || name.includes(key))));
+  };
+  const named = uniqueBy(pool.filter((other) => other.id !== card.id && other.rule && other.term && other.meaning && normaliseAnswer(other.form) !== own), (other) => normaliseAnswer(other.form));
+  const mine = (card.rule?.contrasts ?? []).flatMap((contrast) => named.filter((other) => matches(contrast.other, other)));
+  const theirs = named.filter((other) => (other.rule?.contrasts ?? []).some((contrast) => matches(contrast.other, card)));
+  return uniqueBy([...mine, ...theirs], (other) => other.id);
 }
 
 /** The nearest few, in a varied order: plausible options without always the same three. */
@@ -250,7 +359,7 @@ export function splitOutcome(text: string): { outcome: string; reason: string } 
 }
 
 /** Amounts, thresholds and deadlines: a number with a unit, a currency or a percentage. */
-const VALUE = /(?:[€$£]\s?|\b(?:EUR|USD|GBP|CHF)\s?)?\b\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?(?:\s?(?:%|per\s?cent\b|percent\b|working days?\b|business days?\b|calendar days?\b|days?\b|weeks?\b|months?\b|years?\b|hours?\b|minutes?\b|kg\b|tonnes?\b|tons?\b|km\b|litres?\b|liters?\b|EUR\b|USD\b|GBP\b|CHF\b|€|\$|£))|(?:[€$£]\s?|\b(?:EUR|USD|GBP|CHF)\s?)\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?/giu;
+const VALUE = /(?:[€$£]\s?|\b(?:EUR|USD|GBP|CHF)\s?)?\b\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?(?:\s?(?:%|per\s?cent\b|percent\b|working days?\b|business days?\b|calendar days?\b|days?\b|weeks?\b|months?\b|years?\b|hours?\b|minutes?\b|kg\b|tonnes?\b|tons?\b|km\b|litres?\b|liters?\b|EUR\b|USD\b|GBP\b|CHF\b|SDR\b|€|\$|£))|(?:[€$£]\s?|\b(?:EUR|USD|GBP|CHF)\s?)\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?/giu;
 const NUMBER = /\d+(?:[.,  ]\d{3})*(?:[.,]\d+)?/u;
 
 type FoundValue = { text: string; start: number; end: number; amount: number; unit: string; grouping: string; decimals: number };
@@ -286,7 +395,7 @@ function formatLike(value: FoundValue, amount: number): string {
 /** Words a phrase naturally starts with: a piece may begin here. */
 const PHRASE_START = /^(?:and|or|but|if|when|where|unless|until|before|after|within|without|to|at|by|for|of|in|on|from|with|under|over|than|that|which|who|whose|once|while|as|including|except|provided)$/i;
 /** A number is never separated from its unit ("1,000 | kg." would be no phrase at all). */
-const UNIT_START = /^(?:%|per|percent|working|business|calendar|days?|weeks?|months?|years?|hours?|minutes?|kg|tonnes?|tons?|km|litres?|liters?|eur|usd|gbp|chf)\b/i;
+const UNIT_START = /^(?:%|per|percent|working|business|calendar|days?|weeks?|months?|years?|hours?|minutes?|kg|tonnes?|tons?|km|litres?|liters?|eur|usd|gbp|chf|sdr)\b/i;
 
 function statementPieces(statement: string): string[] | null {
   const tokens = statement.split(" ").filter(Boolean);
@@ -339,6 +448,12 @@ type Material = {
   shown: LearnCase[];
   /** Cases already used in this round, so no case is asked about twice. */
   used: Set<string>;
+  /** Definitions, procedures, figures: what the kind adds (empty for rules). */
+  kind: KnowledgeKind;
+  features: string[];
+  contrasts: LearnContrast[];
+  /** Neighbours named as confusable (either way), nearest first. */
+  confusable: LearnCard[];
 };
 type Builder = (m: Material, random: () => number) => Draft | null;
 
@@ -360,7 +475,7 @@ const ruleForCase: Builder = (m, random) => {
   if (!options) return null;
   return {
     format: "choice", kind: "rule-for-case", layout: "list", choices: options, answerId: m.card.id, uses: [caseKey(item)],
-    prompt: { ask: "Which rule applies here?", text: maskName(item.situation, m.card), style: "case" },
+    prompt: { ask: m.kind === "procedure" ? "Which procedure applies here?" : "Which rule applies here?", text: maskName(item.situation, m.card), style: "case" },
     solution: m.card.form, explain: ruleLine(m.card),
   };
 };
@@ -396,7 +511,7 @@ const ruleForStatement: Builder = (m, random) => {
   if (!options) return null;
   return {
     format: "choice", kind: "rule-for-statement", layout: "list", choices: options, answerId: m.card.id,
-    prompt: { ask: "Which rule says this?", text: maskName(m.card.meaning, m.card) },
+    prompt: { ask: m.kind === "procedure" ? "Which procedure is this?" : "Which rule says this?", text: maskName(m.card.meaning, m.card) },
     solution: m.card.form, explain: ruleLine(m.card),
   };
 };
@@ -407,7 +522,7 @@ const statementForRule: Builder = (m, random) => {
   if (!options) return null;
   return {
     format: "choice", kind: "statement-for-rule", layout: "list", choices: options, answerId: m.card.id,
-    prompt: { ask: "What does this rule require?", text: m.card.form },
+    prompt: { ask: m.kind === "procedure" ? "What does this procedure achieve?" : "What does this rule require?", text: m.card.form },
     solution: m.card.meaning, explain: ruleLine(m.card),
   };
 };
@@ -472,7 +587,7 @@ const missingValue: Builder = (m, random) => {
   if (!options) return null;
   return {
     format: "choice", kind: "missing-value", layout: "grid", choices: options, answerId: "answer",
-    prompt: { ask: "Which value completes the rule?", text: `${sentence.slice(0, value.start)}＿＿＿${sentence.slice(value.end)}`, sub: sentence === m.card.meaning ? m.card.form : `${m.card.form} applies when…` },
+    prompt: { ask: m.kind === "figure" ? "Which value is right?" : "Which value completes the rule?", text: `${sentence.slice(0, value.start)}＿＿＿${sentence.slice(value.end)}`, sub: sentence === m.card.meaning ? m.card.form : `${m.card.form} applies when…` },
     solution: value.text, explain: `${m.card.form}: ${sentence}`,
   };
 };
@@ -575,13 +690,13 @@ const buildStatement: Builder = (m, random) => {
   if (!pieces || new Set(pieces.map((piece) => piece.toLocaleLowerCase())).size < 4) return null;
   return {
     format: "build", kind: "build-statement", tiles: tiles(pieces, random), answer: pieces, joiner: " ",
-    prompt: { ask: "Put what it requires in order.", text: m.card.form },
+    prompt: { ask: m.kind === "definition" ? "Put the definition in order." : "Put what it requires in order.", text: m.card.form },
     solution: m.card.meaning, explain: "",
   };
 };
 
 /** A key word typed into its gap: one of the longest words, never part of the rule's name. */
-function completeWord(m: Material, sentence: string, pick: number, kind: "complete-statement" | "complete-condition"): Draft | null {
+function completeWord(m: Material, sentence: string, pick: number, kind: "complete-statement" | "complete-condition" | "complete-definition"): Draft | null {
   const name = new Set(m.card.form.toLocaleLowerCase().split(/[^\p{L}]+/u).filter(Boolean));
   const tokens = [...sentence.matchAll(/\p{L}[\p{L}'’-]*\p{L}/gu)].map((match) => ({ word: match[0], at: match.index ?? 0 }))
     .filter(({ word }) => Array.from(word).length >= 5 && !STOP.has(word.toLocaleLowerCase()) && !name.has(word.toLocaleLowerCase()));
@@ -591,7 +706,7 @@ function completeWord(m: Material, sentence: string, pick: number, kind: "comple
   if (tokens.filter((token) => token.word.toLocaleLowerCase() === word.toLocaleLowerCase()).length > 1) return null;
   return {
     format: "type", kind, accepted: [{ value: word, kind: "exact" }], placeholder: "Type the missing word", language: null, hint: firstLetters(word),
-    prompt: { ask: kind === "complete-statement" ? "Complete what the rule requires." : "Complete the condition.", text: `${sentence.slice(0, at)}＿＿＿${sentence.slice(at + word.length)}`, sub: m.card.form },
+    prompt: { ask: kind === "complete-statement" ? "Complete what the rule requires." : kind === "complete-definition" ? "Complete the definition." : "Complete the condition.", text: `${sentence.slice(0, at)}＿＿＿${sentence.slice(at + word.length)}`, sub: m.card.form },
     solution: word, explain: `${m.card.form}: ${sentence}`,
   };
 }
@@ -605,6 +720,325 @@ const nameRule: Builder = (m) => ({
   prompt: { ask: "Which rule is this? Type its name.", text: maskName(m.card.meaning, m.card) },
   solution: m.card.form, explain: "",
 });
+
+
+/* ------------------------------------------------------------------------- */
+/* Definitions                                                                */
+/* ------------------------------------------------------------------------- */
+
+const termLine = (card: LearnCard) => `${card.form}: ${card.meaning}`;
+
+/**
+ * A definition's own words hidden in a text about it: the full name, its acronyms ("CMR",
+ * "EUR.1") and its distinctive words ("certifying" for "Certificate of origin"), so "Which term is
+ * defined here?" is answered from the meaning, not from a repeated word.
+ */
+/** The name and its acronyms hidden ("CMR", "EUR.1"), the rest of the text left readable. */
+function maskNames(text: string, card: LearnCard): string {
+  let masked = maskName(text, card);
+  const acronyms = (card.form.match(/\b[\p{Lu}][\p{Lu}\p{N}.]{1,7}\b/gu) ?? []).filter((token) => /\p{Lu}.*\p{Lu}|\p{Lu}\.?\p{N}/u.test(token));
+  for (const acronym of acronyms) masked = masked.replace(new RegExp(`(?<![\\p{L}\\p{N}])${acronym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "gu"), "＿＿＿");
+  return masked;
+}
+
+function maskTerm(text: string, card: LearnCard): string {
+  const masked = maskNames(text, card);
+  const stems = new Set((card.form.toLocaleLowerCase().match(/\p{L}[\p{L}'’-]*/gu) ?? []).filter((word) => word.length >= 4 && !STOP.has(word)).map((word) => word.slice(0, Math.min(6, word.length))));
+  if (!stems.size) return masked;
+  return masked.replace(/\p{L}[\p{L}'’-]*/gu, (word) => {
+    const lower = word.toLocaleLowerCase();
+    return lower.length >= 4 && [...stems].some((stem) => lower.startsWith(stem)) ? "＿＿＿" : word;
+  }).replace(/＿＿＿(?:\s+＿＿＿)+/g, "＿＿＿");
+}
+
+const NEGATION = /\b(?:not|no|non|cannot|can't|never|without|neither|nor)\b|\bnon-/i;
+/** Content words cut to five letters ("states" and "state", "prices" and "price" meet). */
+const stems = (text: string) => new Set((text.toLocaleLowerCase().normalize("NFC").match(/\p{L}[\p{L}'’-]*/gu) ?? [])
+  .filter((word) => word.length >= 4 && !STOP.has(word)).map((word) => word.slice(0, 5)));
+/** Shared content words, and their share of the smaller text (0–1). */
+function overlapOf(a: string, b: string) {
+  const left = stems(a); const right = stems(b);
+  let shared = 0;
+  for (const word of left) if (right.has(word)) shared += 1;
+  return { shared, share: left.size && right.size ? shared / Math.min(left.size, right.size) : 0 };
+}
+const overlap = (a: string, b: string) => overlapOf(a, b).share;
+/**
+ * How a statement about another term relates to this term's own statements: "shared" when it says
+ * much the same (it may well be true of this term too, so it is never a wrong option), "contrast"
+ * when it says the opposite of one of them (the best wrong option: "Negotiable" against "cannot be
+ * negotiated"), "distinct" otherwise.
+ */
+function relation(statement: string, own: string[]): "shared" | "contrast" | "distinct" {
+  let best = { shared: 0, share: 0 }; let flipped = false;
+  for (const mine of own) {
+    const value = overlapOf(statement, mine);
+    if (value.shared > best.shared || (value.shared === best.shared && value.share > best.share)) { best = value; flipped = NEGATION.test(statement) !== NEGATION.test(mine); }
+  }
+  // One shared word ("document") says little; two say they are about the same thing.
+  if (best.shared >= 2 && best.share >= 0.5) return flipped ? "contrast" : "shared";
+  return best.shared >= 2 && flipped ? "contrast" : "distinct";
+}
+const ownStatements = (card: LearnCard) => [...(card.rule?.features ?? []), ...definitionPoints(card.meaning)];
+
+/** What a neighbour's features are, as wrong options for this card: opposites first, never what is true of both. */
+function rivalFeatures(m: Material, only?: "contrast"): Array<{ id: string; label: string; note: string; owner: LearnCard }> {
+  const own = ownStatements(m.card);
+  const order = uniqueBy([...m.confusable, ...m.rivals], (other) => other.id);
+  const all = order.flatMap((other) => (other.rule?.features ?? []).map((text, index) => ({
+    id: `${other.id}:f${index}`, label: maskName(text, other), note: `That is true of ${other.form}.`, owner: other, relation: relation(text, own),
+  }))).filter((item) => item.relation !== "shared" && !names(item.label, m.card)
+    // "Does not state prices" is true of most other things too: a negative is only used against its opposite.
+    && !(item.relation === "distinct" && NEGATION.test(item.label)));
+  const distinct = all.reduce<typeof all>((kept, item) => (kept.some((other) => overlap(other.label, item.label) >= 0.8) ? kept : [...kept, item]), []);
+  return [...distinct.filter((item) => item.relation === "contrast"), ...(only ? [] : distinct.filter((item) => item.relation === "distinct"))]
+    .map(({ relation: _relation, ...item }) => item);
+}
+
+/** Identify: which term is defined here. */
+const termForDefinition: Builder = (m, random) => {
+  const options = choices({ id: m.card.id, label: m.card.form },
+    plausible(m.rivals, random).map((other) => ({ id: other.id, label: other.form, note: termLine(other) })), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "term-for-definition", layout: "list", choices: options, answerId: m.card.id,
+    prompt: { ask: m.kind === "figure" ? "What does this value refer to?" : "Which term is defined here?", text: maskTerm(m.card.meaning, m.card) },
+    solution: m.card.form, explain: termLine(m.card),
+  };
+};
+
+/** Identify, the other way: what the term means (every definition with its own name hidden). */
+const definitionForTerm: Builder = (m, random) => {
+  const options = choices({ id: m.card.id, label: maskTerm(m.card.meaning, m.card) },
+    plausible(m.rivals, random).map((other) => ({ id: other.id, label: maskTerm(other.meaning, other), note: `That is ${other.form}.` })), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "definition-for-term", layout: "list", choices: options, answerId: m.card.id,
+    prompt: { ask: "What is it?", text: m.card.form },
+    solution: m.card.meaning, explain: termLine(m.card),
+  };
+};
+
+/** Features: one of its key features among the features of the terms it is confused with. */
+const featureOf: Builder = (m, random) => {
+  if (!m.features.length) return null;
+  const target = m.features[(m.round - 1) % m.features.length];
+  const wrong = rivalFeatures(m);
+  const options = choices({ id: "answer", label: maskName(target, m.card) }, [...wrong.slice(0, 1), ...plausible(wrong.slice(1), random, 2)], random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "feature-of", layout: "list", choices: options, answerId: "answer",
+    prompt: { ask: "Which of these is true of it?", text: m.card.form },
+    solution: target, explain: `${m.card.form}: ${m.features.join("; ")}.`,
+  };
+};
+
+/** Features, harder: the odd one out — a feature of a neighbour among this term's own features. */
+const notAFeature: Builder = (m, random) => {
+  if (m.features.length < 2) return null;
+  // The odd one out must be false of this term. Only a neighbour's statement that says the
+  // opposite of one of its own is safe; anything else might be true of both.
+  const candidates = rivalFeatures(m, "contrast");
+  const odd = candidates[(m.round - 1) % Math.max(1, Math.min(2, candidates.length))];
+  if (!odd) return null;
+  const own = m.features.map((text, index) => ({ id: `f${index}`, label: maskName(text, m.card), note: `That is true of ${m.card.form}.` }));
+  const options = choices({ id: odd.id, label: odd.label }, plausible(own, random, 3), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "not-a-feature", layout: "list", choices: options, answerId: odd.id,
+    prompt: { ask: "Which of these is NOT true of it?", text: m.card.form },
+    solution: odd.label, explain: `${odd.note} ${m.card.form}: ${m.features.join("; ")}.`,
+  };
+};
+
+/**
+ * Tell apart: a statement about one of two terms that are easily confused — which one? The pair
+ * is a neighbour named under "Not to be confused with" (either way round), else the nearest term
+ * of the same kind. Odd rounds describe this term, even rounds the other one.
+ */
+const tellApart: Builder = (m, random) => {
+  const other = m.confusable[0] ?? (m.rivals[0] && (m.rivals[0].rule?.kind ?? "rule") === m.kind ? m.rivals[0] : null);
+  if (!other) return null;
+  // Only statements that are true of one of the two: what both share would have no answer.
+  // A negative ("Not a document of title") only tells two terms apart when the other one says the opposite.
+  const rank = (text: string, against: LearnCard) => { const how = relation(text, ownStatements(against)); return how === "contrast" ? 0 : how === "distinct" && !NEGATION.test(text) ? 1 : 2; };
+  const telling = (list: string[], against: LearnCard) => list.map((text) => ({ text, rank: rank(text, against) })).filter((item) => item.rank < 2)
+    .sort((a, b) => a.rank - b.rank).map((item) => item.text);
+  const theirs = telling(other.rule?.features ?? [], m.card);
+  const mine = telling(m.features, other);
+  const pickTheirs = m.round % 2 === 0 && theirs.length > 0;
+  const turn = Math.floor((m.round - 1) / 2);
+  // Features only: the definition itself was already the opening question.
+  if (!mine.length && !theirs.length) return null;
+  const statement = pickTheirs ? theirs[turn % theirs.length] : mine.length ? mine[turn % mine.length] : theirs[turn % theirs.length];
+  const answer = pickTheirs || !mine.length ? other : m.card;
+  const text = maskNames(maskNames(statement, m.card), other);
+  if (!text.trim() || normaliseAnswer(other.form) === normaliseAnswer(m.card.form)) return null;
+  const options = shuffle<Choice>([
+    { id: m.card.id, label: m.card.form, note: answer === other ? `That describes ${other.form}, not ${m.card.form}.` : undefined },
+    { id: other.id, label: other.form, note: answer === m.card ? `That describes ${m.card.form}, not ${other.form}.` : undefined },
+  ], random);
+  return {
+    format: "choice", kind: "tell-apart", layout: "grid", choices: options, answerId: answer.id,
+    prompt: { ask: "Which one is described here?", text, sub: `${m.card.form} or ${other.form}?` },
+    solution: answer.form, explain: `${termLine(answer)}`,
+  };
+};
+
+/** Apply: which term an example from practice illustrates (its name hidden). */
+const exampleOf: Builder = (m, random) => {
+  const item = freeCase(m);
+  if (!item) return null;
+  const options = choices({ id: m.card.id, label: m.card.form },
+    plausible(m.rivals, random).map((other) => ({ id: other.id, label: other.form, note: termLine(other) })), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "example-of", layout: "list", choices: options, answerId: m.card.id, uses: [caseKey(item)],
+    prompt: { ask: "Which term does this example illustrate?", text: maskTerm(item.situation, m.card), style: "case" },
+    solution: m.card.form, explain: termLine(m.card),
+  };
+};
+
+/** Apply, the other way: which situation is an example of it (the others are examples of its neighbours). */
+const whichExample: Builder = (m, random) => {
+  const item = freeCase(m, (entry) => !names(entry.situation, m.card));
+  if (!item) return null;
+  const wrong = uniqueBy([...m.confusable, ...m.rivals], (other) => other.id).flatMap((other) => (other.rule?.cases ?? [])
+    .filter((entry) => !names(entry.situation, other))
+    .map((entry, index) => ({ id: `${other.id}:e${index}`, label: entry.situation, note: `That is an example of ${other.form}.` })));
+  const options = choices({ id: "answer", label: item.situation }, plausible(wrong, random, 3), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "which-example", layout: "list", choices: options, answerId: "answer", uses: [caseKey(item)],
+    prompt: { ask: "Which of these is an example of it?", text: m.card.form, sub: m.card.meaning },
+    solution: item.situation, explain: termLine(m.card),
+  };
+};
+
+/** Recall: the term itself, typed from its definition (first letters on request, without points). */
+const nameTerm: Builder = (m) => ({
+  format: "type", kind: "name-term", accepted: uniqueBy([{ value: m.card.form, kind: "exact" as const }, { value: shortName(m.card), kind: "exact" as const }], (item) => normaliseAnswer(item.value)),
+  placeholder: "The term", language: null, hint: firstLetters(m.card.form),
+  prompt: { ask: m.kind === "figure" ? "What is this figure called? Type it." : "Which term is this? Type it.", text: maskTerm(m.card.meaning, m.card) },
+  solution: m.card.form, explain: "",
+});
+
+const completeDefinition: Builder = (m) => completeWord(m, m.card.meaning, m.round - 1, "complete-definition");
+const completeDefinitionAgain: Builder = (m) => completeWord(m, m.card.meaning, m.round, "complete-definition");
+
+/** A new clause starts at a comma before a participle or a relative ("…, recording goods"). */
+const CLAUSE = /,\s+(?=(?:which|that|where|when|whose|used|issued|signed|made|recording|showing|stating|containing|covering|proving|confirming|evidencing|including|requiring|allowing|giving|serving|acting)\b)|;\s+|\s+[—–]\s+/iu;
+
+/** The parts of a definition a learner should be able to say: what it is, then its details. */
+export function definitionPoints(meaning: string): string[] {
+  const parts = meaning.split(CLAUSE).map((part) => part.trim().replace(/[.;,]$/, "")).filter(Boolean);
+  const merged = parts.reduce<string[]>((all, part) => {
+    if (all.length && part.split(/\s+/).length < 3) all[all.length - 1] += `, ${part}`; else all.push(part);
+    return all;
+  }, []);
+  return merged.length ? merged : [meaning];
+}
+
+/** Solve: define it in your own words. What it is is essential; the rest of the definition and its features are details. */
+const defineTerm: Builder = (m) => {
+  const parts = definitionPoints(m.card.meaning);
+  const points: JudgePoint[] = [{ id: "what", label: "What it is", text: parts[0] }];
+  parts.slice(1, 4).forEach((text, index) => points.push({ id: `d${index + 1}`, label: "In the definition", text, essential: false }));
+  m.features.filter((text) => !parts.some((part) => normaliseAnswer(part).includes(normaliseAnswer(text))))
+    .slice(0, 3).forEach((text, index) => points.push({ id: `f${index + 1}`, label: "Feature", text, essential: false }));
+  return {
+    format: "judge", kind: "define-term", placeholder: "What it is, what it is used for, what sets it apart", points,
+    prompt: { ask: "Define it in your own words.", text: m.card.form },
+    solution: m.card.meaning, explain: m.features.length ? `${m.card.form}: ${m.features.join("; ")}.` : "",
+  };
+};
+
+/** Solve: how it differs from the term it is confused with, checked against the card's own line. */
+const contrastRecall: Builder = (m) => {
+  const contrast = m.contrasts.find((item) => item.text);
+  if (!contrast) return null;
+  const known = m.confusable.find((other) => normaliseAnswer(contrast.other).includes(normaliseAnswer(other.form.split(/\s+[—–-]\s+/u)[0])));
+  const points: JudgePoint[] = [{ id: "difference", label: "The difference", text: contrast.text }];
+  if (known) points.push({ id: "other", label: known.form, text: known.meaning, essential: false });
+  points.push({ id: "what", label: "What it is", text: definitionPoints(m.card.meaning)[0], essential: false });
+  return {
+    format: "judge", kind: "contrast-recall", placeholder: "How they differ, in your own words", points,
+    prompt: { ask: `How does it differ from ${contrast.other}?`, text: m.card.form },
+    solution: contrast.text, explain: termLine(m.card),
+  };
+};
+
+/* ------------------------------------------------------------------------- */
+/* Procedures                                                                 */
+/* ------------------------------------------------------------------------- */
+
+const distinctSteps = (m: Material) => m.rule.steps.length >= 3 && new Set(m.rule.steps.map(normaliseAnswer)).size === m.rule.steps.length;
+const rivalSteps = (m: Material) => m.rivals.flatMap((other) => (other.rule?.steps ?? []).map((text, index) => ({ id: `${other.id}:s${index}`, label: text, note: `That is a step of ${other.form}.` })))
+  .filter((item) => !m.rule.steps.some((step) => normaliseAnswer(step) === normaliseAnswer(item.label)));
+
+/** Sequence: where it starts. Its own later steps are the tempting wrong answers. */
+const firstStep: Builder = (m, random) => {
+  if (!distinctSteps(m)) return null;
+  const steps = m.rule.steps;
+  const options = choices({ id: "answer", label: steps[0] }, plausible(steps.slice(1).map((text, index) => ({ id: `s${index + 2}`, label: text, note: `That is step ${index + 2}.` })), random, 3), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "first-step", layout: "list", choices: options, answerId: "answer",
+    prompt: { ask: "What is the first step?", text: m.card.form },
+    solution: steps[0], explain: steps.map((step, index) => `${index + 1}. ${step}`).join("  "),
+  };
+};
+
+/** Sequence: the step that comes next, after one shown. */
+const nextStep: Builder = (m, random) => {
+  if (!distinctSteps(m)) return null;
+  const steps = m.rule.steps;
+  const at = (m.round - 1) % (steps.length - 1);
+  const wrong = steps.map((text, index) => ({ id: `s${index + 1}`, label: text, note: index < at ? `That comes before.` : `That is step ${index + 1}.` }))
+    .filter((_, index) => index !== at && index !== at + 1);
+  const options = choices({ id: "answer", label: steps[at + 1] }, [...wrong.slice(-1), ...plausible([...wrong.slice(0, -1), ...rivalSteps(m)], random, 2)], random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "next-step", layout: "list", choices: options, answerId: "answer",
+    prompt: { ask: "What comes next?", text: steps[at], sub: `${m.card.form} · step ${at + 1} of ${steps.length}` },
+    solution: steps[at + 1], explain: steps.map((step, index) => `${index + 1}. ${step}`).join("  "),
+  };
+};
+
+/** Sequence: the step that is missing from the list (other procedures' steps are the wrong answers). */
+const missingStep: Builder = (m, random) => {
+  if (!distinctSteps(m)) return null;
+  const steps = m.rule.steps;
+  // Half a turn away from the step "What comes next?" asks for in the same round.
+  const at = 1 + ((m.round - 1 + Math.floor(steps.length / 2)) % (steps.length - 1));
+  const options = choices({ id: "answer", label: steps[at] }, plausible(rivalSteps(m), random, 3), random);
+  if (!options) return null;
+  return {
+    format: "choice", kind: "missing-step", layout: "list", choices: options, answerId: "answer",
+    prompt: { ask: "Which step is missing?", text: m.card.form, sub: steps.map((step, index) => `${index + 1}. ${index === at ? "＿＿＿" : step}`).join("  ") },
+    solution: steps[at], explain: steps.map((step, index) => `${index + 1}. ${step}`).join("  "),
+  };
+};
+
+/* ------------------------------------------------------------------------- */
+/* Figures                                                                    */
+/* ------------------------------------------------------------------------- */
+
+/** Recall: the value typed into its place; the unit stays, so only the number is asked for. */
+const typeValue: Builder = (m) => {
+  const value = valuesIn(m.card.meaning)[(m.round - 1) % Math.max(1, valuesIn(m.card.meaning).length)];
+  if (!value) return null;
+  const number = value.text.match(NUMBER)?.[0];
+  if (!number) return null;
+  const start = value.start + value.text.indexOf(number);
+  const plain = value.grouping ? number.split(value.grouping).join("") : number;
+  const alternatives = uniqueBy([number, plain, plain.includes(",") ? plain.replace(",", ".") : plain.replace(".", ",")], (item) => item);
+  return {
+    format: "type", kind: "type-value", accepted: alternatives.map((item) => ({ value: item, kind: "exact" as const })), placeholder: "The number", language: null,
+    prompt: { ask: "What is the value?", text: `${m.card.meaning.slice(0, start)}＿＿＿${m.card.meaning.slice(start + number.length)}`, sub: m.card.form },
+    solution: value.text, explain: `${m.card.form}: ${m.card.meaning}`,
+  };
+};
 
 /**
  * Direct Q&A is not a rule. Keep the question on screen and practise its answer.
@@ -697,6 +1131,9 @@ const SKILL_PICKS: Record<AppliedSkill, Pick[]> = {
   apply: [P("case-outcome", caseOutcome), P("which-case", whichCase)],
   solve: [],
   wording: [],
+  characterise: [],
+  distinguish: [],
+  recall: [],
 };
 
 /**
@@ -719,9 +1156,11 @@ export function buildAppliedRound(input: { card: LearnCard; pool: LearnCard[]; r
   // The case to solve: one not seen last time, else one shown but not solved; never the same twice running.
   const solvable = [...withOutcome.filter((item) => !solvedLast.has(caseKey(item))), ...withOutcome.filter((item) => solvedLast.has(caseKey(item)))];
   const held = solvable.length >= 2 ? solvable[0] : null;
+  const kind: KnowledgeKind = rule.kind ?? "rule";
   const m: Material = {
     card, rule, rivals: nearestRivals(card, input.pool), round, level, held,
     shown: fresh(rule.cases.filter((item) => item !== held)), used: new Set(held ? [caseKey(held)] : []),
+    kind, features: rule.features ?? [], contrasts: rule.contrasts ?? [], confusable: kind === "rule" ? [] : contrastedRivals(card, input.pool),
   };
 
   const counts = new Map<string, number>();
@@ -740,25 +1179,93 @@ export function buildAppliedRound(input: { card: LearnCard; pool: LearnCard[]; r
     return null;
   };
 
+  const weakSkills = Array.from(new Set((history?.weak ?? []).map(appliedSkill).filter((skill): skill is AppliedSkill => Boolean(skill) && skill !== "solve" && skill !== "wording")));
+  const stamp = (opening: Draft | null, middle: Draft[], final: Draft) => {
+    const ordered = [...(opening ? [opening] : []), ...middle.map((draft, index) => ({ draft, index }))
+      .sort((a, b) => SKILL_ORDER[appliedSkill(a.draft.kind) ?? "wording"] - SKILL_ORDER[appliedSkill(b.draft.kind) ?? "wording"] || a.index - b.index)
+      .map((entry) => entry.draft), final];
+    return ordered.slice(0, 5).map((draft, index) => ({ ...draft, v: 1, position: index + 1, stage: STAGE_ORDER[index] }) as Exercise);
+  };
+  const fill = (opening: Draft | null, queue: Array<{ picks: Pick[]; limit?: number }>) => {
+    const middle: Draft[] = [];
+    for (const [index, step] of queue.entries()) {
+      if (middle.length + (opening ? 1 : 0) >= 4) break;
+      const draft = first(step.picks, `m${index}`, step.limit ?? 1);
+      if (draft) middle.push(draft);
+    }
+    return middle;
+  };
+
+  /* Definitions: recognise the term, know its features, tell it apart, use it, name it, define it. */
+  if (kind === "definition") {
+    const final = first(round % 2 === 0 ? [P("contrast-recall", contrastRecall), P("define-term", defineTerm)] : [P("define-term", defineTerm)], "final")!;
+    const identify = round % 2 === 1 ? [P("term-for-definition", termForDefinition), P("definition-for-term", definitionForTerm)]
+      : [P("definition-for-term", definitionForTerm), P("term-for-definition", termForDefinition)];
+    const opening = first(identify, "open");
+    const features = level === 2 ? [P("not-a-feature", notAFeature), P("feature-of", featureOf)] : [P("feature-of", featureOf), P("not-a-feature", notAFeature)];
+    const examples = [P("example-of", exampleOf), P("which-example", whichExample)];
+    const weak: Partial<Record<AppliedSkill, Pick[]>> = { identify, characterise: features, distinguish: [P("tell-apart", tellApart)], apply: examples, recall: [P("name-term", nameTerm)] };
+    const middle = fill(opening, [
+      ...weakSkills.flatMap((skill) => (weak[skill] ? [{ picks: weak[skill]! }] : [])),
+      { picks: features },
+      { picks: [P("tell-apart", tellApart)] },
+      ...(level === 2 ? [{ picks: [P("name-term", nameTerm)] }, { picks: [...examples].reverse() }] : [{ picks: examples }, { picks: [P("name-term", nameTerm)] }]),
+      { picks: features },
+      { picks: [P("which-example", whichExample)] },
+      { picks: identify },
+      { picks: [P("complete-definition", completeDefinition)] },
+      { picks: [P("build-statement", buildStatement)] },
+      { picks: [P("complete-definition", completeDefinitionAgain)], limit: 2 },
+      { picks: [P("name-term", nameTerm)], limit: 5 },
+    ]);
+    return stamp(opening, middle, final);
+  }
+
+  /* Figures: what the value refers to, the value among nearby ones, when it holds, then the value itself. */
+  if (kind === "figure" && valuesIn(card.meaning).length) {
+    const final = first([P("type-value", typeValue)], "final")!;
+    const opening = first(round % 2 === 1 ? [P("term-for-definition", termForDefinition), P("missing-value", missingValue)] : [P("missing-value", missingValue), P("term-for-definition", termForDefinition)], "open");
+    const middle = fill(opening, [
+      ...weakSkills.map((skill) => ({ picks: skill === "scope" ? SCOPE : skill === "distinguish" ? [P("tell-apart", tellApart)] : skill === "recall" ? [P("name-term", nameTerm)] : SKILL_PICKS[skill] ?? [] })),
+      { picks: [P("missing-value", missingValue)] },
+      { picks: [P("tell-apart", tellApart)] },
+      { picks: [P("missing-condition", missingCondition), P("missing-exception", missingException)] },
+      { picks: [P("case-outcome", caseOutcome)] },
+      { picks: [P("name-term", nameTerm)] },
+      { picks: [P("definition-for-term", definitionForTerm)] },
+      { picks: [P("term-for-definition", termForDefinition)] },
+      { picks: [P("complete-condition", completeCondition)] },
+      { picks: [P("complete-definition", completeDefinition)] },
+      { picks: [P("name-term", nameTerm)], limit: 5 },
+    ]);
+    return stamp(opening, middle, final);
+  }
+
   // 5. The unaided answer: a case kept back, else a procedure's steps, else the rule itself.
   const solves = [P("solve-case", solveCase), P("recall-steps", recallSteps), P("state-rule", stateRule)];
-  if (held && rule.steps.length >= 3 && round % 2 === 0) solves.splice(0, 2, solves[1], solves[0]);
+  if (kind === "procedure" && rule.steps.length >= 3) {
+    // A procedure is recalled as its steps; a case kept back is solved every other round.
+    solves.splice(0, 2, solves[1], solves[0]);
+    if (held && round % 2 === 0) solves.splice(0, 2, solves[1], solves[0]);
+  } else if (held && rule.steps.length >= 3 && round % 2 === 0) solves.splice(0, 2, solves[1], solves[0]);
   const final = first(solves, "final")!;
 
   // 1. Identify, on this rule's own material.
-  const opening = first([P("rule-for-case", ruleForCase), P("rule-for-statement", ruleForStatement), P("statement-for-rule", statementForRule)], "open");
+  const opening = first([P("rule-for-case", ruleForCase), P("rule-for-statement", ruleForStatement), ...(kind === "procedure" ? [P("first-step", firstStep)] : []), P("statement-for-rule", statementForRule)], "open");
 
   // 2–4. What the card's structure calls for, the last round's weak skill first.
-  const weakSkills = Array.from(new Set((history?.weak ?? []).map(appliedSkill).filter((skill): skill is AppliedSkill => Boolean(skill) && skill !== "solve" && skill !== "wording")));
   // Scope rotates between condition, threshold and exception; later rounds start from exceptions (common misconceptions).
   const scopeOrder = level === 2 ? [SCOPE[2], SCOPE[1], SCOPE[0]] : SCOPE;
   const turn = level === 2 ? Math.max(0, round - 2) % 3 : (round - 1) % 3;
   const scopeFirst = [...scopeOrder.slice(turn), ...scopeOrder.slice(0, turn)];
-  const middle: Draft[] = [];
+  const sequence = kind === "procedure" ? [P("next-step", nextStep), P("missing-step", missingStep), P("first-step", firstStep)] : [];
   const queue: Array<{ picks: Pick[]; limit?: number }> = [
-    ...weakSkills.map((skill) => ({ picks: skill === "scope" ? scopeFirst : SKILL_PICKS[skill] })),
+    ...weakSkills.map((skill) => ({ picks: skill === "scope" ? scopeFirst : skill === "sequence" && sequence.length ? [P("order-steps", orderSteps), ...sequence] : SKILL_PICKS[skill] ?? [] })),
     { picks: [P("order-steps", orderSteps)] },
+    ...(sequence.length ? [{ picks: sequence }] : []),
     { picks: [P("case-outcome", caseOutcome)] },
+    // A procedure used in a case is applied to it before a second sequence question.
+    ...(sequence.length ? [{ picks: sequence.slice(1) }] : []),
     { picks: scopeFirst },
     { picks: [P("contrast", contrastCase)] },
     { picks: [P("which-case", whichCase)] },
@@ -774,16 +1281,7 @@ export function buildAppliedRound(input: { card: LearnCard; pool: LearnCard[]; r
     { picks: [P("complete-statement", completeStatementAgain)], limit: 2 },
     { picks: [P("name-rule", nameRule)], limit: 5 },
   ];
-  for (const [index, step] of queue.entries()) {
-    if (middle.length + (opening ? 1 : 0) >= 4) break;
-    const draft = first(step.picks, `m${index}`, step.limit ?? 1);
-    if (draft) middle.push(draft);
-  }
-
-  const ordered = [...(opening ? [opening] : []), ...middle.map((draft, index) => ({ draft, index }))
-    .sort((a, b) => SKILL_ORDER[appliedSkill(a.draft.kind) ?? "wording"] - SKILL_ORDER[appliedSkill(b.draft.kind) ?? "wording"] || a.index - b.index)
-    .map((entry) => entry.draft), final];
-  return ordered.slice(0, 5).map((draft, index) => ({ ...draft, v: 1, position: index + 1, stage: STAGE_ORDER[index] }) as Exercise);
+  return stamp(opening, fill(opening, queue), final);
 }
 
 /* ------------------------------------------------------------------------- */
