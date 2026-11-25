@@ -4,11 +4,12 @@ import {
   adoptLegacyOfflineWrites, discardHeldOfflineWrites, discardLegacyOfflineWrites, exportHeldOfflineWrites, exportLegacyOfflineWrites,
   listHeldOfflineWrites, listLegacyOfflineWrites, type HeldOfflineWrite, type LegacyOfflineWrite,
 } from "../../lib/offlineFetch";
-import { Portal } from "./ui";
+import { Portal, useConfirm } from "./ui";
 
 type Props = { userId: string; onClose: () => void; onSync: () => Promise<void>; onExportAccount: () => Promise<void>; exportingAccount: boolean };
 
 export function OfflineRecoveryDialog({ userId, onClose, onSync, onExportAccount, exportingAccount }: Props) {
+  const [confirmElement, confirm] = useConfirm();
   const [entries, setEntries] = useState<LegacyOfflineWrite[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [backedUp, setBackedUp] = useState(false);
@@ -54,9 +55,9 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync, onExportAccount
       } finally { window.setTimeout(() => URL.revokeObjectURL(url), 20_000); }
     });
   }
-  function confirmRestore() {
+  async function confirmRestore() {
     if (!backedUp || !eligible || busy) return;
-    if (!window.confirm(`Restore ${chosen.length} legacy writes to your current signed-in account? Only new records with stable IDs are eligible. The server's access rules will still apply. Make sure the backup has finished downloading.`)) return;
+    if (!await confirm({ title: `Restore ${chosen.length} legacy writes?`, body: "Restore to your current signed-in account. Only new records with stable IDs are eligible. Server access rules still apply. Make sure the backup has finished downloading.", confirmLabel: "Restore" })) return;
     void perform(async () => {
       const count = await adoptLegacyOfflineWrites(selected, userId);
       setSelected([]);
@@ -65,9 +66,9 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync, onExportAccount
       await onSync();
     });
   }
-  function confirmDiscard() {
+  async function confirmDiscard() {
     if (!backedUp || !chosen.length || busy) return;
-    if (!window.confirm(`Permanently remove ${chosen.length} selected legacy writes from this device? This cannot be undone. Continue only after checking your exported JSON file.`)) return;
+    if (!await confirm({ title: `Permanently remove ${chosen.length} selected legacy writes?`, body: "This cannot be undone. Continue only after checking your exported JSON file.", confirmLabel: "Remove", danger: true })) return;
     void perform(async () => {
       const count = await discardLegacyOfflineWrites(selected);
       setSelected([]);
@@ -76,7 +77,7 @@ export function OfflineRecoveryDialog({ userId, onClose, onSync, onExportAccount
     });
   }
 
-  return <Portal><div className="ws-dialog-backdrop" role="presentation">
+  return <Portal><div className="ws-dialog-backdrop" role="presentation">{confirmElement}
     <section className="ws-dialog is-wide legacy-recovery" role="dialog" aria-modal="true"
       aria-labelledby="legacy-recovery-title" onKeyDown={(event) => {
         if (event.key === "Escape" && !busy) { event.preventDefault(); onClose(); }
@@ -147,6 +148,7 @@ function downloadText(contents: string, filename: string) {
 
 /** This account's own offline edits that the server refused (usually a newer edit elsewhere). */
 function HeldWrites() {
+  const [confirmElement, confirm] = useConfirm();
   const [rows, setRows] = useState<HeldOfflineWrite[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [backedUp, setBackedUp] = useState(false);
@@ -165,7 +167,7 @@ function HeldWrites() {
     catch (err) { setMessage(err instanceof Error ? err.message : String(err)); }
     finally { setBusy(false); }
   }
-  return <section className="held-recovery" aria-labelledby="held-recovery-title">
+  return <section className="held-recovery" aria-labelledby="held-recovery-title">{confirmElement}
     <h3 id="held-recovery-title">Changes the server refused ({rows.length})</h3>
     <p>These are your own offline edits. They were not uploaded because the record changed or was deleted on another device in the meantime, so nothing was overwritten. Open the note to restore your version from this device, or export these edits before discarding them.</p>
     <div className="legacy-recovery-list">
@@ -187,8 +189,8 @@ function HeldWrites() {
       })}><Download size={14}/> Export refused edits</button>
       <button type="button" className="ws-button is-quiet" disabled={busy || !backedUp || !selected.length}
         title={!backedUp ? "Export the refused edits first." : undefined}
-        onClick={() => {
-          if (!window.confirm(`Remove ${selected.length} refused ${selected.length === 1 ? "edit" : "edits"} from this device? Keep the exported file if you may need the text.`)) return;
+        onClick={async () => {
+          if (!await confirm({ title: `Remove ${selected.length} refused edits from this device?`, body: "Keep the exported file if you may need the text.", confirmLabel: "Remove", danger: true })) return;
           void run(async () => { await discardHeldOfflineWrites(selected); setSelected([]); });
         }}><Trash2 size={14}/> Discard selected</button>
     </div>
