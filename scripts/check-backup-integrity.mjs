@@ -75,6 +75,8 @@ assert.match(notebook, /Captures\{pendingCaptures/, "the compact navigation to p
 assert.match(backup, /export async function exportAccountJson/);
 assert.match(backup, /heuresis_review_corrections/);
 assert.match(backup, /heuresis_reading_author_profiles/);
+assert.match(backup, /OPTIONAL_BACKUP_TABLES[^;]*"heuresis_highlight_rules"/);
+assert.match(backup, /OPTIONAL_BACKUP_TABLES[^;]*"heuresis_review_mistakes"/);
 assert.match(backup, /heuresis-reading-media/);
 assert.match(backup, /reader.readAsDataURL\(data\)/);
 assert.match(backup, /count: "exact"/);
