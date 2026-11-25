@@ -36,7 +36,7 @@ export const BACKUP_TABLES = [
  * Until a migration is applied on the server its tables do not exist; the backup then
  * records them as absent instead of failing, so the rest of the library is still saved.
  */
-export const OPTIONAL_BACKUP_TABLES = ["catalogue_subjects", "catalogue_volumes", "catalogue_articles", "heuresis_learn_rounds", "heuresis_learn_attempts", "heuresis_review_corrections", "heuresis_reading_author_profiles"] as const;
+export const OPTIONAL_BACKUP_TABLES = ["catalogue_subjects", "catalogue_volumes", "catalogue_articles", "heuresis_learn_rounds", "heuresis_learn_attempts", "heuresis_review_corrections", "heuresis_reading_author_profiles", "heuresis_highlight_rules", "heuresis_review_mistakes"] as const;
 
 function isMissingTable(error: { code?: string; message?: string }): boolean {
   return error.code === "PGRST205" || error.code === "42P01" || /could not find the table|does not exist|schema cache/i.test(error.message ?? "");
