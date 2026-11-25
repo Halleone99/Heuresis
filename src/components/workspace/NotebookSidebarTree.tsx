@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, FilePlus2, FolderPlus, Home, Plus, Trash2, Pencil } from "lucide-react";
 import type { KnowledgeTopic } from "../../lib/knowledgeWorkspace";
-import { isDocument, isOpenQuestion } from "../../lib/knowledgeWorkspace";
+import { friendlyError, isDocument, isOpenQuestion } from "../../lib/knowledgeWorkspace";
 import { useWorkspace } from "./WorkspaceContext";
-import { RowMenu } from "./NotebookView";
+import { RowMenu, requestNewNote } from "./NotebookView";
 import { KnowledgeRemovalDialog, type KnowledgeRemovalTarget } from "./KnowledgeRemovalDialog";
 import { useConfirm } from "./ui";
 
 type CreateTarget = { subjectId: string | null; parentId: string | null };
 type RenameTarget = { kind: "subject" | "topic"; id: string; name: string };
 
-export function NotebookSidebarTree() {
+export function NotebookSidebarTree({ onNavigate, onNewNote, drawer = false }: {
+  onNavigate?: (location: import("../../lib/workspaceMemory").NotebookLocation) => void;
+  onNewNote?: (topicId: string) => void; drawer?: boolean;
+} = {}) {
   const workspace = useWorkspace();
   const { memory, snapshot, updateMemory } = workspace;
   const [creating, setCreating] = useState<CreateTarget | null>(null);
@@ -41,18 +44,24 @@ export function NotebookSidebarTree() {
     return counts;
   }, [snapshot.entries]);
   function goHome() {
+    if (onNavigate) { onNavigate({ topicId: null, docId: null, subjectId: null }); return; }
     updateMemory((current) => ({ ...current, notebook: {
       ...current.notebook, topicId: null, docId: null, subjectId: null,
     } }));
   }
   function goSubject(subjectId: string) {
+    if (onNavigate) {
+      updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: [...new Set([...current.notebook.expanded, subjectId])] } }));
+      onNavigate({ subjectId, topicId: null, docId: null }); return;
+    }
     updateMemory((current) => ({ ...current, notebook: {
       ...current.notebook, subjectId, topicId: null, docId: null,
       expanded: Array.from(new Set([...current.notebook.expanded, subjectId])),
     } }));
   }
   function goTopic(topicId: string) {
-    workspace.openTopic(topicId);
+    if (onNavigate) onNavigate({ topicId, docId: null });
+    else workspace.openTopic(topicId);
   }
   function toggle(id: string) {
     updateMemory((current) => {
@@ -93,7 +102,7 @@ export function NotebookSidebarTree() {
         }
         setCreating(null);
       }
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not save. Try again."); }
+    } catch (err) { setError(friendlyError(err)); }
     finally { setBusy(false); }
   }
   function removeTopic(topic: KnowledgeTopic) {
@@ -132,7 +141,7 @@ export function NotebookSidebarTree() {
             {count?.questions ? <small title={`${count.questions} open questions`}>?{count.questions}</small> : null}
           </button>
           {workspace.writable ? <RowMenu label={topic.name} items={[
-            { label:"New note here", icon:<FilePlus2 size={14}/>, run:() => workspace.openCapture({mode:"note",topicId:topic.id}) },
+            { label:"New note here", icon:<FilePlus2 size={14}/>, run:() => onNewNote ? onNewNote(topic.id) : requestNewNote(topic.id) },
             ...(depth < 4 ? [{ label:"New sub-topic", icon:<FolderPlus size={14}/>,
               run:() => prepareCreate({subjectId,parentId:topic.id}) }] : []),
             { label:"Rename", icon:<Pencil size={14}/>, run:() => prepareRename("topic",topic.id,topic.name) },
@@ -145,7 +154,7 @@ export function NotebookSidebarTree() {
       </div>;
     });
   }
-  return <section className="hw-notebook-tree" aria-label="Notebook subjects and topics">
+  return <section className={"hw-notebook-tree" + (drawer ? " hw-notebook-drawer" : "")} aria-label="Notebook subjects and topics">
     {confirmElement}
     {removingTarget ? <KnowledgeRemovalDialog key={removingTarget.id} target={removingTarget}
       onClose={() => setRemovingTarget(null)} onRemoved={goHome}/> : null}
@@ -155,7 +164,7 @@ export function NotebookSidebarTree() {
     <nav className="hw-nb-tree-nav" aria-label="Notebook navigation">
       <button type="button" className={`hw-nb-home ${!activeSubject && !activeTopic ? "is-active" : ""}`}
         onClick={goHome}><Home size={13}/> All notes</button>
-      <div role="tree" aria-label="Subjects">
+      <div role="tree" aria-label="Subjects and topics">
         {subjects.map((subject) => {
           const open=expanded.has(subject.id);
           const selected=activeSubject === subject.id && !activeTopic;

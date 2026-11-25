@@ -2620,3 +2620,15 @@ body:has(.quick-floating-root), body:has(.quick-floating-root) #root {
   .ml-hierarchy .ml-simple-pair p { font-size: 16px; }
   .ml-hierarchy .ml-add-panel .ml-simple-edit { padding: 16px 14px; }
 }
+
+/* Shared Notebook tree in the narrow-screen drawer. */
+@media (max-width: 900px) {
+  .nb-rail .hw-notebook-tree.hw-notebook-drawer {
+    display: flex !important; flex: 1 1 auto; min-height: 0; width: 100%;
+    --ws-chrome-text: var(--ws-ink); --ws-chrome-muted: var(--ws-text);
+    --ws-chrome-accent: var(--ws-accent);
+  }
+  .nb-rail .hw-nb-row:hover, .nb-rail .hw-nb-home:hover,
+  .nb-rail .hw-nb-row.is-active, .nb-rail .hw-nb-home.is-active { background: var(--ws-accent-soft); }
+  .nb-rail .hw-nb-editor button { border-color: var(--ws-line); background: var(--ws-page); }
+}

@@ -609,9 +609,8 @@ export function DocumentPage({ entry, newDoc, onBack, onClose, navigate, onCreat
         <span>{capturedNotes.length + capturedQuestions.length} captured · {capturedMistakes.length} {capturedMistakes.length === 1 ? "mistake" : "mistakes"}</span>
         {workspace.writable && captures.length ? <button type="button" className="ws-button is-small"
           onClick={() => workspace.openCleanup({ kind: "lesson", id: lessonId })}><ListChecks size={14}/> Organise captures</button> : null}
-        {workspace.writable ? (capturing
-          ? <button type="button" className="nb-live-pill" onClick={() => workspace.endLesson()} title="Quick captures are being attached to this lesson. Click to stop."><Radio size={13} /> Capturing into this lesson · End</button>
-          : <button type="button" className="ws-button is-small" onClick={() => { workspace.startLesson(lessonId); workspace.toast("Quick captures will now be attached to this lesson."); }}><Radio size={13} /> Capture into this lesson</button>) : null}
+        {workspace.writable && capturing
+          ? <button type="button" className="nb-live-pill" onClick={() => workspace.endLesson()} title="End lesson"><Radio size={13} /> End lesson</button> : null}
       </div> : null}
       {liveEntry && isLegacyLesson(liveEntry) ? <p className="ws-muted nb-legacy-note">Created with the first Notebook version. It reads and edits normally; new captures cannot be attached to it.</p> : null}
     </header>
@@ -740,7 +739,7 @@ function DocMenu({ onDetach, onPin, pinned = false, onMove, onCopy, onPrint, onF
     {open ? <div className="ws-menu-list is-right" role="menu">
       {item("New note", <ListPlus size={14} />, onNewNote)}
        {item("Open in new window", <ExternalLink size={14} />, onDetach)}
-      {item(pinned ? "Unpin from Overview" : "Pin to Overview", <Pin size={14} fill={pinned ? "currentColor" : "none"} />, onPin)}
+      {item(pinned ? "Unpin" : "Pin to top", <Pin size={14} fill={pinned ? "currentColor" : "none"} />, onPin)}
       {item("Move to…", <FolderInput size={14} />, onMove)}
       {item("Make a flashcard…", <Layers size={14} />, onFlashcard)}
       {item("Copy text", <Copy size={14} />, onCopy)}
