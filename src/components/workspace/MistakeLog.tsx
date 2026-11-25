@@ -8,6 +8,7 @@ import { RichText } from "./RichText";
 import { mistakeDifference, type DifferencePart } from "../../lib/mistakeDiff";
 import { parseCaptureLine } from "../../lib/captureParse";
 import { createReviewRoute, openCosmosWindow } from "../../lib/cosmosWindow";
+import { quickQueueKind } from "../../lib/quickQueue";
 import { useStudyMistakes, type StudyMistake } from "./useStudyMistakes";
 import "./mistake-cards.css";
 
@@ -33,7 +34,7 @@ function MistakeDisplay({ parts, chinese }: { parts: DifferencePart[]; chinese: 
 }
 
 function ruleParts(title: string) {
-  const match = title.trim().match(/^(.+?)\s+[–—-]\s+(.+)$/u);
+  const match = title.trim().match(/^(.+?)\s+[–—]\s+(.+)$/u);
   return { rule: (match?.[1] ?? title).trim(), detail: match?.[2]?.trim() ?? "" };
 }
 
@@ -197,14 +198,15 @@ function AddMistakeTile({ initialTopicId, prefill, onCancel, onSaved }: {
   async function save(forceSeparate = false) {
     if (!attempt.trim() || busy) return;
     if (!topicId || !workspace.topicById.has(topicId)) { setPickerOpen(true); setError("Choose a subject and topic."); return; }
+    const fixed = correction.trim() === attempt.trim() ? "" : correction.trim();
     if (!forceSeparate) {
-      const repeated = findRepeatedMistake(workspace.snapshot.entries, workspace.topicById, topicId, attempt, correction);
+      const repeated = findRepeatedMistake(workspace.snapshot.entries, workspace.topicById, topicId, attempt, fixed);
       if (repeated) { setDuplicate(repeated); return; }
     }
     setBusy(true); setError(""); setDuplicate(null);
     try {
       const saved = await workspace.addEntry({ kind: "mistake", topicId, attempt: attempt.trim(),
-        correction: correction.trim(), explanation: explanation.trim() });
+        correction: fixed, explanation: explanation.trim() });
       onSaved(saved.id); clear();
     } catch (reason) { setError(friendlyError(reason)); } finally { setBusy(false); }
   }
@@ -270,11 +272,11 @@ export function MistakeLog() {
   const [bulkPicker, setBulkPicker] = useState(false);
   const [bulkRule, setBulkRule] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [confirmElement, confirm] = useConfirm();
   const listRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const mistakes = useMemo(() => snapshot.entries.filter((entry) => entry.kind === "mistake"), [snapshot.entries]);
+  const waitingInCaptures = useMemo(() => snapshot.entries.filter((entry) => quickQueueKind(entry) === "mistake").length, [snapshot.entries]);
   // Reuse the Study collection glyph whenever a Notebook subject shares its name.
   const studyGlyphs = useMemo(() => new Map(study.items.map((item) =>
     [normalise(item.subject), item.glyph])), [study.items]);
@@ -300,7 +302,7 @@ export function MistakeLog() {
       return { id: "log:" + entry.id, source: "logged", subject: name, subjectKey: normalise(name),
         glyph: studyGlyphs.get(normalise(name)) ?? name.slice(0, 1), topic: isNotFiled(entry, workspace.topicById, workspace.subjectById)
           ? "Not filed" : topic?.name ?? "Not filed",
-        topicKey: isNotFiled(entry, workspace.topicById, workspace.subjectById) ? "__not-filed__" : normalise(topic?.name ?? "Not filed"),
+        topicKey: topic?.id ?? "__not-filed__",
         date: entry.created_at, misses: (state?.missed ?? 0) + (state?.repeated ?? 0),
         status: state?.last?.outcome === "incorrect" ? "missed" : state?.last ? "recalled" : "fresh",
         pinned: Boolean(entry.pinned), repeated: state?.repeated ?? 0, entry };
@@ -315,8 +317,20 @@ export function MistakeLog() {
   const base = allItems.filter((item) => item.source === (showStudy ? "study" : "logged"));
   // Previously saved Notebook UUIDs continue to resolve after the chips adopt shared subject-name keys.
   const subjectKey = selectedSubjectId ? normalise(workspace.subjectById.get(selectedSubjectId)?.name ?? selectedSubjectId) : null;
-  const topicKey = selectedTopicId ? normalise(workspace.topicById.get(selectedTopicId)?.name ?? selectedTopicId) : null;
   const bySubject = subjectKey ? base.filter((item) => item.subjectKey === subjectKey) : base;
+  const legacyTopics = !showStudy && selectedTopicId && !workspace.topicById.has(selectedTopicId)
+    ? [...workspace.topicById.values()].filter((topic) => normalise(topic.name) === normalise(selectedTopicId)
+      && (!subjectKey || normalise(workspace.subjectById.get(topic.subject_id)?.name ?? "") === subjectKey)) : [];
+  const topicKey = !selectedTopicId ? null : showStudy ? normalise(selectedTopicId)
+    : workspace.topicById.has(selectedTopicId) || selectedTopicId === "__not-filed__" ? selectedTopicId
+    : legacyTopics.length === 1 ? legacyTopics[0].id : null;
+  const topicTree = !showStudy && topicKey && workspace.topicById.has(topicKey)
+    ? new Set(workspace.subtreeIds(topicKey)) : null;
+  const inTopic = (item: MistakeCardItem) => topicTree
+    ? Boolean(item.entry && topicTree.has(item.entry.topic_id))
+    : !topicKey || (!showStudy && topicKey === "__not-filed__"
+      ? Boolean(item.entry && isNotFiled(item.entry, workspace.topicById, workspace.subjectById))
+      : item.topicKey === topicKey);
   const subjectMap = new Map<string, { value: string; label: string; glyph: string; count: number }>();
   for (const item of base) {
     const existing = subjectMap.get(item.subjectKey);
@@ -328,12 +342,30 @@ export function MistakeLog() {
   for (const item of bySubject) {
     const found = topicMap.get(item.topicKey);
     if (found) found.count++;
-    else topicMap.set(item.topicKey, { value: item.topicKey, label: item.topic, count: 1 });
+    else topicMap.set(item.topicKey, { value: item.topicKey, label: item.source === "logged" && item.entry && workspace.topicById.has(item.entry.topic_id)
+      ? workspace.pathLabel(item.entry.topic_id) : item.topic, count: 1 });
+  }
+  if (!showStudy) {
+    // Include ancestor topics as options and count the same subtree that filtering uses.
+    for (const item of bySubject) if (item.entry) {
+      for (const topic of workspace.topicPath(item.entry.topic_id).chain) {
+        if (!topicMap.has(topic.id)) topicMap.set(topic.id, { value: topic.id, label: workspace.pathLabel(topic.id), count: 0 });
+      }
+    }
+    for (const option of topicMap.values()) {
+      if (!workspace.topicById.has(option.value)) continue;
+      const subtree = new Set(workspace.subtreeIds(option.value));
+      option.count = bySubject.filter((item) => item.entry && subtree.has(item.entry.topic_id)).length;
+    }
   }
   const topics = [...topicMap.values()].sort((a, b) => a.label.localeCompare(b.label));
+  if (topicKey && !topics.some((topic) => topic.value === topicKey)) {
+    const label = !showStudy && workspace.topicById.has(topicKey) ? workspace.pathLabel(topicKey) : undefined;
+    topics.unshift({ value: topicKey, label: label ?? (topicKey === "__not-filed__" ? "Not filed" : topicKey), count: bySubject.filter(inTopic).length });
+  }
   const searchTerm = normalise(search);
   const filtered = bySubject.filter((item) => {
-    if (topicKey && item.topicKey !== topicKey) return false;
+    if (!inTopic(item)) return false;
     if (!showStudy && status !== "all" && item.status !== status) return false;
     const values = item.entry ? [item.entry.attempt, item.entry.correction, item.entry.explanation, item.entry.title]
       : [item.study?.title, item.study?.reference, item.study?.attempt, item.study?.explanation, item.study?.direction];
@@ -369,8 +401,9 @@ export function MistakeLog() {
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (event.metaKey || event.ctrlKey || event.altKey || target?.closest("input, textarea, select, [contenteditable]")) return;
-      if (event.key === "/") { event.preventDefault(); searchRef.current?.focus(); }
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing || target?.closest("input, textarea, select, [contenteditable]")) return;
+      if (document.querySelector('[aria-modal="true"], .ws-dialog-backdrop, .qc-panel')) return;
+      if (event.key === "/") { event.preventDefault(); event.stopPropagation(); searchRef.current?.focus(); }
       if (!showStudy && workspace.writable && event.key.toLowerCase() === "n") {
         event.preventDefault(); setAdding(true); setPrefill(null); setEditingId(null);
       }
@@ -434,8 +467,7 @@ export function MistakeLog() {
   }
   const [draftTopicId, setDraftTopicId] = useState<string>("");
   const selectedNotebookSubject = snapshot.subjects.find((subject) => normalise(subject.name) === subjectKey);
-  const selectedNotebookTopic = snapshot.topics.find((topic) =>
-    normalise(topic.name) === topicKey && (!selectedNotebookSubject || topic.subject_id === selectedNotebookSubject.id));
+  const selectedNotebookTopic = !showStudy && topicKey ? workspace.topicById.get(topicKey) : undefined;
   const chosenDefaultTopic = draftTopicId || selectedNotebookTopic?.id ||
     (selectedTopicId && workspace.topicById.has(selectedTopicId) ? selectedTopicId : "") ||
     mistakes.find((entry) => !selectedNotebookSubject ||
@@ -478,22 +510,21 @@ export function MistakeLog() {
   }
   async function deleteSelected() {
     if (!selectedIds.length || bulkBusy) return;
-    if (!await confirm({ title: "Delete " + selectedIds.length + " mistakes?",
-      body: "The records and their recall history can be restored from Trash.", confirmLabel: "Move to Trash", danger: true })) return;
     setBulkBusy(true);
     try {
-      for (const id of selectedIds) await workspace.removeEntry(id, { undo: false });
-      setSelectedIds([]); setSelecting(false); workspace.toast("Moved mistakes to Trash.");
+      const failed = await workspace.trashEntries(selectedIds);
+      setSelectedIds(failed); if (!failed.length) setSelecting(false);
     } catch (reason) { workspace.toast(friendlyError(reason), { tone: "error" }); }
     finally { setBulkBusy(false); }
   }
 
   return <div className="ml-page hc-page" ref={listRef}>
-    {confirmElement}
     <header className="hc-head">
       <div><h1>Mistake Log</h1>
         <p>{mistakes.length} {mistakes.length === 1 ? "mistake" : "mistakes"} you logged · {study.items.length}
-          {study.items.length === 1 ? " card" : " cards"} to work on from Study</p></div>
+          {study.items.length === 1 ? " card" : " cards"} to work on from Study
+          {waitingInCaptures ? <> · <button type="button" className="hc-captures-link" onClick={() => workspace.goTo("queue")}>
+            {waitingInCaptures} waiting in Captures</button></> : null}</p></div>
       <div className="hc-head-actions">
         <label className="hc-search"><Search size={15}/><span className="sr-only">Search mistakes</span>
           <input ref={searchRef} type="search" value={search} placeholder="Search"

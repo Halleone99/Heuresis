@@ -459,7 +459,7 @@ function HeuresisShell({ session, section, setSection }: { session: Session; sec
   // German or Chinese keyboard layouts active.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing) return;
+      if (event.defaultPrevented || event.isComposing) return;
       const mod = event.ctrlKey || event.metaKey;
       if (mod && !event.altKey && event.code === "Backslash") {
         event.preventDefault();

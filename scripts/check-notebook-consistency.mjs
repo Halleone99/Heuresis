@@ -5,6 +5,7 @@ const icons=read("src/components/workspace/ui.tsx");
 const entries=read("src/lib/knowledgeWorkspace.ts");
 const overview=read("src/components/workspace/OverviewView.tsx");
 const notebook=read("src/components/workspace/NotebookView.tsx");
+const tree=read("src/components/workspace/NotebookSidebarTree.tsx");
 const mistakes=read("src/components/workspace/MistakeLog.tsx");
 const capture=read("src/components/workspace/QuickCapture.tsx");
 const progress=read("src/components/workspace/ProgressView.tsx");
@@ -36,8 +37,8 @@ assert.match(progress,/total === 0 \? <div className="pg-empty-chart" role="stat
 assert.match(css,/\.pg-empty-chart \{/);
 
 // #14: Consistent visible language terminology across user-facing surfaces.
-assert.match(notebook,/aria-label="Subjects and topics"/);
-assert.match(notebook,/label="Subject name"/);
+assert.match(tree,/aria-label="Subjects and topics"/);
+assert.match(tree,/"Subject name"/);
 assert.match(capture,/label="Subject name"/);
 assert.match(icons,/New subject/);
 assert.doesNotMatch(mistakes,/ml-languages-tabs/, "Corrections apply to every subject without language tabs");

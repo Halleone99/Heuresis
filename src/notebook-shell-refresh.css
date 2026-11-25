@@ -27,7 +27,7 @@
 }
 .heuresis-desktop[data-sidebar] .hw-sections button.active svg { color: #e3edf7; }
 .heuresis-desktop[data-sidebar] .hw-sections button:not(.active):hover { background: rgba(255,255,255,.065); }
-.heuresis-desktop[data-section="notebook"] .hw-notebook-tree {
+.heuresis-desktop[data-section="notebook"] .hw-notebook-tree:not(.hw-notebook-drawer) {
   border-top: 1px solid rgba(255,255,255,.10);
   padding-top: 16px;
   margin-top: 0;

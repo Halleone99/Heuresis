@@ -107,8 +107,11 @@ export function useStudyMistakes() {
       } finally { if (active) setLoading(false); }
     }
     void load();
-    const onFocus = () => { void load(); };
-    const onVisible = () => { if (document.visibilityState === "visible") void load(); };
+    // Focus and visibility may fire together on return. Coalesce that event pair.
+    let last = Date.now();
+    const refresh = () => { if (Date.now() - last < 1000) return; last = Date.now(); void load(); };
+    const onFocus = () => refresh();
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
     return () => { active = false; window.removeEventListener("focus", onFocus);
