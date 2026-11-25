@@ -1,3 +1,4 @@
+import { useConfirm } from "./ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, BookPlus, ChevronLeft, ChevronRight, ImagePlus, Pencil, Plus, Search, Trash2, UserRoundPlus, Users, X } from "lucide-react";
 import { supabase } from "../../lib/supabase";
@@ -63,6 +64,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook, o
   onOpenBook: (book: ReadingBook) => void; onAddBook: (author: string) => void;
   onLinkBook: (bookId: string, author: string) => Promise<void>;
 }) {
+  const [confirmElement, confirm] = useConfirm();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -189,7 +191,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook, o
   }
   async function remove(group: Group) {
     if (!group.profile || !supabase || busy) return;
-    if (!window.confirm("Remove the profile for " + group.name + "? Its books and quotations will remain unchanged.")) return;
+    if (!await confirm({ title: "Remove the profile for " + group.name + "?", body: "Its books and quotations will remain unchanged.", confirmLabel: "Remove", danger: true })) return;
     setBusy(true); setError("");
     const { error: cause } = await supabase.from(TABLE).delete().eq("id", group.profile.id).eq("user_id", userId);
     if (cause) setError(cause.message);
@@ -234,7 +236,7 @@ export function ReadingAuthors({ userId, books, quotes, onOpenBook, onAddBook, o
     finally { setBusy(false); }
   }
 
-  return <section className="ra-root" aria-label="Authors">
+  return <section className="ra-root" aria-label="Authors">{confirmElement}
     {chosen ? <>
       <button type="button" className="ra-back" onClick={() => { setSelected(null); setFilter("all"); }}><ChevronLeft size={16}/> All authors</button>
       <header className="ra-profile">

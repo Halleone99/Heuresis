@@ -1,7 +1,7 @@
 import { ArrowLeft, ChevronDown, FolderTree, GitFork, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createTopicFromRelatedWords, listRelatedCatalogue, promoteRelatedCard, relationLabel, RELATION_TYPES, removeRelatedRelation, type RelatedCatalogueRow, type RelationType } from "../lib/related";
-import { listCardsByIds, patchCardData, type CardWithStats, type Collection, type PackWithType } from "../lib/heuresis";
+import { fieldByRole, fieldText, listCardsByIds, patchCardData, type CardWithStats, type Collection, type FieldDef, type PackWithType } from "../lib/heuresis";
 import ConnectionsPanel from "./ConnectionsPanel";
 
 type Props = {
@@ -13,7 +13,8 @@ type Props = {
   onTopicCreated?: (packId: string) => Promise<void> | void;
 };
 
-type EditingEntry = { id: string; relationId: string; term: string; reading: string; meaning: string };
+type EditRole = "term" | "reading" | "meaning";
+type EditingEntry = { id: string; relationId: string; term: string; reading: string; meaning: string; fields: Record<EditRole, FieldDef | null>; original: Record<EditRole, string> };
 type EntryStatus = "raw" | "flashcard";
 type SortKey = "word" | "relation" | "source" | "status";
 type SortDirection = "asc" | "desc";
@@ -135,19 +136,43 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
     else { setSortKey(next); setSortDirection("asc"); }
   }
 
-  function beginEdit(row: RelatedCatalogueRow) {
-    setEditing({ id: row.target_card_id, relationId: row.relation_id, term: row.term, reading: row.reading, meaning: row.meaning });
+  async function beginEdit(row: RelatedCatalogueRow) {
+    if (editBusy) return;
+    setEditBusy(true); setError("");
+    try {
+      const [card] = await listCardsByIds([row.target_card_id]);
+      const type = card && packMap.get(card.pack_id)?.cardType;
+      if (!card || !type) throw new Error("Could not load this entry's card type.");
+      const term = fieldByRole(type, "term") ?? type.field_schema[0] ?? null;
+      if (!term) throw new Error("This entry has no editable primary field.");
+      const reading = fieldByRole(type, "reading");
+      const candidateMeaning = fieldByRole(type, "meaning") ?? type.field_schema[1] ?? null;
+      const meaning = candidateMeaning?.key === term.key || candidateMeaning?.key === reading?.key ? null : candidateMeaning;
+      const fields = { term, reading: reading?.key === term.key ? null : reading, meaning };
+      const original = {
+        term: fieldText(card.data, fields.term.key),
+        reading: fieldText(card.data, fields.reading?.key),
+        meaning: fieldText(card.data, fields.meaning?.key),
+      };
+      setEditing({ id: card.id, relationId: row.relation_id, ...original, original, fields });
+    } catch (editError) {
+      setError(editError instanceof Error ? editError.message : "Could not load this entry.");
+    } finally { setEditBusy(false); }
   }
 
   async function saveEdit() {
     if (!editing?.term.trim() || editBusy) return;
     setEditBusy(true); setError("");
     try {
-      await patchCardData(editing.id, {
-        term: editing.term.normalize("NFC").trim(),
-        reading: editing.reading.normalize("NFKC").trim() || null,
-        meaning: editing.meaning.trim() || null,
-      });
+      const patch: Record<string, string | null> = {};
+      for (const role of ["term", "reading", "meaning"] as const) {
+        const field = editing.fields[role];
+        if (!field || editing[role] === editing.original[role]) continue;
+        const value = editing[role].normalize(role === "reading" ? "NFKC" : "NFC").trim();
+        if (!value && field.required) throw new Error(`${field.label} is required.`);
+        patch[field.key] = value || null;
+      }
+      if (Object.keys(patch).length) await patchCardData(editing.id, patch);
       setEditing(null);
       await reload();
     } catch (editError) {
@@ -244,9 +269,9 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
 
       {editing ? <div className="related-edit-word vocabulary-inline-editor vocabulary-edit-editor">
         <div><span className="eyebrow">EDIT</span><strong>{editing.term}</strong></div>
-        <input autoFocus value={editing.term} onChange={(event) => setEditing((current) => current ? { ...current, term: event.target.value } : current)} placeholder="Entry / concept" />
-        <input value={editing.reading} onChange={(event) => setEditing((current) => current ? { ...current, reading: event.target.value } : current)} placeholder="Context / reading" />
-        <input value={editing.meaning} onChange={(event) => setEditing((current) => current ? { ...current, meaning: event.target.value } : current)} placeholder="Meaning / note" onKeyDown={(event) => { if (event.key === "Enter" && editing.term.trim() && !editBusy) void saveEdit(); }} />
+        <input autoFocus value={editing.term} onChange={(event) => setEditing((current) => current ? { ...current, term: event.target.value } : current)} placeholder={editing.fields.term?.label ?? "Entry / concept"} />
+        <input value={editing.reading} onChange={(event) => setEditing((current) => current ? { ...current, reading: event.target.value } : current)} placeholder={editing.fields.reading?.label ?? "No reading field"} disabled={!editing.fields.reading} />
+        <input value={editing.meaning} onChange={(event) => setEditing((current) => current ? { ...current, meaning: event.target.value } : current)} placeholder={editing.fields.meaning?.label ?? "No meaning field"} disabled={!editing.fields.meaning} onKeyDown={(event) => { if (event.key === "Enter" && editing.term.trim() && !editBusy) void saveEdit(); }} />
         <div className="vocabulary-editor-actions"><button className="vocabulary-delete-action" disabled={editBusy} onClick={() => void deleteEditing()}>Delete connection</button><button className="secondary-button" disabled={editBusy} onClick={() => setEditing(null)}>Cancel</button><button className="primary-button" disabled={editBusy || !editing.term.trim()} onClick={() => void saveEdit()}>{editBusy ? "Saving…" : "Save"}</button></div>
       </div> : null}
 
@@ -314,7 +339,7 @@ export default function RelatedCatalogueView({ packs, collections, collection = 
             className={`vocabulary-row ${isSelected ? "selected" : ""}`}
             key={row.relation_id}
             onClick={() => toggleSelected(row.relation_id)}
-            onDoubleClick={(event) => { event.preventDefault(); beginEdit(row); }}
+            onDoubleClick={(event) => { event.preventDefault(); void beginEdit(row); }}
             title="Click to select · double-click to edit"
           >
             <div className="vocabulary-word"><strong>{row.term || "Untitled"}</strong>{row.reading ? <em>{row.reading}</em> : null}<p>{row.meaning}</p></div>

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 const css = readFileSync("src/theme/palettes.css", "utf8");
 const html = readFileSync("index.html", "utf8");
 const js = readFileSync("src/lib/theme.ts", "utf8");
-const expected = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"];
+const expected = ["slate", "forest", "sepia", "neutral", "editorial", "atelier", "aegean", "marigold"];
 const keys = ["ws-page", "ws-surface", "ws-raised", "ws-sunken", "ws-ink", "ws-text", "ws-muted", "ws-accent", "ws-primary", "ws-on-primary", "ws-card", "ws-card-secondary"];
 function luminance(hex) {
   const values = hex.slice(1).match(/.{2}/g).map((value) => parseInt(value, 16) / 255)
@@ -44,11 +44,16 @@ for (const palette of expected) for (const mode of ["light", "dark"]) {
   }
   combinations++;
 }
-for (const key of ["heuresis.theme.v1", "heuresis.palette.v1"]) {
+for (const key of ["heuresis.theme.v1", "heuresis.palette.v1", "heuresis.design.v1"]) {
   assert.ok(html.includes(key), `Pre-paint script missing ${key}`);
   assert.ok((js + readFileSync("src/lib/workspaceMemory.ts", "utf8")).includes(key), `Appearance logic missing ${key}`);
 }
 
+
+for (const design of ["classic", "refined", "aperture", "forma", "studio"]) {
+  assert.ok(html.includes(`"${design}"`), `Pre-paint script must support ${design}`);
+  assert.ok(js.includes(`id: "${design}"`), `Design choices must support ${design}`);
+}
 
 const files = {
   palette: css,

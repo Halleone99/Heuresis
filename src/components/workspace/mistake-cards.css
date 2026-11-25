@@ -148,3 +148,5 @@
 @media (prefers-reduced-motion: reduce) { .hc-card .hc-face { transition:none; }
   .hc-card .hc-back, .hc-card.is-flipped .hc-front { transform:none; }
 }
+
+.hc-captures-link { padding: 0; background: none; border: 0; color: var(--ws-accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }

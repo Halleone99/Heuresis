@@ -3,21 +3,34 @@ import { readTheme, writeTheme, type ThemePreference } from "./workspaceMemory";
 
 export const PALETTES = [
   { id: "slate", label: "Slate", detail: "Blue grey" },
-  { id: "forest", label: "Forest", detail: "Sage and pine" },
+  { id: "forest", label: "Forest", detail: "Graphite with sage accents" },
   { id: "sepia", label: "Sepia", detail: "Parchment and copper" },
   { id: "neutral", label: "Neutral", detail: "Graphite and white" },
   { id: "editorial", label: "Editorial", detail: "Salmon paper and teal" },
   { id: "atelier", label: "Atelier", detail: "Ivory and burgundy" },
+  { id: "aegean", label: "Aegean", detail: "Cobalt and sea glass" },
+  { id: "marigold", label: "Marigold", detail: "Gold and graphite" },
 ] as const;
 
 export type PalettePreference = (typeof PALETTES)[number]["id"];
 const PALETTE_KEY = "heuresis.palette.v1";
 const BLUE_UPGRADE_KEY = "heuresis.appearance.blue.v1";
 const EVENT = "heuresis:appearance-changed";
-export type DesignPreference = "classic" | "refined";
+export const DESIGNS = [
+  { id: "classic", label: "Classic", detail: "Dashboard above collections" },
+  { id: "refined", label: "Refined", detail: "Collections first, large serif headings" },
+  { id: "aperture", label: "Aperture", detail: "Top navigation, gallery grid" },
+  { id: "forma", label: "Forma", detail: "Split dashboard, compact controls" },
+  { id: "studio", label: "Studio", detail: "Centred column, right navigation" },
+] as const;
+
+export type DesignPreference = (typeof DESIGNS)[number]["id"];
 const DESIGN_KEY = "heuresis.design.v1";
 export function readDesign(): DesignPreference {
-  try { return localStorage.getItem(DESIGN_KEY) === "refined" ? "refined" : "classic"; }
+  try {
+    const saved = localStorage.getItem(DESIGN_KEY);
+    return DESIGNS.find((option) => option.id === saved)?.id ?? "classic";
+  }
   catch { return "classic"; }
 }
 

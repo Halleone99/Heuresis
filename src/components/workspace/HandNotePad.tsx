@@ -1,3 +1,4 @@
+import { useConfirm } from "./ui";
 import { useRef, useState, type PointerEvent } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { HAND_NOTE_COLOURS, HAND_NOTE_SIZE, type HandStroke } from "../../lib/handNote";
@@ -20,6 +21,7 @@ export function HandNoteDrawing({ strokes, labelled = true }: { strokes: HandStr
 export function HandNotePad({ strokes, onChange, disabled = false }: {
   strokes: HandStroke[]; onChange: (strokes: HandStroke[]) => void; disabled?: boolean;
 }) {
+  const [confirmElement, confirm] = useConfirm();
   const [ink, setInk] = useState<string>(HAND_NOTE_COLOURS[0]);
   const [active, setActive] = useState<HandStroke | null>(null);
   const current = useRef<{ pointerId: number; path: string; lastX: number; lastY: number } | null>(null);
@@ -61,7 +63,7 @@ export function HandNotePad({ strokes, onChange, disabled = false }: {
     try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* already released */ }
   }
 
-  return <div className="qc-handnote" style={{ display: "grid", gap: 9 }}>
+  return <div className="qc-handnote" style={{ display: "grid", gap: 9 }}>{confirmElement}
     <div role="toolbar" aria-label="Handwriting tools" style={{ display: "flex", alignItems: "center", gap: 9 }}>
       <span style={{ marginRight: "auto", fontSize: 12, opacity: .76 }}>Draw with finger, mouse or stylus</span>
       {HAND_NOTE_COLOURS.map((colour) => <button key={colour} type="button" disabled={disabled}
@@ -72,7 +74,7 @@ export function HandNotePad({ strokes, onChange, disabled = false }: {
       <button type="button" title="Undo last stroke" aria-label="Undo last stroke" disabled={disabled || !strokes.length}
         className="ws-icon-button" onClick={() => onChange(strokes.slice(0, -1))}><RotateCcw size={15}/></button>
       <button type="button" title="Clear handwriting" aria-label="Clear handwriting" disabled={disabled || !strokes.length}
-        className="ws-icon-button" onClick={() => { if (window.confirm("Clear all handwriting from this draft?")) onChange([]); }}><Trash2 size={15}/></button>
+        className="ws-icon-button" onClick={async () => { if (await confirm({ title: "Clear all handwriting from this draft?", confirmLabel: "Clear", danger: true })) onChange([]); }}><Trash2 size={15}/></button>
     </div>
     <svg viewBox={`0 0 ${HAND_NOTE_SIZE.width} ${HAND_NOTE_SIZE.height}`}
       aria-label="Handwriting canvas" role="img" onPointerDown={start} onPointerMove={move}

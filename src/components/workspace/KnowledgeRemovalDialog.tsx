@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, FolderInput, Trash2, X } from "lucide-react";
 import { useWorkspace } from "./WorkspaceContext";
 import { Portal } from "./ui";
+import { listArchivedKnowledge } from "../../lib/knowledgeBackup";
 
 export type KnowledgeRemovalTarget = { kind: "subject" | "topic"; id: string; name: string };
 
 /** Destructive actions are never a side effect of navigating or closing this dialog.
  * A topic/subject with children first offers a lossless move. Deletion requires
- * an explicit second step and typing the exact label for non-empty trees. */
+ * an explicit second step and typing the exact label for every tree, including apparently empty trees. */
 export function KnowledgeRemovalDialog({ target, onClose, onRemoved }: {
   target: KnowledgeRemovalTarget;
   onClose: () => void;
@@ -25,7 +26,17 @@ export function KnowledgeRemovalDialog({ target, onClose, onRemoved }: {
     [target.id, target.kind, workspace.snapshot.topics, workspace.subtreeIds]);
   const affectedIds = useMemo(() => new Set(affectedTopics), [affectedTopics]);
   const records = workspace.snapshot.entries.filter((entry) => affectedIds.has(entry.topic_id)).length;
-  const nonempty = records > 0 || (target.kind === "subject" ? affectedTopics.length > 0 : affectedTopics.length > 1);
+  const [archived, setArchived] = useState<number | null>(null);
+  const [archiveCheckFailed, setArchiveCheckFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setArchived(null); setArchiveCheckFailed(false);
+    void listArchivedKnowledge(workspace.userId).then((rows) => {
+      if (!cancelled) setArchived(rows.filter((row) => affectedIds.has(row.topic_id)).length);
+    }).catch(() => { if (!cancelled) setArchiveCheckFailed(true); });
+    return () => { cancelled = true; };
+  }, [workspace.userId, affectedIds]);
+  // A visible snapshot is not proof that a tree contains no archived records.
   const destinations = target.kind === "subject"
     ? [...workspace.snapshot.subjects].filter((subject) => subject.id !== target.id)
       .sort((a, b) => a.name.localeCompare(b.name)).map((subject) => ({ id: subject.id, label: subject.name }))
@@ -57,7 +68,7 @@ export function KnowledgeRemovalDialog({ target, onClose, onRemoved }: {
         {step === "choice" ? "Remove " : step === "move" ? "Move contents of " : "Delete "}
         {target.name}
       </h2><button type="button" className="ws-icon-button" onClick={onClose} disabled={working} aria-label="Close"><X size={16}/></button></div>
-      <p className="nb-remove-count">{affectedTopics.length} {affectedTopics.length === 1 ? "topic" : "topics"} · {records} {records === 1 ? "entry" : "entries"} visible</p>
+      <p className="nb-remove-count">{affectedTopics.length} {affectedTopics.length === 1 ? "topic" : "topics"} · {records} {records === 1 ? "entry" : "entries"} visible · {archived !== null ? `${archived} in Trash` : archiveCheckFailed ? "Trash count unavailable" : "Checking Trash…"}</p>
       {step === "choice" ? <>
         <p>Would you like to move the contents somewhere else before removing this {target.kind}?</p>
         <div className="nb-remove-choices">
@@ -67,8 +78,8 @@ export function KnowledgeRemovalDialog({ target, onClose, onRemoved }: {
                 : "Move entries and attach subtopics beneath a different topic"}</small></span>
           </button>
           <button className="is-danger" type="button" onClick={() => { setStep("delete"); setError(""); }}>
-            <Trash2 size={18}/><span><strong>{nonempty ? "Delete everything" : "Delete empty " + target.kind}</strong><small>
-              Permanently delete this {target.kind}{nonempty ? ", its nested topics and all records, including Trash and practice history" : ""}</small></span>
+            <Trash2 size={18}/><span><strong>Delete everything</strong><small>
+              Permanently delete this {target.kind}, its nested topics and all records, including Trash and practice history</small></span>
           </button>
         </div>
       </> : step === "move" ? <>

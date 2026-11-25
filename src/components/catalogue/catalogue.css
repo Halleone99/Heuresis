@@ -349,6 +349,10 @@
   padding: 5px 6px; border: 1px solid var(--ws-line); border-radius: 12px; background: var(--ws-surface); box-shadow: var(--ws-shadow-2); color: var(--ws-text);
 }
 .ct-block-toolbar.is-docked { left: 0; right: 0; bottom: 0; width: auto; max-width: none; transform: none; justify-content: flex-start; border-radius: 14px 14px 0 0; flex-wrap: nowrap; overflow-x: auto; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+.ct-block-toolbar.is-docked .ct-menu-list {
+  position: fixed; inset: auto 8px calc(54px + env(safe-area-inset-bottom)) auto;
+  max-height: calc(100dvh - 72px - env(safe-area-inset-bottom)); overflow-y: auto;
+}
 .ct-tool-label { padding: 0 6px 0 4px; color: var(--ws-muted); font: 600 10.5px/1 var(--ws-sans); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
 .ct-tool-group { display: inline-flex; gap: 1px; padding: 0 2px; border-left: 1px solid var(--ws-line); }
 .ct-tool-group:first-of-type { border-left: 0; }

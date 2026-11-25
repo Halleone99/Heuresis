@@ -40,7 +40,8 @@ assert.match(css, /\.qc-field textarea \{ font:[^\n]+var\(--ws-sans\)/, "Capture
 assert.match(document, /const previousTopicId = liveEntry\.topic_id;/, "Move stores the original topic");
 assert.match(document, /void applyTopic\(previousTopicId\)/, "Move Undo persists the old topic");
 assert.match(document, /savedRef\.current = \{ \.\.\.savedRef\.current, topicId: destination \}/, "Undo restores the document draft location");
-assert.match(mistakes, /await confirm\(\{/, "Deleting a correction requires confirmation");
+assert.match(mistakes, /await confirm\(\{/, "Deleting an individual correction requires confirmation");
+assert.match(mistakes, /await workspace\.trashEntries\(selectedIds\)/, "Bulk correction deletion uses a single reversible Trash action");
 assert.match(mistakes, /await workspace\.removeEntry\(entry\.id\)/, "Correction deletion uses the reversible workspace action");
 assert.match(mistakes, /await workspace\.patchEntry\(entry\.id, \{[\s\S]*attempt:/, "Editing a correction preserves its other metadata");
 

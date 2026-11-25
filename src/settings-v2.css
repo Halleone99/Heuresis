@@ -234,9 +234,10 @@
   color: var(--ws-ink);
 }
 
-.appearance-palettes {
+.appearance-palettes,
+.appearance-design-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 9px;
   margin: 12px 0 19px;
 }
@@ -279,7 +280,7 @@
 .appearance-palette-card {
   width: 86%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) 12%;
   align-items: center;
   column-gap: 7px;
   row-gap: 3px;
@@ -291,7 +292,114 @@
 }
 .appearance-palette-card i { grid-row: span 2; font: 400 21px/.9 var(--ws-card-heading); }
 .appearance-palette-card b { height: 3px; width: 80%; border-radius: 1px; background: var(--ws-accent); }
+.appearance-palette-card > span {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ws-accent-wash);
+}
 .appearance-palette-card em { height: 2px; width: 63%; border-radius: 1px; background: var(--ws-muted); }
+
+.appearance-designs {
+  padding-bottom: 5px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--ws-line);
+}
+
+.appearance-design-options {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 10px 0 13px;
+}
+
+.appearance-design-preview {
+  display: grid;
+  grid-template: 10px minmax(0, 1fr) / 17% minmax(0, 1fr);
+  height: 76px;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--ws-line);
+  border-radius: 6px;
+  background: var(--ws-page);
+}
+
+.design-preview-header,
+.design-preview-rail {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 2px;
+  background: var(--ws-chrome);
+}
+
+.design-preview-header { grid-column: 1 / -1; }
+.design-preview-header i { width: 5px; height: 5px; border-radius: 2px; background: var(--ws-primary); }
+.design-preview-header b, .design-preview-rail i { width: 10%; height: 2px; background: var(--ws-chrome-muted); }
+.design-preview-rail { grid-column: 1; grid-row: 2; flex-direction: column; padding-top: 6px; }
+.design-preview-rail i { width: 75%; }
+.design-preview-rail i:nth-child(2) { background: var(--ws-chrome-accent); }
+
+.design-preview-content {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 12px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 3px;
+}
+
+.design-preview-content strong { color: var(--ws-ink); font: 600 11px/1.1 var(--ws-card-heading); }
+.design-preview-activity {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5%;
+  padding: 2px;
+  border: 1px solid var(--ws-line);
+  border-radius: 3px;
+  background: var(--ws-card);
+}
+.design-preview-activity i { width: 13%; height: 70%; border-radius: 1px; background: var(--ws-accent); opacity: .68; }
+.design-preview-activity i:first-child { height: 32%; }
+.design-preview-activity i:last-child { height: 48%; }
+.design-preview-collections { display: flex; gap: 3px; min-width: 0; }
+.design-preview-collections i {
+  flex: 1;
+  border: 1px solid var(--ws-line);
+  border-radius: 3px;
+  background: var(--ws-card-secondary);
+}
+.design-preview-collections i:first-child { flex: 1.7; box-shadow: inset 2px 0 var(--ws-accent); }
+
+[data-design-preview="refined"] .design-preview-collections { grid-row: 2; }
+[data-design-preview="refined"] .design-preview-activity { grid-row: 3; }
+[data-design-preview="refined"] .design-preview-content strong { font: 600 12px/1 "Noto Serif", Georgia, serif; }
+
+[data-design-preview="aperture"] {
+  grid-template: 7px 7px minmax(0, 1fr) / minmax(0, 1fr);
+  gap: 3px;
+}
+[data-design-preview="aperture"] :is(.design-preview-header, .design-preview-rail) { border-radius: 6px; background: var(--ws-raised); }
+[data-design-preview="aperture"] :is(.design-preview-header b, .design-preview-rail i) { background: var(--ws-accent); }
+[data-design-preview="aperture"] .design-preview-rail { flex-direction: row; justify-content: center; padding: 2px 9px; }
+[data-design-preview="aperture"] .design-preview-rail i { width: 11%; }
+[data-design-preview="aperture"] .design-preview-content { grid-column: 1; grid-row: 3; grid-template-rows: 10px minmax(0, 1fr) minmax(0, 1fr); }
+[data-design-preview="aperture"] .design-preview-collections i { flex: 1; border-radius: 5px; }
+
+[data-design-preview="forma"] .design-preview-content { grid-template: 12px minmax(0, 1fr) / 1.25fr 1fr; }
+[data-design-preview="forma"] .design-preview-content strong { grid-column: 1 / -1; }
+[data-design-preview="forma"] .design-preview-collections { flex-direction: column; }
+[data-design-preview="forma"] :is(.design-preview-collections i, .design-preview-activity) { border-radius: 0; }
+
+[data-design-preview="studio"] { grid-template-columns: minmax(0, 1fr) 13%; }
+[data-design-preview="studio"] .design-preview-rail { grid-column: 2; }
+[data-design-preview="studio"] .design-preview-content { grid-column: 1; width: 73%; justify-self: center; }
+[data-design-preview="studio"] .design-preview-content strong { text-align: center; }
+[data-design-preview="studio"] .design-preview-collections { flex-direction: column; }
+:is([data-design-preview="aperture"], [data-design-preview="forma"], [data-design-preview="studio"]) .design-preview-content strong {
+  font-family: var(--ws-sans);
+}
 
 .settings-disclosure { border-top: 1px solid var(--ws-line); }
 .settings-disclosure > summary,
@@ -449,7 +557,12 @@
 .pb-tune-content .pb-quiet-action { justify-self: start; }
 .pb-setting-line { display: grid; gap: 5px; font-size: 12px; }
 
+@media (min-width: 621px) and (max-width: 830px) {
+  .appearance-design-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (max-width: 620px) {
+  .appearance-palettes, .appearance-design-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-layer .settings-modal-wide { width: calc(100vw - 16px); height: calc(100dvh - 20px); }
   .settings-modal .settings-body { padding-block: 16px; }
   .pb-studio-grid { grid-template-columns: minmax(0, 1fr); }
@@ -458,7 +571,6 @@
 }
 
 @media (max-width: 420px) {
-  .appearance-palettes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-theme-head { flex-wrap: wrap; }
   .settings-modal .settings-tabs { column-gap: 10px; }
   .settings-modal .settings-tabs button { min-height: 36px; font-size: 12px; }

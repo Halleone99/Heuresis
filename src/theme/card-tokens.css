@@ -56,21 +56,36 @@ mark.s-color { color: var(--hc); }
 mark.s-bold { font-weight: 700; }
 .ch .py { user-select: none; -webkit-user-select: none; }
 
-/* Card faces are opaque so an uploaded photograph cannot recolour their text and controls. */
+/* The large activity panel, lead collection and smaller tiles have separate surface roles. */
 :root[data-palette]:not([data-palette="slate"]) :is(.study-home, .study-desk-feature, .study-desk-mini) {
-  border-color: var(--ws-card-line);
-  border-radius: var(--ws-card-radius);
+  border-color: var(--ws-line);
+}
+
+:root[data-palette]:not([data-palette="slate"]) .study-home {
+  background: var(--ws-surface);
+  --sh-new: var(--ws-study-new);
+}
+
+:root[data-palette]:not([data-palette="slate"]) .study-desk {
+  --desk-new: var(--ws-study-new);
+}
+
+:root[data-palette]:not([data-palette="slate"]) .study-desk-feature {
   background: var(--ws-card);
+  border-inline-start: 3px solid var(--ws-accent);
 }
 
 :root[data-palette]:not([data-palette="slate"]) .study-desk-mini {
   background: var(--ws-card-secondary);
 }
 
-:root[data-palette]:is([data-palette="editorial"], [data-palette="atelier"]) :is(.study-home, .study-desk-feature) {
-  border-top: 2px solid var(--ws-accent);
+:root[data-palette]:not([data-palette="slate"]) .study-desk-mini:hover {
+  background: var(--ws-accent-wash);
+  border-color: var(--ws-accent-line);
 }
 
-:root[data-palette]:is([data-palette="editorial"], [data-palette="atelier"]) :is(.study-desk-title, .study-desk-mini-body strong, .nb-subject-copy strong) {
-  font-family: var(--ws-card-heading);
+:root[data-palette]:not([data-palette="slate"]) :is(.sh-start, .study-desk-action.resume):disabled {
+  background: var(--ws-sunken);
+  color: var(--ws-muted);
+  border-color: var(--ws-line);
 }

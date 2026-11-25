@@ -190,11 +190,20 @@ function partAt(body: HTMLElement, cut: Cut, keep: "before" | "after"): HTMLElem
   const node = resolvePath(clone, cut.path);
   if (!node) return null;
   const range = document.createRange();
-  if (keep === "before") { range.setStart(node, cut.offset); range.setEnd(clone, clone.childNodes.length); }
-  else { range.setStart(clone, 0); range.setEnd(node, cut.offset); }
+  const item = node.parentElement?.closest("li");
+  // A cut between top-level items should leave neither page with an empty item.
+  const betweenItems = item && !cut.midParagraph && item.parentElement?.parentElement === clone;
+  if (keep === "before") {
+    if (betweenItems) range.setStartBefore(item);
+    else range.setStart(node, cut.offset);
+    range.setEnd(clone, clone.childNodes.length);
+  } else {
+    range.setStart(clone, 0);
+    if (betweenItems) range.setEndBefore(item);
+    else range.setEnd(node, cut.offset);
+  }
   // Continue an ordered list with the right number on the next page.
   if (keep === "after") {
-    const item = node.parentElement?.closest("li");
     const list = item?.parentElement;
     if (item && list?.tagName === "OL") {
       const position = Array.from(list.children).filter((child) => child.tagName === "LI").indexOf(item);
@@ -264,8 +273,8 @@ function splitText(block: TextBlock, blockElement: HTMLElement, available: numbe
   const firstPart = partAt(body, cuts[best], "before");
   const restPart = partAt(body, cuts[best], "after");
   if (!firstPart || !restPart) return null;
-  const first = trimMarkdown(editorToMarkdown(firstPart));
-  const rest = trimMarkdown(editorToMarkdown(restPart));
+  const first = trimMarkdown(editorToMarkdown(firstPart, true));
+  const rest = trimMarkdown(editorToMarkdown(restPart, true));
   if (!first.trim() || !rest.trim()) return null;
   return {
     first: { ...block, content: first },

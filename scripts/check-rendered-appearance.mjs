@@ -14,7 +14,7 @@ const studyStyles = [
   "./components/study21/study21.css",
 ];
 const css = [...studyStyles, ...imports].map((file) => readFileSync(resolve("src", file.slice(2)), "utf8")).join("\n");
-const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier"];
+const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier", "aegean", "marigold"];
 const modes = ["light", "dark"];
 const fixtures = `
 <div class="heuresis-desktop" data-section="study">
@@ -85,6 +85,24 @@ const studyFixtures = `
   <div class="cosmos-work cosmos-review-columns"><article id="review-card" class="cosmos-card">Review</article></div>
 </main>`;
 
+const interfaceFixtures = `
+<div class="heuresis-desktop" data-sidebar="rail" data-section="study">
+  <span class="page-wallpaper" id="test-photo" style="--wallpaper-image: linear-gradient(#12556c, #252c51); --wallpaper-opacity: .7; --wallpaper-veil: .2; --wallpaper-blur: 0px; --wallpaper-position: center; --wallpaper-fit: cover"></span>
+  <header class="desktop-chrome"><button class="desktop-nav-item active" id="design-nav">Study</button></header>
+  <div class="heuresis-workspace-layout">
+    <aside class="heuresis-section-sidebar"><nav class="hw-sections"><button class="active" id="design-side">Study</button></nav></aside>
+    <main class="desktop-content">
+      <div class="intelligent-library-head"><h1 id="design-title">Study</h1></div>
+      <div class="study-workspace">
+        <section class="study-home" id="design-study">Study progress</section>
+        <div class="library-desk study-desk"><section class="study-desk-feature">Collection</section><button class="study-desk-mini">Other collection</button></div>
+      </div>
+      <section class="nb-home-subject" id="design-note">Notebook</section>
+      <section class="ct-collection-card" id="design-catalogue">Catalogue</section>
+    </main>
+  </div>
+</div>`;
+
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 880 }, reducedMotion: "reduce" });
@@ -141,7 +159,63 @@ try {
       assert.deepEqual(parse(background), expected, `${palette}/${mode} ${card} uses its theme surface`);
     }
   }
-  console.log("Rendered Chrome: 12 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder, plus Study 2.1 card surfaces. Screenshots saved.");
+  for (const mode of modes) for (const palette of ["aegean", "marigold"]) {
+    for (const [design, cardRadius] of [["aperture", "20px"], ["forma", "7px"], ["studio", "12px"]]) {
+      await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}" data-design="${design}"><head><style>${css}</style></head><body>${interfaceFixtures}</body></html>`);
+      for (const id of ["design-study", "design-note", "design-catalogue"]) {
+        assert.equal(await page.locator("#" + id).evaluate(el => getComputedStyle(el).borderRadius), cardRadius,
+          `${design}/${mode} ${id} uses the workspace design`);
+      }
+      assert.match(await page.locator("#design-title").evaluate(el => getComputedStyle(el).fontFamily), /^Inter/);
+      const nav = await page.locator("#design-nav").evaluate(el => {
+        const header = getComputedStyle(el.parentElement);
+        return {
+          ink: getComputedStyle(el).color,
+          surface: getComputedStyle(el).backgroundColor,
+          header: header.backgroundColor,
+        };
+      });
+      const background = composite(parse(nav.surface), parse(nav.header));
+      assert.ok(contrast(parse(nav.ink), background) >= 4.5, `${design}/${palette}/${mode} navigation contrast`);
+    }
+  }
+  for (const mode of modes) {
+    const wallpaper = new Set();
+    for (const palette of palettes) {
+      await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}"><head><style>${css}</style></head><body>${interfaceFixtures}</body></html>`);
+      wallpaper.add(await page.locator("#test-photo").evaluate(el =>
+        [getComputedStyle(el).backgroundColor, getComputedStyle(el, "::after").backgroundColor].join("/")));
+    }
+    assert.equal(wallpaper.size, 1, `${mode} theme changes leave the photo and its veil alone`);
+  }
+
+  await page.setContent(`<!doctype html><html data-theme="dark" data-palette="forest"><head><style>${css}</style></head><body>${interfaceFixtures}</body></html>`);
+  const faces = await page.locator(".study-home, .study-desk-feature, .study-desk-mini")
+    .evaluateAll(elements => elements.map(el => getComputedStyle(el).backgroundColor));
+  assert.equal(new Set(faces).size, 3, "Forest has distinct dashboard, lead card and tile surfaces");
+
+  const shell = () => page.evaluate(() => {
+    const sidebar = document.querySelector(".heuresis-section-sidebar").getBoundingClientRect();
+    const content = document.querySelector(".desktop-content").getBoundingClientRect();
+    const chart = document.querySelector(".study-home").getBoundingClientRect();
+    const desk = document.querySelector(".study-desk").getBoundingClientRect();
+    const lead = document.querySelector(".study-desk-feature").getBoundingClientRect();
+    return { sidebarLeft: sidebar.left, sidebarTop: sidebar.top, contentLeft: content.left,
+      contentTop: content.top, chartRight: chart.right, deskLeft: desk.left, deskWidth: desk.width, leadWidth: lead.width };
+  });
+  const setDesign = value => page.locator("html").evaluate((root, id) => { root.dataset.design = id; }, value);
+  const checks = [
+    ["aperture", metrics => metrics.sidebarTop < metrics.contentTop, "places navigation above Study"],
+    ["forma", metrics => metrics.chartRight <= metrics.deskLeft, "splits Study into two columns"],
+    ["studio", metrics => metrics.sidebarLeft > metrics.contentLeft, "puts navigation on the right"],
+  ];
+  for (const [design, checkLayout, description] of checks) {
+    await setDesign(design);
+    const metrics = await shell();
+    assert.ok(checkLayout(metrics), `${design} ${description}`);
+    assert.equal(metrics.leadWidth, metrics.deskWidth, `${design} uses the available width for the lead collection`);
+  }
+  console.log("Rendered Chrome: 16 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder, plus Study 2.1 cards, wallpaper fidelity and workspace layouts. Screenshots saved.");
 } finally {
   await browser.close();
 }

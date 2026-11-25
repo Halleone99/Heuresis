@@ -35,7 +35,7 @@ export const LayoutPlaceholders = createContext(false);
 const useDesigner = () => useContext(DesignerContext);
 
 export function articleTextHtml(markdown: string) {
-  return markdownToEditorHtml(markdown);
+  return markdownToEditorHtml(markdown, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -52,11 +52,15 @@ function RichField({ value, className, onChange, placeholder, label }: {
     if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
     const root = ref.current;
     if (!root) return;
-    const next = editorToMarkdown(root);
+    const next = editorToMarkdown(root, true);
     if (next !== latest.current) { latest.current = next; onChange(next); }
   };
   useLayoutEffect(() => {
     if (!ref.current) return;
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
     latest.current = value;
     ref.current.innerHTML = articleTextHtml(value);
     try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch { /* optional */ }
@@ -75,14 +79,37 @@ function RichField({ value, className, onChange, placeholder, label }: {
       if (root) root.dataset.empty = (root.textContent ?? "").trim() ? "" : "true";
     }}
     onBlur={flush}
+    onKeyDown={(event) => {
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyS" && !event.nativeEvent.isComposing) { flush(); return; }
+      if (event.key !== " " || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
+        || event.ctrlKey || event.altKey || event.metaKey) return;
+      const root = event.currentTarget;
+      const selection = window.getSelection();
+      const node = selection?.anchorNode;
+      if (!node || !selection.isCollapsed || node.nodeType !== Node.TEXT_NODE || selection.anchorOffset !== node.textContent?.length) return;
+      const line = node.parentElement?.closest("p") ?? root;
+      if (line !== root ? line.parentElement !== root : node.parentElement !== root || root.childElementCount > 0) return;
+      const marker = line.textContent;
+      if (marker !== "1." && marker !== "-" && marker !== "*") return;
+      event.preventDefault();
+      const list = document.createElement(marker === "1." ? "ol" : "ul");
+      const item = document.createElement("li");
+      item.append(document.createElement("br"));
+      list.append(item);
+      if (line === root) root.replaceChildren(list);
+      else line.replaceWith(list);
+      const range = document.createRange();
+      range.setStart(item, 0);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      flush();
+    }}
     onPaste={(event) => {
-      // Pasted text arrives as plain words in the article's own typography.
       event.preventDefault();
       const text = event.clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
       if (!text) return;
-      const html = text.split("\n").filter((line, index, all) => line.trim() || (index > 0 && all[index - 1].trim()))
-        .map((line) => `<p>${line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") || "<br>"}</p>`).join("");
-      document.execCommand(text.includes("\n") ? "insertHTML" : "insertText", false, text.includes("\n") ? html : text);
+      document.execCommand("insertText", false, text);
       flush();
     }} />;
 }
@@ -112,7 +139,7 @@ function PlainField({ value, className, onChange, placeholder, label, multiline 
     const element = ref.current;
     if (!element) return;
     const raw = (multiline ? element.innerText : element.textContent ?? "").replace(/\u00a0/g, " ");
-    const text = multiline ? raw.replace(/\n{3,}/g, "\n\n").replace(/\n$/, "") : raw.replace(/\s*\n\s*/g, " ");
+    const text = multiline ? raw : raw.replace(/\s*\n\s*/g, " ");
     element.dataset.empty = text.trim() ? "" : "true";
     pending.current = text;
     if (timer.current) window.clearTimeout(timer.current);
@@ -122,7 +149,13 @@ function PlainField({ value, className, onChange, placeholder, label, multiline 
     suppressContentEditableWarning role="textbox" aria-label={label} aria-multiline={multiline}
     data-placeholder={placeholder} data-empty={!value.trim() ? "true" : undefined}
     onInput={emit} onBlur={flush}
-    onKeyDown={(event: KeyboardEvent) => { if (!multiline && event.key === "Enter") { event.preventDefault(); (event.currentTarget as HTMLElement).blur(); } }} />;
+    onKeyDown={(event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyS" && !event.nativeEvent.isComposing) { flush(); return; }
+      if (!multiline && event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+        event.preventDefault();
+        ref.current?.blur();
+      }
+    }} />;
 }
 
 // ---------------------------------------------------------------------------

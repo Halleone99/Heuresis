@@ -15,9 +15,8 @@ import { NoteIdentityPicker } from "./NoteIdentityPicker";
 import { openNoteWindow } from "../../lib/noteWindow";
 import { friendlyError } from "../../lib/knowledgeWorkspace";
 import { SubjectCard } from "./SubjectCard";
-import { KnowledgeRemovalDialog, type KnowledgeRemovalTarget } from "./KnowledgeRemovalDialog";
-import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, useConfirm, usePopover, useProgressiveList } from "./ui";
-import { DEFAULT_LANGUAGE_SUGGESTIONS, usePersonalOsObjectives } from "./usePersonalOs";
+import { NotebookSidebarTree } from "./NotebookSidebarTree";
+import { EmptyState, InlineNameForm, KindIcon, MOD_KEY, Portal, ShowMore, TopicPicker, entryKindLabel, formatDay, relativeTime, usePopover, useProgressiveList } from "./ui";
 import { useWorkspace } from "./WorkspaceContext";
 import "./notebook-views.css";
 
@@ -25,6 +24,12 @@ type ListFilter = "all" | "notes" | "questions";
 type NoteSort = "updated" | "created" | "title" | "icon" | "colour";
 type NoteView = "cards" | "list" | "details";
 export type NewDocRequest = { topicId: string; category?: KnowledgeEntry["category"]; title?: string; draftKey?: string } | null;
+
+// Sidebar actions open the same editor as the Notebook's own New menu.
+export const NEW_NOTE_EVENT = "heuresis:notebook-new-note";
+export function requestNewNote(topicId: string) {
+  window.dispatchEvent(new CustomEvent(NEW_NOTE_EVENT, { detail: { topicId } }));
+}
 
 function countLabel(count: number, singular: string) {
   return `${count} ${count === 1 ? singular : `${singular}s`}`;
@@ -146,6 +151,15 @@ export function NotebookView() {
     setNewDoc({ topicId: target, title, category, draftKey: crypto.randomUUID() });
   }, [doc?.topic_id, location.docId, location.subjectId, location.topicId, topic?.id, updateMemory, workspace]);
 
+  useEffect(() => {
+    const onRequest = (event: Event) => {
+      const topicId = (event as CustomEvent<{ topicId?: string }>).detail?.topicId;
+      if (topicId && workspace.topicById.has(topicId)) startNewNote(topicId);
+    };
+    window.addEventListener(NEW_NOTE_EVENT, onRequest);
+    return () => window.removeEventListener(NEW_NOTE_EVENT, onRequest);
+  }, [startNewNote, workspace.topicById]);
+
   const railCollapsed = memory.notebook.railCollapsed;
   const toggleRail = () => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, railCollapsed: !current.notebook.railCollapsed } }));
 
@@ -204,7 +218,9 @@ export function NotebookView() {
   else main = <NotebookHome navigate={navigate} newAction={newAction} onShowCaptures={() => workspace.goTo("queue")} />;
 
   return <div className={`nb-layout ${railCollapsed ? "is-rail-collapsed" : ""} ${railOpenMobile ? "is-rail-open" : ""}`}>
-    <NotebookRail location={location} navigate={navigate} onNewNote={startNewNote} onCollapse={toggleRail} />
+    <aside className="nb-rail" aria-label="Notebook topics">
+      <NotebookSidebarTree drawer onNavigate={navigate} onNewNote={(id) => { setRailOpenMobile(false); startNewNote(id); }}/>
+    </aside>
     <button type="button" className="nb-rail-scrim" aria-label="Close topics" onClick={() => setRailOpenMobile(false)} />
     <section className="nb-main">
       <div className="nb-main-tools">
@@ -243,137 +259,6 @@ export function NotebookView() {
 // ---------------------------------------------------------------------------
 // Rail: subjects → topics (nested), with inline creation and a small menu
 // ---------------------------------------------------------------------------
-function NotebookRail({ location, navigate, onNewNote, onCollapse }: {
-  location: NotebookLocation; navigate: (location: NotebookLocation) => void;
-  onNewNote: (topicId: string | null) => void; onCollapse: () => void;
-}) {
-  const workspace = useWorkspace();
-  const { snapshot, memory, updateMemory } = workspace;
-  const { objectives } = usePersonalOsObjectives(workspace.userId);
-  const [creating, setCreating] = useState<null | { subjectId: string | null; parentId: string | null }>(null);
-  const [renaming, setRenaming] = useState<null | { kind: "subject" | "topic"; id: string }>(null);
-  const [confirmElement, confirm] = useConfirm();
-  const [removingTarget, setRemovingTarget] = useState<KnowledgeRemovalTarget | null>(null);
-  const expanded = new Set(memory.notebook.expanded);
-  const activeTopicId = location.docId ? workspace.entryById.get(location.docId)?.topic_id ?? location.topicId : location.topicId;
-
-  const counts = useMemo(() => {
-    const map = new Map<string, { docs: number; questions: number }>();
-    for (const entry of snapshot.entries) {
-      if (!isDocument(entry)) continue;
-      const row = map.get(entry.topic_id) ?? { docs: 0, questions: 0 };
-      row.docs += 1;
-      if (isOpenQuestion(entry)) row.questions += 1;
-      map.set(entry.topic_id, row);
-    }
-    return map;
-  }, [snapshot.entries]);
-
-  const toggle = (id: string) => updateMemory((current) => {
-    const set = new Set(current.notebook.expanded);
-    if (set.has(id)) set.delete(id); else set.add(id);
-    return { ...current, notebook: { ...current.notebook, expanded: Array.from(set) } };
-  });
-  const expand = (id: string) => updateMemory((current) => ({ ...current, notebook: { ...current.notebook, expanded: Array.from(new Set([...current.notebook.expanded, id])) } }));
-
-  function removeTopic(topic: KnowledgeTopic) {
-    setRemovingTarget({ kind: "topic", id: topic.id, name: topic.name });
-  }
-  function removeSubject(subjectId: string) {
-    const subject = workspace.subjectById.get(subjectId);
-    if (subject) setRemovingTarget({ kind: "subject", id: subject.id, name: subject.name });
-  }
-
-  const renderTopics = (subjectId: string, parentId: string | null, depth: number) => workspace.childrenOf(parentId, subjectId).map((topic) => {
-    const children = workspace.childrenOf(topic.id, subjectId);
-    const isOpen = expanded.has(topic.id);
-    const count = counts.get(topic.id);
-    return <div key={topic.id} className="nb-tree-node" role="treeitem" aria-expanded={children.length ? isOpen : undefined} aria-selected={activeTopicId === topic.id}>
-      {renaming?.kind === "topic" && renaming.id === topic.id
-        ? <div style={{ paddingLeft: 10 + depth * 14 }}><InlineNameForm label="Topic name" initial={topic.name} submitLabel="Rename"
-          onCancel={() => setRenaming(null)} onSubmit={async (name) => { await workspace.changeTopic(topic.id, { name }); setRenaming(null); }} /></div>
-        : <div className={`nb-tree-row ${activeTopicId === topic.id ? "is-active" : ""}`} style={{ paddingLeft: 6 + depth * 14 }}>
-          <button type="button" className="nb-tree-twisty" aria-label={isOpen ? `Collapse ${topic.name}` : `Expand ${topic.name}`}
-            disabled={!children.length} onClick={() => toggle(topic.id)}>
-            {children.length ? (isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : <span className="nb-tree-dot" />}
-          </button>
-          <button type="button" className="nb-tree-label" onClick={() => navigate({ topicId: topic.id, docId: null })}>
-            <span>{topic.name}</span>
-            {count?.questions ? <small className="nb-tree-question" title={`${count.questions} open ${count.questions === 1 ? "question" : "questions"}`}>?{count.questions}</small> : count?.docs ? <small>{count.docs}</small> : null}
-          </button>
-          {workspace.writable ? <RowMenu label={topic.name} items={[
-            { label: "New note here", icon: <FilePlus2 size={14} />, run: () => onNewNote(topic.id) },
-            ...(depth < 3 ? [{ label: "New sub-topic", icon: <FolderPlus size={14} />, run: () => { expand(topic.id); setCreating({ subjectId, parentId: topic.id }); } }] : []),
-            { label: "Rename", icon: <Pencil size={14} />, run: () => setRenaming({ kind: "topic", id: topic.id }) },
-            { label: "Delete", icon: <Trash2 size={14} />, danger: true, run: () => void removeTopic(topic) },
-          ]} /> : null}
-        </div>}
-      {creating && creating.parentId === topic.id ? <div style={{ paddingLeft: 20 + depth * 14 }}>
-        <InlineNameForm label="Sub-topic name" placeholder="Time expressions, Sub-topic…" onCancel={() => setCreating(null)}
-          onSubmit={async (name) => { const created = await workspace.addTopic(subjectId, name, topic.id); setCreating(null); navigate({ topicId: created.id, docId: null }); }} />
-      </div> : null}
-      {isOpen ? <div role="group">{renderTopics(subjectId, topic.id, depth + 1)}</div> : null}
-    </div>;
-  });
-
-  const subjects = [...snapshot.subjects].sort((a, b) => a.name.localeCompare(b.name));
-  const suggestions = (objectives?.languages.map((language) => language.name) ?? DEFAULT_LANGUAGE_SUGGESTIONS)
-    .filter((name) => !subjects.some((subject) => subject.name.toLowerCase() === name.toLowerCase())).slice(0, 4);
-
-  return <aside className="nb-rail" aria-label="Notebook topics">
-    {confirmElement}
-    {removingTarget ? <KnowledgeRemovalDialog key={removingTarget.id} target={removingTarget}
-      onClose={() => setRemovingTarget(null)} onRemoved={() => navigate({ topicId: null, docId: null, subjectId: null })}/> : null}
-    <div className="nb-rail-head">
-      <button type="button" className="ws-icon-button nb-rail-collapse" aria-label="Hide topics" title="Hide topics" onClick={onCollapse}><PanelLeftClose size={15} /></button>
-    </div>
-    <div className="nb-rail-section nb-rail-tree" role="tree" aria-label="Subjects and topics">
-      <div className="nb-rail-section-head">
-        <span className="ws-eyebrow">Subjects</span>
-
-      </div>
-      {creating && !creating.subjectId ? <InlineNameForm label="Subject name" placeholder="Philosophy, German, History…" suggestions={suggestions}
-        onCancel={() => setCreating(null)}
-        onSubmit={async (name) => {
-          const created = await workspace.addSubject(name);
-          const inbox = await workspace.ensureInbox(created.id);
-          setCreating(null);
-          expand(created.id);
-          navigate({ topicId: inbox.id, docId: null });
-        }} /> : null}
-      {subjects.map((subject) => {
-        const isOpen = expanded.has(subject.id);
-        return <div key={subject.id} className="nb-tree-subject" role="treeitem" aria-expanded={isOpen}>
-          {renaming?.kind === "subject" && renaming.id === subject.id
-            ? <InlineNameForm label="Subject name" initial={subject.name} submitLabel="Rename" onCancel={() => setRenaming(null)}
-              onSubmit={async (name) => { await workspace.renameSubjectById(subject.id, name); setRenaming(null); }} />
-            : <div className={`nb-tree-row is-subject ${location.subjectId === subject.id && !location.topicId && !location.docId ? "is-active" : ""}`}>
-              <button type="button" className="nb-tree-twisty" aria-label={isOpen ? `Collapse ${subject.name}` : `Expand ${subject.name}`} onClick={() => toggle(subject.id)}>
-                {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              </button>
-              <button type="button" className="nb-tree-label" onClick={() => { expand(subject.id); navigate({ topicId: null, docId: null, subjectId: subject.id }); }}>
-                <span>{subject.name}</span>
-              </button>
-              {workspace.writable ? <RowMenu label={subject.name} items={[
-                { label: "New topic", icon: <FolderPlus size={14} />, run: () => { expand(subject.id); setCreating({ subjectId: subject.id, parentId: null }); } },
-                { label: "Rename", icon: <Pencil size={14} />, run: () => setRenaming({ kind: "subject", id: subject.id }) },
-                { label: "Delete", icon: <Trash2 size={14} />, danger: true, run: () => void removeSubject(subject.id) },
-              ]} /> : null}
-            </div>}
-          {isOpen ? <div role="group">
-            {renderTopics(subject.id, null, 1)}
-            {creating && creating.subjectId === subject.id && !creating.parentId ? <div className="nb-tree-create">
-              <InlineNameForm label="Topic name" placeholder="Grammar, B1.2, Ideas…" onCancel={() => setCreating(null)}
-                onSubmit={async (name) => { const created = await workspace.addTopic(subject.id, name, null); setCreating(null); navigate({ topicId: created.id, docId: null }); }} />
-            </div> : workspace.writable ? <button type="button" className="nb-tree-add" onClick={() => setCreating({ subjectId: subject.id, parentId: null })}><Plus size={12} /> Topic</button> : null}
-          </div> : null}
-        </div>;
-      })}
-      {!subjects.length && !creating ? <p className="ws-muted nb-rail-empty">Subjects contain topics and notes.</p> : null}
-    </div>
-  </aside>;
-}
-
 type MenuItem = { label: string; icon?: React.ReactNode; run: () => void; danger?: boolean };
 export function RowMenu({ label, items, icon, buttonLabel, align = "left" }: { label: string; items: MenuItem[]; icon?: React.ReactNode; buttonLabel?: string; align?: "left" | "right" }) {
   const [open, setOpen] = useState(false);
@@ -438,7 +323,6 @@ function ScopePage({ scope, navigate, newAction }: {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [selectionBusy, setSelectionBusy] = useState(false);
-  const [confirmElement, confirm] = useConfirm();
   const [descriptionEditor, setDescriptionEditor] = useState<{ id: string; value: string } | null>(null);
   const [movingNote, setMovingNote] = useState<KnowledgeEntry | null>(null);
   const [movingBusy, setMovingBusy] = useState(false);
@@ -501,25 +385,20 @@ function ScopePage({ scope, navigate, newAction }: {
   };
   async function applyToSelection(action: "pin" | "unpin" | "delete") {
     if (!selected.length || selectionBusy || !workspace.writable) return;
-    if (action === "delete") {
-      const approved = await confirm({
-        title: `Move ${selected.length} ${selected.length === 1 ? "note" : "notes"} to Trash?`,
-        body: "The selected notes will be removed from this topic. You can restore them from Trash.",
-        confirmLabel: "Move to Trash", danger: true,
-      });
-      if (!approved) return;
-    }
     setSelectionBusy(true);
     try {
-      const outcome = await Promise.allSettled(selected.map((entry) =>
-        action === "delete" ? workspace.removeEntry(entry.id, { undo: false }) :
-          workspace.patchEntry(entry.id, { pinned: action === "pin" })));
+      if (action === "delete") {
+        const failed = await workspace.trashEntries(selected.map((entry) => entry.id));
+        setSelectedIds(failed);
+        if (!failed.length) { setSelecting(false); setSelectionAnchor(null); }
+        return;
+      }
+      const outcome = await Promise.allSettled(selected.map((entry) => workspace.patchEntry(entry.id, { pinned: action === "pin" })));
       const failed = outcome.flatMap((result, index) => result.status === "rejected" ? [selected[index].id] : []);
       const succeeded = selected.length - failed.length;
       setSelectedIds(failed);
       if (!failed.length) { setSelecting(false); setSelectionAnchor(null); }
-      if (succeeded) workspace.toast(action === "delete" ? `${succeeded} ${succeeded === 1 ? "note" : "notes"} moved to Trash.` :
-        `${succeeded} ${succeeded === 1 ? "note" : "notes"} ${action === "pin" ? "pinned" : "unpinned"}.`);
+      if (succeeded) workspace.toast(`${succeeded} ${succeeded === 1 ? "note" : "notes"} ${action === "pin" ? "pinned" : "unpinned"}.`);
       if (failed.length) workspace.toast(`Could not update ${failed.length} ${failed.length === 1 ? "note" : "notes"}. The failed items remain selected.`, { tone: "error" });
     } finally { setSelectionBusy(false); }
   }
@@ -583,7 +462,6 @@ function ScopePage({ scope, navigate, newAction }: {
       </div>
     </header>
 
-    {confirmElement}
     {children.length ? <div className="nb-topic-grid" aria-label={topic ? "Subtopics" : "Topics"}>
       {children.map((child) => {
         const subtree = new Set(workspace.subtreeIds(child.id));

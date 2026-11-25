@@ -52,6 +52,7 @@ type WorkspaceValue = {
   submitCapture: (input: EntryInput, label: string, surface?: CaptureDraftSurface) => Promise<KnowledgeEntry | null>;
   patchEntry: (id: string, patch: EntryPatch) => Promise<KnowledgeEntry>;
   removeEntry: (id: string, options?: { undo?: boolean }) => Promise<void>;
+  trashEntries: (ids: string[]) => Promise<string[]>;
   practise: (id: string, outcome: PracticeOutcome, answer: string) => Promise<KnowledgeEntry>;
   recordRepeated: (id: string) => Promise<void>;
   // device-local context
@@ -500,6 +501,26 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
       });
     }
   }, [setSnapshotLocal, toast, userId]);
+  const trashEntries = useCallback(async (ids: string[]) => {
+    const entries = [...new Set(ids)].map((id) => snapshotRef.current.entries.find((entry) => entry.id === id));
+    const failed: string[] = [];
+    const removed: KnowledgeEntry[] = [];
+    for (const entry of entries) {
+      if (!entry) continue;
+      try { await removeEntry(entry.id, { undo: false }); removed.push(entry); }
+      catch { failed.push(entry.id); }
+    }
+    if (removed.length) toast(`Moved ${removed.length} to Trash.`, { action: { label: "Undo", run: () => {
+      void (async () => {
+        const results = await Promise.allSettled(removed.map((entry) => restoreEntry(entry)));
+        const restored = removed.filter((_, index) => results[index].status === "fulfilled");
+        setSnapshotLocal((current) => ({ ...current, entries: [...restored, ...current.entries.filter((entry) => !restored.some((row) => row.id === entry.id))] }));
+        toast(restored.length === removed.length ? "Restored." : `Restored ${restored.length}; some records remain in Trash.`, restored.length === removed.length ? undefined : { tone: "error" });
+      })();
+    } } });
+    if (failed.length) toast(`Could not move ${failed.length} to Trash.`, { tone: "error" });
+    return failed;
+  }, [removeEntry, setSnapshotLocal, toast]);
   const practise = useCallback(async (id: string, outcome: PracticeOutcome, answer: string) => {
     const current = snapshotRef.current.entries.find((row) => row.id === id);
     if (!current) throw new Error("This mistake no longer exists.");
@@ -577,16 +598,26 @@ export function WorkspaceProvider({ userId, section, onSection, children }: Prov
   const lessonEntry = lessonActive && memory.currentLesson ? entryById.get(memory.currentLesson.id) : undefined;
   const currentLesson = lessonEntry && isLesson(lessonEntry) ? lessonEntry : null;
 
-  const value: WorkspaceValue = {
+  const value = useMemo<WorkspaceValue>(() => ({
     userId, snapshot, schema, writable: schema === "v2", loading, error, reload,
     subjectById, topicById, entryById, childrenOf, topicPath, pathLabel, subtreeIds,
     addSubject, renameSubjectById, removeSubject, manageSubjectTree, addTopic, changeTopic, removeTopic, manageTopicTree, ensureInbox,
-    addEntry, submitCapture, patchEntry, removeEntry, practise, recordRepeated,
+    addEntry, submitCapture, patchEntry, removeEntry, trashEntries, practise, recordRepeated,
     memory, updateMemory,
     section, goTo, openDocument, openTopic, openMistake, pendingEditId, consumePendingEdit, focusMistake, clearFocusMistake,
     capture, openCapture, closeCapture, startLesson, endLesson, currentLesson,
     cleanupTarget, openCleanup, closeCleanup,
     toasts, toast, dismissToast,
-  };
+    }), [
+    userId, snapshot, schema,  loading, error, reload,
+    subjectById, topicById, entryById, childrenOf, topicPath, pathLabel, subtreeIds,
+    addSubject, renameSubjectById, removeSubject, manageSubjectTree, addTopic, changeTopic, removeTopic, manageTopicTree, ensureInbox,
+    addEntry, submitCapture, patchEntry, removeEntry, trashEntries, practise, recordRepeated,
+    memory, updateMemory,
+    section, goTo, openDocument, openTopic, openMistake, pendingEditId, consumePendingEdit, focusMistake, clearFocusMistake,
+    capture, openCapture, closeCapture, startLesson, endLesson, currentLesson,
+    cleanupTarget, openCleanup, closeCleanup,
+    toasts, toast, dismissToast,
+    ]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

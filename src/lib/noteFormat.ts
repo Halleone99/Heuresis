@@ -42,8 +42,14 @@ export const CALLOUTS: Record<CalloutVariant, string> = {
 };
 const CALLOUT_RE = /^>\s?\[!(example|rule|correction|tip)\]\s*$/i;
 const LIST_RE = /^(\s*)([-*•]|\d+[.)])\s+(.*)$/;
+const LAYOUT_LIST_RE = /^([ \t]*)([-*•]|\d+[.)])[ \t]([^\r\n]*)$/;
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
+const LAYOUT_HEADING_RE = /^(#{1,6})[ \t]+([^\r\n]*)$/;
 const HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+// In a Catalogue article a soft line break stays inside its paragraph or list item.
+const SOFT_BREAK = "\u2028";
+const LIST_SEPARATOR = "<!-- -->";
+const LITERAL_LIST_RE = /^([ \t]*(?:\d+|[-*•]))\\([.) \t])/;
 const TABLE_STYLE_RE = /^\{table:(plain|striped|study)\}\s*$/;
 function tableCells(line: string): string[] {
   const clean = line.trim().replace(/^\|/, "").replace(/\|$/, "");
@@ -62,11 +68,13 @@ function indentDepth(indent: string) {
   return Math.min(4, Math.floor(width / 2));
 }
 
-export function parseBlocks(markdown: string): Block[] {
+export function parseBlocks(markdown: string, preserveLayout = false): Block[] {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const listPattern = preserveLayout ? LAYOUT_LIST_RE : LIST_RE;
   const blocks: Block[] = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    if (preserveLayout && line === LIST_SEPARATOR) continue;
     if (line.startsWith(HAND_NOTE_PREFIX) && /^[A-Za-z0-9+/=]+$/.test(line.slice(HAND_NOTE_PREFIX.length))) {
       blocks.push({ type: "handnote", encoded: line.slice(HAND_NOTE_PREFIX.length) });
       continue;
@@ -111,7 +119,7 @@ export function parseBlocks(markdown: string): Block[] {
       blocks.push({ type: "quote", lines: body });
       continue;
     }
-    const heading = line.match(HEADING_RE);
+    const heading = line.match(preserveLayout ? LAYOUT_HEADING_RE : HEADING_RE);
     if (heading) {
       // Three heading levels are editable; keep unsupported deeper levels literal.
       if (heading[1].length > 3) blocks.push({ type: "p", text: line });
@@ -119,14 +127,14 @@ export function parseBlocks(markdown: string): Block[] {
       continue;
     }
     if (HR_RE.test(line)) { blocks.push({ type: "hr" }); continue; }
-    const list = line.match(LIST_RE);
+    const list = line.match(listPattern);
     if (list) {
       const ordered = /\d/.test(list[2]);
       const type = ordered ? "ol" : "ul";
       const items: ListItem[] = [{ text: list[3], depth: 0, ordered,
         start: ordered ? Number.parseInt(list[2], 10) : undefined }];
       while (index + 1 < lines.length) {
-        const next = lines[index + 1].match(LIST_RE);
+        const next = lines[index + 1].match(listPattern);
         if (!next) break;
         const nextOrdered = /\d/.test(next[2]);
         // Nested items may use either marker; only top-level items decide the list type.
@@ -139,10 +147,11 @@ export function parseBlocks(markdown: string): Block[] {
       blocks.push({ type, items });
       continue;
     }
-    blocks.push({ type: "p", text: line });
+    const paragraph = line === `\\${LIST_SEPARATOR}` ? LIST_SEPARATOR : line.replace(LITERAL_LIST_RE, "$1$2");
+    blocks.push({ type: "p", text: preserveLayout ? paragraph : line });
   }
-  // A trailing newline should not render as an extra empty paragraph.
-  while (blocks.length > 1) {
+  // The Notebook ignores trailing empty paragraphs. The Catalogue keeps them for layout.
+  while (!preserveLayout && blocks.length > 1) {
     const last = blocks[blocks.length - 1];
     if (last.type === "p" && !last.text.trim()) blocks.pop();
     else break;
@@ -264,10 +273,6 @@ function inlineHtml(text: string): string {
     return pinyinHtml(part.text);
   }).join("");
 }
-function paragraphHtml(text: string) {
-  const inner = inlineHtml(text);
-  return `<p>${inner || "<br>"}</p>`;
-}
 function tableHtml(block: Extract<Block, { type: "table" }>) {
   const head = "<thead><tr>" + block.headers.map((cell) => "<th scope=\"col\">" + (inlineHtml(cell) || "<br>") + "</th>").join("") + "</tr></thead>";
   const body = "<tbody>" + block.rows.map((row) =>
@@ -275,43 +280,52 @@ function tableHtml(block: Extract<Block, { type: "table" }>) {
   ).join("") + "</tbody>";
   return '<table class="nb-table" data-table-style="' + block.style + '">' + head + body + "</table>";
 }
-function listHtml(items: ListItem[]) {
+function listHtml(items: ListItem[], renderInline: (text: string) => string) {
   let html = "";
   const stack: Array<"ul" | "ol"> = [];
   const openList = (tag: "ul" | "ol", start?: number) =>
     tag === "ol" && start && start !== 1 ? `<ol start="${start}">` : `<${tag}>`;
   for (const item of items) {
     const tag = item.ordered ? "ol" : "ul";
-    const content = `<li>${inlineHtml(item.text) || "<br>"}`;
+    const content = `<li>${renderInline(item.text) || "<br>"}`;
     if (!stack.length) { html += `${openList(tag, item.start)}${content}`; stack.push(tag); continue; }
     const current = stack.length - 1;
     if (item.depth > current) { html += `${openList(tag, item.start)}${content}`; stack.push(tag); continue; }
     while (stack.length - 1 > item.depth) html += `</li></${stack.pop()}>`;
-    html += `</li>${content}`;
+    html += "</li>";
+    if (stack[stack.length - 1] !== tag) {
+      html += `</${stack.pop()}>${openList(tag, item.start)}`;
+      stack.push(tag);
+    }
+    html += content;
   }
   while (stack.length) html += `</li></${stack.pop()}>`;
   return html;
 }
 
-export function markdownToEditorHtml(markdown: string): string {
-  const blocks = parseBlocks(markdown);
+export function markdownToEditorHtml(markdown: string, preserveLayout = false): string {
+  const blocks = parseBlocks(markdown, preserveLayout);
+  const renderInline = preserveLayout ? (text: string) => {
+    const html = text.split(SOFT_BREAK).map(inlineHtml).join('<br data-soft-break="true">');
+    return text.endsWith(SOFT_BREAK) ? html + "<br>" : html;
+  } : inlineHtml;
   if (!blocks.length) return "<p><br></p>";
   return blocks.map((block): string => {
     switch (block.type) {
-      case "h2": return `<h2>${inlineHtml(block.text) || "<br>"}</h2>`;
-      case "h3": return `<h3>${inlineHtml(block.text) || "<br>"}</h3>`;
-      case "h4": return `<h4>${inlineHtml(block.text) || "<br>"}</h4>`;
-      case "ul": case "ol": return listHtml(block.items);
+      case "h2": return `<h2>${renderInline(block.text) || "<br>"}</h2>`;
+      case "h3": return `<h3>${renderInline(block.text) || "<br>"}</h3>`;
+      case "h4": return `<h4>${renderInline(block.text) || "<br>"}</h4>`;
+      case "ul": case "ol": return listHtml(block.items, renderInline);
       // Quotations and callouts may contain their own lists and headings.
-      case "quote": return `<blockquote>${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
-      case "callout": return `<blockquote data-callout="${block.variant}">${markdownToEditorHtml(block.lines.join("\n"))}</blockquote>`;
+      case "quote": return `<blockquote>${markdownToEditorHtml(block.lines.join("\n"), preserveLayout)}</blockquote>`;
+      case "callout": return `<blockquote data-callout="${block.variant}">${markdownToEditorHtml(block.lines.join("\n"), preserveLayout)}</blockquote>`;
       case "hr": return "<hr>";
       case "handnote": {
         const paths = decodeHandNote(block.encoded).map((stroke) => `<path d="${stroke.d}" stroke="${stroke.color}" fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
         return `<div data-handnote="${block.encoded}" contenteditable="false" style="margin:10px 0;max-width:100%;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:white"><svg viewBox="0 0 ${HAND_NOTE_SIZE.width} ${HAND_NOTE_SIZE.height}" role="img" aria-label="Handwritten note" style="width:100%;display:block;max-height:350px">${paths}</svg></div>`;
       }
       case "table": return tableHtml(block);
-      default: return paragraphHtml(block.text);
+      default: return `<p>${renderInline(block.text) || "<br>"}</p>`;
     }
   }).join("");
 }
@@ -345,14 +359,22 @@ function escapeInlineText(value: string): string {
   return value.replace(/\\/g, "\\\\")
     .replace(/(\*{1,3}|==|~~|\[\[(?![^\]]*\]\])|\{(?:color|bg):|\{u\})(?=\S)/g, "\\$1");
 }
-function inlineMarkdown(node: Node): string {
+function inlineMarkdown(node: Node, preserveLayout = false): string {
   if (node.nodeType === Node.TEXT_NODE) return escapeInlineText((node.textContent ?? "").replace(/ /g, " ").replace(/​/g, ""));
   if (node.nodeType !== Node.ELEMENT_NODE) return "";
   const element = node as HTMLElement;
   if (element.hasAttribute("data-wikilink")) return element.textContent ?? "";
-  if (element.tagName === "BR") return "\n";
+  if (element.tagName === "BR") return preserveLayout && element.hasAttribute("data-soft-break") ? SOFT_BREAK : "\n";
   if (["UL", "OL", "SCRIPT", "STYLE"].includes(element.tagName)) return "";
-  let inner = Array.from(element.childNodes).map(inlineMarkdown).join("");
+  const inner = Array.from(element.childNodes).map((child) => inlineMarkdown(child, preserveLayout)).join("");
+  if (preserveLayout) {
+    // Format the text on either side of a line break independently.
+    return inner.split(/([\n\u2028])/).map((part) => formatInline(element, part)).join("");
+  }
+  return formatInline(element, inner);
+}
+
+function formatInline(element: HTMLElement, inner: string): string {
   const ink = element.getAttribute("data-ink");
   const tone = element.getAttribute("data-tone");
   if (ink && NOTE_COLOURS.includes(ink as NoteColour)) inner = inner.trim() ? `{color:${ink}}${inner}{/color}` : inner;
@@ -365,53 +387,67 @@ function inlineMarkdown(node: Node): string {
   return inner;
 }
 
-function blockLines(element: HTMLElement): string[] {
+function blockLines(element: HTMLElement, preserveLayout: boolean): string[] {
   // A block may hold nested blocks (Chrome sometimes nests <div>s) or <br> breaks.
   const hasBlockChild = Array.from(element.children).some((child) => BLOCK_TAGS.has(child.tagName));
-  if (hasBlockChild) return serializeChildren(element);
-  const text = inlineMarkdown(element);
+  if (hasBlockChild) return serializeChildren(element, preserveLayout);
+  const text = inlineMarkdown(element, preserveLayout);
   // A lone trailing <br> is only the browser's placeholder for an empty line.
   const cleaned = text.endsWith("\n") ? text.slice(0, -1) : text;
-  return cleaned.split("\n");
+  return preserveLayout ? [cleaned.replace(/\n/g, SOFT_BREAK)] : cleaned.split("\n");
 }
 
 const BLOCK_TAGS = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "BLOCKQUOTE", "HR", "PRE", "TABLE"]);
 
-function listLines(list: HTMLElement, depth: number, out: string[]) {
+function listLines(list: HTMLElement, depth: number, out: string[], preserveLayout: boolean) {
   const ordered = list.tagName === "OL";
   let counter = ordered ? (Number(list.getAttribute("start")) || 1) - 1 : 0;
   for (const child of Array.from(list.children)) {
-    if (child.tagName === "UL" || child.tagName === "OL") { listLines(child as HTMLElement, depth + 1, out); continue; }
+    if (child.tagName === "UL" || child.tagName === "OL") { listLines(child as HTMLElement, depth + 1, out, preserveLayout); continue; }
     if (child.tagName !== "LI") continue;
     counter += 1;
     const ownText = Array.from(child.childNodes)
       .filter((node) => !(node instanceof HTMLElement && (node.tagName === "UL" || node.tagName === "OL")))
-      .map((node) => node instanceof HTMLElement && BLOCK_TAGS.has(node.tagName) ? blockLines(node).join(" ") : inlineMarkdown(node))
-      .join("").replace(/\n+$/, "").replace(/\n/g, " ");
-    out.push(`${"  ".repeat(depth)}${ordered ? `${counter}.` : "-"} ${ownText.replace(/\s+$/, "")}`);
+      .map((node) => node instanceof HTMLElement && BLOCK_TAGS.has(node.tagName)
+        ? blockLines(node, preserveLayout).join(" ") : inlineMarkdown(node, preserveLayout))
+      .join("");
+    const text = preserveLayout ? ownText.replace(/\n$/, "").replace(/\n/g, SOFT_BREAK)
+      : ownText.replace(/\n+$/, "").replace(/\n/g, " ").trimEnd();
+    out.push(`${"  ".repeat(depth)}${ordered ? `${counter}.` : "-"} ${text}`);
     for (const nested of Array.from(child.children)) {
-      if (nested.tagName === "UL" || nested.tagName === "OL") listLines(nested as HTMLElement, depth + 1, out);
+      if (nested.tagName === "UL" || nested.tagName === "OL") listLines(nested as HTMLElement, depth + 1, out, preserveLayout);
     }
   }
 }
 
-function serializeChildren(root: HTMLElement): string[] {
+function serializeChildren(root: HTMLElement, preserveLayout: boolean): string[] {
   const out: string[] = [];
   let inlineBuffer = "";
+  let previousList = "";
+  const addParagraphs = (lines: string[]) => {
+    for (const line of lines) {
+      // A literal "2026. ..." stays a paragraph unless the editor made an actual list.
+      if (preserveLayout && line === LIST_SEPARATOR) out.push(`\\${line}`);
+      else if (preserveLayout && LAYOUT_LIST_RE.test(line)) out.push(line.replace(/^([ \t]*(?:\d+|[-*•]))/, "$1\\"));
+      else out.push(line);
+    }
+  };
   const flushInline = () => {
     if (!inlineBuffer) return;
-    out.push(...inlineBuffer.replace(/\n$/, "").split("\n"));
+    const text = inlineBuffer.replace(/\n$/, "");
+    addParagraphs(preserveLayout ? [text.replace(/\n/g, SOFT_BREAK)] : text.split("\n"));
     inlineBuffer = "";
   };
   for (const node of Array.from(root.childNodes)) {
     if (!(node instanceof HTMLElement) || !BLOCK_TAGS.has(node.tagName)) {
-      inlineBuffer += inlineMarkdown(node);
+      inlineBuffer += inlineMarkdown(node, preserveLayout);
+      if (inlineBuffer) previousList = "";
       continue;
     }
     flushInline();
     const tag = node.tagName;
-    if (tag === "H1" || tag === "H2") out.push(`# ${blockLines(node).join(" ").trim()}`.trimEnd());
-    else if (/^H[3-6]$/.test(tag)) out.push(`${"#".repeat(Math.min(6, Number(tag[1]) - 1))} ${blockLines(node).join(" ").trim()}`.trimEnd());
+    if (tag === "H1" || tag === "H2") out.push(`# ${blockLines(node, preserveLayout).join(" ").trim()}`.trimEnd());
+    else if (/^H[3-6]$/.test(tag)) out.push(`${"#".repeat(Math.min(6, Number(tag[1]) - 1))} ${blockLines(node, preserveLayout).join(" ").trim()}`.trimEnd());
     else if (tag === "HR") out.push("---");
     else if (tag === "DIV" && node.hasAttribute("data-handnote")) out.push(HAND_NOTE_PREFIX + node.getAttribute("data-handnote"));
     else if (tag === "TABLE") {
@@ -420,7 +456,7 @@ function serializeChildren(root: HTMLElement): string[] {
       if (style === "striped" || style === "study") out.push("{table:" + style + "}");
       const trs = Array.from(table.querySelectorAll("tr"));
       const rowText = (row: HTMLTableRowElement) => Array.from(row.cells).map((cell) =>
-        Array.from(cell.childNodes).map(inlineMarkdown).join("").replace(/\n/g, " ").trim()
+        Array.from(cell.childNodes).map((child) => inlineMarkdown(child)).join("").replace(/\n/g, " ").trim()
       );
       const headers = trs.length ? rowText(trs[0]) : [];
       if (headers.length) {
@@ -429,21 +465,27 @@ function serializeChildren(root: HTMLElement): string[] {
         for (const row of trs.slice(1)) out.push(tableLine(rowText(row)));
       }
     }
-    else if (tag === "UL" || tag === "OL") listLines(node, 0, out);
+    else if (tag === "UL" || tag === "OL") {
+      if (preserveLayout && previousList === tag) out.push(LIST_SEPARATOR);
+      listLines(node, 0, out, preserveLayout);
+    }
     else if (tag === "BLOCKQUOTE") {
       const variant = node.getAttribute("data-callout");
-      const inner = serializeChildren(node);
+      const inner = serializeChildren(node, preserveLayout);
       if (variant && variant in CALLOUTS) out.push(`> [!${variant}]`);
       for (const line of inner.length ? inner : [""]) out.push(line ? `> ${line}` : ">");
-    } else out.push(...blockLines(node));
+    } else if (preserveLayout && Array.from(node.children).some((child) => BLOCK_TAGS.has(child.tagName))) {
+      out.push(...serializeChildren(node, preserveLayout));
+    } else addParagraphs(blockLines(node, preserveLayout));
+    previousList = tag === "UL" || tag === "OL" ? tag : "";
   }
   flushInline();
   return out;
 }
 
-export function editorToMarkdown(root: HTMLElement) {
-  const lines = serializeChildren(root);
-  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+export function editorToMarkdown(root: HTMLElement, preserveLayout = false) {
+  const lines = serializeChildren(root, preserveLayout);
+  while (!preserveLayout && lines.length && !lines[lines.length - 1].trim()) lines.pop();
   return lines.join("\n");
 }
 

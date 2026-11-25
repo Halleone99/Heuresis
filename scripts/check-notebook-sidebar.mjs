@@ -13,7 +13,7 @@ assert.match(sidebar, /snapshot\.subjects/);
 assert.match(sidebar, /workspace\.childrenOf\(parentId, subjectId\)/);
 assert.match(sidebar, /workspace\.openTopic\(topicId\)/);
 assert.match(sidebar, /aria-label="Notebook navigation"/);
-assert.match(sidebar, /aria-label="Subjects"/);
+assert.match(sidebar, /aria-label="Subjects and topics"/);
 assert.match(sidebar, /notebook: \{\s*\.\.\.current\.notebook, subjectId, topicId: null, docId: null/,
   "Selecting a language must clear a stale document");
 assert.match(sidebar, /workspace\.addSubject\(clean\)/);
@@ -24,7 +24,7 @@ assert.match(sidebar, /workspace\.changeTopic/);
 const removal=readFileSync("src/components/workspace/KnowledgeRemovalDialog.tsx","utf8");
 const workspace=readFileSync("src/components/workspace/WorkspaceContext.tsx","utf8");
 assert.match(sidebar, /KnowledgeRemovalDialog/, "Sidebar uses shared confirmation and move-first dialog");
-assert.match(notebook, /KnowledgeRemovalDialog/, "Notebook drawer uses the same safe removal flow");
+assert.match(notebook, /<NotebookSidebarTree drawer/, "Notebook drawer uses the same tree and safe removal flow");
 assert.match(removal, /Move contents first/, "Offer relocation before permanent deletion");
 assert.match(removal, /Delete everything/, "Destructive removal remains an explicit choice");
 assert.match(removal, /verification !== target\.name/, "Require exact-name confirmation for non-empty trees");
@@ -32,8 +32,8 @@ assert.match(removal, /workspace\.manageSubjectTree/, "Deletion executes an owne
 assert.match(removal, /workspace\.manageTopicTree/, "Topic removal can preserve subtopic trees");
 assert.match(workspace, /manageSubjectTree/, "Workspace synchronises moved subjects");
 assert.match(workspace, /manageTopicTree/, "Workspace synchronises moved topics");
-assert.match(notebook, /<NotebookRail location=\{location\}/,
-  "Legacy narrow-window Notebook drawer must remain");
+assert.match(notebook, /<NotebookSidebarTree drawer onNavigate=\{navigate\}/,
+  "Narrow-window Notebook drawer must use the shared tree");
 assert.match(css, /@media \(min-width: 901px\) \{[\s\S]*?\.heuresis-desktop\[data-section="notebook"\] \.nb-rail,[\s\S]*?display: none !important;/);
 assert.match(css, /@media \(max-width: 900px\) \{\s*\.hw-notebook-tree \{ display: none !important; \}/);
 assert.match(css, /\.heuresis-desktop\[data-sidebar="rail"\] \.hw-notebook-tree \{ display: none; \}/);

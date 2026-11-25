@@ -480,8 +480,10 @@ export function articleCoverImage(article: CatalogueArticle): ImageRef | null {
   return articleImages(article)[0] ?? null;
 }
 export function plainText(markdown: string) {
-  return markdown.replace(/^\s{0,3}#{1,6}\s+/gm, "").replace(/^\s*>\s?(\[![a-z]+\]\s*)?/gim, "")
+  return markdown.replace(/^<!-- -->$/gm, "").replace(/^\\(?=<!-- -->$)/gm, "")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "").replace(/^\s*>\s?(\[![a-z]+\]\s*)?/gim, "")
     .replace(/^\s*([-*•]|\d+[.)])\s+/gm, "").replace(/\*\*|==|~~|\[\[|\]\]|\{\/?(?:color|bg)(?::[a-z]+)?\}/g, "")
+    .replace(/^([ \t]*(?:\d+|[-*•]))\\([.) \t])/gm, "$1$2")
     .replace(/(^|\s)\*(\S)/g, "$1$2").replace(/\s+/g, " ").trim();
 }
 export function blockText(block: Block): string {

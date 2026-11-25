@@ -12,7 +12,9 @@ import {
 import { addRelatedWord, type RelationType } from "../lib/related";
 import { toLearnCard } from "../lib/learnExercises";
 import { appliedCoverage } from "../lib/appliedExercises";
-import { APPLIED_KIND_KEY, appliedCardFieldLabel, packShape, type AppliedCardKind } from "../lib/teachingShape";
+import { APPLIED_KIND_KEY, packShape, type AppliedCardKind } from "../lib/teachingShape";
+import { isKnowledgeKind, kindFieldLabel, knowledgeKind, type KnowledgeKind } from "../lib/knowledgeKinds";
+import { KnowledgeKindSegments } from "./KnowledgeKindPicker";
 
 type Props = {
   collections: Collection[];
@@ -22,8 +24,8 @@ type Props = {
   onSaved?: () => void;
 };
 
-type KnowledgeDimension = "components" | "examples" | "structure" | "origin" | "facts" | "notes";
-type BlockKind = "example" | "grammar" | "parts" | "origin" | "fact" | "note" | RelationType;
+type KnowledgeDimension = "components" | "examples" | "structure" | "origin" | "facts" | "notes" | "neighbours";
+type BlockKind = "example" | "grammar" | "parts" | "origin" | "fact" | "note" | "contrast" | RelationType;
 
 type CaptureBlock = {
   id: string;
@@ -36,7 +38,8 @@ type CaptureBlock = {
 type CaptureDraft = {
   id: string;
   packId: string;
-  kind?: AppliedCardKind;
+  /** Applied topics: the kind of knowledge ("knowledge" in drafts saved before kinds existed). */
+  kind?: AppliedCardKind | KnowledgeKind;
   values: Record<string, string>;
   tagIds: string[];
   blocks: CaptureBlock[];
@@ -65,6 +68,16 @@ const BLOCKS: BlockDef[] = [
   { id: "fact", label: "Fact", dimension: "facts", hint: "Something useful or memorable" },
   { id: "note", label: "Note", dimension: "notes", hint: "Your own note" },
 ];
+/** Applied topics: the details that fit rules, definitions, procedures and figures (same storage, as text). */
+const APPLIED_BLOCKS: BlockDef[] = [
+  { id: "grammar", label: "Key features", dimension: "structure", hint: "One feature per line" },
+  { id: "example", label: "Example or case", dimension: "examples", hint: "A situation…  → what follows" },
+  { id: "contrast", label: "Not to be confused with", dimension: "neighbours", hint: "Other term — how it differs" },
+  { id: "origin", label: "Source", dimension: "origin", hint: "Article, regulation, version" },
+  { id: "fact", label: "Key figure", dimension: "facts", hint: "A limit, deadline or amount" },
+  { id: "parts", label: "Key terms", dimension: "components", hint: "A term it relies on — what it means" },
+  { id: "note", label: "Note", dimension: "notes", hint: "Your own note" },
+];
 
 function uid() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -76,8 +89,8 @@ function emptyDraft(packId: string): CaptureDraft {
   return { id: uid(), packId, kind: "knowledge", values: {}, tagIds: [], blocks: [], createdAt: new Date().toISOString() };
 }
 
-function blockDef(kind: BlockKind) {
-  return BLOCKS.find((item) => item.id === kind)!;
+function blockDef(kind: BlockKind, applied = false) {
+  return (applied ? APPLIED_BLOCKS.find((item) => item.id === kind) : undefined) ?? BLOCKS.find((item) => item.id === kind) ?? APPLIED_BLOCKS.find((item) => item.id === kind)!;
 }
 
 function isBlank(draft: CaptureDraft) {
@@ -177,13 +190,15 @@ function FieldSlot({
   </label>;
 }
 
-function EnrichmentBlock({ block, onChange, onRemove }: {
+function EnrichmentBlock({ block, applied = false, onChange, onRemove }: {
   block: CaptureBlock;
+  applied?: boolean;
   onChange: (block: CaptureBlock) => void;
   onRemove: () => void;
 }) {
-  const def = blockDef(block.kind);
-  const isExample = block.kind === "example";
+  const def = blockDef(block.kind, applied);
+  // An Applied example or case is one text ("situation → what follows"), not a sentence with a translation.
+  const isExample = block.kind === "example" && !applied;
   return <div className="capture-enrichment-block">
     <div className="capture-enrichment-head">
       <span>{def.label}</span>
@@ -250,15 +265,20 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
   // Applied: a case (and what follows in it) is the most useful optional addition, so it is always
   // in view; conditions, exceptions, steps and source stay under More fields.
   const applied = packShape(pack) === "rule";
-  const appliedKind: AppliedCardKind = draft.kind === "question" ? "question" : "knowledge";
-  const caseFields = useMemo(() => (applied && appliedKind === "knowledge" ? groups.extras.filter((field) => field.role === "case" || field.role === "outcome") : []), [applied, appliedKind, groups]);
+  // The kind chosen for this draft, else the one its fields suggest (a definition until it has conditions or steps).
+  const appliedKind: KnowledgeKind = isKnowledgeKind(draft.kind) ? draft.kind : knowledgeKind(draft.values, pack?.cardType);
+  const caseFields = useMemo(() => (applied && (appliedKind === "rule" || appliedKind === "procedure" || appliedKind === "figure") ? groups.extras.filter((field) => field.role === "case" || field.role === "outcome") : []), [applied, appliedKind, groups]);
   const moreFields = useMemo(() => groups.extras.filter((field) => !caseFields.includes(field)), [groups, caseFields]);
+  const palette = applied ? APPLIED_BLOCKS : BLOCKS;
   const coverage = useMemo(() => {
-    if (!applied || appliedKind !== "knowledge" || !pack) return null;
-    const view = toLearnCard({ id: "draft", pack_id: pack.id, retention: "learning", data: draft.values, note: null, favourite: false, interesting: false, interest_rank: null,
+    if (!applied || appliedKind === "question" || !pack) return null;
+    // The draft as Learn will read it: its fields, its kind and the details written below it.
+    const blocks = draft.blocks.filter((block) => block.value.trim()).map((block) => JSON.stringify({ id: block.id, type: "text", dim: blockDef(block.kind, true).dimension, text: block.value.trim() }));
+    const data = { ...draft.values, [APPLIED_KIND_KEY]: appliedKind, _workspace_blocks: blocks };
+    const view = toLearnCard({ id: "draft", pack_id: pack.id, retention: "learning", data, note: null, favourite: false, interesting: false, interest_rank: null,
       created_at: "", updated_at: "", tags: [], stats: { encounter_count: 0, study_count: 0, known_count: 0, again_count: 0, hard_count: 0, good_count: 0, easy_count: 0, first_encountered_at: null, last_encountered_at: null, by_template: {} } }, pack, null);
     return appliedCoverage(view, pack.card_count);
-  }, [applied, appliedKind, pack, draft.values]);
+  }, [applied, appliedKind, pack, draft.values, draft.blocks]);
   const coreFields = useMemo(() => [...groups.prompt, ...groups.answer], [groups]);
   const valid = draftIsValid(pack, draft);
   const liveBlank = isBlank(draft);
@@ -323,7 +343,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
     const item = draft;
     setSaving(true); setStatus(""); setConfirmClose(false);
     try {
-      const created = await createCard(pack, applied ? { ...item.values, [APPLIED_KIND_KEY]: item.kind === "question" ? "question" : "knowledge" } : item.values, undefined, item.tagIds);
+      const created = await createCard(pack, applied ? { ...item.values, [APPLIED_KIND_KEY]: isKnowledgeKind(item.kind) ? item.kind : knowledgeKind(item.values, pack.cardType) } : item.values, undefined, item.tagIds);
       let warning = "";
       try { await enrichCreatedCard(created.id, item); }
       catch (error) { warning = error instanceof Error ? error.message : "Some extras could not be saved."; }
@@ -365,8 +385,10 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
 
   async function enrichCreatedCard(cardId: string, item: CaptureDraft) {
     const workspace = item.blocks.flatMap((block) => {
-      const def = blockDef(block.kind);
+      const def = blockDef(block.kind, applied);
       if (!def.dimension || !block.value.trim()) return [];
+      // Applied details are free text blocks, read by New's Details and by Learn (cases, features, contrasts).
+      if (applied) return [JSON.stringify({ id: uid(), type: "text", schema_version: 2, text: block.value.trim(), dim: def.dimension })];
       if (block.kind === "example") {
         const source = block.value.trim();
         const reading = block.reading?.trim() ?? "";
@@ -517,17 +539,13 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
           {pack && !fields.length ? <div className="capture-empty">This topic has no readable card schema yet.</div> : null}
 
           {pack && fields.length ? <>
-            {applied ? <div className="capture-applied-kind" role="group" aria-label="Applied card format">
-              <button type="button" aria-pressed={appliedKind === "knowledge"} className={appliedKind === "knowledge" ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, kind: "knowledge" }))}>Knowledge</button>
-              <button type="button" aria-pressed={appliedKind === "question"} className={appliedKind === "question" ? "selected" : ""} onClick={() => setDraft((current) => ({ ...current, kind: "question" }))}>Question</button>
-              <small>{appliedKind === "question" ? "Ask directly · answer from memory" : "Explain a rule, principle or process"}</small>
-            </div> : null}
+            {applied ? <div className="capture-applied-kind"><KnowledgeKindSegments value={appliedKind} onChange={(kind) => setDraft((current) => ({ ...current, kind }))} /></div> : null}
             <div className="capture-card-surface">
               <div className="capture-side-label"><span>FRONT</span><em>what you see first</em></div>
               {groups.prompt.map((field, index) => <FieldSlot
                 key={field.key}
                 field={field}
-                labelOverride={applied ? appliedCardFieldLabel(field, appliedKind) : undefined}
+                labelOverride={applied ? kindFieldLabel(field, appliedKind) : undefined}
                 display
                 value={draft.values[field.key] ?? ""}
                 inputRef={(element) => { inputRefs.current[index] = element; }}
@@ -543,7 +561,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
                 return <FieldSlot
                   key={field.key}
                   field={field}
-                  labelOverride={applied ? appliedCardFieldLabel(field, appliedKind) : undefined}
+                  labelOverride={applied ? kindFieldLabel(field, appliedKind) : undefined}
                   value={draft.values[field.key] ?? ""}
                   inputRef={(element) => { inputRefs.current[index] = element; }}
                   onChange={(value) => setField(field.key, value)}
@@ -566,13 +584,14 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
               {draft.blocks.map((block) => <EnrichmentBlock
                 key={block.id}
                 block={block}
+                applied={applied}
                 onChange={(next) => setDraft((current) => ({ ...current, blocks: current.blocks.map((item) => item.id === block.id ? next : item) }))}
                 onRemove={() => setDraft((current) => ({ ...current, blocks: current.blocks.filter((item) => item.id !== block.id) }))}
               />)}
             </div>
 
             <div className="capture-enrichment-palette">
-              {(expanded || moreOpen ? BLOCKS : BLOCKS.slice(0, 3)).map((item) => <button type="button" key={item.id} onClick={() => addBlock(item.id)}>+ {item.label}</button>)}
+              {(expanded || moreOpen ? palette : palette.slice(0, 3)).map((item) => <button type="button" key={item.id} onClick={() => addBlock(item.id)}>+ {item.label}</button>)}
               {!expanded && !moreOpen ? <button type="button" onClick={() => setMoreOpen(true)}>More…</button> : null}
             </div>
 
@@ -596,7 +615,7 @@ export default function CaptureView({ collections, packs, initialPack, onBack, o
               const summary = draftSummary(pack, item);
               const itemValid = draftIsValid(pack, item);
               return <button type="button" className={`capture-queue-item ${editingId === item.id ? "active" : ""}`} key={item.id} onClick={() => loadQueued(item)}>
-                <span><strong>{summary.front}</strong><em>{summary.back}</em>{item.blocks.length ? <small>{item.blocks.map((block) => blockDef(block.kind).label).join(" · ")}</small> : null}{!itemValid ? <small className="capture-invalid">needs attention</small> : null}</span>
+                <span><strong>{summary.front}</strong><em>{summary.back}</em>{item.blocks.length ? <small>{item.blocks.map((block) => blockDef(block.kind, applied).label).join(" · ")}</small> : null}{!itemValid ? <small className="capture-invalid">needs attention</small> : null}</span>
                 <i onClick={(event) => { event.stopPropagation(); removeQueued(item.id); }}><Trash2 size={12} /></i>
               </button>;
             })}
