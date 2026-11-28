@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import { fieldByRole, fieldText, patchCardData, saveCardNote, type CardWithStats, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { SegmentedChoice } from "./SegmentedChoice";
 import { enterLearning, enterReview, readAcquisition, serializeAcquisition, LEARNING_STAGE_KEY, type AcquisitionPhase } from "../lib/learningStage";
-import { cardHasCompletedSort, completeCardSort, discardCard, restoreDiscardedCard, setSortInterest, setSortTags } from "../lib/sort";
+import { cardHasCompletedSort, completeCardSort, discardCard, readNewCardOrder, restoreDiscardedCard, saveNewCardOrder, setSortInterest, setSortTags } from "../lib/sort";
+import { shuffle } from "../lib/learnRandom";
 import { IMPORTANCE_HINT, IMPORTANCE_LABEL, IMPORTANCE_ORDER, IMPORTANCE_RANK, type Importance } from "../lib/importance";
 import { cardLabels, saveCardLabels } from "../lib/cardLabels";
 import SortEnrichmentPanel, { firstExampleBlock, isStructureDim, type DetailsRequest, type Dimension } from "./SortEnrichmentPanel";
@@ -38,6 +39,7 @@ import "./knowledge-kind.css";
 
 type Props = {
   pack: PackWithType;
+  sessionPacks?: PackWithType[];
   cards: CardWithStats[];
   tags: HeuresisTag[];
   wallpaper?: Wallpaper;
@@ -45,7 +47,7 @@ type Props = {
   /** One-tap daily quota launcher bypasses setup with this many unsorted cards. */
   quickStartCount?: number;
   /** Only Study-home fixed New sessions persist, and only those can Resume. */
-  studySession?: { total: number; remainingIds?: string[]; validated?: number; toLearning?: number; toReview?: number; discarded?: number; leftForLater?: number };
+  studySession?: { storageKey: string; total: number; remainingIds: string[]; validated?: number; toLearning?: number; toReview?: number; discarded?: number; leftForLater?: number };
   onClose: () => void;
   onChanged: () => void;
   /** Offered when the pass is finished: the next useful learning action. */
@@ -54,7 +56,6 @@ type Props = {
 };
 
 type Removal = { kind: "learn" | "discard" | "later"; card: CardWithStats; phase?: AcquisitionPhase; rank?: number };
-const ORDER_KEY = "heuresis.sort.order.v1";
 const IMPORTANCE_KEY = "heuresis.sort.lastImportance.v1";
 const EXAMPLES_KEY = "heuresis.cards.showExamples.v1";
 function readImportance(): Importance {
@@ -65,25 +66,12 @@ function readExamples() {
   try { return localStorage.getItem(EXAMPLES_KEY) === "true"; } catch { return false; }
 }
 
-function readOrder(): "topic" | "random" {
-  try { return localStorage.getItem(ORDER_KEY) === "random" ? "random" : "topic"; } catch { return "topic"; }
-}
-
-function shuffled<T>(items: T[]) {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 /**
  * Sort enriches each card and then triages it with three classifications and two secondary actions:
  *   Core / Active / Passive · Sort Later · Discard (recoverable).
  * New opens with an explicit tag and quantity selection; a directly opened card bypasses setup.
  */
-export default function SortModal({ pack, cards, tags, wallpaper, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
+export default function SortModal({ pack: initialPack, sessionPacks, cards, tags, wallpaper, startCardId = null, quickStartCount, studySession, onClose, onChanged, onReview, onLearning }: Props) {
   useAndroidStudyWakeLock(true);
   const studyMode = useStudyMode();
   const releaseBackEntry = useAndroidOverlayBack("new", () => { void closeSort(); });
@@ -94,13 +82,13 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
   const study21PreferredOpen = () => { try { return localStorage.getItem("heuresis.sort.details.v1") === "1"; } catch { return false; } };
   const sortCardRef = useRef<HTMLElement>(null);
   const fastStart = quickStartCount !== undefined && Number.isFinite(quickStartCount) && quickStartCount > 0;
-  const [randomOrder, setRandomOrder] = useState(() => readOrder() === "random");
+  const [randomOrder, setRandomOrder] = useState(() => readNewCardOrder() === "random");
   const [queue, setQueue] = useState<CardWithStats[]>(() => {
     if (studySession?.remainingIds) {
       const byId = new Map(unsorted.map((card) => [card.id, card]));
       return studySession.remainingIds.map((id) => byId.get(id)).filter((card): card is CardWithStats => Boolean(card));
     }
-    const ordered = readOrder() === "random" ? shuffled(unsorted) : unsorted;
+    const ordered = randomOrder ? shuffle(unsorted, Math.random) : unsorted;
     if (startCardId) {
       const selected = ordered.find((item) => item.id === startCardId);
       return selected ? [selected, ...ordered.filter((item) => item.id !== startCardId)] : ordered;
@@ -141,8 +129,8 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
   /** Uses the selected tags and typed quantity to construct the actual sorting queue. */
   function beginSort() {
     if (!candidates.length || !validCount) return;
-    const selection = randomOrder ? shuffled(candidates) : [...candidates];
-    try { localStorage.setItem(ORDER_KEY, randomOrder ? "random" : "topic"); } catch { /* preference only */ }
+    const selection = randomOrder ? shuffle(candidates, Math.random) : [...candidates];
+    saveNewCardOrder(randomOrder ? "random" : "topic");
     setQueue(selection);
     setTarget(selectedCount);
     setIndex(0);
@@ -214,17 +202,20 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
   const progressTarget = target ?? queue.length;
   const goalReached = target !== null && learned >= target;
   const card = goalReached ? null : queue[index] ?? null;
+  const packForCard = (entry: CardWithStats) => sessionPacks?.find((topic) => topic.id === entry.pack_id) ?? initialPack;
+  const currentCard = card ?? lastRemoval?.card;
+  const pack = currentCard ? packForCard(currentCard) : initialPack;
   // Save actual validations, not positions visited. Later must not use up a slot,
   // including after closing and resuming a fixed-size Study session.
   useEffect(() => {
     if (!studySession || !sessionStarted) return;
     const remainingIds = queue.slice(index).map((entry) => entry.id);
     rememberOpenStudy(!goalReached && remainingIds.length ? {
-      kind: "new", packId: pack.id, total: progressTarget, remainingIds,
+      kind: "new", packId: studySession.storageKey, total: progressTarget, remainingIds,
       validated: learned, toLearning, toReview, discarded, leftForLater,
       updatedAt: Date.now(),
-    } : null, pack.id);
-  }, [studySession, sessionStarted, queue, index, pack.id, progressTarget, goalReached, learned, toLearning, toReview, discarded, leftForLater]);
+    } : null, studySession.storageKey);
+  }, [studySession, sessionStarted, queue, index, progressTarget, goalReached, learned, toLearning, toReview, discarded, leftForLater]);
   const term = fieldByRole(pack.cardType, "term") ?? pack.cardType?.field_schema[0] ?? null;
   // Applied topics (rules, definitions, procedures, figures) get their own details, labels and exercises.
   const applied = packShape(pack) === "rule";
@@ -425,7 +416,7 @@ export default function SortModal({ pack, cards, tags, wallpaper, startCardId = 
         await setSortInterest(restored.id, restored.interest_rank);
         await setSortTags(restored.id, restored.tags.map((tag) => tag.id));
         await patchCardData(restored.id, { _sorted_at: null, [LEARNING_STAGE_KEY]: restored.data[LEARNING_STAGE_KEY] ?? null,
-          ...(applied ? { [APPLIED_KIND_KEY]: restored.data[APPLIED_KIND_KEY] ?? null } : {}) });
+          ...(packShape(packForCard(restored)) === "rule" ? { [APPLIED_KIND_KEY]: restored.data[APPLIED_KIND_KEY] ?? null } : {}) });
       }
       if (kind === "discard") setDiscarded((value) => Math.max(0, value - 1));
       else if (kind === "later") setLeftForLater((value) => Math.max(0, value - 1));
