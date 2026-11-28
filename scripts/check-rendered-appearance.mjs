@@ -5,15 +5,18 @@ import { chromium } from "playwright";
 
 // Load CSS in the same order as src/main.tsx, including the last-loaded
 // canonical chrome file. This fixture needs no account or live database.
-const main = readFileSync("src/main.tsx", "utf8");
-const imports = [...main.matchAll(/^import\s+["'](\.\/[^"']+\.css)["'];?$/gm)].map((match) => match[1]);
-assert.ok(imports.at(-1) === "./theme/chrome.css", "Canonical chrome should load last");
-const studyStyles = [
-  "./components/sort-session.css",
-  "./components/review-card.css",
-  "./components/study21/study21.css",
-];
-const css = [...studyStyles, ...imports].map((file) => readFileSync(resolve("src", file.slice(2)), "utf8")).join("\n");
+function cssImports(file, directory) {
+  const source = readFileSync(file, "utf8");
+  return [...source.matchAll(/^import\s+["'](\.\/[^"']+\.css)["'];?$/gm)]
+    .map(match => resolve(directory, match[1]));
+}
+const imports = cssImports("src/main.tsx", "src");
+assert.equal(imports.at(-1), resolve("src/theme/chrome.css"), "Canonical chrome should load last");
+const css = [
+  resolve("src/components/review-card.css"),
+  ...cssImports("src/components/SortModal.tsx", "src/components"),
+  ...imports,
+].map(file => readFileSync(file, "utf8")).join("\n");
 const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier", "aegean", "marigold"];
 const modes = ["light", "dark"];
 const fixtures = `
@@ -84,6 +87,22 @@ const studyFixtures = `
 <main class="cosmos-shell study21 study21--review" data-mode="review">
   <div class="cosmos-work cosmos-review-columns"><article id="review-card" class="cosmos-card">Review</article></div>
 </main>`;
+
+const classicDetailsFixture = `
+<div class="sort-backdrop"><section class="sort-modal sort-modal--session sort-modal--editing">
+  <header class="sort-topbar">New cards</header>
+  <div class="sort-session-stage">
+    <div id="sort-language-details" class="sort-editing-tools sort-editing-tools--left is-open">
+      <button class="sort-panel-close" aria-label="Close Language details">×</button>
+      <h2 class="sort-panel-title">Language</h2>
+    </div>
+    <div id="sort-knowledge-details" class="sort-editing-tools sort-editing-tools--right is-open">
+      <button class="sort-panel-close" aria-label="Close Knowledge details">×</button>
+      <h2 class="sort-panel-title">Knowledge</h2>
+    </div>
+    <article class="sort-card">迟到</article>
+  </div>
+</section></div>`;
 
 const interfaceFixtures = `
 <div class="heuresis-desktop" data-sidebar="rail" data-section="study">
@@ -215,7 +234,22 @@ try {
     assert.ok(checkLayout(metrics), `${design} ${description}`);
     assert.equal(metrics.leadWidth, metrics.deskWidth, `${design} uses the available width for the lead collection`);
   }
-  console.log("Rendered Chrome: 16 palette/mode combinations passed for 11 header/dialog/disabled labels and Capture placeholder, plus Study 2.1 cards, wallpaper fidelity and workspace layouts. Screenshots saved.");
+  await page.setContent(`<!doctype html><html data-theme="dark" data-palette="slate"><head><style>${css}</style></head><body>${classicDetailsFixture}</body></html>`);
+  for (const width of [1768, 1440, 1261, 1180, 981, 980, 760, 480]) {
+    await page.setViewportSize({ width, height: 880 });
+    const [language, card, knowledge] = await Promise.all(
+      ["#sort-language-details", ".sort-card", "#sort-knowledge-details"].map(selector => page.locator(selector).boundingBox()),
+    );
+    assert.ok(language.x >= 0 && knowledge.x + knowledge.width <= width, `${width}px: both Details panels fit in the viewport`);
+    if (width > 980) {
+      assert.ok(language.x + language.width <= card.x, `${width}px: the card does not cover Language Details`);
+      assert.ok(card.x + card.width <= knowledge.x, `${width}px: the card does not cover Knowledge Details`);
+    }
+    for (const name of ["Close Language details", "Close Knowledge details"]) {
+      await page.getByRole("button", { name }).click({ trial: true, timeout: 3000 });
+    }
+  }
+  console.log("Rendered Chrome: 16 palette/mode combinations, Study 2.1 card surfaces, Classic Details layout, wallpaper fidelity and workspace layouts passed. Screenshots saved.");
 } finally {
   await browser.close();
 }
