@@ -19,19 +19,9 @@
   box-shadow:0 10px 36px -25px var(--ws-ink);
   transition:opacity .3s ease,transform .35s ease,visibility .3s;
 }
-.sort-backdrop .sort-modal--session #sort-language-details {
-  left:calc(50% - 330px - 292px + 18px);
-  right:auto;
-  transform:translate(30px,-50%);
-}
-.sort-backdrop .sort-modal--session #sort-knowledge-details {
-  right:calc(50% - 330px - 292px + 18px);
-  left:auto;
-  transform:translate(-30px,-50%);
-}
 .sort-backdrop .sort-modal--session #sort-language-details.is-open,
 .sort-backdrop .sort-modal--session #sort-knowledge-details.is-open {
-  opacity:1;visibility:visible;transform:translate(0,-50%);
+  opacity:1;visibility:visible;
 }
 .sort-modal--session .sort-panel-title {
   margin:0 0 17px;font:400 24px Georgia,serif;color:var(--ws-ink);
@@ -55,12 +45,32 @@
   cursor:pointer;font:20px/1 var(--ws-sans,Inter,sans-serif);
 }
 .sort-modal--session .sort-panel-close:hover {color:var(--ws-ink);}
-@media (max-width:1260px) and (min-width:981px) {
-  .sort-modal--session .sort-card {width:min(600px, calc(100vw - 530px));}
-  .sort-backdrop .sort-modal--session #sort-language-details {left:8px;}
-  .sort-backdrop .sort-modal--session #sort-knowledge-details {right:8px;}
-  .sort-backdrop .sort-modal--session #sort-language-details,
-  .sort-backdrop .sort-modal--session #sort-knowledge-details {width:270px;}
+@media (width > 980px) {
+  .sort-modal--session.sort-modal--editing:not(.study21) .sort-session-stage {
+    --sort-details-width: clamp(220px, 21vw, 292px);
+    display:grid;
+    grid-template-columns:var(--sort-details-width) minmax(0, 780px) var(--sort-details-width);
+    align-content:safe center;
+    gap:12px;
+  }
+  .sort-modal--session.sort-modal--editing:not(.study21) .sort-card {
+    grid-area:1 / 2;
+    width:100%;
+  }
+  .sort-backdrop .sort-modal--session:not(.study21) :is(#sort-language-details, #sort-knowledge-details) {
+    position:relative;
+    inset:auto;
+    grid-row:1;
+    width:100%;
+    height:min(580px, calc(100dvh - 138px));
+    max-height:none;
+    transform:none;
+  }
+  .sort-backdrop .sort-modal--session:not(.study21) :is(#sort-language-details, #sort-knowledge-details):not(.is-open) {
+    display:none;
+  }
+  .sort-modal--session:not(.study21) #sort-language-details {grid-column:1;}
+  .sort-modal--session:not(.study21) #sort-knowledge-details {grid-column:3;}
 }
 /* On tablets, the two wings become independently dismissible bottom sheets. */
 @media (max-width:980px) {
