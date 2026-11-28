@@ -88,7 +88,12 @@
 .study21 .study21-destination button {display:flex;align-items:center;justify-content:center;gap:10px;width:172px;max-width:calc(50vw - 34px);height:48px;border:0;border-radius:14px;background:color-mix(in srgb, var(--study21-text) 2%, transparent);color:var(--study21-secondary);font-size:14px;}
 .study21 .study21-destination button.study21-learn {background:color-mix(in srgb, var(--study21-blue) 19%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--study21-blue) 28%, transparent);color:var(--study21-text);}
 .study21 .study21-destination button.study21-learn svg {color:var(--study21-blue);}
-.sort-backdrop .sort-modal--session.study21 .sort-new-undo {top:76px;bottom:auto;border-radius:999px;border:1px solid color-mix(in srgb, var(--study21-text) 9%, transparent);background:var(--study21-control);color:var(--study21-secondary);box-shadow:none;}
+.sort-backdrop .sort-modal--session.study21 > .sort-new-undo {
+  position:static;transform:none;z-index:auto;grid-row:2;justify-self:center;margin:8px 0;
+  max-width:min(500px,calc(100% - 24px));border-color:color-mix(in srgb, var(--study21-text) 9%, transparent);
+  background:var(--study21-control);color:var(--study21-secondary);box-shadow:none;
+}
+.sort-backdrop .sort-modal--session.study21 > .sort-new-undo button {flex:none;}
 .sort-backdrop .sort-modal--session.study21 #sort-language-details,
 .sort-backdrop .sort-modal--session.study21 #sort-knowledge-details {top:76px;bottom:20px;height:auto;max-height:none;width:var(--study21-panel-w);padding:20px 18px;border:1px solid color-mix(in srgb, var(--study21-text) 8%, transparent);border-radius:22px;background:var(--study21-panel);backdrop-filter:blur(28px);box-shadow:none;overflow:auto;transform:translateX(28px);transition:opacity .34s cubic-bezier(.2,.8,.2,1),transform .34s cubic-bezier(.2,.8,.2,1),visibility .34s;}
 .sort-backdrop .sort-modal--session.study21 #sort-language-details {left:20px;right:auto;transform:translateX(-28px);}
@@ -310,9 +315,14 @@
    The existing selectable read view and inline editors receive the same type scale. */
 .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new {
   --study21-dock-bottom:58px;
-  grid-template-rows:64px minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr);
   background:var(--study21-new-ground);
 }
+.sort-backdrop .sort-modal.sort-modal--session.study21.study21--new:has(> .sort-new-undo) {
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr);
+}
+.sort-backdrop .sort-modal.sort-modal--session.study21.study21--new:has(> .sort-new-undo) > .sort-session-stage {grid-row:3;}
 .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .sort-topbar {padding:0 24px 0 28px;gap:6px;}
 .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .sort-new-heading strong {font:500 15px Inter,system-ui,sans-serif;color:var(--study21-secondary);}
 .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .sort-stage-chip {padding:4px 11px;border:0;font:500 12px Inter,system-ui,sans-serif;color:var(--study21-blue);}
@@ -385,12 +395,11 @@
   left:50%;right:auto;transform:translateX(-50%);
 }
 .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .study21-panel-scrim {z-index:20;}
-.sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .sort-new-undo {top:8px;z-index:10;}
 @media(max-height:680px) {
   .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new {--study21-dock-bottom:18px;}
 }
 @media(max-width:779px) {
-  .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new {grid-template-rows:88px minmax(0,1fr);--study21-dock-bottom:28px;}
+  .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new {--study21-dock-bottom:28px;}
   .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .sort-topbar {height:88px;min-height:88px;padding:0 12px;grid-template-rows:44px 32px;grid-template-columns:minmax(0,1fr) auto;}
   .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .sort-topbar-actions {grid-column:2;grid-row:1;}
   .sort-backdrop .sort-modal.sort-modal--session.study21.study21--new .study21-edge-tab {top:calc(50% - 44px);}
