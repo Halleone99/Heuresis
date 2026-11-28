@@ -19,7 +19,7 @@ require("esbuild").buildSync({
 globalThis.localStorage ??= { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.window ??= { addEventListener() {}, removeEventListener() {}, dispatchEvent() {}, setTimeout, clearTimeout, location: { href: "http://x/", search: "", origin: "http://x" }, navigator: { onLine: true } };
 globalThis.document ??= { addEventListener() {}, visibilityState: "visible" };
-const { buildRound, checkExercise, readPlan, writtenForm, locateInSentence } = require(`${out}/learnExercises.cjs`);
+const { buildRound, checkExercise, exerciseAnswerLanguage, readPlan, toLearnCard, writtenForm, locateInSentence } = require(`${out}/learnExercises.cjs`);
 rmSync(out, { recursive: true, force: true });
 
 let failed = 0;
@@ -120,6 +120,19 @@ for (const [topic, cards] of Object.entries(topics)) {
 
 const kindsOf = (id) => seen.get(id).map((exercise) => exercise.kind);
 const find = (id, kind) => seen.get(id).find((exercise) => exercise.kind === kind);
+console.log("— saved language exercises retain the expected answer language");
+const german = topics["German (B1)"][0];
+const storedGerman = readPlan(JSON.parse(JSON.stringify(seen.get(german.id))));
+check(exerciseAnswerLanguage(storedGerman[0], german) === "en", "a German meaning exercise expects English");
+check(exerciseAnswerLanguage(storedGerman[4], german) === "de", "German recall expects German even when the prompt is English");
+const translated = toLearnCard({ id: "fr-gloss", data: { term: "die Entwicklung", meaning: "développement" } }, {
+  cardType: { field_schema: [{ key: "term", role: "term" }, { key: "meaning", role: "meaning", label: "French" }] },
+}, "de");
+check(exerciseAnswerLanguage(storedGerman[0], translated) === "fr", "an explicitly labelled French gloss expects French");
+const russian = topics["Russian (A2)"][0];
+check(exerciseAnswerLanguage(find(russian.id, "choose-stress"), russian) === "ru", "a stress exercise expects Russian");
+const philosophy = topics["Philosophy (no language)"][0];
+check(exerciseAnswerLanguage(seen.get(philosophy.id)[0], philosophy) === null, "a knowledge exercise has no language badge");
 console.log("— exercises follow the card's language and content");
 const article = find("de1", "choose-article");
 check(Boolean(article) && article.choices.map((choice) => choice.label).join() === "der,die,das" && article.answerId === "die" && /-ung take die/.test(article.explain), "German noun: der / die / das, with the -ung rule in the explanation");
@@ -155,6 +168,7 @@ check(Boolean(fearCloze) && fearCloze.prompt.text === "Я хочу ＿＿＿ с�
 const missing = find("zh1", "missing-character");
 check(Boolean(missing) && /＿/.test(missing.prompt.text) && missing.choices.every((choice) => HAN.test(choice.label)), "Chinese: the missing character among other characters");
 const tones = seen.get("zh4").find((exercise) => exercise.kind === "choose-reading") ?? buildRound({ card: topics["Chinese (HSK 2)"][1], pool: topics["Chinese (HSK 2)"], round: 2, seed: "t" }).find((exercise) => exercise.kind === "choose-reading");
+check(Boolean(tones) && exerciseAnswerLanguage(tones, topics["Chinese (HSK 2)"][0]) === "pinyin", "a Chinese tone exercise expects pinyin");
 const plain = (text) => text.normalize("NFD").replace(/\p{M}/gu, "");
 check(Boolean(tones) && new Set(tones.choices.map((choice) => plain(choice.label))).size === 1, "Chinese: pinyin choices differ only in their tones");
 check(kindsOf("zh5")[4] === "recall-build", "Chinese sentence: built from memory at the end");

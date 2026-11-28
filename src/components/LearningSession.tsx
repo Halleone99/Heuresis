@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Delete, Lightbulb, RotateCcw, Volume2, X } from "lucide-react";
 import type { CardWithStats } from "../lib/heuresis";
 import {
-  buildRound, checkExercise, exerciseLabel, learnable, readPlan, toLearnCard,
+  buildRound, checkExercise, exerciseAnswerLanguage, exerciseLabel, learnable, readPlan, toLearnCard,
   type Exercise, type ExerciseInput, type LearnCard, type Verdict,
 } from "../lib/learnExercises";
 import { answerMentions, appliedCoverage, roundHistory, type RoundHistory } from "../lib/appliedExercises";
@@ -17,6 +17,7 @@ import {
 import { isLearnCard, learnQueue, learnStatus, type LearnStatus, type LearnTopic } from "../lib/learnSession";
 import { useAndroidOverlayBack, useAndroidStudyWakeLock } from "../lib/androidStudySession";
 import { enterReview, readAcquisition, saveAcquisition } from "../lib/learningStage";
+import { languageName, languageTone } from "../lib/languages";
 import { canSpeak, learningFeedbackSpeech, readAutoPronunciation, speakReviewText, stopReviewAudio } from "../lib/reviewAudio";
 import { isChineseLearningCard, learningBuildTileReadings, learningReading, learningSubtitle, readLearningPinyin, withoutLearningReading, writeLearningPinyin } from "../lib/learningPinyin";
 import "./learning-session.css";
@@ -138,6 +139,11 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
     if (practice) return current.plan[practice.positions[practice.at] - 1] ?? null;
     return current.plan[Math.min(step, ROUND_SIZE - 1)] ?? null;
   }, [current, practice, step]);
+  const sourceLanguage = current?.entry.view.language ?? null;
+  const answerLanguage = exercise && current ? exerciseAnswerLanguage(exercise, current.entry.view) : null;
+  const sourceLanguageName = languageName(sourceLanguage);
+  const answerLanguageName = answerLanguage === "pinyin" ? "pinyin" : languageName(answerLanguage);
+  const languageBadgeTone = sourceLanguage === "de" ? "violet" : languageTone(sourceLanguage);
   const chinese = Boolean(current && isChineseLearningCard(current.entry.view));
   // Tone recognition must never reveal the pronunciation being tested.
   const pinyinVisible = chinese && showPinyin && exercise?.kind !== "choose-reading";
@@ -876,7 +882,13 @@ export default function LearningSession({ topics, title, onClose, onChanged }: P
       <main className="lrn-stage" key={`${current?.round.id}:${exercise.position}:${mode}:${practice?.at ?? ""}`} data-format={exercise.format}
         data-result={shown ? (shown.verdict.correct ? "right" : "wrong") : undefined}>
         {mode !== "scored" ? <p className="lrn-practice">Practice · no points</p> : null}
-        <p className="lrn-ask">{exercise.prompt.ask}</p>
+        <div className="lrn-prompt-meta">
+          <p className="lrn-ask">{exercise.prompt.ask}</p>
+          {answerLanguageName && languageBadgeTone ? <span className="lrn-answer-language"
+            style={{ "--lrn-language-tone": `var(--c-${languageBadgeTone})` } as CSSProperties}>
+            {sourceLanguage !== answerLanguage ? `${sourceLanguageName} · ` : ""}Answer in {answerLanguageName}
+          </span> : null}
+        </div>
         <h2 className={`lrn-prompt${Array.from(exercise.prompt.text).length > 46 ? " is-long" : ""}${exercise.prompt.style === "case" ? " is-case" : ""}`} lang={exercise.prompt.lang}>{exercise.prompt.text}</h2>
         {promptPinyin ? <p className="lrn-pinyin lrn-prompt-pinyin" lang="zh-Latn">{promptPinyin}</p> : null}
         {promptSubtitle ? <p className="lrn-sub">{promptSubtitle}</p> : null}
