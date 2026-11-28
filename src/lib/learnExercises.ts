@@ -144,6 +144,8 @@ export type LearnCard = {
   form: string;
   reading: string;
   meaning: string;
+  meaningLanguage?: LanguageKey | null;
+  exampleTranslationLanguage?: LanguageKey | null;
   /** Optional supporting gloss, never a scored answer. */
   englishReference?: string;
   /** Exact accepted recall variants, beyond what the display expression provides. */
@@ -197,8 +199,10 @@ export function packLanguage(pack: PackWithType, collectionTitle?: string | null
 
 export function toLearnCard(card: CardWithStats, pack: PackWithType, language: LanguageKey | null): LearnCard {
   const type = pack.cardType;
+  const meaningField = fieldByRole(type, "meaning") ?? type?.field_schema[1];
+  const exampleTranslationField = fieldByRole(type, "example_translation");
   const term = clean(fieldText(card.data, fieldByRole(type, "term")?.key ?? type?.field_schema[0]?.key));
-  const meaning = clean(fieldText(card.data, fieldByRole(type, "meaning")?.key ?? type?.field_schema[1]?.key));
+  const meaning = clean(fieldText(card.data, meaningField?.key));
   const reading = clean(fieldText(card.data, fieldByRole(type, "reading")?.key));
   const example = clean(fieldText(card.data, fieldByRole(type, "example")?.key));
   const examples: LearnExample[] = [];
@@ -206,7 +210,7 @@ export function toLearnCard(card: CardWithStats, pack: PackWithType, language: L
     examples.push({
       source: example,
       reading: clean(fieldText(card.data, fieldByRole(type, "example_reading")?.key)),
-      translation: clean(fieldText(card.data, fieldByRole(type, "example_translation")?.key)),
+      translation: clean(fieldText(card.data, exampleTranslationField?.key)),
     });
   }
   for (const extra of workspaceExamples(card)) if (!examples.some((item) => item.source === extra.source)) examples.push(extra);
@@ -214,6 +218,8 @@ export function toLearnCard(card: CardWithStats, pack: PackWithType, language: L
   const form = writtenForm(term);
   return {
     id: card.id, term, form, reading, meaning, examples,
+    meaningLanguage: languageFromName(meaningField?.label) ?? languageFromName(meaningField?.key),
+    exampleTranslationLanguage: languageFromName(exampleTranslationField?.label) ?? languageFromName(exampleTranslationField?.key),
     englishReference: type?.field_schema.some((field) => field.key === "english_reference")
       ? clean(fieldText(card.data, "english_reference")) : undefined,
     acceptedAlternatives: Array.isArray(card.data["_accepted_answers"])
@@ -840,6 +846,24 @@ const BUILDERS: Record<StandardKind, Builder> = {
   "example-meaning": exampleMeaning, "match-example": matchExample, "build-meaning": buildMeaning, "type-meaning": typeMeaning,
   "recall-type": recallType, "recall-build": recallBuild, "recall-guided": recallGuided,
 };
+
+/** Interpret the answer side of new and saved exercises using the current card schema. */
+export function exerciseAnswerLanguage(exercise: Exercise, card: LearnCard): LanguageKey | "pinyin" | null {
+  if (!card.language || !Object.prototype.hasOwnProperty.call(BUILDERS, exercise.kind)) return null;
+  // Vocabulary definitions and translations default to the English gloss when the schema leaves them unnamed.
+  switch (exercise.kind) {
+    case "choose-reading":
+      return "pinyin";
+    case "choose-meaning":
+    case "build-meaning":
+    case "type-meaning":
+      return card.meaningLanguage ?? languageFromScript(exercise.solution) ?? "en";
+    case "example-meaning":
+      return card.exampleTranslationLanguage ?? languageFromScript(exercise.solution) ?? card.meaningLanguage ?? "en";
+    default:
+      return card.language;
+  }
+}
 
 /** Each step's preferred exercises, best first. A later round takes the next one that fits the card. */
 const STEP_KINDS: Record<LearnStage, StandardKind[]> = {

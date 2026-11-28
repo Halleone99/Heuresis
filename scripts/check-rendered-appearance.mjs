@@ -14,11 +14,15 @@ const imports = cssImports("src/main.tsx", "src");
 assert.equal(imports.at(-1), resolve("src/theme/chrome.css"), "Canonical chrome should load last");
 const css = [
   resolve("src/components/review-card.css"),
+  ...cssImports("src/components/LearningSession.tsx", "src/components"),
   ...cssImports("src/components/SortModal.tsx", "src/components"),
   ...imports,
 ].map(file => readFileSync(file, "utf8")).join("\n");
 const palettes = ["slate", "forest", "sepia", "neutral", "editorial", "atelier", "aegean", "marigold"];
 const modes = ["light", "dark"];
+const answerBadges = ["violet", "cinnabar", "indigo", "sage", "amber", "burgundy", "slate"].map(tone =>
+  `<span class="lrn-answer-language" style="--lrn-language-tone: var(--c-${tone})" data-tone="${tone}">Answer language</span>`,
+).join("");
 const fixtures = `
 <div class="heuresis-desktop" data-section="study">
   <header class="desktop-chrome">
@@ -184,6 +188,18 @@ try {
     await page.screenshot({ path: `test-output/appearance/${palette}-${mode}.png`, fullPage: true });
   }
   for (const palette of palettes) for (const mode of modes) {
+    await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}"><head><style>${css}</style></head><body><div class="lrn"><main class="lrn-stage"><div class="lrn-prompt-meta">${answerBadges}</div></main></div></body></html>`);
+    const face = parse(await page.locator(".lrn").evaluate(el => getComputedStyle(el).backgroundColor));
+    const badges = await page.locator(".lrn-answer-language").evaluateAll(elements => elements.map(el => {
+      const style = getComputedStyle(el);
+      return { tone: el.dataset.tone, foreground: style.color, background: style.backgroundColor };
+    }));
+    for (const badge of badges) {
+      const background = composite(parse(badge.background), face);
+      assert.ok(contrast(parse(badge.foreground), background) >= 4.5, `${palette}/${mode}: ${badge.tone} language badge contrast`);
+    }
+  }
+  for (const palette of palettes) for (const mode of modes) {
     await page.setContent(`<!doctype html><html data-theme="${mode}" data-palette="${palette}"><head><style>${css}</style></head><body>${studyFixtures}</body></html>`);
     const expected = palette === "slate" && mode === "dark"
       ? [0, 0, 0, 0]
@@ -277,7 +293,7 @@ try {
       await page.getByRole("button", { name }).click({ trial: true, timeout: 3000 });
     }
   }
-  console.log("Rendered Chrome: 16 palette/mode combinations, Study 2.1 card surfaces and Undo layout, Classic Details layout, wallpaper fidelity and workspace layouts passed. Screenshots saved.");
+  console.log("Rendered Chrome: 16 palette/mode combinations, Learn language badge contrast, Study 2.1 card surfaces and Undo layout, Classic Details layout, wallpaper fidelity and workspace layouts passed. Screenshots saved.");
 } finally {
   await browser.close();
 }
