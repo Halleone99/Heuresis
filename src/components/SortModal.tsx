@@ -568,6 +568,12 @@ export default function SortModal({ pack: initialPack, sessionPacks, cards, tags
   const meaningLength = weightedLength(longMeaning);
   const meaningSize = Math.max(20, Math.min(meaningLength <= 36 ? 40 : meaningLength <= 70 ? 31 : 25, Math.floor((centreWidth - 32) / (longestWord(longMeaning) * .55))));
   const exampleSize = Math.max(15, Math.min(weightedLength(longExample) <= 60 ? 22 : 19, Math.floor((centreWidth - 32) / (longestWord(longExample) * .58))));
+  const undoNotice = lastRemoval ? <div className="sort-new-undo" role="status">
+    <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :
+      "→ " + (lastRemoval.phase === "review" ? "Review" : "Learn") + " · " +
+      (lastRemoval.rank === 5 ? "Core" : lastRemoval.rank === 3 ? "Active" : "Passive")}</span>
+    <button type="button" disabled={busy} onClick={() => void undo()}><Undo2 size={13}/> Undo</button>
+  </div> : null;
 
   // Render outside the workspace column stacking context: otherwise the desktop
   // header can cover Sort controls even though the backdrop has a high z-index.
@@ -591,6 +597,7 @@ export default function SortModal({ pack: initialPack, sessionPacks, cards, tags
         <button type="button" disabled={busy} onClick={() => void closeSort()} aria-label="Close New cards"><X size={20} /></button>
       </div>
     </header>
+    {isStudy21 && !filtersOpen && card ? undoNotice : null}
     {filtersOpen && unsorted.length ? <div className="sort-setup">
       <div className="sort-setup-intro">
         <h2>Choose cards to sort</h2>
@@ -851,12 +858,7 @@ export default function SortModal({ pack: initialPack, sessionPacks, cards, tags
       </article>
       {isStudy21 ? <NewDock21 importance={importance} disabled={busy || decisionWaiting} onImportance={chooseImportance}
           onLearn={() => void learn(IMPORTANCE_RANK[importance], "learning")} onReview={() => void learn(IMPORTANCE_RANK[importance], "review")} /> : null}
-      {lastRemoval ? <div className="sort-new-undo" role="status">
-        <span>{fieldText(lastRemoval.card.data, term?.key) || "Card"} {lastRemoval.kind === "discard" ? "discarded" : lastRemoval.kind === "later" ? "left for later" :
-          "→ " + (lastRemoval.phase === "review" ? "Review" : "Learn") + " · " +
-          (lastRemoval.rank === 5 ? "Core" : lastRemoval.rank === 3 ? "Active" : "Passive")}</span>
-        <button type="button" disabled={busy} onClick={() => void undo()}><Undo2 size={13}/> Undo</button>
-      </div> : null}
+      {!isStudy21 ? undoNotice : null}
     </div> : null}
   </section></div>, document.querySelector(".heuresis-desktop") ?? document.body);
 }

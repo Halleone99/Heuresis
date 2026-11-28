@@ -104,6 +104,21 @@ const classicDetailsFixture = `
   </div>
 </section></div>`;
 
+const study21UndoFixture = `
+<div class="sort-backdrop"><section class="sort-modal sort-modal--session study21 study21--new"
+  style="--study21-pad-left:42px; --study21-pad-right:42px; --study21-centre-width:calc(100% - 84px)">
+  <header class="sort-topbar">
+    <div class="sort-new-heading"><span class="sort-stage-chip">● New</span><strong>Chinese</strong></div>
+    <div class="study21-top-centre"><span>2 / 10</span><i></i><button>Later</button><button>Discard</button></div>
+    <div class="sort-topbar-actions"><button>Details</button></div>
+  </header>
+  <div class="sort-new-undo" role="status"><span>${"我学过这个。".repeat(20)} left for later</span><button>Undo</button></div>
+  <div class="sort-session-stage">
+    <article class="sort-card">Next card</article>
+    <div class="study21-new-dock"><div class="study21-destination"><button>Learn</button><button>Review</button></div></div>
+  </div>
+</section></div>`;
+
 const interfaceFixtures = `
 <div class="heuresis-desktop" data-sidebar="rail" data-section="study">
   <span class="page-wallpaper" id="test-photo" style="--wallpaper-image: linear-gradient(#12556c, #252c51); --wallpaper-opacity: .7; --wallpaper-veil: .2; --wallpaper-blur: 0px; --wallpaper-position: center; --wallpaper-fit: cover"></span>
@@ -249,7 +264,20 @@ try {
       await page.getByRole("button", { name }).click({ trial: true, timeout: 3000 });
     }
   }
-  console.log("Rendered Chrome: 16 palette/mode combinations, Study 2.1 card surfaces, Classic Details layout, wallpaper fidelity and workspace layouts passed. Screenshots saved.");
+  await page.setContent(`<!doctype html><html data-theme="dark" data-palette="slate"><head><meta charset="UTF-8"><style>${css}</style></head><body>${study21UndoFixture}</body></html>`);
+  for (const [width, height] of [[1440, 880], [780, 600], [779, 600], [390, 700], [320, 480]]) {
+    await page.setViewportSize({ width, height });
+    const [header, notice, stage] = await Promise.all(
+      [".sort-topbar", ".sort-new-undo", ".sort-session-stage"].map(selector => page.locator(selector).boundingBox()),
+    );
+    assert.ok(header.y + header.height <= notice.y, `${width}px: the Undo notice starts below the header`);
+    assert.ok(notice.y + notice.height <= stage.y, `${width}px: the Undo notice ends before the card stage`);
+    assert.ok(notice.x >= 0 && notice.x + notice.width <= width, `${width}px: the Undo notice fits with a long card term`);
+    for (const name of ["Later", "Discard", "Undo", "Learn", "Review"]) {
+      await page.getByRole("button", { name }).click({ trial: true, timeout: 3000 });
+    }
+  }
+  console.log("Rendered Chrome: 16 palette/mode combinations, Study 2.1 card surfaces and Undo layout, Classic Details layout, wallpaper fidelity and workspace layouts passed. Screenshots saved.");
 } finally {
   await browser.close();
 }
