@@ -1,8 +1,9 @@
-/** A lightweight, per-topic continuation for fixed-size Study sessions.
+/** A lightweight continuation for fixed-size Study sessions.
  * It is deliberately local: no new database tables or user records.
  */
 export type OpenStudySession = {
   kind: "new" | "review";
+  /** Legacy storage field, also used for a collection or all-subjects session key. */
   packId: string;
   remainingIds: string[];
   /** Accepted into Learn or Review; visits, Later and Discard do not count. */

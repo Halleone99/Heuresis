@@ -192,7 +192,7 @@
    Study home: session start
    --------------------------------------------------------------------------- */
 :root[data-platform="android"] .sh-start { min-height: 44px; padding-inline: 20px; }
-:root[data-platform="android"] .sh-session-options button { min-width: 48px; min-height: 44px; }
+:root[data-platform="android"] .sh-session-pop :is(input, button) { min-height: 44px; }
 :root[data-platform="android"] .sh-session-confirm { min-height: 50px; }
 
 /* Learn: Android keeps :hover on the last tapped answer. */

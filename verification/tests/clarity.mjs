@@ -98,6 +98,42 @@ const scenarios = {
     const fixtureTotal = Number(await sql(`select count(*) from heuresis_cards where pack_id='${HSK}' and data->>'_discarded_at' is null`));
     check(fixtureTotal === 7 && Number(libraryRow.match(/(\d+)\s+cards?/i)?.[1]) === fixtureTotal,
       `Library shows the current topic total, including the two newly added cards (“${libraryRow}”)`);
+
+    const study = page.locator(".study-home");
+    await study.getByRole("button", { name: "Choose subject and topic" }).click();
+    await study.getByRole("button", { name: /Chinese/ }).click();
+    await study.getByRole("button", { name: /^All of Chinese/ }).click();
+    await study.getByRole("radio", { name: /^New/ }).click();
+    await study.getByRole("button", { name: "Start", exact: true }).click();
+    const picker = study.getByRole("dialog", { name: "Choose number of cards" });
+    const amount = picker.getByRole("spinbutton", { name: "Number of cards" });
+    const slider = picker.getByRole("slider", { name: "Session size" });
+    check(await slider.getAttribute("max") === "3", "New includes the unsorted cards from both Chinese topics");
+    await amount.fill("2");
+    check(await slider.inputValue() === "2" && await picker.getByRole("button", { name: "Start 2" }).isEnabled(),
+      "typing a quantity updates the slider and the start button");
+    await slider.press("End");
+    check(await amount.inputValue() === "3", "the slider reaches all three New cards");
+    const random = picker.getByRole("button", { name: "Random" });
+    await random.press("Enter");
+    check(await random.getAttribute("aria-pressed") === "true", "Random can be selected by keyboard before starting");
+    await amount.press("Enter");
+    const currentCard = page.locator(".sort-card");
+    await currentCard.waitFor();
+    const first = await currentCard.getAttribute("data-card-id");
+    await page.getByRole("button", { name: "Close New cards" }).click();
+    await study.getByRole("button", { name: "Start", exact: true }).click();
+    await picker.getByRole("button", { name: "Resume previous session" }).click();
+    await currentCard.waitFor();
+    check(await currentCard.getAttribute("data-card-id") === first, "a mixed-topic New session resumes its shuffled order");
+    const titles = new Set();
+    for (let i = 0; i < 3; i += 1) {
+      titles.add(await page.locator(".sort-new-heading strong").innerText());
+      await page.getByRole("button", { name: "Later", exact: true }).click();
+    }
+    check(titles.has("HSK 2 — Time") && titles.has("Everyday sentences"), "the New session visits both Chinese topics");
+    await page.getByRole("button", { name: "Close New cards" }).click();
+
     await page.locator(".study-desk-title").click();
     await page.locator('.topic-card-main:has-text("HSK 2 — Time")').first().click();
     await page.locator(".topic-browse-hub").waitFor();

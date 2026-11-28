@@ -6,7 +6,8 @@ import { countCaptureInbox } from "../lib/captureInbox";
 import { listCards, listTags, type CardWithStats, type Collection, type HeuresisTag, type PackWithType } from "../lib/heuresis";
 import { NEW_CARD_QUOTA_EVENT, readNewCardQuota } from "../lib/newCardQuota";
 import { listRelatedCounts } from "../lib/related";
-import { cardHasCompletedSort } from "../lib/sort";
+import { cardHasCompletedSort, type NewCardOrder } from "../lib/sort";
+import { shuffle } from "../lib/learnRandom";
 import { readOpenStudy, rememberOpenStudy, type OpenStudySession } from "../lib/studySessionMemory";
 import { relativeOpened } from "../lib/relativeTime";
 import { readKnowledgeMode, studySelectionKey, writeKnowledgeMode, type KnowledgeMode } from "../lib/studyKnowledgeMode";
@@ -33,7 +34,15 @@ type Props = {
 };
 
 const LAST_COLLECTION_KEY = "pos.heuresis.lastCollection";
-type QuickSortSession = { pack: PackWithType; cards: CardWithStats[]; tags: HeuresisTag[]; count: number; total: number; remainingIds?: string[]; validated?: number; toLearning?: number; toReview?: number; discarded?: number; leftForLater?: number };
+type QuickSortSession = {
+  packs: PackWithType[];
+  cards: CardWithStats[];
+  tags: HeuresisTag[];
+  storageKey: string;
+  total: number;
+  remainingIds: string[];
+  resume?: OpenStudySession;
+};
 const STUDY_SELECTION_KEY = "heuresis.study.selection.v1";
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
@@ -89,29 +98,32 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
   }, [packs, modeCollections]);
   const activeCollection = useMemo(() => modeCollections.find((collection) => collection.id === collectionId) ?? null, [collectionId, modeCollections]);
   const filteredReviewIds = reviewLaunchIds ?? modeCollections.map((item) => item.id);
+  const newSessionKey = selection.startsWith("topic:") ? selection.slice(6) : knowledgeMode + ":" + selection;
   const refreshReviews = () => setReviewRevision((previous) => previous + 1);
 
-  async function startNewCards(pack: PackWithType, count: number, resume?: OpenStudySession) {
-    if (!Number.isInteger(count) || count < 1 || newOpening || !modePacks.some((item) => item.id === pack.id)) return;
+  async function startNewCards(requestedPacks: PackWithType[], count: number, storageKey: string, {
+    order = "topic", resume,
+  }: { order?: NewCardOrder; resume?: OpenStudySession } = {}) {
+    const eligiblePacks = requestedPacks.filter((pack) => modePacks.some((item) => item.id === pack.id));
+    if (!Number.isInteger(count) || count < 1 || newOpening || !eligiblePacks.length) return;
     setNewOpening(true);
     setNewError("");
     try {
-      const [cards, tags] = await Promise.all([listCards(pack.id), listTags()]);
+      const [cardsByTopic, tags] = await Promise.all([Promise.all(eligiblePacks.map((pack) => listCards(pack.id))), listTags()]);
+      const cards = cardsByTopic.flat();
       const unsorted = cards.filter((card) => !cardHasCompletedSort(card));
       if (!unsorted.length) {
-        rememberOpenStudy(null, pack.id);
-        refreshReviews(); setNewError("No unclassified cards remain in this topic."); return;
+        rememberOpenStudy(null, storageKey);
+        refreshReviews(); setNewError("No unclassified cards remain in this selection."); return;
       }
-      const eligible = new Set(unsorted.map((card) => card.id));
-      const remainingIds = resume?.remainingIds.filter((id) => eligible.has(id));
-      if (resume && !remainingIds?.length) {
-        rememberOpenStudy(null, pack.id);
+      const orderedIds = (order === "random" && !resume ? shuffle(unsorted, Math.random) : unsorted).map((card) => card.id);
+      const eligible = new Set(orderedIds);
+      const remainingIds = resume ? resume.remainingIds.filter((id) => eligible.has(id)) : orderedIds;
+      if (!remainingIds.length) {
+        rememberOpenStudy(null, storageKey);
         refreshReviews(); setNewError("This session's remaining cards have already been classified."); return;
       }
-      setQuickSort({ pack, cards, tags, count: resume ? remainingIds!.length : Math.min(count, unsorted.length),
-        total: resume?.total ?? Math.min(count, unsorted.length), remainingIds,
-        validated: resume?.validated, toLearning: resume?.toLearning, toReview: resume?.toReview,
-        discarded: resume?.discarded, leftForLater: resume?.leftForLater });
+      setQuickSort({ packs: eligiblePacks, cards, tags, storageKey, total: resume?.total ?? Math.min(count, unsorted.length), remainingIds, resume });
     } catch (failure) {
       setNewError(failure instanceof Error ? failure.message : "Could not start new cards.");
     } finally { setNewOpening(false); }
@@ -315,7 +327,7 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
   }
   function resumeTopic(pack: PackWithType, session: OpenStudySession) {
     chooseStudyScope("topic:" + pack.id);
-    void startNewCards(pack, session.remainingIds.length, session);
+    void startNewCards([pack], session.remainingIds.length, pack.id, { resume: session });
   }
 
   function backToCollections() {
@@ -394,12 +406,15 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
     .sort((a, b) => Date.parse(newestOpen(modePacks.filter((p) => p.collection_id === b.id)) ?? "1970-01-01")
        - Date.parse(newestOpen(modePacks.filter((p) => p.collection_id === a.id)) ?? "1970-01-01"));
 
+  const previousNew = readOpenStudy(newSessionKey);
   const activityPanel = modeCollections.length ? <TodayStudyPanel collections={modeCollections} packs={modePacks} key="activity" overview={reviewOverview}
         selection={selection} onSelectionChange={chooseStudyScope} launchRequest={launchRequest}
         quota={newCardQuota} opening={newOpening || learningOpening || reviewOpening} error={newError}
         onReview={(ids, topicId) => { setReviewLaunchIds(ids); setReviewLaunchTopicId(topicId ?? null); setReviewsOpen(true); }}
         onStartReview={(count, scopedPacks) => void startReview(count, scopedPacks)}
-        onStartNew={(pack, count) => void startNewCards(pack, count)}
+        onStartNew={(eligible, count, order) => void startNewCards(eligible, count, newSessionKey, { order })}
+        onResumeNew={previousNew?.kind === "new" ? (scopedPacks) =>
+          void startNewCards(scopedPacks, previousNew.remainingIds.length, newSessionKey, { resume: previousNew }) : undefined}
         onStartLearning={(eligible, scopeTitle) => void startLearning(eligible, scopeTitle)} /> : null;
   const collectionDesk = selectedCollection ? <div className="library-desk study-desk" key="collections">
         <section className="study-desk-feature" data-accent={selectedCollection.accent} aria-label={selectedCollection.title}>
@@ -497,11 +512,10 @@ export default function LibraryView({ collections, packs, newCardsWallpaper, onO
         {activityPanel}
         {collectionDesk}
       </div>
-      {quickSort ? <SortModal key={quickSort.pack.id} pack={quickSort.pack} cards={quickSort.cards} tags={quickSort.tags}
-        wallpaper={newCardsWallpaper} quickStartCount={quickSort.count} studySession={{ total: quickSort.total, remainingIds: quickSort.remainingIds, validated: quickSort.validated,
-          toLearning: quickSort.toLearning, toReview: quickSort.toReview,
-          discarded: quickSort.discarded, leftForLater: quickSort.leftForLater }} onClose={closeQuickSort} onChanged={() => undefined}
-        onLearning={() => void startLearning(quickSort.pack)} /> : null}
+      {quickSort ? <SortModal key={quickSort.storageKey} pack={quickSort.packs[0]} sessionPacks={quickSort.packs}
+        cards={quickSort.cards} tags={quickSort.tags} wallpaper={newCardsWallpaper} quickStartCount={quickSort.total}
+        studySession={{ ...quickSort.resume, storageKey: quickSort.storageKey, total: quickSort.total, remainingIds: quickSort.remainingIds }}
+        onClose={closeQuickSort} onChanged={() => undefined} onLearning={() => void startLearning(quickSort.packs)} /> : null}
       {learningSession ? <LearningSession topics={learningSession.topics} title={learningSession.title}
         onClose={closeLearning} onChanged={refreshReviews} /> : null}
     </section>

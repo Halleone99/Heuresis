@@ -1,9 +1,11 @@
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Layers3, Play, RotateCcw, TrendingUp } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Layers3, Play, RotateCcw, Shuffle, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Collection, PackWithType } from "../lib/heuresis";
 import type { ReviewOverview } from "../lib/reviewOverview";
 import { loadStudyActivity, type StudyActivity } from "../lib/studyActivity";
 import { LEARN_SETUP_MESSAGE } from "../lib/learnRounds";
+import { readNewCardOrder, saveNewCardOrder, type NewCardOrder } from "../lib/sort";
+import { SegmentedChoice } from "./SegmentedChoice";
 
 type StudyMode = "new" | "learn" | "review";
 type StatsView = "activity" | "today" | "quality";
@@ -25,7 +27,8 @@ type Props = {
   opening: boolean;
   error: string;
   onReview: (collectionIds: string[], topicId?: string) => void;
-  onStartNew: (pack: PackWithType, count: number) => void;
+  onStartNew: (packs: PackWithType[], count: number, order: NewCardOrder) => void;
+  onResumeNew?: (packs: PackWithType[]) => void;
   onStartLearning: (packs: PackWithType[], scopeLabel: string) => void;
   onStartReview: (count: number, scopedPacks: PackWithType[]) => void;
 };
@@ -66,7 +69,7 @@ function rangeLabel(from: Date, to: Date) {
 function weekName(date: Date) { return dayFormat.format(date).slice(0, 2); }
 
 export default function TodayStudyPanel({
-  collections, packs, overview, selection, onSelectionChange, launchRequest, quota, opening, error, onReview, onStartNew, onStartLearning, onStartReview,
+  collections, packs, overview, selection, onSelectionChange, launchRequest, quota, opening, error, onReview, onStartNew, onResumeNew, onStartLearning, onStartReview,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuCollectionId, setMenuCollectionId] = useState<string | null>(null);
@@ -75,7 +78,8 @@ export default function TodayStudyPanel({
   const [allStages, setAllStages] = useState(false);
   const [offset, setOffset] = useState(0);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [sessionSize, setSessionSize] = useState(10);
+  const [sessionSizeDraft, setSessionSizeDraft] = useState("10");
+  const [newOrder, setNewOrder] = useState(readNewCardOrder);
   const [activity, setActivity] = useState<StudyActivity | null>(null);
   const [activityStatus, setActivityStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -110,15 +114,16 @@ export default function TodayStudyPanel({
   const scopeGlyph = parent?.glyph || selectedCollection?.glyph;
   const newTopics = scopePacks.filter((p) => (overview?.topics[p.id]?.newReady ?? 0) > 0)
     .sort((a, b) => Date.parse(b.last_opened_at ?? "1970-01-01") - Date.parse(a.last_opened_at ?? "1970-01-01"));
-  const nextTopic = newTopics[0] ?? null;
-  const topicReady = nextTopic ? overview?.topics[nextTopic.id]?.newReady ?? 0 : 0;
   const learningPacks = scopePacks.filter((p) => overview?.learnAvailable &&
     ((overview.topics[p.id]?.learnDue ?? 0) + (overview.topics[p.id]?.learnReady ?? 0)) > 0);
   const stageCounts: Record<StudyMode, number> = { new: newReady, learn: learnActionable, review: ready };
   // Widths represent today’s actual workload, not the full historical stage inventory.
   const volumeCounts = stageCounts;
   const volumeTotal = newReady + learnActionable + ready;
-  const maximum = mode === "new" ? topicReady : ready;
+  const maximum = mode === "new" ? newReady : ready;
+  const sessionSize = Number(sessionSizeDraft);
+  const validSize = Number.isSafeInteger(sessionSize) && sessionSize >= 1 && sessionSize <= maximum;
+  const setSessionSize = (size: number) => setSessionSizeDraft(String(size));
   const days = useMemo(() => localWindow(offset), [offset]);
 
   function chooseMode(next: StudyMode) {
@@ -176,9 +181,10 @@ export default function TodayStudyPanel({
   function launchForStage(stage: StudyMode) {
     if (!overview || opening || !stageCounts[stage]) return;
     if (stage === "learn") { onStartLearning(learningPacks, scopeLabel); return; }
-    const limit = stage === "new" ? topicReady : ready;
+    const limit = stage === "new" ? newReady : ready;
     if (!limit) return;
     setSessionSize(Math.min(limit, stage === "new" ? Math.max(1, quota - newToday || quota) : 10));
+    if (stage === "new") setNewOrder(readNewCardOrder());
     setSessionOpen(true);
     panelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
@@ -197,18 +203,22 @@ export default function TodayStudyPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchRequest, selection, overview]);
   function confirmSession() {
-    if (!Number.isInteger(sessionSize) || sessionSize < 1 || sessionSize > maximum || opening) return;
+    if (!validSize || opening) return;
     setSessionOpen(false);
-    if (mode === "new" && nextTopic) onStartNew(nextTopic, sessionSize);
-    else if (mode === "review") onStartReview(sessionSize, scopePacks);
+    if (mode === "new") {
+      saveNewCardOrder(newOrder);
+      onStartNew(newTopics, sessionSize, newOrder);
+    } else if (mode === "review") onStartReview(sessionSize, scopePacks);
   }
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
       const target = event.target as HTMLElement;
       if (target.closest("input,textarea,select,[contenteditable=true]") || pickerOpen) return;
       if (sessionOpen) {
-        if (event.key === "Enter") { event.preventDefault(); confirmSession(); }
+        if (event.key === "Enter" && (target === document.body || target === document.documentElement)) {
+          event.preventDefault(); confirmSession();
+        }
         return;
       }
       const stage = event.key === "1" ? "new" : event.key === "2" ? "learn" : event.key === "3" ? "review" : null;
@@ -338,7 +348,6 @@ export default function TodayStudyPanel({
   };
 
   const selectedToday = today[mode];
-  const sizeOptions = mode === "new" ? [5, 10, 15, 20] : [10, 20, 30];
   const startTitle = mode === "new" ? "Start new cards" : mode === "learn" ? "Continue learning" : "Start review";
   void onReview; // Retain the existing Review Centre callback for callers outside this panel.
 
@@ -399,21 +408,30 @@ export default function TodayStudyPanel({
         </button>)}
       </div>
       <div className="sh-start-area" ref={startRef}>
-        <button className="sh-start" type="button" title={startTitle + " · " + scopeLabel} onClick={launch}
+        <button className="sh-start" type="button" title={startTitle + " · " + scopeLabel} onClick={launch} aria-expanded={mode !== "learn" ? sessionOpen : undefined}
           disabled={!overview || opening || stageCounts[mode] === 0}>
           <Play size={12} fill="currentColor" aria-hidden="true" />{opening ? "Opening…" : "Start"}
         </button>
-        {sessionOpen && maximum > 0 ? <div className="sh-session-pop" role="dialog" aria-label="Choose number of cards">
-          <h3>HOW MANY CARDS?</h3>
-          <div className="sh-session-options" role="group" aria-label="Session size">
-            {sizeOptions.map((n) => <button key={n} type="button" disabled={n > maximum} aria-pressed={sessionSize === n}
-              className={sessionSize === n ? "on" : ""} onClick={() => setSessionSize(n)}>{n}</button>)}
+        {sessionOpen && maximum > 0 ? <form className="sh-session-pop" role="dialog" aria-label="Choose number of cards"
+          onSubmit={(event) => { event.preventDefault(); confirmSession(); }}>
+          <div className="sh-session-options">
+            <label htmlFor="sh-session-count">Number of cards</label>
+            <input id="sh-session-count" type="number" min={1} max={maximum} step={1} required inputMode="numeric"
+              value={sessionSizeDraft} onChange={(event) => setSessionSizeDraft(event.target.value)} />
             <button type="button" className={sessionSize === maximum ? "on" : ""} aria-pressed={sessionSize === maximum}
               onClick={() => setSessionSize(maximum)}>All {countText(maximum)}</button>
           </div>
-          <button className="sh-session-confirm" type="button" onClick={confirmSession}
-            disabled={!sessionSize || sessionSize > maximum || opening}>Start {countText(sessionSize)} <span aria-hidden="true">→</span></button>
-        </div> : null}
+          <input className="sh-session-range" type="range" aria-label="Session size" min={1} max={maximum} step={1}
+            disabled={maximum === 1} value={Math.min(maximum, Math.max(1, sessionSize || 1))}
+            onChange={(event) => setSessionSize(event.target.valueAsNumber)} />
+          {mode === "new" ? <SegmentedChoice label="New card order" className="sh-session-order" value={newOrder} onChange={setNewOrder}
+            options={[{ value: "topic", label: "Topic order" }, { value: "random", label: "Random", icon: <Shuffle size={13} aria-hidden="true" /> }]} /> : null}
+          <button className="sh-session-confirm" type="submit" disabled={!validSize || opening}>
+            {validSize ? "Start " + countText(sessionSize) : "Start"} <span aria-hidden="true">→</span>
+          </button>
+          {mode === "new" && onResumeNew ? <button className="sh-session-resume" type="button" disabled={opening}
+            onClick={() => { setSessionOpen(false); onResumeNew(scopePacks); }}>Resume previous session</button> : null}
+        </form> : null}
       </div>
     </div>
 

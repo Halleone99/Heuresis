@@ -4,6 +4,17 @@ import { DISCARDED_AT_KEY, deleteCard, isDiscarded, patchCardData, type CardWith
 export { DISCARDED_AT_KEY, isDiscarded };
 
 export const SORTED_AT_KEY = "_sorted_at";
+const ORDER_KEY = "heuresis.sort.order.v1";
+export type NewCardOrder = "topic" | "random";
+
+export function readNewCardOrder(): NewCardOrder {
+  try { return localStorage.getItem(ORDER_KEY) === "random" ? "random" : "topic"; }
+  catch { return "topic"; }
+}
+
+export function saveNewCardOrder(order: NewCardOrder): void {
+  try { localStorage.setItem(ORDER_KEY, order); } catch { /* Preference only. */ }
+}
 
 function db() {
   if (!supabase) throw new Error("Supabase is not configured.");
